@@ -58,12 +58,12 @@ const DoctorDashboard = () => {
 
   const bottomContent = (
     <div className="space-y-1">
-      <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
-        <MessageCircle className="w-4 h-4 shrink-0" />
+      <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-primary-foreground transition-all duration-150">
+        <MessageCircle className="w-[18px] h-[18px] shrink-0" />
         <span>WhatsApp Us</span>
       </a>
-      <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
-        <FileText className="w-4 h-4 shrink-0" />
+      <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-primary-foreground transition-all duration-150">
+        <FileText className="w-[18px] h-[18px] shrink-0" />
         <span>MOU / Agreement</span>
       </a>
     </div>
