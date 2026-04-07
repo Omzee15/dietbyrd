@@ -183,7 +183,7 @@ const DieticianDashboard = () => {
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar title="FitArc" subtitle="Dietician Portal" sections={sidebarSections} />
+      <AppSidebar title="DietByRD" subtitle="Dietician Portal" sections={sidebarSections} />
 
       <main className="flex-1 bg-background">
         {/* Top bar - no tabs, just user info */}

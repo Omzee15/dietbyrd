@@ -8,9 +8,9 @@ const Index = () => {
       <div className="text-center space-y-8 max-w-2xl mx-auto px-6">
         <div>
           <div className="w-16 h-16 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold mx-auto mb-4">
-            FA
+            DR
           </div>
-          <h1 className="text-4xl font-bold tracking-tight">FitArc Platform</h1>
+          <h1 className="text-4xl font-bold tracking-tight">DietByRD</h1>
           <p className="text-muted-foreground mt-2">Clinical collaboration platform for mental health professionals</p>
         </div>
 
