@@ -87,7 +87,11 @@ const AppSidebar = ({ title, subtitle, sections, bottomContent }: AppSidebarProp
         ))}
       </nav>
 
-      {!collapsed && bottomContent && <div className="p-3">{bottomContent}</div>}
+      {bottomContent && (
+        <div className={`p-3 border-t border-sidebar-accent ${collapsed ? 'flex flex-col items-center gap-2' : ''}`}>
+          {bottomContent}
+        </div>
+      )}
     </aside>
   );
 };
