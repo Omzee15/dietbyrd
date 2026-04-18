@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
-import { CalendarDays, Minus, Plus, Search, Settings, Trash2, Users, UtensilsCrossed, Loader2, LogOut, ChevronDown } from "lucide-react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { CalendarDays, Minus, Plus, Search, Settings, Trash2, Users, UtensilsCrossed, Loader2, LogOut, ChevronDown, X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import AppSidebar from "@/components/AppSidebar";
 import { getDietician, getDieticianPatients, getConsultations, type Patient, type Dietician, type Consultation } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface FoodItem {
@@ -212,9 +215,220 @@ const DieticianDashboard = () => {
     navigate(paths[tab]);
   };
 
+  // Helper function to format dates
+  const formatDate = (dateStr?: string) => {
+    const date = dateStr ? new Date(dateStr) : new Date();
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  // PDF Download Function
+  const downloadDietPlanPDF = () => {
+    if (!selectedPatient) {
+      toast.error("Please select a patient first");
+      return;
+    }
+
+    // Find the full patient data
+    const fullPatient = patients?.find(p => p.id === selectedPatient.id);
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Header
+    doc.setFillColor(20, 184, 166); // Teal color
+    doc.rect(0, 0, pageWidth, 45, 'F');
+    
+    // Logo/Title
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DietByRD', 15, 22);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Personalized Diet Plan', 15, 32);
+    
+    // Plan date
+    doc.setFontSize(9);
+    doc.text(`Generated: ${formatDate()}`, pageWidth - 15, 22, { align: 'right' });
+    doc.text(`Dietician: ${currentDietician?.name || 'N/A'}`, pageWidth - 15, 32, { align: 'right' });
+    
+    // Patient info section
+    let yPos = 55;
+    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Patient Information', 15, yPos);
+    
+    yPos += 10;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${selectedPatient.name}`, 15, yPos);
+    doc.text(`Age: ${selectedPatient.age} years`, 100, yPos);
+    yPos += 7;
+    doc.text(`Diagnosis: ${selectedPatient.diagnosis}`, 15, yPos);
+    if (fullPatient?.dietary_preference) {
+      doc.text(`Diet Type: ${fullPatient.dietary_preference}`, 100, yPos);
+    }
+    
+    // Divider
+    yPos += 12;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(15, yPos, pageWidth - 15, yPos);
+    
+    // Daily Nutrition Summary
+    yPos += 12;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(60, 60, 60);
+    doc.text('Daily Nutrition Summary', 15, yPos);
+    
+    yPos += 10;
+    const summaryData = [
+      ['Calories', `${Math.round(totalNutrients.calories)} kcal`],
+      ['Protein', `${Math.round(totalNutrients.protein)} g`],
+      ['Carbohydrates', `${Math.round(totalNutrients.carbs)} g`],
+      ['Fat', `${Math.round(totalNutrients.fat)} g`],
+    ];
+    
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Nutrient', 'Daily Total']],
+      body: summaryData,
+      theme: 'striped',
+      headStyles: { fillColor: [20, 184, 166], textColor: 255 },
+      styles: { fontSize: 10, cellPadding: 4 },
+      margin: { left: 15, right: 15 },
+      tableWidth: 'auto',
+    });
+    
+    // Get the final Y position after the table
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+    
+    // Meal Plans
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Meal Plan', 15, yPos);
+    
+    meals.forEach((meal) => {
+      yPos += 12;
+      
+      // Check if we need a new page
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(20, 184, 166);
+      doc.text(meal.name, 15, yPos);
+      
+      const mealCalories = Math.round(getMealCalories(meal));
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(120, 120, 120);
+      doc.setFontSize(10);
+      doc.text(`${mealCalories} kcal`, pageWidth - 15, yPos, { align: 'right' });
+      
+      if (meal.items && meal.items.length > 0) {
+        yPos += 5;
+        const mealData = meal.items.map((item) => {
+          const factor = item.quantity / 100;
+          return [
+            item.name + (item.nameHindi ? ` (${item.nameHindi})` : ''),
+            `${item.quantity} ${item.unit}`,
+            `${Math.round(item.calories * factor)}`,
+            `${(item.protein * factor).toFixed(1)}`,
+            `${(item.carbs * factor).toFixed(1)}`,
+            `${(item.fat * factor).toFixed(1)}`,
+          ];
+        });
+        
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Food Item', 'Quantity', 'Cal', 'P(g)', 'C(g)', 'F(g)']],
+          body: mealData,
+          theme: 'grid',
+          headStyles: { fillColor: [240, 240, 240], textColor: [60, 60, 60], fontSize: 8 },
+          styles: { fontSize: 9, cellPadding: 3 },
+          columnStyles: {
+            0: { cellWidth: 60 },
+            1: { cellWidth: 30, halign: 'center' },
+            2: { cellWidth: 20, halign: 'center' },
+            3: { cellWidth: 20, halign: 'center' },
+            4: { cellWidth: 20, halign: 'center' },
+            5: { cellWidth: 20, halign: 'center' },
+          },
+          margin: { left: 15, right: 15 },
+        });
+        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        yPos = (doc as any).lastAutoTable.finalY + 5;
+      } else {
+        yPos += 8;
+        doc.setTextColor(150, 150, 150);
+        doc.setFont('helvetica', 'italic');
+        doc.text('No items added', 20, yPos);
+        doc.setFont('helvetica', 'normal');
+      }
+    });
+    
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(
+        `Page ${i} of ${pageCount} | DietByRD - Your Health, Our Priority`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: 'center' }
+      );
+    }
+    
+    // Save PDF
+    const fileName = `DietPlan_${selectedPatient.name.replace(/\s+/g, '_')}_${formatDate().replace(/,\s*/g, '_').replace(/\s+/g, '_')}.pdf`;
+    doc.save(fileName);
+    toast.success("Diet plan PDF downloaded successfully!");
+  };
+
   const handleLogout = () => {
     logout();
     navigate("/");
+  };
+
+  const handleAddNewMeal = () => {
+    const trimmedName = newMealName.trim();
+    if (!trimmedName) return;
+    
+    if (meals.some(m => m.name.toLowerCase() === trimmedName.toLowerCase())) {
+      toast.error("A meal with this name already exists");
+      return;
+    }
+    
+    setMeals(prev => [...prev, { name: trimmedName, items: [] }]);
+    setActiveMeal(trimmedName);
+    setNewMealName("");
+    setShowAddMeal(false);
+    toast.success(`"${trimmedName}" meal added`);
+  };
+
+  const handleRemoveMeal = (mealName: string) => {
+    if (meals.length <= 1) {
+      toast.error("At least one meal is required");
+      return;
+    }
+    setMeals(prev => prev.filter(m => m.name !== mealName));
+    if (activeMeal === mealName) {
+      setActiveMeal(meals[0].name !== mealName ? meals[0].name : meals[1]?.name || "");
+    }
+    toast.success(`"${mealName}" removed`);
   };
   
   const [meals, setMeals] = useState<MealSlot[]>([
@@ -224,6 +438,10 @@ const DieticianDashboard = () => {
     { name: "Evening Snack", items: [] },
     { name: "Dinner", items: [] },
   ]);
+
+  // New meal state
+  const [showAddMeal, setShowAddMeal] = useState(false);
+  const [newMealName, setNewMealName] = useState<string>("");
 
   const dailyTarget = { calories: 1800, protein: 90, carbs: 200, fat: 60 };
 
@@ -337,6 +555,30 @@ const DieticianDashboard = () => {
     </button>
   );
 
+  // Pending verification state
+  if (user?.isVerified === false) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-green-50 to-emerald-50">
+        <div className="text-center p-8 bg-white rounded-2xl shadow-lg max-w-md mx-4">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Verification Pending</h2>
+          <p className="text-gray-600 mb-6">
+            Your account is currently under review. Our admin team will verify your credentials soon.
+            You'll be able to access all features once verified.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <Button variant="outline" onClick={handleLogout} className="gap-2">
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen">
       <AppSidebar title="DietByRD" subtitle="Dietician Portal" sections={sidebarSections} bottomContent={bottomContent} />
@@ -375,27 +617,6 @@ const DieticianDashboard = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-
-        {/* Navigation tabs */}
-        <div className="px-6 pt-4">
-          <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
-            {([
-              { key: "patients", label: "My Patients" },
-              { key: "schedule", label: "My Schedule" },
-              { key: "diet", label: "Diet Chart" },
-            ] as const).map((tab) => (
-              <Button
-                key={tab.key}
-                variant={activeTab === tab.key ? "default" : "ghost"}
-                size="sm"
-                onClick={() => handleTabChange(tab.key)}
-                className="text-xs"
-              >
-                {tab.label}
-              </Button>
-            ))}
-          </div>
         </div>
 
         {/* Loading overlay */}
@@ -526,32 +747,84 @@ const DieticianDashboard = () => {
           <div className="flex flex-1">
             <div className="flex-1 flex">
               <div className="w-48 border-r p-4 space-y-1">
-                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                  Daily Meals
-                  {selectedPatient && (
-                    <span className="block text-[10px] font-normal normal-case mt-0.5">for {selectedPatient.name}</span>
-                  )}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Daily Meals
+                    {selectedPatient && (
+                      <span className="block text-[10px] font-normal normal-case mt-0.5">for {selectedPatient.name}</span>
+                    )}
+                  </div>
                 </div>
+                
+                {/* Add new meal input */}
+                {showAddMeal && (
+                  <div className="mb-3 p-2 bg-muted/50 rounded-lg space-y-2">
+                    <Input
+                      placeholder="Meal name"
+                      value={newMealName}
+                      onChange={(e) => setNewMealName(e.target.value)}
+                      className="h-8 text-sm"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddNewMeal();
+                        if (e.key === 'Escape') {
+                          setShowAddMeal(false);
+                          setNewMealName("");
+                        }
+                      }}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" className="h-7 text-xs flex-1" onClick={handleAddNewMeal}>
+                        <Plus className="w-3 h-3 mr-1" /> Add
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        className="h-7 text-xs" 
+                        onClick={() => { setShowAddMeal(false); setNewMealName(""); }}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
                 {meals.map((meal) => {
                   const cal = Math.round(getMealCalories(meal));
                   return (
-                    <button
-                      key={meal.name}
-                      onClick={() => setActiveMeal(meal.name)}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                        activeMeal === meal.name
-                          ? "bg-primary/10 text-primary font-semibold border border-primary/20"
-                          : "hover:bg-muted text-foreground"
-                      }`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span>{meal.name}</span>
-                        <span className="text-xs text-muted-foreground">{cal} kcal</span>
-                      </div>
-                    </button>
+                    <div key={meal.name} className="group relative">
+                      <button
+                        onClick={() => setActiveMeal(meal.name)}
+                        className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                          activeMeal === meal.name
+                            ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                            : "hover:bg-muted text-foreground"
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span>{meal.name}</span>
+                          <span className="text-xs text-muted-foreground">{cal} kcal</span>
+                        </div>
+                      </button>
+                      {!["Breakfast", "Lunch", "Dinner"].includes(meal.name) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveMeal(meal.name);
+                          }}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded text-destructive transition-opacity"
+                          title="Remove meal"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
-                <button className="w-full mt-3 border-2 border-dashed border-muted-foreground/30 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                <button 
+                  onClick={() => setShowAddMeal(true)}
+                  className="w-full mt-3 border-2 border-dashed border-muted-foreground/30 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                >
                   + Add Meal
                 </button>
               </div>
@@ -711,7 +984,14 @@ const DieticianDashboard = () => {
               </div>
 
               <Button variant="outline" className="w-full">Show Full Micronutrient Panel</Button>
-              <Button className="w-full">Generate PDF</Button>
+              <Button 
+                className="w-full" 
+                onClick={downloadDietPlanPDF}
+                disabled={!selectedPatient || meals.every(m => m.items.length === 0)}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download PDF
+              </Button>
             </div>
           </div>
         )}

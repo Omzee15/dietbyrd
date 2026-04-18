@@ -51,11 +51,12 @@ const App = () => (
             {/* Public routes */}
             <Route path="/" element={<Index />} />
 
-            {/* Doctor routes */}
-            <Route element={<ProtectedRoute allowedRoles={["doctor"]} />}>
+            {/* Doctor routes - doctors and their assistants */}
+            <Route element={<ProtectedRoute allowedRoles={["doctor", "assistant"]} />}>
               <Route path="/doctor" element={<DoctorDashboard />} />
               <Route path="/doctor/patients" element={<DoctorPatients />} />
               <Route path="/doctor/referrals" element={<DoctorReferrals />} />
+              <Route path="/doctor/admin" element={<DoctorAnalytics />} />
               <Route path="/doctor/analytics" element={<DoctorAnalytics />} />
               <Route path="/doctor/settings" element={<DoctorSettings />} />
             </Route>

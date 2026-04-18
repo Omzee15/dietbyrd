@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   ArrowLeft,
   CalendarDays,
@@ -19,11 +21,12 @@ import {
   User,
   Users,
   UtensilsCrossed,
-  Eye,
+  Edit3,
   Download,
   ChevronDown,
   ChevronUp,
   Check,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,9 +155,24 @@ const PatientDetail = () => {
     { name: "Dinner", items: [] },
   ]);
 
-  // Weight tracking state
+  // Body composition state
   const [currentWeight, setCurrentWeight] = useState<string>("");
   const [targetWeight, setTargetWeight] = useState<string>("");
+  const [height, setHeight] = useState<string>("");
+
+  // Calculate BMI
+  const calculateBMI = (weight: string, heightCm: string): string | null => {
+    const w = parseFloat(weight);
+    const h = parseFloat(heightCm);
+    if (!w || !h || h === 0) return null;
+    const heightM = h / 100;
+    return (w / (heightM * heightM)).toFixed(1);
+  };
+  const bmi = calculateBMI(currentWeight, height);
+
+  // New meal state
+  const [showAddMeal, setShowAddMeal] = useState(false);
+  const [newMealName, setNewMealName] = useState<string>("");
 
   const dailyTarget = { calories: 1800, protein: 90, carbs: 200, fat: 60 };
 
@@ -170,12 +188,219 @@ const PatientDetail = () => {
     setSearchTerm("");
     setCurrentWeight("");
     setTargetWeight("");
+    setHeight("");
   };
 
   // Handlers
   const handleLogout = () => {
     logout();
     navigate("/");
+  };
+
+  // PDF Download Function for saved diet plans
+  const downloadDietPlanPDF = (plan: DietPlan) => {
+    if (!patient) {
+      toast.error("Patient information not available");
+      return;
+    }
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Header
+    doc.setFillColor(20, 184, 166); // Teal color
+    doc.rect(0, 0, pageWidth, 45, 'F');
+    
+    // Logo/Title
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DietByRD', 15, 22);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Personalized Diet Plan', 15, 32);
+    
+    // Plan date
+    doc.setFontSize(9);
+    doc.text(`Generated: ${formatDate(plan.issued_at || plan.created_at)}`, pageWidth - 15, 22, { align: 'right' });
+    doc.text(`Plan ID: #${plan.id}`, pageWidth - 15, 32, { align: 'right' });
+    
+    // Patient info section
+    let yPos = 55;
+    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Patient Information', 15, yPos);
+    
+    yPos += 10;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${patient.name || 'N/A'}`, 15, yPos);
+    doc.text(`Age: ${patient.age || 'N/A'} years`, 100, yPos);
+    yPos += 7;
+    doc.text(`Diagnosis: ${patient.diagnosis || 'General'}`, 15, yPos);
+    doc.text(`Diet Type: ${patient.dietary_preference || 'Not specified'}`, 100, yPos);
+    
+    // Weight info
+    if (plan.plan_json?.weight) {
+      yPos += 7;
+      if (plan.plan_json.weight.current) {
+        doc.text(`Current Weight: ${plan.plan_json.weight.current} kg`, 15, yPos);
+      }
+      if (plan.plan_json.weight.target) {
+        doc.text(`Target Weight: ${plan.plan_json.weight.target} kg`, 100, yPos);
+      }
+    }
+    
+    // Divider
+    yPos += 12;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(15, yPos, pageWidth - 15, yPos);
+    
+    // Daily Nutrition Summary
+    yPos += 12;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(60, 60, 60);
+    doc.text('Daily Nutrition Summary', 15, yPos);
+    
+    yPos += 10;
+    const totals = plan.plan_json?.totals as { calories?: number; protein?: number; carbs?: number; fat?: number } || {};
+    const summaryData = [
+      ['Calories', `${totals.calories || 0} kcal`],
+      ['Protein', `${totals.protein || 0} g`],
+      ['Carbohydrates', `${totals.carbs || 0} g`],
+      ['Fat', `${totals.fat || 0} g`],
+    ];
+    
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Nutrient', 'Daily Target']],
+      body: summaryData,
+      theme: 'striped',
+      headStyles: { fillColor: [20, 184, 166], textColor: 255 },
+      styles: { fontSize: 10, cellPadding: 4 },
+      margin: { left: 15, right: 15 },
+      tableWidth: 'auto',
+    });
+    
+    // Get the final Y position after the table
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+    
+    // Meal Plans
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Meal Plan', 15, yPos);
+    
+    const meals = plan.plan_json?.meals || [];
+    meals.forEach((meal: any) => {
+      yPos += 12;
+      
+      // Check if we need a new page
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(20, 184, 166);
+      doc.text(meal.name, 15, yPos);
+      
+      const mealCalories = meal.items?.reduce((sum: number, item: any) => sum + (item.calories || 0), 0) || 0;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(120, 120, 120);
+      doc.setFontSize(10);
+      doc.text(`${mealCalories} kcal`, pageWidth - 15, yPos, { align: 'right' });
+      
+      if (meal.items && meal.items.length > 0) {
+        yPos += 5;
+        const mealData = meal.items.map((item: any) => [
+          item.name + (item.nameHindi ? ` (${item.nameHindi})` : ''),
+          `${item.quantity || ''} ${item.unit || 'g'}`,
+          `${item.calories || 0}`,
+          `${item.protein || 0}`,
+          `${item.carbs || 0}`,
+          `${item.fat || 0}`,
+        ]);
+        
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Food Item', 'Quantity', 'Cal', 'P(g)', 'C(g)', 'F(g)']],
+          body: mealData,
+          theme: 'grid',
+          headStyles: { fillColor: [240, 240, 240], textColor: [60, 60, 60], fontSize: 8 },
+          styles: { fontSize: 9, cellPadding: 3 },
+          columnStyles: {
+            0: { cellWidth: 60 },
+            1: { cellWidth: 30, halign: 'center' },
+            2: { cellWidth: 20, halign: 'center' },
+            3: { cellWidth: 20, halign: 'center' },
+            4: { cellWidth: 20, halign: 'center' },
+            5: { cellWidth: 20, halign: 'center' },
+          },
+          margin: { left: 15, right: 15 },
+        });
+        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        yPos = (doc as any).lastAutoTable.finalY + 5;
+      } else {
+        yPos += 8;
+        doc.setTextColor(150, 150, 150);
+        doc.setFont('helvetica', 'italic');
+        doc.text('No items added', 20, yPos);
+        doc.setFont('helvetica', 'normal');
+      }
+    });
+    
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(
+        `Page ${i} of ${pageCount} | DietByRD - Your Health, Our Priority`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: 'center' }
+      );
+    }
+    
+    // Save PDF
+    const fileName = `DietPlan_${patient.name?.replace(/\s+/g, '_') || 'Patient'}_${formatDate(plan.issued_at || plan.created_at).replace(/,\s*/g, '_').replace(/\s+/g, '_')}.pdf`;
+    doc.save(fileName);
+    toast.success("Diet plan PDF downloaded successfully!");
+  };
+
+  const handleAddNewMeal = () => {
+    const trimmedName = newMealName.trim();
+    if (!trimmedName) return;
+    
+    if (meals.some(m => m.name.toLowerCase() === trimmedName.toLowerCase())) {
+      toast.error("A meal with this name already exists");
+      return;
+    }
+    
+    setMeals(prev => [...prev, { name: trimmedName, items: [] }]);
+    setActiveMeal(trimmedName);
+    setNewMealName("");
+    setShowAddMeal(false);
+    toast.success(`"${trimmedName}" meal added`);
+  };
+
+  const handleRemoveMeal = (mealName: string) => {
+    if (meals.length <= 1) {
+      toast.error("At least one meal is required");
+      return;
+    }
+    setMeals(prev => prev.filter(m => m.name !== mealName));
+    if (activeMeal === mealName) {
+      setActiveMeal(meals[0].name !== mealName ? meals[0].name : meals[1]?.name || "");
+    }
+    toast.success(`"${mealName}" removed`);
   };
 
   const searchResults = searchTerm.length >= 2
@@ -491,10 +716,17 @@ const PatientDetail = () => {
                                 Active
                               </Badge>
                             )}
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Eye className="w-4 h-4" />
-                              <span>{plan.view_count || 0} views</span>
-                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1.5 h-8"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadDietPlanPDF(plan);
+                              }}
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
                             {expandedPlanId === plan.id ? (
                               <ChevronUp className="w-5 h-5 text-muted-foreground" />
                             ) : (
@@ -603,15 +835,23 @@ const PatientDetail = () => {
 
                               {/* Actions */}
                               <div className="flex gap-2 pt-2">
-                                {plan.pdf_url && (
-                                  <Button variant="outline" size="sm" className="gap-2">
-                                    <Download className="w-4 h-4" />
-                                    Download PDF
-                                  </Button>
-                                )}
-                                <Button variant="outline" size="sm" className="gap-2">
-                                  <Eye className="w-4 h-4" />
-                                  View Full Plan
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="gap-2"
+                                  onClick={() => downloadDietPlanPDF(plan)}
+                                >
+                                  <Download className="w-4 h-4" />
+                                  Download PDF
+                                </Button>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="gap-2"
+                                  onClick={() => navigate(`/dietician/patient/${slug}/edit-diet/${plan.id}`)}
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                  Edit Plan
                                 </Button>
                               </div>
                             </div>
@@ -652,16 +892,16 @@ const PatientDetail = () => {
                   </Button>
                 </CardHeader>
                 <CardContent className="p-0">
-                  {/* Weight tracking section */}
+                  {/* Body composition section */}
                   <div className="p-4 border-b bg-muted/30">
                     <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                      Weight Tracking
+                      Body Composition
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-4 gap-4">
                       <div className="space-y-2">
                         <label className="text-sm font-medium flex items-center gap-2">
                           <Scale className="w-4 h-4 text-muted-foreground" />
-                          Current Weight (kg)
+                          Weight (kg)
                         </label>
                         <Input
                           type="number"
@@ -673,8 +913,35 @@ const PatientDetail = () => {
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium flex items-center gap-2">
+                          <User className="w-4 h-4 text-muted-foreground" />
+                          Height (cm)
+                        </label>
+                        <Input
+                          type="number"
+                          placeholder="e.g. 170"
+                          value={height}
+                          onChange={(e) => setHeight(e.target.value)}
+                          className="h-10"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium flex items-center gap-2">
+                          BMI
+                        </label>
+                        <div className={`h-10 flex items-center justify-center rounded-md border bg-muted/50 font-bold ${
+                          bmi ? (
+                            parseFloat(bmi) < 18.5 ? 'text-blue-600' :
+                            parseFloat(bmi) < 25 ? 'text-green-600' :
+                            parseFloat(bmi) < 30 ? 'text-orange-600' : 'text-red-600'
+                          ) : 'text-muted-foreground'
+                        }`}>
+                          {bmi ? `${bmi} (${parseFloat(bmi) < 18.5 ? 'Underweight' : parseFloat(bmi) < 25 ? 'Normal' : parseFloat(bmi) < 30 ? 'Overweight' : 'Obese'})` : '—'}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium flex items-center gap-2">
                           <Target className="w-4 h-4 text-muted-foreground" />
-                          Target Weight (kg)
+                          Target (kg)
                         </label>
                         <Input
                           type="number"
@@ -705,26 +972,82 @@ const PatientDetail = () => {
                   <div className="flex">
                     {/* Meals sidebar */}
                     <div className="w-48 border-r p-4 space-y-1">
-                      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                        Daily Meals
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Daily Meals
+                        </div>
+                        <button
+                          onClick={() => setShowAddMeal(true)}
+                          className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          Add
+                        </button>
                       </div>
+                      
+                      {/* Add new meal input */}
+                      {showAddMeal && (
+                        <div className="mb-3 p-2 bg-muted/50 rounded-lg space-y-2">
+                          <Input
+                            placeholder="Meal name"
+                            value={newMealName}
+                            onChange={(e) => setNewMealName(e.target.value)}
+                            className="h-8 text-sm"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleAddNewMeal();
+                              if (e.key === 'Escape') {
+                                setShowAddMeal(false);
+                                setNewMealName("");
+                              }
+                            }}
+                          />
+                          <div className="flex gap-2">
+                            <Button size="sm" className="h-7 text-xs flex-1" onClick={handleAddNewMeal}>
+                              <Plus className="w-3 h-3 mr-1" /> Add
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="h-7 text-xs" 
+                              onClick={() => { setShowAddMeal(false); setNewMealName(""); }}
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      
                       {meals.map((meal) => {
                         const cal = Math.round(getMealCalories(meal));
                         return (
-                          <button
-                            key={meal.name}
-                            onClick={() => setActiveMeal(meal.name)}
-                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                              activeMeal === meal.name
-                                ? "bg-primary/10 text-primary font-semibold border border-primary/20"
-                                : "hover:bg-muted text-foreground"
-                            }`}
-                          >
-                            <div className="flex justify-between items-center">
-                              <span>{meal.name}</span>
-                              <span className="text-xs text-muted-foreground">{cal} kcal</span>
-                            </div>
-                          </button>
+                          <div key={meal.name} className="group relative">
+                            <button
+                              onClick={() => setActiveMeal(meal.name)}
+                              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                                activeMeal === meal.name
+                                  ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                                  : "hover:bg-muted text-foreground"
+                              }`}
+                            >
+                              <div className="flex justify-between items-center">
+                                <span>{meal.name}</span>
+                                <span className="text-xs text-muted-foreground">{cal} kcal</span>
+                              </div>
+                            </button>
+                            {!["Breakfast", "Lunch", "Dinner"].includes(meal.name) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveMeal(meal.name);
+                                }}
+                                className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded text-destructive transition-opacity"
+                                title="Remove meal"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
                         );
                       })}
                     </div>

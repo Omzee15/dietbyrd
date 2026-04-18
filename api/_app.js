@@ -1,16 +1,54 @@
 import express from "express";
 import cors from "cors";
 import pg from "pg";
+import twilio from "twilio";
 
 const { Pool } = pg;
+
+// Twilio configuration
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
+const TWILIO_VERIFY_SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID || "VA8d0807c34b0d64d7e01f4bd65f7079b2";
+
+// OTP configuration
+const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+
+// Format phone number for E.164 (assumes Indian numbers if no country code)
+const formatPhoneE164 = (phone) => {
+  // Remove all non-digit characters
+  let cleaned = phone.replace(/\D/g, '');
+  
+  // If starts with 0, remove it
+  if (cleaned.startsWith('0')) {
+    cleaned = cleaned.substring(1);
+  }
+  
+  // If 10 digits (Indian mobile), add +91
+  if (cleaned.length === 10) {
+    return `+91${cleaned}`;
+  }
+  
+  // If already has country code (11+ digits), just add +
+  if (cleaned.length > 10) {
+    return `+${cleaned}`;
+  }
+  
+  // Fallback
+  return `+91${cleaned}`;
+};
 
 // Database connection (lazy initialization for serverless)
 let pool;
 const getPool = () => {
   if (!pool) {
+    const dbUrl = process.env.DATABASE_URL || '';
+    const useSSL = dbUrl.includes('sslmode=require') || dbUrl.includes('.neon.tech');
+    
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
+      connectionString: dbUrl,
+      ssl: useSSL ? { rejectUnauthorized: false } : false,
       max: 3,
       idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 5000,
@@ -22,6 +60,69 @@ const getPool = () => {
 const query = async (text, params) => {
   const res = await getPool().query(text, params);
   return res;
+};
+
+// Initialize OTP table (called lazily on first use)
+let otpTableInitialized = false;
+const ensureOtpTable = async () => {
+  if (otpTableInitialized) return;
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS dietbyrd_otps (
+        id SERIAL PRIMARY KEY,
+        phone VARCHAR(15) NOT NULL,
+        otp VARCHAR(6) NOT NULL,
+        purpose VARCHAR(20) NOT NULL DEFAULT 'login',
+        pending_data JSONB,
+        expires_at TIMESTAMP NOT NULL,
+        verified BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(phone, purpose)
+      )
+    `);
+    otpTableInitialized = true;
+  } catch (err) {
+    console.error("Error creating OTP table:", err.message);
+  }
+};
+
+// OTP helper functions
+const storeOtp = async (phone, otp, purpose = 'login', pendingData = null) => {
+  await ensureOtpTable();
+  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
+  await query(`
+    INSERT INTO dietbyrd_otps (phone, otp, purpose, pending_data, expires_at)
+    VALUES ($1, $2, $3, $4, $5)
+    ON CONFLICT (phone, purpose) 
+    DO UPDATE SET otp = $2, pending_data = $4, expires_at = $5, verified = FALSE, created_at = CURRENT_TIMESTAMP
+  `, [phone, otp, purpose, pendingData ? JSON.stringify(pendingData) : null, expiresAt]);
+};
+
+const verifyOtpFromDb = async (phone, otp, purpose = 'login') => {
+  await ensureOtpTable();
+  const result = await query(`
+    SELECT * FROM dietbyrd_otps 
+    WHERE phone = $1 AND purpose = $2 AND expires_at > NOW()
+  `, [phone, purpose]);
+  
+  if (result.rows.length === 0) {
+    return { valid: false, error: "OTP expired or not requested" };
+  }
+  
+  const stored = result.rows[0];
+  if (stored.otp !== otp) {
+    return { valid: false, error: "Invalid OTP" };
+  }
+  
+  // Mark as verified and return pending data
+  await query(`UPDATE dietbyrd_otps SET verified = TRUE WHERE id = $1`, [stored.id]);
+  
+  return { valid: true, pendingData: stored.pending_data };
+};
+
+const clearOtp = async (phone, purpose = 'login') => {
+  await ensureOtpTable();
+  await query(`DELETE FROM dietbyrd_otps WHERE phone = $1 AND purpose = $2`, [phone, purpose]);
 };
 
 // Create Express app
@@ -48,9 +149,9 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(400).json({ success: false, error: "Phone and password required" });
     }
 
-    // Find user by phone (now includes name)
+    // Find user by phone (now includes name and is_verified)
     const userResult = await query(
-      "SELECT id, phone, role, name, password, is_active FROM dietbyrd_users WHERE phone = $1",
+      "SELECT id, phone, role, name, password, is_active, is_verified FROM dietbyrd_users WHERE phone = $1",
       [phone]
     );
 
@@ -77,6 +178,7 @@ app.post("/api/auth/login", async (req, res) => {
 
     // Get profile ID based on role (for role-specific data)
     let profileId = null;
+    let doctorId = null;
 
     if (user.role === "doctor") {
       const doctorResult = await query(
@@ -85,6 +187,15 @@ app.post("/api/auth/login", async (req, res) => {
       );
       if (doctorResult.rows.length > 0) {
         profileId = doctorResult.rows[0].id;
+      }
+    } else if (user.role === "assistant") {
+      const assistantResult = await query(
+        "SELECT id, doctor_id FROM dietbyrd_assistants WHERE user_id = $1",
+        [user.id]
+      );
+      if (assistantResult.rows.length > 0) {
+        profileId = assistantResult.rows[0].id;
+        doctorId = assistantResult.rows[0].doctor_id;
       }
     } else if (user.role === "rd") {
       const rdResult = await query(
@@ -118,6 +229,8 @@ app.post("/api/auth/login", async (req, res) => {
         role: user.role,
         name: user.name,
         profileId,
+        doctorId,
+        isVerified: user.is_verified ?? true,
       },
     });
   } catch (err) {
@@ -180,6 +293,279 @@ app.post("/api/auth/signup", async (req, res) => {
   }
 });
 
+// ─── OTP Authentication ───────────────────────────────────────────────────────
+// Send OTP via Twilio Verify (for login)
+app.post("/api/auth/send-otp", async (req, res) => {
+  try {
+    const { phone, channel = "sms" } = req.body; // channel: "sms" or "whatsapp"
+    
+    if (!phone) {
+      return res.status(400).json({ success: false, error: "Phone number is required" });
+    }
+
+    // Check if user exists
+    const userResult = await query(
+      "SELECT id, phone, is_active FROM dietbyrd_users WHERE phone = $1",
+      [phone]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "No account found with this phone number" });
+    }
+
+    const user = userResult.rows[0];
+    if (!user.is_active) {
+      return res.status(401).json({ success: false, error: "Account is deactivated" });
+    }
+
+    // Send OTP using Twilio Verify
+    const toNumber = formatPhoneE164(phone);
+    console.log(`[OTP] Sending login OTP to ${toNumber} via ${channel}`);
+    
+    try {
+      const verification = await twilioClient.verify.v2
+        .services(TWILIO_VERIFY_SERVICE_SID)
+        .verifications.create({ to: toNumber, channel });
+      
+      console.log(`[OTP] Verification sent, SID: ${verification.sid}, Status: ${verification.status}`);
+    } catch (twilioErr) {
+      console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
+      return res.status(500).json({ success: false, error: "Failed to send OTP. Please try again." });
+    }
+
+    res.json({ 
+      success: true, 
+      message: channel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
+      expiresIn: 600 // Twilio Verify OTPs expire in 10 minutes
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Verify OTP and login
+app.post("/api/auth/verify-otp", async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+    
+    if (!phone || !otp) {
+      return res.status(400).json({ success: false, error: "Phone and OTP are required" });
+    }
+
+    // Verify OTP using Twilio Verify
+    const toNumber = formatPhoneE164(phone);
+    
+    try {
+      const verificationCheck = await twilioClient.verify.v2
+        .services(TWILIO_VERIFY_SERVICE_SID)
+        .verificationChecks.create({ to: toNumber, code: otp });
+      
+      if (verificationCheck.status !== "approved") {
+        return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+      }
+    } catch (twilioErr) {
+      console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
+      return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
+    }
+
+    // Find user and login
+    const userResult = await query(
+      "SELECT id, phone, role, name, is_active, is_verified FROM dietbyrd_users WHERE phone = $1",
+      [phone]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+
+    const user = userResult.rows[0];
+
+    if (!user.is_active) {
+      return res.status(401).json({ success: false, error: "Account is deactivated" });
+    }
+
+    // Get profile ID based on role
+    let profileId = null;
+    let doctorId = null;
+
+    if (user.role === "doctor") {
+      const doctorResult = await query("SELECT id FROM dietbyrd_doctors WHERE user_id = $1", [user.id]);
+      if (doctorResult.rows.length > 0) profileId = doctorResult.rows[0].id;
+    } else if (user.role === "assistant") {
+      const assistantResult = await query("SELECT id, doctor_id FROM dietbyrd_assistants WHERE user_id = $1", [user.id]);
+      if (assistantResult.rows.length > 0) {
+        profileId = assistantResult.rows[0].id;
+        doctorId = assistantResult.rows[0].doctor_id;
+      }
+    } else if (user.role === "rd") {
+      const rdResult = await query("SELECT id FROM dietbyrd_registered_dietitians WHERE user_id = $1", [user.id]);
+      if (rdResult.rows.length > 0) profileId = rdResult.rows[0].id;
+    } else if (user.role === "patient") {
+      const patientResult = await query("SELECT id FROM dietbyrd_patients WHERE user_id = $1", [user.id]);
+      if (patientResult.rows.length > 0) profileId = patientResult.rows[0].id;
+    }
+
+    // Update last login
+    await query("UPDATE dietbyrd_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
+
+    res.json({
+      success: true,
+      data: {
+        id: user.id,
+        phone: user.phone,
+        role: user.role,
+        name: user.name,
+        profileId,
+        doctorId,
+        isVerified: user.is_verified ?? true,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Signup with OTP ──────────────────────────────────────────────────────────
+// Send OTP for signup (stores pending signup data)
+app.post("/api/auth/signup/send-otp", async (req, res) => {
+  try {
+    const { phone, password, name, channel = "sms" } = req.body;
+    
+    if (!phone || !password) {
+      return res.status(400).json({ success: false, error: "Phone and password are required" });
+    }
+    
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, error: "Password must be at least 6 characters" });
+    }
+
+    // Check if user already exists
+    const existingUser = await query(
+      "SELECT id FROM dietbyrd_users WHERE phone = $1",
+      [phone]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ success: false, error: "Phone number already registered" });
+    }
+
+    // Store pending signup data (needed for verification step)
+    const pendingData = { phone, password, name };
+    await storeOtp(phone, "", 'signup', pendingData); // Empty OTP - Twilio handles the actual OTP
+
+    // Send OTP using Twilio Verify
+    const toNumber = formatPhoneE164(phone);
+    console.log(`[OTP] Sending signup OTP to ${toNumber} via ${channel}`);
+    
+    try {
+      const verification = await twilioClient.verify.v2
+        .services(TWILIO_VERIFY_SERVICE_SID)
+        .verifications.create({ to: toNumber, channel });
+      
+      console.log(`[OTP] Verification sent, SID: ${verification.sid}, Status: ${verification.status}`);
+    } catch (twilioErr) {
+      console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
+      await clearOtp(phone, 'signup');
+      return res.status(500).json({ success: false, error: "Failed to send OTP. Please try again." });
+    }
+
+    res.json({ 
+      success: true, 
+      message: channel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
+      expiresIn: 600
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Verify OTP and complete signup
+app.post("/api/auth/signup/verify-otp", async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+    
+    if (!phone || !otp) {
+      return res.status(400).json({ success: false, error: "Phone and OTP are required" });
+    }
+
+    // Verify OTP using Twilio Verify
+    const toNumber = formatPhoneE164(phone);
+    
+    try {
+      const verificationCheck = await twilioClient.verify.v2
+        .services(TWILIO_VERIFY_SERVICE_SID)
+        .verificationChecks.create({ to: toNumber, code: otp });
+      
+      if (verificationCheck.status !== "approved") {
+        return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+      }
+    } catch (twilioErr) {
+      console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
+      return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
+    }
+
+    // Get pending signup data from our database
+    await ensureOtpTable();
+    const pendingResult = await query(
+      "SELECT pending_data FROM dietbyrd_otps WHERE phone = $1 AND purpose = 'signup'",
+      [phone]
+    );
+    
+    if (pendingResult.rows.length === 0 || !pendingResult.rows[0].pending_data) {
+      return res.status(400).json({ success: false, error: "Signup session expired. Please try again." });
+    }
+    
+    const pendingData = pendingResult.rows[0].pending_data;
+    if (!pendingData.phone || !pendingData.password) {
+      await clearOtp(phone, 'signup');
+      return res.status(400).json({ success: false, error: "Signup data not found. Please try again." });
+    }
+
+    // Clear pending data
+    await clearOtp(phone, 'signup');
+
+    // Double-check user doesn't exist (race condition protection)
+    const existingUser = await query(
+      "SELECT id FROM dietbyrd_users WHERE phone = $1",
+      [phone]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ success: false, error: "Phone number already registered" });
+    }
+
+    // Create user as patient
+    const userResult = await query(
+      `INSERT INTO dietbyrd_users (phone, password, role, name, is_active)
+       VALUES ($1, $2, 'patient', $3, true)
+       RETURNING id, phone, role, name`,
+      [pendingData.phone, pendingData.password, pendingData.name || null]
+    );
+    const user = userResult.rows[0];
+
+    // Create patient record
+    const patientResult = await query(
+      `INSERT INTO dietbyrd_patients (user_id, phone, name, referral_source)
+       VALUES ($1, $2, $3, 'content')
+       RETURNING id`,
+      [user.id, pendingData.phone, pendingData.name || null]
+    );
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: user.id,
+        phone: user.phone,
+        role: user.role,
+        name: user.name,
+        profileId: patientResult.rows[0].id,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ─── Join Requests (Doctor/Dietician) ─────────────────────────────────────────
 // Create a join request
 app.post("/api/join-requests", async (req, res) => {
@@ -216,15 +602,19 @@ app.post("/api/join-requests", async (req, res) => {
 
     // Check if user already exists
     const existingUser = await query(
-      "SELECT id FROM dietbyrd_users WHERE phone = $1",
+      "SELECT id, is_verified FROM dietbyrd_users WHERE phone = $1",
       [phone]
     );
 
     if (existingUser.rows.length > 0) {
+      // If user exists but is not verified, they already have a pending request
+      if (!existingUser.rows[0].is_verified) {
+        return res.status(409).json({ success: false, error: "A pending request already exists for this phone number. Please wait for admin approval or login to check status." });
+      }
       return res.status(409).json({ success: false, error: "Phone number already registered" });
     }
 
-    // Check if pending request exists
+    // Check if pending request exists (fallback check)
     const existingRequest = await query(
       "SELECT id FROM dietbyrd_join_requests WHERE phone = $1 AND status = 'pending'",
       [phone]
@@ -234,16 +624,29 @@ app.post("/api/join-requests", async (req, res) => {
       return res.status(409).json({ success: false, error: "A pending request already exists for this phone number" });
     }
 
-    // Create join request
+    // Create user immediately with is_verified = false
+    const userResult = await query(
+      `INSERT INTO dietbyrd_users (phone, password, role, name, is_active, is_verified)
+       VALUES ($1, $2, $3, $4, true, false)
+       RETURNING id`,
+      [phone, password, role, name]
+    );
+    const userId = userResult.rows[0].id;
+
+    // Create join request and link to user
     const result = await query(
       `INSERT INTO dietbyrd_join_requests 
-        (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
+        (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, status, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9)
        RETURNING id, phone, name, requested_role, status, created_at`,
-      [phone, password, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null]
+      [phone, password, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, userId]
     );
 
-    res.status(201).json({ success: true, data: result.rows[0] });
+    res.status(201).json({ 
+      success: true, 
+      data: result.rows[0],
+      message: "Your request has been submitted. You can now login to check your verification status."
+    });
   } catch (err) {
     // Handle case where table doesn't exist - create it
     if (err.message.includes("relation") && err.message.includes("does not exist")) {
@@ -263,17 +666,29 @@ app.post("/api/join-requests", async (req, res) => {
             reviewed_by INT NULL,
             reviewed_at TIMESTAMP NULL,
             rejection_reason TEXT NULL,
+            user_id INT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           )
         `);
-        // Retry the insert
+        // Retry with original request body
+        const { phone, password, name, role, qualification, clinic_name, clinic_address, specializations } = req.body;
+        
+        // Create user
+        const userResult = await query(
+          `INSERT INTO dietbyrd_users (phone, password, role, name, is_active, is_verified)
+           VALUES ($1, $2, $3, $4, true, false)
+           RETURNING id`,
+          [phone, password, role, name]
+        );
+        const userId = userResult.rows[0].id;
+
         const result = await query(
           `INSERT INTO dietbyrd_join_requests 
-            (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
+            (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, status, user_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9)
            RETURNING id, phone, name, requested_role, status, created_at`,
-          [req.body.phone, req.body.password, req.body.name, req.body.role, req.body.qualification, req.body.clinic_name || null, req.body.clinic_address || null, req.body.specializations ? JSON.stringify(req.body.specializations) : null]
+          [phone, password, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, userId]
         );
         return res.status(201).json({ success: true, data: result.rows[0] });
       } catch (createErr) {
@@ -340,7 +755,10 @@ app.patch("/api/join-requests/:id", async (req, res) => {
     }
 
     if (action === "reject") {
-      // Reject the request
+      // Reject the request - also deactivate/delete the unverified user
+      if (joinRequest.user_id) {
+        await query("DELETE FROM dietbyrd_users WHERE id = $1 AND is_verified = false", [joinRequest.user_id]);
+      }
       await query(
         `UPDATE dietbyrd_join_requests 
          SET status = 'rejected', reviewed_by = $1, reviewed_at = CURRENT_TIMESTAMP, rejection_reason = $2, updated_at = CURRENT_TIMESTAMP
@@ -350,14 +768,28 @@ app.patch("/api/join-requests/:id", async (req, res) => {
       return res.json({ success: true, message: "Request rejected" });
     }
 
-    // Approve: Create the user and profile
-    const userResult = await query(
-      `INSERT INTO dietbyrd_users (phone, password, role, name, is_active)
-       VALUES ($1, $2, $3, $4, true)
-       RETURNING id`,
-      [joinRequest.phone, joinRequest.password, joinRequest.requested_role, joinRequest.name]
-    );
-    const userId = userResult.rows[0].id;
+    // Approve: Verify the user and create the profile
+    let userId = joinRequest.user_id;
+    
+    if (userId) {
+      // User was created at join request time - just verify them
+      await query(
+        "UPDATE dietbyrd_users SET is_verified = true WHERE id = $1",
+        [userId]
+      );
+    } else {
+      // Legacy: user wasn't created at join time, create now (for old requests)
+      const userResult = await query(
+        `INSERT INTO dietbyrd_users (phone, password, role, name, is_active, is_verified)
+         VALUES ($1, $2, $3, $4, true, true)
+         RETURNING id`,
+        [joinRequest.phone, joinRequest.password, joinRequest.requested_role, joinRequest.name]
+      );
+      userId = userResult.rows[0].id;
+      
+      // Link user to join request
+      await query("UPDATE dietbyrd_join_requests SET user_id = $1 WHERE id = $2", [userId, id]);
+    }
 
     if (joinRequest.requested_role === "doctor") {
       await query(
@@ -381,7 +813,7 @@ app.patch("/api/join-requests/:id", async (req, res) => {
       [reviewed_by || null, id]
     );
 
-    res.json({ success: true, message: `${joinRequest.requested_role === "doctor" ? "Doctor" : "Dietician"} account created successfully` });
+    res.json({ success: true, message: `${joinRequest.requested_role === "doctor" ? "Doctor" : "Dietician"} account verified successfully` });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -732,16 +1164,39 @@ app.post("/api/referrals", async (req, res) => {
     }
 
     let patientId;
+    let isNewPatient = false;
+    
+    // Check if patient already exists
     const existingPatient = await query(`SELECT id FROM dietbyrd_patients WHERE phone = $1`, [phone]);
 
     if (existingPatient.rows.length > 0) {
       patientId = existingPatient.rows[0].id;
     } else {
+      isNewPatient = true;
+      
+      // First, create (or get existing) user entry
+      let userId;
+      const existingUser = await query(`SELECT id FROM dietbyrd_users WHERE phone = $1`, [phone]);
+      
+      if (existingUser.rows.length > 0) {
+        userId = existingUser.rows[0].id;
+      } else {
+        // Create new user (patient will need to set password later)
+        const newUser = await query(
+          `INSERT INTO dietbyrd_users (phone, role, name, is_active)
+           VALUES ($1, 'patient', $2, true)
+           RETURNING id`,
+          [phone, patient_name]
+        );
+        userId = newUser.rows[0].id;
+      }
+      
+      // Now create the patient entry with user_id
       const newPatient = await query(
-        `INSERT INTO dietbyrd_patients (name, phone, diagnosis, diagnosis_description, referral_source)
-         VALUES ($1, $2, $3, $4, 'doctor')
+        `INSERT INTO dietbyrd_patients (user_id, name, phone, diagnosis, diagnosis_description, referral_source)
+         VALUES ($1, $2, $3, $4, $5, 'doctor')
          RETURNING id`,
-        [patient_name, phone, diagnosis, diagnosis_description]
+        [userId, patient_name, phone, diagnosis, diagnosis_description]
       );
       patientId = newPatient.rows[0].id;
     }
@@ -753,7 +1208,41 @@ app.post("/api/referrals", async (req, res) => {
       [patientId, doctor_id]
     );
 
-    res.status(201).json({ success: true, data: referral.rows[0], patient_id: patientId });
+    res.status(201).json({ 
+      success: true, 
+      data: {
+        ...referral.rows[0],
+        patient_id: patientId,
+        is_new_patient: isNewPatient,
+        message: isNewPatient 
+          ? "New patient created and referred successfully. SMS notification will be sent."
+          : "Existing patient referred successfully."
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Phone Number Lookup (for doctor referral autocomplete) ───────────────────
+app.get("/api/patients/lookup-phone", async (req, res) => {
+  try {
+    const { phone } = req.query;
+    if (!phone || phone.length < 3) {
+      return res.json({ success: true, data: [] });
+    }
+    
+    // Search for patients with matching phone number prefix
+    const result = await query(
+      `SELECT DISTINCT p.id, p.name, p.phone, p.diagnosis
+       FROM dietbyrd_patients p
+       WHERE p.phone LIKE $1
+       ORDER BY p.name ASC
+       LIMIT 10`,
+      [`${phone}%`]
+    );
+    
+    res.json({ success: true, data: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -902,6 +1391,156 @@ app.get("/api/diet-plans/:id", async (req, res) => {
     );
     
     res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Doctor Stats ─────────────────────────────────────────────────────────────
+app.get("/api/doctors/:id/stats", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get total referred patients (either by doctor or their assistants)
+    const referredResult = await query(
+      `SELECT COUNT(DISTINCT r.id) as total_referred
+       FROM dietbyrd_referrals r
+       WHERE r.doctor_id = $1 OR r.assistant_id IN (
+         SELECT id FROM dietbyrd_assistants WHERE doctor_id = $1
+       )`,
+      [id]
+    );
+    
+    // Get onboarded patients (those with active subscriptions)
+    const onboardedResult = await query(
+      `SELECT COUNT(DISTINCT s.registered_patient_id) as total_onboarded
+       FROM dietbyrd_subscriptions s
+       JOIN dietbyrd_registered_patients rp ON s.registered_patient_id = rp.id
+       JOIN dietbyrd_referrals r ON rp.patient_id = r.patient_id
+       WHERE (r.doctor_id = $1 OR r.assistant_id IN (
+         SELECT id FROM dietbyrd_assistants WHERE doctor_id = $1
+       ))
+       AND s.status IN ('active', 'paused')`,
+      [id]
+    );
+    
+    // Get commission earned (from doctor_earnings table)
+    const commissionResult = await query(
+      `SELECT COALESCE(SUM(amount), 0) as total_commission
+       FROM dietbyrd_doctor_earnings
+       WHERE doctor_id = $1`,
+      [id]
+    );
+    
+    res.json({
+      success: true,
+      data: {
+        total_referred: parseInt(referredResult.rows[0]?.total_referred || 0),
+        total_onboarded: parseInt(onboardedResult.rows[0]?.total_onboarded || 0),
+        total_commission: parseFloat(commissionResult.rows[0]?.total_commission || 0)
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Doctor Assistants ────────────────────────────────────────────────────────
+app.get("/api/doctors/:id/assistants", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      `SELECT a.*, u.phone, u.is_active as user_active
+       FROM dietbyrd_assistants a
+       LEFT JOIN dietbyrd_users u ON a.user_id = u.id
+       WHERE a.doctor_id = $1
+       ORDER BY a.created_at DESC`,
+      [id]
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Create assistant (with user account)
+app.post("/api/assistants", async (req, res) => {
+  try {
+    const { name, phone, password, doctor_id } = req.body;
+    
+    if (!name || !phone || !password || !doctor_id) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "name, phone, password, and doctor_id are required" 
+      });
+    }
+    
+    // Check if phone already exists
+    const existingUser = await query(
+      "SELECT id FROM dietbyrd_users WHERE phone = $1",
+      [phone]
+    );
+    
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Phone number already registered" 
+      });
+    }
+    
+    // Create user
+    const userResult = await query(
+      `INSERT INTO dietbyrd_users (phone, name, password, role, is_active)
+       VALUES ($1, $2, $3, 'assistant', true)
+       RETURNING id`,
+      [phone, name, password]
+    );
+    
+    const userId = userResult.rows[0].id;
+    
+    // Create assistant record
+    const assistantResult = await query(
+      `INSERT INTO dietbyrd_assistants (user_id, doctor_id, name)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [userId, doctor_id, name]
+    );
+    
+    res.status(201).json({ 
+      success: true, 
+      data: { ...assistantResult.rows[0], phone } 
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Delete assistant
+app.delete("/api/assistants/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get user_id before deleting assistant
+    const assistant = await query(
+      "SELECT user_id FROM dietbyrd_assistants WHERE id = $1",
+      [id]
+    );
+    
+    if (assistant.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Assistant not found" });
+    }
+    
+    const userId = assistant.rows[0].user_id;
+    
+    // Delete assistant record
+    await query("DELETE FROM dietbyrd_assistants WHERE id = $1", [id]);
+    
+    // Delete user account
+    if (userId) {
+      await query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
+    }
+    
+    res.json({ success: true, message: "Assistant deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

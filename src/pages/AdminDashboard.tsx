@@ -28,6 +28,11 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>("patients");
   const [search, setSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<PatientWithReferral | null>(null);
+  
+  // Patient list filter state
+  const [referredByFilter, setReferredByFilter] = useState<string>("all");
+  const [dieticianFilter, setDieticianFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   // Sync activeTab with URL
   useEffect(() => {
@@ -117,12 +122,38 @@ const AdminDashboard = () => {
     };
   });
 
-  const filteredPatients = enrichedPatients.filter((p) =>
-    (p.name?.toLowerCase() || "").includes(search.toLowerCase()) ||
-    (p.diagnosis?.toLowerCase() || "").includes(search.toLowerCase()) ||
-    (p.referredBy?.toLowerCase() || "").includes(search.toLowerCase()) ||
-    (p.dietician?.toLowerCase() || "").includes(search.toLowerCase())
-  );
+  // Get unique referring doctors for filter dropdown
+  const referringDoctors = [...new Set(enrichedPatients.map(p => p.referredBy).filter(Boolean))];
+
+  const filteredPatients = enrichedPatients.filter((p) => {
+    // Search filter
+    const matchesSearch = 
+      (p.name?.toLowerCase() || "").includes(search.toLowerCase()) ||
+      (p.diagnosis?.toLowerCase() || "").includes(search.toLowerCase()) ||
+      (p.referredBy?.toLowerCase() || "").includes(search.toLowerCase()) ||
+      (p.dietician?.toLowerCase() || "").includes(search.toLowerCase());
+    
+    // Referred by filter
+    const matchesReferredBy = referredByFilter === "all" || p.referredBy === referredByFilter;
+    
+    // Dietician filter
+    let matchesDietician = true;
+    if (dieticianFilter === "not-assigned") {
+      matchesDietician = !p.dieticianId;
+    } else if (dieticianFilter !== "all") {
+      matchesDietician = p.dieticianId?.toString() === dieticianFilter;
+    }
+    
+    // Status filter
+    let matchesStatus = true;
+    if (statusFilter === "registered") {
+      matchesStatus = !!p.dietary_preference;
+    } else if (statusFilter === "pending") {
+      matchesStatus = !p.dietary_preference;
+    }
+    
+    return matchesSearch && matchesReferredBy && matchesDietician && matchesStatus;
+  });
 
   const registeredCount = patients.filter((p) => p.dietary_preference).length;
   const pendingCount = patients.length - registeredCount;
@@ -169,14 +200,7 @@ const AdminDashboard = () => {
       <AppSidebar title="DietByRD" subtitle="Admin Panel" sections={sidebarSections} bottomContent={bottomContent} />
 
       <main className="flex-1 bg-background">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <div className="flex gap-1 bg-muted rounded-lg p-1">
-            {(["patients", "doctors", "dieticians", "analytics"] as ActiveTab[]).map((tab) => (
-              <Button key={tab} variant={activeTab === tab ? "default" : "ghost"} size="sm" onClick={() => { handleTabChange(tab); setSelectedPatient(null); }} className="capitalize text-xs">
-                {tab}
-              </Button>
-            ))}
-          </div>
+        <div className="flex items-center justify-end px-6 py-4 border-b">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-sidebar text-sidebar-primary-foreground flex items-center justify-center text-xs font-semibold">
               {user?.name?.split(" ").map(n => n[0]).join("") || "AD"}
@@ -293,9 +317,44 @@ const AdminDashboard = () => {
                         </div>
                       ))}
                     </div>
-                    <div className="relative max-w-sm">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input placeholder="Search patients..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="relative flex-1 min-w-[200px] max-w-sm">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input placeholder="Search patients..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+                      </div>
+                      <Select value={referredByFilter} onValueChange={setReferredByFilter}>
+                        <SelectTrigger className="w-[160px]">
+                          <SelectValue placeholder="Referred By" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Sources</SelectItem>
+                          {referringDoctors.map(d => (
+                            <SelectItem key={d} value={d}>{d}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={dieticianFilter} onValueChange={setDieticianFilter}>
+                        <SelectTrigger className="w-[160px]">
+                          <SelectValue placeholder="Dietician" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Dieticians</SelectItem>
+                          <SelectItem value="not-assigned">Not Assigned</SelectItem>
+                          {dieticians.map(d => (
+                            <SelectItem key={d.id} value={d.id.toString()}>{d.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Status</SelectItem>
+                          <SelectItem value="registered">Registered</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="bg-card rounded-xl border overflow-hidden">
                       <table className="w-full text-sm">

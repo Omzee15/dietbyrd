@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { UserPlus, Users, BarChart3, MessageCircle, FileText, Send, Search, ArrowLeft, X, IndianRupee, TrendingUp, Loader2, LogOut, Settings, ChevronDown } from "lucide-react";
+import { UserPlus, Users, BarChart3, MessageCircle, FileText, Send, Search, ArrowLeft, X, IndianRupee, TrendingUp, Loader2, LogOut, Settings, ChevronDown, User, UserCheck, Plus, Trash2, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,14 +14,25 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { getDoctorReferrals, getDoctor, createReferral, Referral, Doctor } from "@/lib/api";
+import { getDoctorReferrals, getDoctor, getDoctorStats, getDoctorAssistants, createAssistant, deleteAssistant, createReferral, lookupPhoneNumber, Referral, Doctor, PhoneLookupResult, Assistant } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 const diagnosisOptions = [
   "diabetes", "pcos", "thyroid", "hypertension", "obesity", "other"
 ];
 
-type ActiveView = "refer" | "patients" | "analytics";
+// Phone validation: 10 digits, starts with 6-9 (Indian mobile format)
+const isValidIndianPhone = (phone: string): boolean => {
+  const cleaned = phone.replace(/\D/g, '');
+  return /^[6-9]\d{9}$/.test(cleaned);
+};
+
+const formatPhoneForDisplay = (value: string): string => {
+  // Only allow digits, limit to 10
+  return value.replace(/\D/g, '').slice(0, 10);
+};
+
+type ActiveView = "refer" | "patients" | "admin";
 
 interface DoctorDashboardProps {
   defaultTab?: ActiveView;
@@ -37,27 +48,83 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
   const [selectedPatient, setSelectedPatient] = useState<Referral | null>(null);
   const [patientSearch, setPatientSearch] = useState("");
   
+  // Check if current user is an assistant (not a doctor)
+  const isAssistant = user?.role === "assistant";
+  
   // Form state
   const [patientName, setPatientName] = useState("");
   const [patientPhone, setPatientPhone] = useState("");
   const [clinicalNotes, setClinicalNotes] = useState("");
+  
+  // Assistant management state (only for doctors)
+  const [newAssistantName, setNewAssistantName] = useState("");
+  const [newAssistantPhone, setNewAssistantPhone] = useState("");
+  const [newAssistantPassword, setNewAssistantPassword] = useState("");
+  const [showAddAssistant, setShowAddAssistant] = useState(false);
+  
+  // For assistants, get the doctor ID from user.doctorId, for doctors use profileId
+  const doctorId = isAssistant ? user?.doctorId : user?.profileId;
+  
+  // Phone lookup state
+  const [showPhoneSuggestions, setShowPhoneSuggestions] = useState(false);
+
+  // Phone number lookup query
+  const { data: phoneSuggestions = [] } = useQuery({
+    queryKey: ["phone-lookup", patientPhone],
+    queryFn: () => lookupPhoneNumber(patientPhone),
+    enabled: patientPhone.length >= 3 && patientPhone.length < 10,
+    staleTime: 30000,
+  });
+
+  // Check if the entered phone is a new patient
+  const isExistingPatient = phoneSuggestions.some(p => p.phone === patientPhone);
+  const isNewPatient = patientPhone.length === 10 && isValidIndianPhone(patientPhone) && !isExistingPatient;
+
+  const handlePhoneChange = (value: string) => {
+    const formatted = formatPhoneForDisplay(value);
+    setPatientPhone(formatted);
+    setShowPhoneSuggestions(formatted.length >= 3 && formatted.length < 10);
+  };
+
+  const selectPhoneSuggestion = (patient: PhoneLookupResult) => {
+    setPatientPhone(patient.phone);
+    setPatientName(patient.name || "");
+    if (patient.diagnosis && diagnosisOptions.includes(patient.diagnosis)) {
+      setDiagnosis(patient.diagnosis);
+    }
+    setShowPhoneSuggestions(false);
+  };
 
   // Sync activeView with URL
   useEffect(() => {
     if (location.pathname === "/doctor/patients") {
       setActiveView("patients");
-    } else if (location.pathname === "/doctor/analytics") {
-      setActiveView("analytics");
+    } else if (location.pathname === "/doctor/admin" || location.pathname === "/doctor/analytics") {
+      setActiveView("admin");
     } else if (location.pathname === "/doctor") {
       setActiveView("refer");
     }
   }, [location.pathname]);
 
-  // Get current doctor from auth
+  // Get current doctor from auth (for assistants, use doctorId to get their linked doctor)
   const { data: currentDoctor, isLoading: doctorLoading } = useQuery({
-    queryKey: ["doctor", user?.profileId],
-    queryFn: () => getDoctor(user!.profileId!),
-    enabled: !!user?.profileId,
+    queryKey: ["doctor", doctorId],
+    queryFn: () => getDoctor(doctorId!),
+    enabled: !!doctorId,
+  });
+
+  // Fetch stats for the doctor (total referred, onboarded, commission)
+  const { data: doctorStats } = useQuery({
+    queryKey: ["doctorStats", currentDoctor?.id],
+    queryFn: () => getDoctorStats(currentDoctor!.id),
+    enabled: !!currentDoctor?.id,
+  });
+
+  // Fetch assistants (only for doctors, not assistants)
+  const { data: assistants = [] } = useQuery({
+    queryKey: ["doctorAssistants", currentDoctor?.id],
+    queryFn: () => getDoctorAssistants(currentDoctor!.id),
+    enabled: !!currentDoctor?.id && !isAssistant,
   });
 
   // Fetch referrals for current doctor
@@ -70,11 +137,18 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
   // Create referral mutation
   const createReferralMutation = useMutation({
     mutationFn: createReferral,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["doctorReferrals"] });
       queryClient.invalidateQueries({ queryKey: ["referrals"] });
       queryClient.invalidateQueries({ queryKey: ["patients"] });
-      toast.success("Patient referred successfully!");
+      queryClient.invalidateQueries({ queryKey: ["phone-lookup"] });
+      
+      if (data?.is_new_patient) {
+        toast.success("New patient referred! Registration SMS will be sent.");
+      } else {
+        toast.success("Patient referred successfully!");
+      }
+      
       setPatientName("");
       setPatientPhone("");
       setClinicalNotes("");
@@ -87,6 +161,10 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
   const handleSubmitReferral = () => {
     if (!patientPhone || !currentDoctor?.id) {
       toast.error("Please enter patient phone number");
+      return;
+    }
+    if (!isValidIndianPhone(patientPhone)) {
+      toast.error("Please enter a valid 10-digit Indian mobile number starting with 6-9");
       return;
     }
     createReferralMutation.mutate({
@@ -103,12 +181,61 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
     (p.diagnosis?.toLowerCase() || "").includes(patientSearch.toLowerCase())
   );
 
+  // Create assistant mutation (only for doctors)
+  const createAssistantMutation = useMutation({
+    mutationFn: createAssistant,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["doctorAssistants"] });
+      toast.success("Assistant account created successfully!");
+      setNewAssistantName("");
+      setNewAssistantPhone("");
+      setNewAssistantPassword("");
+      setShowAddAssistant(false);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to create assistant account");
+    },
+  });
+
+  // Delete assistant mutation
+  const deleteAssistantMutation = useMutation({
+    mutationFn: deleteAssistant,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["doctorAssistants"] });
+      toast.success("Assistant account removed");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to remove assistant");
+    },
+  });
+
+  const handleAddAssistant = () => {
+    if (!newAssistantName || !newAssistantPhone || !newAssistantPassword) {
+      toast.error("Please fill all fields");
+      return;
+    }
+    if (!isValidIndianPhone(newAssistantPhone)) {
+      toast.error("Please enter a valid phone number");
+      return;
+    }
+    if (newAssistantPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    createAssistantMutation.mutate({
+      doctor_id: currentDoctor!.id,
+      name: newAssistantName,
+      phone: newAssistantPhone,
+      password: newAssistantPassword,
+    });
+  };
+
   const handleNavClick = (view: ActiveView) => {
     setSelectedPatient(null);
     const paths: Record<ActiveView, string> = {
       refer: "/doctor",
       patients: "/doctor/patients",
-      analytics: "/doctor/analytics",
+      admin: "/doctor/admin",
     };
     navigate(paths[view]);
   };
@@ -118,13 +245,15 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
     navigate("/");
   };
 
+  // Sidebar sections - Admin option only for doctors, not assistants
   const sidebarSections = [
     {
       title: "Workspace",
       items: [
         { label: "Refer Patient", href: "/doctor", icon: UserPlus },
         { label: "My Patients", href: "/doctor/patients", icon: Users, badge: referrals.length },
-        { label: "Analytics", href: "/doctor/analytics", icon: BarChart3 },
+        // Only show Admin for doctors, not assistants
+        ...(!isAssistant ? [{ label: "Admin", href: "/doctor/admin", icon: Shield }] : []),
       ],
     },
   ];
@@ -158,6 +287,30 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
     );
   }
 
+  // Pending verification state
+  if (user?.isVerified === false) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <div className="text-center p-8 bg-white rounded-2xl shadow-lg max-w-md mx-4">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Verification Pending</h2>
+          <p className="text-gray-600 mb-6">
+            Your account is currently under review. Our admin team will verify your credentials soon.
+            You'll be able to access all features once verified.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <Button variant="outline" onClick={handleLogout} className="gap-2">
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen">
       <AppSidebar
@@ -170,24 +323,23 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
       <main className="flex-1 bg-background">
         {/* Top bar */}
         <div className="flex items-center justify-between gap-3 px-6 py-4 border-b">
-          <div className="flex gap-1 bg-muted rounded-lg p-1">
-            <Button variant={activeView === "refer" ? "default" : "ghost"} size="sm" onClick={() => handleNavClick("refer")} className="text-xs">
-              Refer Patient
-            </Button>
-            <Button variant={activeView === "patients" ? "default" : "ghost"} size="sm" onClick={() => handleNavClick("patients")} className="text-xs">
-              My Patients
-            </Button>
-            <Button variant={activeView === "analytics" ? "default" : "ghost"} size="sm" onClick={() => handleNavClick("analytics")} className="text-xs">
-              Analytics
-            </Button>
+          {/* Left side - Doctor's name (for assistants) */}
+          <div>
+            {isAssistant && currentDoctor && (
+              <span className="text-sm text-muted-foreground">
+                Working for <span className="font-semibold text-lg text-foreground">{currentDoctor.name}</span>
+              </span>
+            )}
           </div>
+          
+          {/* Right side - User dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 hover:bg-muted rounded-lg px-2 py-1.5 transition-colors">
                 <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
-                  {currentDoctor?.name?.split(" ").slice(0, 2).map((n) => n[0]).join("") || "DR"}
+                  {(isAssistant ? user?.name : currentDoctor?.name)?.split(" ").slice(0, 2).map((n: string) => n[0]).join("") || "DR"}
                 </div>
-                <span className="text-sm font-medium">{currentDoctor?.name || "Loading..."}</span>
+                <span className="text-sm font-medium">{isAssistant ? user?.name : currentDoctor?.name || "Loading..."}</span>
                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
               </button>
             </DropdownMenuTrigger>
@@ -262,6 +414,52 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
             {/* Refer Patient view */}
             {!selectedPatient && activeView === "refer" && (
               <div className="p-6 space-y-6">
+                {/* Stats Summary Cards */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-card rounded-xl border p-5 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-primary">
+                      <Users className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold">{doctorStats?.total_referred || referrals.length}</div>
+                      <div className="text-sm text-muted-foreground">Patients Referred</div>
+                    </div>
+                  </div>
+                  <div className="bg-card rounded-xl border p-5 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-success">
+                      <UserCheck className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold">{doctorStats?.total_onboarded || 0}</div>
+                      <div className="text-sm text-muted-foreground">Onboarded Patients</div>
+                    </div>
+                  </div>
+                  {/* Only show commission to doctors, not assistants */}
+                  {!isAssistant && (
+                    <div className="bg-card rounded-xl border p-5 flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-info">
+                        <IndianRupee className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold">₹{(doctorStats?.total_commission || 0).toLocaleString()}</div>
+                        <div className="text-sm text-muted-foreground">Commission Earned</div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Show different card for assistants */}
+                  {isAssistant && (
+                    <div className="bg-card rounded-xl border p-5 flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-info">
+                        <TrendingUp className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold">{referrals.filter(r => new Date(r.created_at).getMonth() === new Date().getMonth()).length}</div>
+                        <div className="text-sm text-muted-foreground">This Month</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="bg-card rounded-xl p-6 border">
                   <h2 className="text-lg font-semibold">Refer a Patient</h2>
                   <p className="text-sm text-muted-foreground mt-1">Enter patient details to create a referral. We'll handle the rest.</p>
@@ -275,14 +473,54 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                         onChange={(e) => setPatientName(e.target.value)}
                       />
                     </div>
-                    <div>
+                    <div className="relative">
                       <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Mobile Number *</label>
                       <Input 
                         placeholder="9876543210" 
-                        className="mt-1.5" 
+                        className={`mt-1.5 ${patientPhone && !isValidIndianPhone(patientPhone) ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
                         value={patientPhone}
-                        onChange={(e) => setPatientPhone(e.target.value)}
+                        onChange={(e) => handlePhoneChange(e.target.value)}
+                        onFocus={() => setShowPhoneSuggestions(patientPhone.length >= 3 && patientPhone.length < 10)}
+                        onBlur={() => setTimeout(() => setShowPhoneSuggestions(false), 200)}
+                        maxLength={10}
                       />
+                      {/* Phone suggestions dropdown */}
+                      {showPhoneSuggestions && phoneSuggestions.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-card border rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                          {phoneSuggestions.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              className="w-full flex items-center gap-3 p-3 hover:bg-muted transition-colors text-left"
+                              onMouseDown={() => selectPhoneSuggestion(p)}
+                            >
+                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                <User className="w-4 h-4 text-primary" />
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium">{p.name || "Unknown"}</div>
+                                <div className="text-xs text-muted-foreground">{p.phone} · {p.diagnosis || "No diagnosis"}</div>
+                              </div>
+                              <Badge variant="outline" className="ml-auto text-xs">Existing</Badge>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {/* Validation / New patient indicator */}
+                      {patientPhone && !isValidIndianPhone(patientPhone) && (
+                        <p className="text-xs text-red-500 mt-1">Enter valid 10-digit number starting with 6-9</p>
+                      )}
+                      {isNewPatient && (
+                        <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                          <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">New Patient</Badge>
+                          Will receive registration SMS
+                        </p>
+                      )}
+                      {isExistingPatient && patientPhone.length === 10 && (
+                        <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                          <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">Existing Patient</Badge>
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Primary Diagnosis</label>
@@ -394,36 +632,38 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
               </div>
             )}
 
-            {/* Analytics view */}
-            {!selectedPatient && activeView === "analytics" && (
+            {/* Admin view - Only for doctors, not assistants */}
+            {!selectedPatient && activeView === "admin" && !isAssistant && (
               <div className="p-6 space-y-6">
-                <h2 className="text-lg font-semibold">Analytics & Earnings</h2>
+                <h2 className="text-lg font-semibold">Admin Dashboard</h2>
 
-                {/* Income banner */}
-                <div className="bg-sidebar text-sidebar-foreground rounded-xl p-6 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-sidebar-foreground/60">Clinical collaboration income — per patient you refer</p>
-                    <p className="text-3xl font-bold mt-1 text-primary">up to ₹1,490</p>
-                    <p className="text-xs text-sidebar-foreground/50 mt-1">₹500 when they book + ₹90 per session · up to 12 sessions</p>
-                  </div>
-                  <div className="flex gap-8 text-center">
+                {/* Income info banner */}
+                <div className="bg-sidebar text-sidebar-foreground rounded-xl p-6">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-2xl font-bold text-primary">{referrals.length}</div>
-                      <div className="text-xs text-sidebar-foreground/50">total referrals</div>
+                      <p className="text-sm text-sidebar-foreground/60">Clinical collaboration income — per patient you refer</p>
+                      <p className="text-3xl font-bold mt-1 text-primary">up to ₹1,490</p>
+                      <p className="text-xs text-sidebar-foreground/50 mt-1">₹500 when they book + ₹90 per session · up to 12 sessions</p>
                     </div>
-                    <div>
-                      <div className="text-2xl font-bold text-primary">{currentDoctor?.total_referrals || 0}</div>
-                      <div className="text-xs text-sidebar-foreground/50">converted</div>
+                    <div className="flex gap-8 text-center">
+                      <div>
+                        <div className="text-2xl font-bold text-primary">{doctorStats?.total_referred || referrals.length}</div>
+                        <div className="text-xs text-sidebar-foreground/50">total referrals</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-primary">{doctorStats?.total_onboarded || 0}</div>
+                        <div className="text-xs text-sidebar-foreground/50">onboarded</div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Earnings breakdown */}
+                {/* Stats Summary */}
                 <div className="grid grid-cols-3 gap-4">
                   {[
-                    { label: "Total Referrals", value: referrals.length, icon: Users, color: "text-primary" },
-                    { label: "This Month", value: referrals.filter(r => new Date(r.created_at).getMonth() === new Date().getMonth()).length, icon: TrendingUp, color: "text-success" },
-                    { label: "Est. Earnings", value: `₹${(referrals.length * 500).toLocaleString()}`, icon: IndianRupee, color: "text-info" },
+                    { label: "Total Referred", value: doctorStats?.total_referred || referrals.length, icon: Users, color: "text-primary" },
+                    { label: "Onboarded Patients", value: doctorStats?.total_onboarded || 0, icon: UserCheck, color: "text-success" },
+                    { label: "Commission Earned", value: `₹${(doctorStats?.total_commission || 0).toLocaleString()}`, icon: IndianRupee, color: "text-info" },
                   ].map((s) => (
                     <div key={s.label} className="bg-card rounded-xl border p-5 flex items-center gap-4">
                       <div className={`w-12 h-12 rounded-xl bg-muted flex items-center justify-center ${s.color}`}>
@@ -435,6 +675,116 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                       </div>
                     </div>
                   ))}
+                </div>
+
+                {/* Assistant Management Section */}
+                <div className="bg-card rounded-xl border p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold">Manage Assistants</h3>
+                    <Button size="sm" onClick={() => setShowAddAssistant(true)} className="gap-1">
+                      <Plus className="w-4 h-4" />
+                      Add Assistant
+                    </Button>
+                  </div>
+
+                  {/* Add Assistant Form */}
+                  {showAddAssistant && (
+                    <div className="mb-6 p-4 bg-muted/50 rounded-lg space-y-4">
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Name *</label>
+                          <Input 
+                            placeholder="e.g. Priya Sharma" 
+                            className="mt-1.5"
+                            value={newAssistantName}
+                            onChange={(e) => setNewAssistantName(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Phone *</label>
+                          <Input 
+                            placeholder="9876543210" 
+                            className="mt-1.5"
+                            value={newAssistantPhone}
+                            onChange={(e) => setNewAssistantPhone(formatPhoneForDisplay(e.target.value))}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Password *</label>
+                          <Input 
+                            type="password"
+                            placeholder="Min 6 characters" 
+                            className="mt-1.5"
+                            value={newAssistantPassword}
+                            onChange={(e) => setNewAssistantPassword(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={handleAddAssistant}
+                          disabled={createAssistantMutation.isPending}
+                        >
+                          {createAssistantMutation.isPending ? (
+                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating...</>
+                          ) : (
+                            "Create Assistant Account"
+                          )}
+                        </Button>
+                        <Button variant="outline" onClick={() => {
+                          setShowAddAssistant(false);
+                          setNewAssistantName("");
+                          setNewAssistantPhone("");
+                          setNewAssistantPassword("");
+                        }}>
+                          Cancel
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Assistants can refer patients on your behalf but cannot see commission details.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Assistants List */}
+                  <div className="space-y-3">
+                    {assistants.length > 0 ? (
+                      assistants.map((assistant) => (
+                        <div key={assistant.id} className="flex items-center justify-between py-3 border-b last:border-0">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                              {assistant.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                            </div>
+                            <div>
+                              <div className="font-medium text-sm">{assistant.name}</div>
+                              <div className="text-xs text-muted-foreground">{assistant.phone}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">Assistant</Badge>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => {
+                                if (confirm(`Are you sure you want to remove ${assistant.name}?`)) {
+                                  deleteAssistantMutation.mutate(assistant.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center text-muted-foreground py-8">
+                        <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                        <p className="text-sm">No assistants added yet</p>
+                        <p className="text-xs mt-1">Add an assistant to help you manage patient referrals</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Recent referrals list */}

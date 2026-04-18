@@ -1,18 +1,23 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
+  Activity,
+  AlertTriangle,
   CalendarDays,
   ChevronDown,
   ChevronUp,
   Clock,
   Download,
+  Edit3,
   FileText,
   Heart,
   Loader2,
   LogOut,
+  Ruler,
+  Save,
   Scale,
   Settings,
   Target,
@@ -20,6 +25,8 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,16 +41,61 @@ import {
   getPatient,
   getPatientDietPlans,
   getConsultations,
+  updatePatient,
   type DietPlan,
   type Consultation,
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+
+// ─── BMI/TDEE Calculation Helpers ──────────────────────────────────────────────
+const calculateBMI = (weight: number, heightCm: number): number | null => {
+  if (!weight || !heightCm || heightCm <= 0) return null;
+  const heightM = heightCm / 100;
+  return Math.round((weight / (heightM * heightM)) * 10) / 10;
+};
+
+const getBMICategory = (bmi: number): { label: string; color: string } => {
+  if (bmi < 18.5) return { label: "Underweight", color: "text-blue-500" };
+  if (bmi < 25) return { label: "Normal", color: "text-green-500" };
+  if (bmi < 30) return { label: "Overweight", color: "text-yellow-600" };
+  return { label: "Obese", color: "text-red-500" };
+};
+
+// TDEE using Mifflin-St Jeor equation with moderate activity level (1.55)
+const calculateTDEE = (
+  weight: number,
+  heightCm: number,
+  age: number | null,
+  gender: string | null
+): number | null => {
+  if (!weight || !heightCm || !age) return null;
+  
+  // Mifflin-St Jeor BMR equation
+  let bmr: number;
+  if (gender === "male") {
+    bmr = 10 * weight + 6.25 * heightCm - 5 * age + 5;
+  } else {
+    // For female and other, use female formula
+    bmr = 10 * weight + 6.25 * heightCm - 5 * age - 161;
+  }
+  
+  // Multiply by activity factor (moderate activity = 1.55)
+  return Math.round(bmr * 1.55);
+};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 const PatientDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const queryClient = useQueryClient();
   const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
+
+  // Body details editing state
+  const [isEditingBody, setIsEditingBody] = useState(false);
+  const [bodyHeight, setBodyHeight] = useState<string>("");
+  const [bodyWeight, setBodyWeight] = useState<string>("");
+  const [bodyAllergies, setBodyAllergies] = useState<string>("");
 
   // Get patient data using the profileId from auth context
   const { data: patient, isLoading: patientLoading } = useQuery({
@@ -51,6 +103,44 @@ const PatientDashboard = () => {
     queryFn: () => getPatient(user!.profileId!),
     enabled: !!user?.profileId,
   });
+
+  // Update patient mutation for body details
+  const updatePatientMutation = useMutation({
+    mutationFn: (data: { height?: number; weight?: number; allergies?: string }) =>
+      updatePatient(user!.profileId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
+      toast.success("Body details updated successfully!");
+      setIsEditingBody(false);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update body details");
+    },
+  });
+
+  // Sync body details form with patient data
+  const handleEditBodyDetails = () => {
+    setBodyHeight(patient?.height?.toString() || "");
+    setBodyWeight(patient?.weight?.toString() || "");
+    setBodyAllergies(patient?.allergies || "");
+    setIsEditingBody(true);
+  };
+
+  const handleSaveBodyDetails = () => {
+    updatePatientMutation.mutate({
+      height: bodyHeight ? parseFloat(bodyHeight) : undefined,
+      weight: bodyWeight ? parseFloat(bodyWeight) : undefined,
+      allergies: bodyAllergies || undefined,
+    });
+  };
+
+  // Calculate BMI and TDEE dynamically
+  const currentBMI = patient?.weight && patient?.height 
+    ? calculateBMI(patient.weight, patient.height) 
+    : null;
+  const currentTDEE = patient?.weight && patient?.height && patient?.age
+    ? calculateTDEE(patient.weight, patient.height, patient.age, patient.gender)
+    : null;
 
   // Get patient diet plans
   const { data: dietPlans, isLoading: plansLoading } = useQuery({
@@ -366,6 +456,150 @@ const PatientDashboard = () => {
                     </p>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Body Details Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    My Body Details
+                  </span>
+                  {!isEditingBody ? (
+                    <Button variant="outline" size="sm" onClick={handleEditBodyDetails}>
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setIsEditingBody(false)}>
+                        Cancel
+                      </Button>
+                      <Button size="sm" onClick={handleSaveBodyDetails} disabled={updatePatientMutation.isPending}>
+                        {updatePatientMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4 mr-2" />
+                            Save
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isEditingBody ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium flex items-center gap-2">
+                        <Ruler className="w-4 h-4 text-muted-foreground" />
+                        Height (cm)
+                      </label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 170"
+                        value={bodyHeight}
+                        onChange={(e) => setBodyHeight(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium flex items-center gap-2">
+                        <Scale className="w-4 h-4 text-muted-foreground" />
+                        Weight (kg)
+                      </label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 70"
+                        value={bodyWeight}
+                        onChange={(e) => setBodyWeight(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-muted-foreground" />
+                        Allergies
+                      </label>
+                      <Textarea
+                        placeholder="e.g. Peanuts, Shellfish, Gluten..."
+                        value={bodyAllergies}
+                        onChange={(e) => setBodyAllergies(e.target.value)}
+                        rows={1}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Body Measurements Row */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="text-center p-4 bg-muted/50 rounded-lg">
+                        <Ruler className="w-5 h-5 mx-auto mb-2 text-primary" />
+                        <p className="text-xs text-muted-foreground">Height</p>
+                        <p className="text-xl font-bold">
+                          {patient.height ? `${patient.height} cm` : "—"}
+                        </p>
+                      </div>
+                      <div className="text-center p-4 bg-muted/50 rounded-lg">
+                        <Scale className="w-5 h-5 mx-auto mb-2 text-primary" />
+                        <p className="text-xs text-muted-foreground">Weight</p>
+                        <p className="text-xl font-bold">
+                          {patient.weight ? `${patient.weight} kg` : "—"}
+                        </p>
+                      </div>
+                      <div className="text-center p-4 bg-muted/50 rounded-lg">
+                        <Target className="w-5 h-5 mx-auto mb-2 text-blue-500" />
+                        <p className="text-xs text-muted-foreground">BMI</p>
+                        {currentBMI ? (
+                          <div>
+                            <p className="text-xl font-bold">{currentBMI}</p>
+                            <p className={`text-xs ${getBMICategory(currentBMI).color}`}>
+                              {getBMICategory(currentBMI).label}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xl font-bold">—</p>
+                        )}
+                      </div>
+                      <div className="text-center p-4 bg-muted/50 rounded-lg">
+                        <Activity className="w-5 h-5 mx-auto mb-2 text-green-500" />
+                        <p className="text-xs text-muted-foreground">Est. TDEE</p>
+                        {currentTDEE ? (
+                          <p className="text-xl font-bold">
+                            {currentTDEE}
+                            <span className="text-xs font-normal ml-0.5">kcal</span>
+                          </p>
+                        ) : (
+                          <p className="text-xl font-bold">—</p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Allergies */}
+                    {patient.allergies && (
+                      <div className="p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-900">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                          <p className="text-xs text-red-600 dark:text-red-400 uppercase tracking-wider font-semibold">Allergies</p>
+                        </div>
+                        <p className="text-sm font-medium text-red-700 dark:text-red-300">{patient.allergies}</p>
+                      </div>
+                    )}
+                    
+                    {/* Prompt to add details if missing */}
+                    {!patient.height && !patient.weight && (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <p className="text-sm">Add your body details to see BMI and TDEE calculations</p>
+                        <Button variant="outline" size="sm" className="mt-2" onClick={handleEditBodyDetails}>
+                          <Edit3 className="w-4 h-4 mr-2" />
+                          Add Details
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Phone, Lock, ArrowRight, Leaf, Heart, Activity, Loader2, User, Stethoscope, ChevronLeft, UtensilsCrossed, Building, GraduationCap } from "lucide-react";
+import { Phone, Lock, ArrowRight, Leaf, Heart, Activity, Loader2, User, Stethoscope, ChevronLeft, UtensilsCrossed, Building, GraduationCap, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,11 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth, getDashboardPath } from "@/contexts/AuthContext";
 import { createJoinRequest } from "@/lib/api";
 
-type FormMode = "login" | "signup" | "professional";
+type FormMode = "login" | "signup" | "professional" | "otp";
 
 const Index = () => {
   const navigate = useNavigate();
-  const { login, signup, isAuthenticated, user, isLoading: authLoading } = useAuth();
+  const { login, signup, sendOtp, verifyOtp, sendSignupOtp, verifySignupOtp, isAuthenticated, user, isLoading: authLoading } = useAuth();
   
   const [mode, setMode] = useState<FormMode>("login");
   const [phone, setPhone] = useState("");
@@ -21,6 +21,12 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // OTP state (for both login and signup)
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [signupOtpSent, setSignupOtpSent] = useState(false);
 
   // Professional join form fields
   const [professionalRole, setProfessionalRole] = useState<"doctor" | "rd">("doctor");
@@ -36,6 +42,14 @@ const Index = () => {
     }
   }, [isAuthenticated, user, authLoading, navigate]);
 
+  // OTP countdown timer
+  useEffect(() => {
+    if (otpTimer > 0) {
+      const timer = setTimeout(() => setOtpTimer(otpTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [otpTimer]);
+
   const resetForm = () => {
     setPhone("");
     setPassword("");
@@ -46,6 +60,10 @@ const Index = () => {
     setSpecializations("");
     setError("");
     setSuccess("");
+    setOtp("");
+    setOtpSent(false);
+    setOtpTimer(0);
+    setSignupOtpSent(false);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -57,6 +75,81 @@ const Index = () => {
     
     if (!result.success) {
       setError(result.error || "Invalid credentials");
+    }
+    
+    setIsLoading(false);
+  };
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+
+    const result = await sendOtp(phone);
+    
+    if (!result.success) {
+      setError(result.error || "Failed to send OTP");
+    } else {
+      setOtpSent(true);
+      setOtpTimer(result.expiresIn || 300); // Default 5 minutes
+      setSuccess("OTP sent to your phone!");
+    }
+    
+    setIsLoading(false);
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setIsLoading(true);
+
+    const result = await verifyOtp(phone, otp);
+    
+    if (!result.success) {
+      setError(result.error || "Invalid OTP");
+    }
+    
+    setIsLoading(false);
+  };
+
+  // Signup with OTP - Step 1: Send OTP
+  const handleSendSignupOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setIsLoading(true);
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      setIsLoading(false);
+      return;
+    }
+
+    const result = await sendSignupOtp(phone, password, name);
+    
+    if (!result.success) {
+      setError(result.error || "Failed to send OTP");
+    } else {
+      setSignupOtpSent(true);
+      setOtpTimer(result.expiresIn || 300);
+      setSuccess("OTP sent to your phone! Please verify to complete signup.");
+    }
+    
+    setIsLoading(false);
+  };
+
+  // Signup with OTP - Step 2: Verify OTP and create account
+  const handleVerifySignupOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setIsLoading(true);
+
+    const result = await verifySignupOtp(phone, otp);
+    
+    if (!result.success) {
+      setError(result.error || "Invalid OTP");
     }
     
     setIsLoading(false);
@@ -112,9 +205,10 @@ const Index = () => {
         specializations: specializations ? specializations.split(",").map(s => s.trim()) : undefined,
       });
       
-      setSuccess("Your request has been submitted! You'll be notified once approved.");
       resetForm();
       setProfessionalRole("doctor");
+      // Set success AFTER resetForm so it doesn't get cleared
+      setSuccess("Your request has been submitted successfully! You'll be notified once approved.");
     } catch (err: any) {
       setError(err.message || "Failed to submit request");
     }
@@ -194,6 +288,24 @@ const Index = () => {
                 Sign up
               </button>
             </p>
+
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-4 bg-white text-slate-400">or</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => { resetForm(); setMode("otp"); }}
+              className="w-full flex items-center justify-center gap-2 p-4 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-slate-600 hover:text-emerald-700 transition-all duration-300 group"
+            >
+              <MessageSquare className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              <span className="font-medium">Login with OTP</span>
+            </button>
           </form>
 
           <div className="mt-8 pt-6 border-t border-slate-200">
@@ -206,6 +318,134 @@ const Index = () => {
               <span className="font-medium">Join as a Doctor or Dietician</span>
             </button>
           </div>
+        </>
+      );
+    }
+
+    if (mode === "otp") {
+      return (
+        <>
+          <div className="mb-8">
+            <button
+              type="button"
+              onClick={() => { resetForm(); setMode("login"); }}
+              className="flex items-center gap-1 text-slate-500 hover:text-slate-700 mb-4"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Back to login
+            </button>
+            <h2 className="text-3xl font-bold text-slate-900">Login with OTP</h2>
+            <p className="text-slate-500 mt-2 text-base">We'll send a one-time password via SMS</p>
+          </div>
+
+          <form onSubmit={otpSent ? handleVerifyOtp : handleSendOtp} className="space-y-6">
+            {error && (
+              <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-base flex items-center gap-3">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
+                {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 text-base flex items-center gap-3">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                {success}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-base font-medium text-slate-700">Phone Number</label>
+              <div className="relative">
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Input
+                  type="tel"
+                  placeholder="Enter your phone number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="pl-12 h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base"
+                  required
+                  disabled={otpSent}
+                />
+              </div>
+            </div>
+
+            {otpSent && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-base font-medium text-slate-700">Enter OTP</label>
+                  {otpTimer > 0 && (
+                    <span className="text-sm text-slate-500">
+                      Expires in {Math.floor(otpTimer / 60)}:{(otpTimer % 60).toString().padStart(2, '0')}
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    placeholder="Enter 6-digit OTP"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    className="pl-12 h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base tracking-widest font-mono"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              disabled={isLoading || (otpSent && otp.length !== 6)}
+              className="w-full h-14 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-base shadow-lg shadow-emerald-500/25 transition-all duration-300 group"
+            >
+              {isLoading ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : otpSent ? (
+                <>
+                  Verify OTP
+                  <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                </>
+              ) : (
+                <>
+                  Send OTP
+                  <MessageSquare className="w-5 h-5 ml-2 group-hover:scale-110 transition-transform" />
+                </>
+              )}
+            </Button>
+
+            {otpSent && otpTimer === 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setOtp("");
+                  setOtpSent(false);
+                  setError("");
+                  setSuccess("");
+                }}
+                className="w-full text-center text-emerald-600 hover:text-emerald-700 font-medium text-sm"
+              >
+                Resend OTP
+              </button>
+            )}
+
+            {otpSent && (
+              <button
+                type="button"
+                onClick={() => {
+                  setOtp("");
+                  setOtpSent(false);
+                  setError("");
+                  setSuccess("");
+                }}
+                className="w-full text-center text-slate-500 hover:text-slate-700 text-sm"
+              >
+                Change phone number
+              </button>
+            )}
+          </form>
         </>
       );
     }
@@ -223,14 +463,26 @@ const Index = () => {
               Back to login
             </button>
             <h2 className="text-3xl font-bold text-slate-900">Create account</h2>
-            <p className="text-slate-500 mt-2 text-base">Sign up to get started as a patient</p>
+            <p className="text-slate-500 mt-2 text-base">
+              {signupOtpSent 
+                ? "Enter the OTP sent to your phone" 
+                : "Sign up to get started as a patient"
+              }
+            </p>
           </div>
 
-          <form onSubmit={handleSignup} className="space-y-5">
+          <form onSubmit={signupOtpSent ? handleVerifySignupOtp : handleSendSignupOtp} className="space-y-5">
             {error && (
               <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-base flex items-center gap-3">
                 <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
                 {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 text-base flex items-center gap-3">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                {success}
               </div>
             )}
 
@@ -244,6 +496,7 @@ const Index = () => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="pl-12 h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base"
+                  disabled={signupOtpSent}
                 />
               </div>
             </div>
@@ -259,6 +512,7 @@ const Index = () => {
                   onChange={(e) => setPhone(e.target.value)}
                   className="pl-12 h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base"
                   required
+                  disabled={signupOtpSent}
                 />
               </div>
             </div>
@@ -274,24 +528,88 @@ const Index = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-12 h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base"
                   required
+                  disabled={signupOtpSent}
                 />
               </div>
             </div>
 
+            {signupOtpSent && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-base font-medium text-slate-700">Enter OTP</label>
+                  {otpTimer > 0 && (
+                    <span className="text-sm text-slate-500">
+                      Expires in {Math.floor(otpTimer / 60)}:{(otpTimer % 60).toString().padStart(2, '0')}
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <MessageSquare className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    placeholder="Enter 6-digit OTP"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    className="pl-12 h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base tracking-widest font-mono"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || (signupOtpSent && otp.length !== 6)}
               className="w-full h-14 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-base shadow-lg shadow-emerald-500/25 transition-all duration-300 group"
             >
               {isLoading ? (
                 <Loader2 className="w-6 h-6 animate-spin" />
+              ) : signupOtpSent ? (
+                <>
+                  Verify & Create Account
+                  <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                </>
               ) : (
                 <>
-                  Create Account
-                  <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                  Send OTP
+                  <MessageSquare className="w-5 h-5 ml-2 group-hover:scale-110 transition-transform" />
                 </>
               )}
             </Button>
+
+            {signupOtpSent && (
+              <div className="flex flex-col gap-2">
+                {otpTimer === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtp("");
+                      setSignupOtpSent(false);
+                      setError("");
+                      setSuccess("");
+                    }}
+                    className="w-full text-center text-emerald-600 hover:text-emerald-700 font-medium text-sm"
+                  >
+                    Resend OTP
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOtp("");
+                    setSignupOtpSent(false);
+                    setError("");
+                    setSuccess("");
+                  }}
+                  className="w-full text-center text-slate-500 hover:text-slate-700 text-sm"
+                >
+                  Edit details
+                </button>
+              </div>
+            )}
 
             <p className="text-center text-slate-600 text-sm">
               Already have an account?{" "}
@@ -505,9 +823,9 @@ const Index = () => {
         <div className="hidden lg:flex lg:w-[70%] flex-col justify-between p-10 xl:p-12 bg-gradient-to-br from-emerald-700 via-teal-700 to-emerald-900 rounded-3xl shadow-xl relative overflow-hidden">
 
           {/* Decorative background shapes */}
-          <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-white/5" />
-          <div className="absolute bottom-0 -left-16 w-64 h-64 rounded-full bg-teal-500/10" />
-          <div className="absolute top-1/2 right-8 w-40 h-40 rounded-full bg-emerald-400/10" />
+          <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-white/5 animate-float-slow-1" />
+          <div className="absolute bottom-0 -left-16 w-64 h-64 rounded-full bg-teal-500/10 animate-float-slow-2" />
+          <div className="absolute top-1/2 right-8 w-40 h-40 rounded-full bg-emerald-400/10 animate-float-slow-3" />
           {/* Subtle dot grid */}
           <div
             className="absolute inset-0 opacity-[0.06]"

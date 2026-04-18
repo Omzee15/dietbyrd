@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 @layer base {
   :root {
@@ -70,4 +70,62 @@
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
   }
+}
+
+/* Slow floating animations for decorative circles */
+@keyframes float-slow-1 {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(15px, -10px);
+  }
+  50% {
+    transform: translate(5px, 15px);
+  }
+  75% {
+    transform: translate(-10px, 5px);
+  }
+}
+
+@keyframes float-slow-2 {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-12px, 8px);
+  }
+  50% {
+    transform: translate(10px, -12px);
+  }
+  75% {
+    transform: translate(8px, 10px);
+  }
+}
+
+@keyframes float-slow-3 {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(8px, 12px);
+  }
+  50% {
+    transform: translate(-15px, -5px);
+  }
+  75% {
+    transform: translate(-5px, -15px);
+  }
+}
+
+.animate-float-slow-1 {
+  animation: float-slow-1 12s ease-in-out infinite;
+}
+
+.animate-float-slow-2 {
+  animation: float-slow-2 15s ease-in-out infinite;
+}
+
+.animate-float-slow-3 {
+  animation: float-slow-3 10s ease-in-out infinite;
 }

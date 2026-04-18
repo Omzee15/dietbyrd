@@ -41,6 +41,9 @@ export interface Patient {
   assigned_dietician_name?: string | null;
   user_phone?: string;
   food_restrictions?: string | null;
+  height?: number | null;  // in cm
+  weight?: number | null;  // in kg
+  allergies?: string | null;
 }
 
 export const getPatients = () => request<Patient[]>("/patients");
@@ -68,10 +71,34 @@ export interface Doctor {
   total_referrals?: number;
 }
 
+export interface DoctorStats {
+  total_referred: number;
+  total_onboarded: number;
+  total_commission: number;
+}
+
 export const getDoctors = () => request<Doctor[]>("/doctors");
 export const getDoctor = (id: number) => request<Doctor>(`/doctors/${id}`);
+export const getDoctorStats = (id: number) => request<DoctorStats>(`/doctors/${id}/stats`);
 export const createDoctor = (data: Partial<Doctor> & { phone: string }) =>
   request<Doctor>("/doctors", { method: "POST", body: JSON.stringify(data) });
+
+// ─── Assistants ───────────────────────────────────────────────────────────────
+export interface Assistant {
+  id: number;
+  user_id: number | null;
+  doctor_id: number;
+  name: string;
+  phone?: string;
+  created_at: string;
+}
+
+export const getDoctorAssistants = (doctorId: number) =>
+  request<Assistant[]>(`/doctors/${doctorId}/assistants`);
+export const createAssistant = (data: { doctor_id: number; name: string; phone: string; password: string }) =>
+  request<Assistant>("/assistants", { method: "POST", body: JSON.stringify(data) });
+export const deleteAssistant = (id: number) =>
+  request<{ message: string }>(`/assistants/${id}`, { method: "DELETE" });
 
 // ─── Dieticians ───────────────────────────────────────────────────────────────
 export interface Dietician {
@@ -107,6 +134,11 @@ export interface Referral {
 export const getReferrals = () => request<Referral[]>("/referrals");
 export const getDoctorReferrals = (doctorId: number) =>
   request<Referral[]>(`/referrals/doctor/${doctorId}`);
+
+export interface CreateReferralResponse extends Referral {
+  is_new_patient?: boolean;
+  message?: string;
+}
 export const createReferral = (data: {
   patient_name: string;
   phone: string;
@@ -114,7 +146,17 @@ export const createReferral = (data: {
   diagnosis_description?: string;
   notes?: string;
   doctor_id: number;
-}) => request<Referral>("/referrals", { method: "POST", body: JSON.stringify(data) });
+}) => request<CreateReferralResponse>("/referrals", { method: "POST", body: JSON.stringify(data) });
+
+// Phone lookup for doctor referral autocomplete
+export interface PhoneLookupResult {
+  id: number;
+  name: string | null;
+  phone: string;
+  diagnosis: string | null;
+}
+export const lookupPhoneNumber = (phone: string) =>
+  request<PhoneLookupResult[]>(`/patients/lookup-phone?phone=${encodeURIComponent(phone)}`);
 
 // ─── Consultations ────────────────────────────────────────────────────────────
 export interface Consultation {
