@@ -2,18 +2,353 @@ import express from "express";
 import cors from "cors";
 import pg from "pg";
 import twilio from "twilio";
+import crypto from "crypto";
 
 const { Pool } = pg;
 
 // Twilio configuration
-const twilioClient = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
-const TWILIO_VERIFY_SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID || "VA8d0807c34b0d64d7e01f4bd65f7079b2";
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || process.env.TWILLO_ACCOUNT_SID || process.env.TWILLO_ACCOUNT_SD;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || process.env.TWILLO_AUTH_TOKEN;
+const TWILIO_VERIFY_SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID || process.env.TWILLO_VERIFY_SERVICE_SID || "VA8d0807c34b0d64d7e01f4bd65f7079b2";
+const twilioClient = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN
+  ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+  : null;
+const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM || "whatsapp:+919076150904"; // Your registered WhatsApp Business number
+
+const getTwilioVerifyService = () => {
+  if (!twilioClient || !TWILIO_VERIFY_SERVICE_SID) {
+    throw new Error("Twilio OTP is not configured. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID in .env");
+  }
+
+  return twilioClient.verify.v2.services(TWILIO_VERIFY_SERVICE_SID);
+};
+
+const sendOtpViaTwilio = async (phone, channel = "sms") => {
+  const toNumber = formatPhoneE164(phone);
+  const normalizedChannel = channel === "whatsapp" ? "whatsapp" : "sms";
+  const service = getTwilioVerifyService();
+
+  const verification = await service.verifications.create({
+    to: toNumber,
+    channel: normalizedChannel,
+  });
+
+  return { verification, toNumber, channel: normalizedChannel };
+};
+
+const verifyOtpViaTwilio = async (phone, otp) => {
+  const toNumber = formatPhoneE164(phone);
+  const service = getTwilioVerifyService();
+
+  const verificationCheck = await service.verificationChecks.create({
+    to: toNumber,
+    code: otp,
+  });
+
+  return verificationCheck;
+};
 
 // OTP configuration
 const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+
+// Template SIDs for WhatsApp messages (approved by Meta)
+const TWILIO_TEMPLATE_WELCOME_SID = process.env.TWILIO_TEMPLATE_WELCOME_SID || "HX328f4bea0c71b8a51ca4dc299ebec18c";
+const TWILIO_TEMPLATE_REFERRAL_SID = process.env.TWILIO_TEMPLATE_REFERRAL_SID || "HXa30600aedf64f90077f9bb14f2f30160";
+
+// Send WhatsApp welcome message using approved template (best effort - doesn't fail if message fails)
+const sendWelcomeWhatsApp = async (phone, name, patientId = null) => {
+  const messageBody = `Hi ${name || 'there'}! 👋\n\nThank you for joining DietByRD! 🎉\n\nOur team will contact you shortly to guide you through the onboarding process and help you get started on your health journey.\n\nIf you have any questions, feel free to reach out!\n\n- Team DietByRD`;
+  
+  try {
+    if (!twilioClient) {
+      console.log("[Welcome] Twilio client not configured, skipping welcome WhatsApp message");
+      // Still store the message as pending/not-sent for tracking
+      await storePatientMessage({
+        patientId,
+        phone,
+        messageType: 'welcome_whatsapp',
+        channel: 'whatsapp',
+        content: messageBody,
+        status: 'not_sent',
+        metadata: { reason: 'twilio_not_configured' }
+      });
+      return;
+    }
+
+    const toNumber = `whatsapp:+91${phone.replace(/\D/g, '').replace(/^91/, '')}`;
+    const userName = name || 'there';
+    
+    // Use content template for sending (works outside 24-hour window)
+    await twilioClient.messages.create({
+      from: TWILIO_WHATSAPP_FROM,
+      to: toNumber,
+      contentSid: TWILIO_TEMPLATE_WELCOME_SID,
+      contentVariables: JSON.stringify({ "1": userName })
+    });
+    console.log(`[Welcome] WhatsApp template message sent to ${toNumber}`);
+    
+    // Store the sent message
+    await storePatientMessage({
+      patientId,
+      phone,
+      messageType: 'welcome_whatsapp',
+      channel: 'whatsapp',
+      content: messageBody,
+      status: 'sent',
+      metadata: { to: toNumber, templateSid: TWILIO_TEMPLATE_WELCOME_SID }
+    });
+  } catch (err) {
+    // Log but don't fail - welcome message is best effort
+    console.log(`[Welcome] WhatsApp send failed: ${err.message}`);
+    
+    // Store the failed message attempt
+    await storePatientMessage({
+      patientId,
+      phone,
+      messageType: 'welcome_whatsapp',
+      channel: 'whatsapp',
+      content: messageBody,
+      status: 'failed',
+      metadata: { error: err.message }
+    });
+  }
+};
+
+const TWILIO_SMS_FROM = process.env.TWILIO_SMS_FROM
+  || process.env.TWILLO_SMS_FROM
+  || process.env.TWILIO_PHONE_NUMBER
+  || process.env.TWILLO_PHONE_NUMBER;
+const TWILIO_MESSAGING_SERVICE_SID = process.env.TWILIO_MESSAGING_SERVICE_SID
+  || process.env.TWILLO_MESSAGING_SERVICE_SID;
+const REFERRAL_SMS_MODE = String(process.env.REFERRAL_SMS_MODE || "log").toLowerCase(); // log | twilio
+
+let cachedSmsFrom = TWILIO_SMS_FROM || null;
+let cachedMessagingServiceSid = TWILIO_MESSAGING_SERVICE_SID || null;
+
+const resolveTwilioSmsSender = async () => {
+  if (cachedMessagingServiceSid) {
+    try {
+      const senderNumbers = await twilioClient.messaging.v1
+        .services(cachedMessagingServiceSid)
+        .phoneNumbers.list({ limit: 1 });
+
+      if (senderNumbers.length > 0) {
+        return {
+          payload: { messagingServiceSid: cachedMessagingServiceSid },
+          source: TWILIO_MESSAGING_SERVICE_SID ? "env_messaging_service_sid" : "account_messaging_service_sid",
+        };
+      }
+
+      if (TWILIO_MESSAGING_SERVICE_SID) {
+        console.log(`[Referral SMS] Configured messaging service ${cachedMessagingServiceSid} has no sender phone numbers attached`);
+      }
+      cachedMessagingServiceSid = null;
+    } catch (err) {
+      console.log(`[Referral SMS] Failed to validate messaging service ${cachedMessagingServiceSid}: ${err?.message || "unknown error"}`);
+      cachedMessagingServiceSid = null;
+    }
+  }
+
+  if (cachedSmsFrom) {
+    return {
+      payload: { from: cachedSmsFrom },
+      source: TWILIO_SMS_FROM ? "env_sms_from" : "cached_account_number",
+    };
+  }
+
+  if (!twilioClient) {
+    return null;
+  }
+
+  try {
+    const messagingServices = await twilioClient.messaging.v1.services.list({ limit: 20 });
+    for (const service of messagingServices) {
+      const senderNumbers = await twilioClient.messaging.v1
+        .services(service.sid)
+        .phoneNumbers.list({ limit: 1 });
+
+      if (senderNumbers.length > 0) {
+        cachedMessagingServiceSid = service.sid;
+        return {
+          payload: { messagingServiceSid: service.sid },
+          source: "account_messaging_service_sid",
+        };
+      }
+    }
+
+    const incomingNumbers = await twilioClient.incomingPhoneNumbers.list({ limit: 20 });
+    const smsNumber = incomingNumbers.find((entry) => entry?.capabilities?.sms)?.phoneNumber;
+
+    if (!smsNumber) {
+      return null;
+    }
+
+    cachedSmsFrom = smsNumber;
+    return {
+      payload: { from: smsNumber },
+      source: "account_incoming_phone",
+    };
+  } catch (err) {
+    console.log(`[Referral SMS] Failed to resolve sender from account: ${err?.message || "unknown error"}`);
+    return null;
+  }
+};
+
+const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doctorName, registrationLink }) => {
+  const toNumber = formatPhoneE164(phone);
+  const body = `Hello ${patientName || "there"}!\n\nYou have been referred to DietByRD by Dr. ${doctorName || "your doctor"}.\n\nComplete your registration here:\n${registrationLink}\n\n- Team DietByRD`;
+
+  if (REFERRAL_SMS_MODE !== "twilio") {
+    console.log("[Referral SMS][LOG-ONLY] Message flow executed", {
+      mode: REFERRAL_SMS_MODE,
+      to: toNumber,
+      patientName: patientName || "there",
+      doctorName: doctorName || "your doctor",
+      registrationLink,
+      body,
+    });
+    
+    // Store the message even in log-only mode
+    await storePatientMessage({
+      patientId,
+      phone,
+      messageType: 'referral_sms',
+      channel: 'sms',
+      content: body,
+      status: 'sent',
+      metadata: { to: toNumber, mode: 'log_only', doctorName, registrationLink }
+    });
+    
+    return {
+      sent: true,
+      mode: "log_only",
+      toNumber,
+      reason: "console_logged_only",
+    };
+  }
+
+  if (!twilioClient) {
+    console.log("[Referral SMS] Skipped: Twilio client not configured");
+    
+    await storePatientMessage({
+      patientId,
+      phone,
+      messageType: 'referral_sms',
+      channel: 'sms',
+      content: body,
+      status: 'not_sent',
+      metadata: { reason: 'twilio_not_configured', doctorName }
+    });
+    
+    return { sent: false, reason: "twilio_not_configured" };
+  }
+
+  const sender = await resolveTwilioSmsSender();
+  if (!sender) {
+    console.log("[Referral SMS] Skipped: missing SMS sender (env and account number not available)");
+    
+    await storePatientMessage({
+      patientId,
+      phone,
+      messageType: 'referral_sms',
+      channel: 'sms',
+      content: body,
+      status: 'not_sent',
+      metadata: { reason: 'missing_sms_sender', doctorName }
+    });
+    
+    return { sent: false, reason: "missing_sms_sender" };
+  }
+
+  try {
+    const payload = {
+      to: toNumber,
+      body,
+      ...sender.payload,
+    };
+
+    const msg = await twilioClient.messages.create(payload);
+    console.log(`[Referral SMS] Sent successfully to ${toNumber}. SID: ${msg.sid}. senderSource=${sender.source}`);
+    
+    // Store successful message
+    await storePatientMessage({
+      patientId,
+      phone,
+      messageType: 'referral_sms',
+      channel: 'sms',
+      content: body,
+      status: 'sent',
+      metadata: { to: toNumber, sid: msg.sid, senderSource: sender.source, doctorName }
+    });
+    
+    return { sent: true, sid: msg.sid, toNumber, senderSource: sender.source };
+  } catch (err) {
+    const code = err?.code || "unknown";
+    const message = err?.message || "unknown error";
+    console.log(`[Referral SMS] Failed for ${toNumber}. code=${code} message=${message}`);
+    
+    // Store failed message attempt
+    await storePatientMessage({
+      patientId,
+      phone,
+      messageType: 'referral_sms',
+      channel: 'sms',
+      content: body,
+      status: 'failed',
+      metadata: { to: toNumber, error: message, errorCode: code, doctorName }
+    });
+    
+    return { sent: false, reason: "twilio_send_failed", code, message };
+  }
+};
+
+// Store message in patient_messages for history tracking (called after message is sent)
+const storePatientMessage = async ({ patientId, phone, messageType, channel, content, status, metadata = {} }) => {
+  try {
+    if (!patientId && phone) {
+      // Try to find patient by phone
+      const result = await getPool().query(
+        `SELECT p.id FROM dietbyrd_patients p
+         LEFT JOIN dietbyrd_users u ON p.user_id = u.id
+         WHERE regexp_replace(COALESCE(p.phone, u.phone, ''), '[^0-9]', '', 'g') LIKE $1
+         LIMIT 1`,
+        [`%${phone.replace(/\D/g, '').slice(-10)}`]
+      );
+      if (result.rows.length > 0) {
+        patientId = result.rows[0].id;
+      }
+    }
+    
+    if (!patientId) {
+      console.log(`[Message Store] Skipped: Could not find patient for phone ${phone}`);
+      return { stored: false, reason: "patient_not_found" };
+    }
+    
+    const message = {
+      id: crypto.randomUUID(),
+      type: messageType, // 'referral_sms', 'welcome_whatsapp', 'otp', etc.
+      channel: channel,  // 'sms', 'whatsapp'
+      content: content,
+      status: status,    // 'sent', 'failed', 'pending'
+      sent_at: new Date().toISOString(),
+      sent_by: 'system',
+      ...metadata
+    };
+    
+    await getPool().query(
+      `UPDATE dietbyrd_patients
+       SET patient_messages = COALESCE(patient_messages, '[]'::jsonb) || $2::jsonb
+       WHERE id = $1`,
+      [patientId, JSON.stringify([message])]
+    );
+    
+    console.log(`[Message Store] Stored ${messageType} message for patient ${patientId}`);
+    return { stored: true, patientId, messageId: message.id };
+  } catch (err) {
+    console.log(`[Message Store] Failed to store message: ${err.message}`);
+    return { stored: false, reason: "storage_failed", error: err.message };
+  }
+};
 
 // Format phone number for E.164 (assumes Indian numbers if no country code)
 const formatPhoneE164 = (phone) => {
@@ -39,6 +374,57 @@ const formatPhoneE164 = (phone) => {
   return `+91${cleaned}`;
 };
 
+// Registration token generation and verification
+const TOKEN_SECRET = process.env.REGISTRATION_TOKEN_SECRET || "dietbyrd-registration-secret-key-2024";
+const TOKEN_EXPIRY = 48 * 60 * 60 * 1000; // 48 hours
+
+const generateRegistrationToken = (patientData) => {
+  const payload = {
+    patientPhone: patientData.phone,
+    patientName: patientData.patient_name,
+    doctorId: patientData.doctor_id,
+    doctorName: patientData.doctor_name,
+    diagnosis: patientData.diagnosis,
+    diagnosisDescription: patientData.diagnosis_description,
+    timestamp: Date.now()
+  };
+  
+  const payloadJson = JSON.stringify(payload);
+  const payloadBase64 = Buffer.from(payloadJson).toString('base64');
+  
+  const hmac = crypto.createHmac('sha256', TOKEN_SECRET);
+  hmac.update(payloadBase64);
+  const signature = hmac.digest('hex').substring(0, 32);
+  
+  return `${payloadBase64}.${signature}`;
+};
+
+const verifyRegistrationToken = (token) => {
+  try {
+    const [payloadBase64, signature] = token.split('.');
+    
+    const hmac = crypto.createHmac('sha256', TOKEN_SECRET);
+    hmac.update(payloadBase64);
+    const expectedSignature = hmac.digest('hex').substring(0, 32);
+    
+    if (signature !== expectedSignature) {
+      throw new Error('Invalid token signature');
+    }
+    
+    const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf-8');
+    const payload = JSON.parse(payloadJson);
+    
+    // Check if token is still valid (48 hours)
+    if (Date.now() - payload.timestamp > TOKEN_EXPIRY) {
+      throw new Error('Token expired');
+    }
+    
+    return payload;
+  } catch (err) {
+    throw new Error(`Invalid or expired registration token: ${err.message}`);
+  }
+};
+
 // Database connection (lazy initialization for serverless)
 let pool;
 const getPool = () => {
@@ -60,6 +446,41 @@ const getPool = () => {
 const query = async (text, params) => {
   const res = await getPool().query(text, params);
   return res;
+};
+
+let paymentsTableInitialized = false;
+const ensurePaymentsTable = async () => {
+  if (paymentsTableInitialized) return;
+
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS dietbyrd_payments (
+        id SERIAL PRIMARY KEY,
+        patient_id INTEGER REFERENCES dietbyrd_patients(id) ON DELETE SET NULL,
+        registered_patient_id INTEGER REFERENCES dietbyrd_registered_patients(id) ON DELETE SET NULL,
+        amount NUMERIC(10, 2) NOT NULL,
+        currency VARCHAR(3) NOT NULL DEFAULT 'INR',
+        payment_type VARCHAR(20) NOT NULL DEFAULT 'manual',
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        gateway_transaction_id VARCHAR(100),
+        gateway_order_id VARCHAR(100),
+        paid_at TIMESTAMP NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT dietbyrd_payments_payment_type_chk CHECK (payment_type IN ('initial', 'autopay', 'retry', 'manual')),
+        CONSTRAINT dietbyrd_payments_status_chk CHECK (status IN ('pending', 'success', 'failed', 'refunded'))
+      )
+    `);
+
+    await query(`CREATE INDEX IF NOT EXISTS idx_payments_patient_id ON dietbyrd_payments(patient_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_payments_registered_patient_id ON dietbyrd_payments(registered_patient_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_payments_status ON dietbyrd_payments(status)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_payments_created_at ON dietbyrd_payments(created_at DESC)`);
+
+    paymentsTableInitialized = true;
+  } catch (err) {
+    console.error("Error ensuring payments table:", err.message);
+  }
 };
 
 // Initialize OTP table (called lazily on first use)
@@ -293,6 +714,76 @@ app.post("/api/auth/signup", async (req, res) => {
   }
 });
 
+app.post("/api/auth/check-phone", async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      return res.status(400).json({ success: false, error: "Phone is required" });
+    }
+
+    const input = String(phone).trim();
+    const digits = input.replace(/\D/g, "");
+    const lastTenDigits = digits.length >= 10 ? digits.slice(-10) : digits;
+
+    const variants = [...new Set([
+      input,
+      digits,
+      lastTenDigits,
+      lastTenDigits ? `+91${lastTenDigits}` : "",
+      lastTenDigits ? `91${lastTenDigits}` : "",
+    ].filter(Boolean))];
+
+    const existing = await query(
+      "SELECT id, role, name FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [variants]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          exists: false,
+          user_role: null,
+          auth_flow: "phone-signin",
+          is_referred_patient: false,
+          referred_by_doctor_name: null,
+        },
+      });
+    }
+
+    const userId = existing.rows[0].id;
+    const userRole = existing.rows[0].role;
+    const userName = existing.rows[0].name || null;
+
+    const referralInfo = await query(
+      `SELECT d.name AS doctor_name
+       FROM dietbyrd_patients p
+       INNER JOIN dietbyrd_referrals r ON r.patient_id = p.id
+       INNER JOIN dietbyrd_doctors d ON d.id = r.doctor_id
+       WHERE p.user_id = $1 OR p.phone = ANY($2::text[])
+       ORDER BY r.referred_at DESC
+       LIMIT 1`,
+      [userId, variants]
+    );
+
+    const referredByDoctorName = referralInfo.rows[0]?.doctor_name || null;
+
+    return res.json({
+      success: true,
+      data: {
+        exists: true,
+        user_role: userRole,
+        user_name: userName,
+        auth_flow: userRole === "patient" ? "otp" : "password",
+        is_referred_patient: Boolean(referredByDoctorName),
+        referred_by_doctor_name: referredByDoctorName,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ─── OTP Authentication ───────────────────────────────────────────────────────
 // Send OTP via Twilio Verify (for login)
 app.post("/api/auth/send-otp", async (req, res) => {
@@ -319,25 +810,22 @@ app.post("/api/auth/send-otp", async (req, res) => {
     }
 
     // Send OTP using Twilio Verify
-    const toNumber = formatPhoneE164(phone);
-    console.log(`[OTP] Sending login OTP to ${toNumber} via ${channel}`);
+    console.log(`[OTP] Sending login OTP to ${phone} via ${channel}`);
     
     try {
-      const verification = await twilioClient.verify.v2
-        .services(TWILIO_VERIFY_SERVICE_SID)
-        .verifications.create({ to: toNumber, channel });
+      const { verification, toNumber, channel: normalizedChannel } = await sendOtpViaTwilio(phone, channel);
       
       console.log(`[OTP] Verification sent, SID: ${verification.sid}, Status: ${verification.status}`);
+      return res.json({ 
+        success: true, 
+        message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
+        to: toNumber,
+        expiresIn: 600 // Twilio Verify OTPs expire in 10 minutes
+      });
     } catch (twilioErr) {
       console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
       return res.status(500).json({ success: false, error: "Failed to send OTP. Please try again." });
     }
-
-    res.json({ 
-      success: true, 
-      message: channel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
-      expiresIn: 600 // Twilio Verify OTPs expire in 10 minutes
-    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -353,12 +841,8 @@ app.post("/api/auth/verify-otp", async (req, res) => {
     }
 
     // Verify OTP using Twilio Verify
-    const toNumber = formatPhoneE164(phone);
-    
     try {
-      const verificationCheck = await twilioClient.verify.v2
-        .services(TWILIO_VERIFY_SERVICE_SID)
-        .verificationChecks.create({ to: toNumber, code: otp });
+      const verificationCheck = await verifyOtpViaTwilio(phone, otp);
       
       if (verificationCheck.status !== "approved") {
         return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
@@ -425,6 +909,126 @@ app.post("/api/auth/verify-otp", async (req, res) => {
   }
 });
 
+// Verify OTP only (without login), used for referred-user password setup
+app.post("/api/auth/verify-otp-only", async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+
+    if (!phone || !otp) {
+      return res.status(400).json({ success: false, error: "Phone and OTP are required" });
+    }
+
+    try {
+      const verificationCheck = await verifyOtpViaTwilio(phone, otp);
+
+      if (verificationCheck.status !== "approved") {
+        return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+      }
+    } catch (twilioErr) {
+      console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
+      return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
+    }
+
+    const userResult = await query(
+      "SELECT id, is_active FROM dietbyrd_users WHERE phone = $1",
+      [phone]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+
+    if (!userResult.rows[0].is_active) {
+      return res.status(401).json({ success: false, error: "Account is deactivated" });
+    }
+
+    return res.json({ success: true, data: { verified: true } });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Set password after OTP verification and sign user in
+app.post("/api/auth/set-password-after-otp", async (req, res) => {
+  try {
+    const { phone, otp, password } = req.body;
+
+    if (!phone || !otp || !password) {
+      return res.status(400).json({ success: false, error: "Phone, OTP, and password are required" });
+    }
+
+    if (String(password).length < 6) {
+      return res.status(400).json({ success: false, error: "Password must be at least 6 characters" });
+    }
+
+    try {
+      const verificationCheck = await verifyOtpViaTwilio(phone, otp);
+
+      if (verificationCheck.status !== "approved") {
+        return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+      }
+    } catch (twilioErr) {
+      console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
+      return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
+    }
+
+    const userResult = await query(
+      "SELECT id, phone, role, name, is_active, is_verified FROM dietbyrd_users WHERE phone = $1",
+      [phone]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+
+    const user = userResult.rows[0];
+
+    if (!user.is_active) {
+      return res.status(401).json({ success: false, error: "Account is deactivated" });
+    }
+
+    await query(
+      "UPDATE dietbyrd_users SET password = $1, last_login_at = CURRENT_TIMESTAMP WHERE id = $2",
+      [password, user.id]
+    );
+
+    let profileId = null;
+    let doctorId = null;
+
+    if (user.role === "doctor") {
+      const doctorResult = await query("SELECT id FROM dietbyrd_doctors WHERE user_id = $1", [user.id]);
+      if (doctorResult.rows.length > 0) profileId = doctorResult.rows[0].id;
+    } else if (user.role === "assistant") {
+      const assistantResult = await query("SELECT id, doctor_id FROM dietbyrd_assistants WHERE user_id = $1", [user.id]);
+      if (assistantResult.rows.length > 0) {
+        profileId = assistantResult.rows[0].id;
+        doctorId = assistantResult.rows[0].doctor_id;
+      }
+    } else if (user.role === "rd") {
+      const rdResult = await query("SELECT id FROM dietbyrd_registered_dietitians WHERE user_id = $1", [user.id]);
+      if (rdResult.rows.length > 0) profileId = rdResult.rows[0].id;
+    } else if (user.role === "patient") {
+      const patientResult = await query("SELECT id FROM dietbyrd_patients WHERE user_id = $1", [user.id]);
+      if (patientResult.rows.length > 0) profileId = patientResult.rows[0].id;
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        id: user.id,
+        phone: user.phone,
+        role: user.role,
+        name: user.name,
+        profileId,
+        doctorId,
+        isVerified: user.is_verified ?? true,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ─── Signup with OTP ──────────────────────────────────────────────────────────
 // Send OTP for signup (stores pending signup data)
 app.post("/api/auth/signup/send-otp", async (req, res) => {
@@ -454,26 +1058,23 @@ app.post("/api/auth/signup/send-otp", async (req, res) => {
     await storeOtp(phone, "", 'signup', pendingData); // Empty OTP - Twilio handles the actual OTP
 
     // Send OTP using Twilio Verify
-    const toNumber = formatPhoneE164(phone);
-    console.log(`[OTP] Sending signup OTP to ${toNumber} via ${channel}`);
+    console.log(`[OTP] Sending signup OTP to ${phone} via ${channel}`);
     
     try {
-      const verification = await twilioClient.verify.v2
-        .services(TWILIO_VERIFY_SERVICE_SID)
-        .verifications.create({ to: toNumber, channel });
+      const { verification, toNumber, channel: normalizedChannel } = await sendOtpViaTwilio(phone, channel);
       
       console.log(`[OTP] Verification sent, SID: ${verification.sid}, Status: ${verification.status}`);
+      return res.json({ 
+        success: true, 
+        message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
+        to: toNumber,
+        expiresIn: 600
+      });
     } catch (twilioErr) {
       console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
       await clearOtp(phone, 'signup');
       return res.status(500).json({ success: false, error: "Failed to send OTP. Please try again." });
     }
-
-    res.json({ 
-      success: true, 
-      message: channel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
-      expiresIn: 600
-    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -489,12 +1090,9 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
     }
 
     // Verify OTP using Twilio Verify
-    const toNumber = formatPhoneE164(phone);
-    
+    // Verify OTP using Twilio Verify
     try {
-      const verificationCheck = await twilioClient.verify.v2
-        .services(TWILIO_VERIFY_SERVICE_SID)
-        .verificationChecks.create({ to: toNumber, code: otp });
+      const verificationCheck = await verifyOtpViaTwilio(phone, otp);
       
       if (verificationCheck.status !== "approved") {
         return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
@@ -550,6 +1148,11 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
        RETURNING id`,
       [user.id, pendingData.phone, pendingData.name || null]
     );
+    
+    const patientId = patientResult.rows[0].id;
+
+    // Send welcome WhatsApp message (best effort - async, don't wait)
+    sendWelcomeWhatsApp(pendingData.phone, pendingData.name, patientId);
 
     res.status(201).json({
       success: true,
@@ -558,7 +1161,7 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
         phone: user.phone,
         role: user.role,
         name: user.name,
-        profileId: patientResult.rows[0].id,
+        profileId: patientId,
       },
     });
   } catch (err) {
@@ -869,23 +1472,127 @@ app.get("/api/patients", async (req, res) => {
   }
 });
 
-app.get("/api/patients/:id", async (req, res) => {
+app.get("/api/patients/:id(\\d+)", async (req, res) => {
   try {
     const { id } = req.params;
+    await ensurePaymentsTable();
+
+    await query(
+      `INSERT INTO dietbyrd_payments (
+         patient_id,
+         registered_patient_id,
+         amount,
+         currency,
+         payment_type,
+         status,
+         gateway_transaction_id,
+         paid_at,
+         created_at,
+         updated_at
+       )
+       SELECT
+         p.id,
+         rp.id,
+         999.00,
+         'INR',
+         'manual',
+         'success',
+         CONCAT('DUMMY-PAY-', p.id, '-', EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)::bigint),
+         COALESCE(rp.created_at, p.created_at, CURRENT_TIMESTAMP),
+         COALESCE(rp.created_at, p.created_at, CURRENT_TIMESTAMP),
+         CURRENT_TIMESTAMP
+       FROM dietbyrd_patients p
+       LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id
+       WHERE p.id = $1
+         AND rp.id IS NOT NULL
+         AND rp.dietary_preference IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1
+           FROM dietbyrd_payments pay
+           WHERE pay.patient_id = p.id
+              OR (pay.registered_patient_id IS NOT NULL AND pay.registered_patient_id = rp.id)
+         )`,
+      [id]
+    );
+
     const result = await query(
       `SELECT 
         p.*,
         u.phone AS user_phone,
         rp.dietary_preference,
-        rp.food_restrictions
+        rp.food_restrictions,
+        rp.assigned_rd_id,
+        rd.name AS assigned_dietician_name,
+        rd.qualification AS assigned_dietician_qualification,
+        ref.doctor_id AS referring_doctor_id,
+        d.name AS referring_doctor_name,
+        d.qualification AS referring_doctor_qualification,
+        d.clinic_name AS referring_doctor_clinic,
+        COALESCE(payment_summary.payment_status, 'unpaid') AS payment_status,
+        COALESCE(payment_summary.payment_history, '[]'::json) AS payment_history
       FROM dietbyrd_patients p
       LEFT JOIN dietbyrd_users u ON p.user_id = u.id
       LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id
+      LEFT JOIN dietbyrd_registered_dietitians rd ON rp.assigned_rd_id = rd.id
+      LEFT JOIN dietbyrd_referrals ref ON ref.patient_id = p.id
+      LEFT JOIN dietbyrd_doctors d ON ref.doctor_id = d.id
+      LEFT JOIN LATERAL (
+        SELECT
+          CASE
+            WHEN COUNT(*) FILTER (WHERE pay.status = 'success') > 0 OR rp.dietary_preference IS NOT NULL THEN 'paid'
+            ELSE 'unpaid'
+          END AS payment_status,
+          COALESCE(
+            json_agg(
+              json_build_object(
+                'payment_id', pay.id,
+                'amount', pay.amount,
+                'currency', pay.currency,
+                'status', pay.status,
+                'paid_at', pay.paid_at,
+                'created_at', pay.created_at
+              )
+              ORDER BY COALESCE(pay.paid_at, pay.created_at) DESC
+            ),
+            '[]'::json
+          ) AS payment_history
+        FROM dietbyrd_payments pay
+        WHERE pay.patient_id = p.id
+           OR (rp.id IS NOT NULL AND pay.registered_patient_id = rp.id)
+      ) AS payment_summary ON true
       WHERE p.id = $1`,
       [id]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: "Patient not found" });
     res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get patient message history
+app.get("/api/patients/:id(\\d+)/messages", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await query(
+      `SELECT COALESCE(patient_messages, '[]'::jsonb) AS messages
+       FROM dietbyrd_patients
+       WHERE id = $1`,
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Patient not found" });
+    }
+    
+    // Return messages sorted by sent_at descending (newest first)
+    const messages = result.rows[0].messages || [];
+    const sortedMessages = Array.isArray(messages) 
+      ? messages.sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at))
+      : [];
+    
+    res.json({ success: true, data: sortedMessages });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -909,10 +1616,10 @@ app.post("/api/patients", async (req, res) => {
   }
 });
 
-app.patch("/api/patients/:id", async (req, res) => {
+app.patch("/api/patients/:id(\\d+)", async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, age, gender, diagnosis, diagnosis_description } = req.body;
+    const { name, age, gender, diagnosis, diagnosis_description, height, weight, allergies, workout_frequency } = req.body;
     const result = await query(
       `UPDATE dietbyrd_patients
        SET name = COALESCE($1, name),
@@ -920,10 +1627,14 @@ app.patch("/api/patients/:id", async (req, res) => {
            gender = COALESCE($3, gender),
            diagnosis = COALESCE($4, diagnosis),
            diagnosis_description = COALESCE($5, diagnosis_description),
+           height = COALESCE($6, height),
+           weight = COALESCE($7, weight),
+           allergies = COALESCE($8, allergies),
+           workout_frequency = COALESCE($9, workout_frequency),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $6
+       WHERE id = $10
        RETURNING *`,
-      [name, age, gender, diagnosis, diagnosis_description, id]
+      [name, age, gender, diagnosis, diagnosis_description, height, weight, allergies, workout_frequency, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: "Patient not found" });
     res.json({ success: true, data: result.rows[0] });
@@ -933,7 +1644,7 @@ app.patch("/api/patients/:id", async (req, res) => {
 });
 
 // Assign dietician to patient
-app.post("/api/patients/:id/assign-dietician", async (req, res) => {
+app.post("/api/patients/:id(\\d+)/assign-dietician", async (req, res) => {
   try {
     const { id } = req.params;
     const { dietician_id } = req.body;
@@ -1163,6 +1874,13 @@ app.post("/api/referrals", async (req, res) => {
       return res.status(400).json({ success: false, error: "phone and doctor_id are required" });
     }
 
+    // Get doctor information
+    const doctorResult = await query(`SELECT name, clinic_name FROM dietbyrd_doctors WHERE id = $1`, [doctor_id]);
+    if (doctorResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Doctor not found" });
+    }
+    const doctor = doctorResult.rows[0];
+
     let patientId;
     let isNewPatient = false;
     
@@ -1208,14 +1926,43 @@ app.post("/api/referrals", async (req, res) => {
       [patientId, doctor_id]
     );
 
+    // Generate registration token and send SMS
+    let referralSmsStatus = { sent: false, reason: "not_attempted" };
+    try {
+      const tokenData = {
+        patient_name,
+        phone,
+        diagnosis,
+        diagnosis_description,
+        doctor_id,
+        doctor_name: doctor.name
+      };
+      
+      const registrationToken = generateRegistrationToken(tokenData);
+      const registrationLink = `${process.env.FRONTEND_URL || "http://localhost:5173"}/register?token=${registrationToken}`;
+
+      console.log(`[Referral SMS] Referral created. isNewPatient=${isNewPatient} phone=${phone}`);
+      referralSmsStatus = await sendReferralRegistrationSms({
+        patientId,
+        patientName: patient_name,
+        phone,
+        doctorName: doctor.name,
+        registrationLink,
+      });
+    } catch (tokenErr) {
+      console.log(`[Referral Token] Error: ${tokenErr.message}`);
+      referralSmsStatus = { sent: false, reason: "token_generation_failed", message: tokenErr.message };
+    }
+
     res.status(201).json({ 
       success: true, 
       data: {
         ...referral.rows[0],
         patient_id: patientId,
         is_new_patient: isNewPatient,
+        referral_sms: referralSmsStatus,
         message: isNewPatient 
-          ? "New patient created and referred successfully. SMS notification will be sent."
+          ? "New patient created and referred successfully. Registration SMS has been sent."
           : "Existing patient referred successfully."
       }
     });
@@ -1224,26 +1971,65 @@ app.post("/api/referrals", async (req, res) => {
   }
 });
 
+// Verify registration token
+app.get("/api/referrals/verify-token", async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      return res.status(400).json({ success: false, error: "Token is required" });
+    }
+
+    const tokenData = verifyRegistrationToken(token);
+    res.json({ success: true, data: tokenData });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 // ─── Phone Number Lookup (for doctor referral autocomplete) ───────────────────
 app.get("/api/patients/lookup-phone", async (req, res) => {
   try {
-    const { phone } = req.query;
+    const phoneQuery = Array.isArray(req.query.phone) ? req.query.phone[0] : req.query.phone;
+    const phone = String(phoneQuery || "").replace(/\D/g, "");
+
     if (!phone || phone.length < 3) {
       return res.json({ success: true, data: [] });
     }
-    
-    // Search for patients with matching phone number prefix
+
     const result = await query(
-      `SELECT DISTINCT p.id, p.name, p.phone, p.diagnosis
-       FROM dietbyrd_patients p
-       WHERE p.phone LIKE $1
-       ORDER BY p.name ASC
+      `SELECT DISTINCT
+          u.id,
+          COALESCE(p.name, u.name) AS name,
+          u.phone,
+          p.diagnosis
+       FROM dietbyrd_users u
+       LEFT JOIN dietbyrd_patients p ON p.user_id = u.id
+       WHERE regexp_replace(COALESCE(u.phone, ''), '[^0-9]', '', 'g') LIKE $1
+          OR regexp_replace(COALESCE(u.phone, ''), '[^0-9]', '', 'g') LIKE $2
+       ORDER BY u.id DESC
        LIMIT 10`,
-      [`${phone}%`]
+      [`${phone}%`, `91${phone}%`]
     );
     
     res.json({ success: true, data: result.rows });
   } catch (err) {
+    const error = err || {};
+    const phoneQuery = Array.isArray(req.query.phone) ? req.query.phone[0] : req.query.phone;
+    console.error("[patients/lookup-phone] Lookup failed", {
+      timestamp: new Date().toISOString(),
+      route: req.originalUrl || req.url,
+      method: req.method,
+      phoneQuery,
+      normalizedPhone: String(phoneQuery || "").replace(/\D/g, ""),
+      errorName: error.name,
+      errorCode: error.code,
+      errorMessage: error.message,
+      errorDetail: error.detail,
+      errorHint: error.hint,
+      errorPosition: error.position,
+      errorWhere: error.where,
+      stack: error.stack,
+    });
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -1289,7 +2075,7 @@ app.get("/api/plans", async (req, res) => {
 
 // ─── Diet Plans ───────────────────────────────────────────────────────────────
 // Get diet plans for a specific patient
-app.get("/api/patients/:id/diet-plans", async (req, res) => {
+app.get("/api/patients/:id(\\d+)/diet-plans", async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -1390,6 +2176,36 @@ app.get("/api/diet-plans/:id", async (req, res) => {
       [id]
     );
     
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Update a specific diet plan
+app.patch("/api/diet-plans/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { plan_json } = req.body;
+
+    if (!plan_json) {
+      return res.status(400).json({ success: false, error: "plan_json is required" });
+    }
+
+    const result = await query(
+      `UPDATE dietbyrd_diet_plans
+       SET plan_json = $1,
+           updated_at = CURRENT_TIMESTAMP,
+           issued_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [JSON.stringify(plan_json), id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Diet plan not found" });
+    }
+
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1541,6 +2357,1056 @@ app.delete("/api/assistants/:id", async (req, res) => {
     }
     
     res.json({ success: true, message: "Assistant deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Food Library ─────────────────────────────────────────────────────────────
+
+// Get all food items
+app.get("/api/food-library", async (req, res) => {
+  try {
+    const { search, category, food_type } = req.query;
+    
+    let queryText = "SELECT * FROM dietbyrd_food_library WHERE 1=1";
+    const params = [];
+    let paramIndex = 1;
+    
+    if (search) {
+      queryText += ` AND (LOWER(name_en) LIKE $${paramIndex} OR LOWER(name_hi) LIKE $${paramIndex})`;
+      params.push(`%${search.toLowerCase()}%`);
+      paramIndex++;
+    }
+    
+    if (category && category !== 'all') {
+      queryText += ` AND category = $${paramIndex}`;
+      params.push(category);
+      paramIndex++;
+    }
+    
+    if (food_type && food_type !== 'all') {
+      queryText += ` AND food_type = $${paramIndex}`;
+      params.push(food_type);
+      paramIndex++;
+    }
+    
+    queryText += " ORDER BY name_en";
+    
+    const result = await query(queryText, params);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get single food item
+app.get("/api/food-library/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      "SELECT * FROM dietbyrd_food_library WHERE id = $1",
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Food item not found" });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Create food item
+app.post("/api/food-library", async (req, res) => {
+  try {
+    const {
+      id, name_en, name_hi, category,
+      calories, protein, carbs, fat, fiber,
+      iron, calcium, magnesium, zinc, potassium, sodium, phosphorus, iodine, selenium, copper,
+      vitamin_a, vitamin_b1, vitamin_b2, vitamin_b3, vitamin_b6, vitamin_b9, vitamin_b12,
+      vitamin_c, vitamin_d, vitamin_e, vitamin_k,
+      yield_factor, image_url, tags, food_type, dietitian_visibility, caution_level, notes,
+      created_by_user_id
+    } = req.body;
+    
+    if (!id || !name_en || !category) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "id, name_en, and category are required" 
+      });
+    }
+    
+    const result = await query(
+      `INSERT INTO dietbyrd_food_library (
+        id, name_en, name_hi, category,
+        calories, protein, carbs, fat, fiber,
+        iron, calcium, magnesium, zinc, potassium, sodium, phosphorus, iodine, selenium, copper,
+        vitamin_a, vitamin_b1, vitamin_b2, vitamin_b3, vitamin_b6, vitamin_b9, vitamin_b12,
+        vitamin_c, vitamin_d, vitamin_e, vitamin_k,
+        yield_factor, image_url, tags, food_type, dietitian_visibility, caution_level, notes,
+        created_by_user_id
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+        $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38
+      ) RETURNING *`,
+      [
+        id, name_en, name_hi, category,
+        calories || 0, protein || 0, carbs || 0, fat || 0, fiber || 0,
+        iron || 0, calcium || 0, magnesium || 0, zinc || 0, potassium || 0, sodium || 0,
+        phosphorus || 0, iodine || 0, selenium || 0, copper || 0,
+        vitamin_a || 0, vitamin_b1 || 0, vitamin_b2 || 0, vitamin_b3 || 0, vitamin_b6 || 0,
+        vitamin_b9 || 0, vitamin_b12 || 0, vitamin_c || 0, vitamin_d || 0, vitamin_e || 0, vitamin_k || 0,
+        yield_factor || 1.0, image_url, tags, food_type || 'CORE',
+        dietitian_visibility !== undefined ? dietitian_visibility : true,
+        caution_level || 'NONE', notes, created_by_user_id
+      ]
+    );
+    
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') { // Unique violation
+      return res.status(400).json({ success: false, error: "Food ID already exists" });
+    }
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Update food item
+app.put("/api/food-library/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name_en, name_hi, category,
+      calories, protein, carbs, fat, fiber,
+      iron, calcium, magnesium, zinc, potassium, sodium, phosphorus, iodine, selenium, copper,
+      vitamin_a, vitamin_b1, vitamin_b2, vitamin_b3, vitamin_b6, vitamin_b9, vitamin_b12,
+      vitamin_c, vitamin_d, vitamin_e, vitamin_k,
+      yield_factor, image_url, tags, food_type, dietitian_visibility, caution_level, notes
+    } = req.body;
+    
+    // Build dynamic update query based on provided fields
+    const updates = [];
+    const params = [];
+    let paramIndex = 1;
+    
+    if (name_en !== undefined) {
+      updates.push(`name_en = $${paramIndex++}`);
+      params.push(name_en);
+    }
+    if (name_hi !== undefined) {
+      updates.push(`name_hi = $${paramIndex++}`);
+      params.push(name_hi);
+    }
+    if (category !== undefined) {
+      updates.push(`category = $${paramIndex++}`);
+      params.push(category);
+    }
+    if (calories !== undefined) {
+      updates.push(`calories = $${paramIndex++}`);
+      params.push(calories);
+    }
+    if (protein !== undefined) {
+      updates.push(`protein = $${paramIndex++}`);
+      params.push(protein);
+    }
+    if (carbs !== undefined) {
+      updates.push(`carbs = $${paramIndex++}`);
+      params.push(carbs);
+    }
+    if (fat !== undefined) {
+      updates.push(`fat = $${paramIndex++}`);
+      params.push(fat);
+    }
+    if (fiber !== undefined) {
+      updates.push(`fiber = $${paramIndex++}`);
+      params.push(fiber);
+    }
+    if (iron !== undefined) {
+      updates.push(`iron = $${paramIndex++}`);
+      params.push(iron);
+    }
+    if (calcium !== undefined) {
+      updates.push(`calcium = $${paramIndex++}`);
+      params.push(calcium);
+    }
+    if (magnesium !== undefined) {
+      updates.push(`magnesium = $${paramIndex++}`);
+      params.push(magnesium);
+    }
+    if (zinc !== undefined) {
+      updates.push(`zinc = $${paramIndex++}`);
+      params.push(zinc);
+    }
+    if (potassium !== undefined) {
+      updates.push(`potassium = $${paramIndex++}`);
+      params.push(potassium);
+    }
+    if (sodium !== undefined) {
+      updates.push(`sodium = $${paramIndex++}`);
+      params.push(sodium);
+    }
+    if (phosphorus !== undefined) {
+      updates.push(`phosphorus = $${paramIndex++}`);
+      params.push(phosphorus);
+    }
+    if (iodine !== undefined) {
+      updates.push(`iodine = $${paramIndex++}`);
+      params.push(iodine);
+    }
+    if (selenium !== undefined) {
+      updates.push(`selenium = $${paramIndex++}`);
+      params.push(selenium);
+    }
+    if (copper !== undefined) {
+      updates.push(`copper = $${paramIndex++}`);
+      params.push(copper);
+    }
+    if (vitamin_a !== undefined) {
+      updates.push(`vitamin_a = $${paramIndex++}`);
+      params.push(vitamin_a);
+    }
+    if (vitamin_b1 !== undefined) {
+      updates.push(`vitamin_b1 = $${paramIndex++}`);
+      params.push(vitamin_b1);
+    }
+    if (vitamin_b2 !== undefined) {
+      updates.push(`vitamin_b2 = $${paramIndex++}`);
+      params.push(vitamin_b2);
+    }
+    if (vitamin_b3 !== undefined) {
+      updates.push(`vitamin_b3 = $${paramIndex++}`);
+      params.push(vitamin_b3);
+    }
+    if (vitamin_b6 !== undefined) {
+      updates.push(`vitamin_b6 = $${paramIndex++}`);
+      params.push(vitamin_b6);
+    }
+    if (vitamin_b9 !== undefined) {
+      updates.push(`vitamin_b9 = $${paramIndex++}`);
+      params.push(vitamin_b9);
+    }
+    if (vitamin_b12 !== undefined) {
+      updates.push(`vitamin_b12 = $${paramIndex++}`);
+      params.push(vitamin_b12);
+    }
+    if (vitamin_c !== undefined) {
+      updates.push(`vitamin_c = $${paramIndex++}`);
+      params.push(vitamin_c);
+    }
+    if (vitamin_d !== undefined) {
+      updates.push(`vitamin_d = $${paramIndex++}`);
+      params.push(vitamin_d);
+    }
+    if (vitamin_e !== undefined) {
+      updates.push(`vitamin_e = $${paramIndex++}`);
+      params.push(vitamin_e);
+    }
+    if (vitamin_k !== undefined) {
+      updates.push(`vitamin_k = $${paramIndex++}`);
+      params.push(vitamin_k);
+    }
+    if (yield_factor !== undefined) {
+      updates.push(`yield_factor = $${paramIndex++}`);
+      params.push(yield_factor);
+    }
+    if (image_url !== undefined) {
+      updates.push(`image_url = $${paramIndex++}`);
+      params.push(image_url);
+    }
+    if (tags !== undefined) {
+      updates.push(`tags = $${paramIndex++}`);
+      params.push(tags);
+    }
+    if (food_type !== undefined) {
+      updates.push(`food_type = $${paramIndex++}`);
+      params.push(food_type);
+    }
+    if (dietitian_visibility !== undefined) {
+      updates.push(`dietitian_visibility = $${paramIndex++}`);
+      params.push(dietitian_visibility);
+    }
+    if (caution_level !== undefined) {
+      updates.push(`caution_level = $${paramIndex++}`);
+      params.push(caution_level);
+    }
+    if (notes !== undefined) {
+      updates.push(`notes = $${paramIndex++}`);
+      params.push(notes);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: "No fields to update" });
+    }
+    
+    params.push(id);
+    const result = await query(
+      `UPDATE dietbyrd_food_library SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      params
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Food item not found" });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Delete food item
+app.delete("/api/food-library/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await query(
+      "DELETE FROM dietbyrd_food_library WHERE id = $1 RETURNING id",
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Food item not found" });
+    }
+    
+    res.json({ success: true, message: "Food item deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Coupon Codes ─────────────────────────────────────────────────────────────
+
+// Get all coupons
+app.get("/api/coupons", async (req, res) => {
+  try {
+    const { active_only } = req.query;
+    
+    let queryText = "SELECT * FROM dietbyrd_coupon_codes WHERE 1=1";
+    
+    if (active_only === 'true') {
+      queryText += " AND is_active = true AND valid_until > NOW()";
+    }
+    
+    queryText += " ORDER BY created_at DESC";
+    
+    const result = await query(queryText);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get single coupon
+app.get("/api/coupons/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      "SELECT * FROM dietbyrd_coupon_codes WHERE id = $1",
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Coupon not found" });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Validate coupon code
+app.post("/api/coupons/validate", async (req, res) => {
+  try {
+    const { code, order_amount, user_id } = req.body;
+    
+    if (!code) {
+      return res.status(400).json({ success: false, error: "Coupon code is required" });
+    }
+    
+    // Get coupon
+    const couponResult = await query(
+      `SELECT * FROM dietbyrd_coupon_codes 
+       WHERE UPPER(code) = UPPER($1) 
+       AND is_active = true 
+       AND valid_from <= NOW() 
+       AND valid_until > NOW()`,
+      [code]
+    );
+    
+    if (couponResult.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Invalid or expired coupon code" 
+      });
+    }
+    
+    const coupon = couponResult.rows[0];
+    
+    // Check usage limit
+    if (coupon.usage_limit && coupon.usage_count >= coupon.usage_limit) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Coupon usage limit reached" 
+      });
+    }
+    
+    // Check minimum purchase amount
+    if (order_amount && coupon.min_purchase_amount > 0) {
+      if (order_amount < coupon.min_purchase_amount) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Minimum purchase amount of ₹${coupon.min_purchase_amount} required` 
+        });
+      }
+    }
+    
+    // Calculate discount
+    let discount = 0;
+    if (coupon.discount_type === 'percentage') {
+      discount = (order_amount * coupon.discount_value) / 100;
+      if (coupon.max_discount_amount && discount > coupon.max_discount_amount) {
+        discount = coupon.max_discount_amount;
+      }
+    } else {
+      discount = coupon.discount_value;
+    }
+    
+    res.json({ 
+      success: true, 
+      data: {
+        ...coupon,
+        discount_applied: discount
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Create coupon
+app.post("/api/coupons", async (req, res) => {
+  try {
+    const {
+      code, discount_type, discount_value, max_discount_amount, min_purchase_amount,
+      usage_limit, valid_from, valid_until, is_active, applicable_plans, notes,
+      created_by_user_id
+    } = req.body;
+    
+    if (!code || !discount_type || discount_value === undefined || !valid_until) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "code, discount_type, discount_value, and valid_until are required" 
+      });
+    }
+    
+    const result = await query(
+      `INSERT INTO dietbyrd_coupon_codes (
+        code, discount_type, discount_value, max_discount_amount, min_purchase_amount,
+        usage_limit, valid_from, valid_until, is_active, applicable_plans, notes,
+        created_by_user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      [
+        code.toUpperCase(), discount_type, discount_value, max_discount_amount,
+        min_purchase_amount || 0, usage_limit, valid_from || new Date(),
+        valid_until, is_active !== undefined ? is_active : true,
+        applicable_plans ? JSON.stringify(applicable_plans) : null,
+        notes, created_by_user_id
+      ]
+    );
+    
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') { // Unique violation
+      return res.status(400).json({ success: false, error: "Coupon code already exists" });
+    }
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Update coupon
+app.put("/api/coupons/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      code, discount_type, discount_value, max_discount_amount, min_purchase_amount,
+      usage_limit, valid_from, valid_until, is_active, applicable_plans, notes
+    } = req.body;
+    
+    const updates = [];
+    const params = [];
+    let paramIndex = 1;
+    
+    if (code !== undefined) {
+      updates.push(`code = $${paramIndex++}`);
+      params.push(code.toUpperCase());
+    }
+    if (discount_type !== undefined) {
+      updates.push(`discount_type = $${paramIndex++}`);
+      params.push(discount_type);
+    }
+    if (discount_value !== undefined) {
+      updates.push(`discount_value = $${paramIndex++}`);
+      params.push(discount_value);
+    }
+    if (max_discount_amount !== undefined) {
+      updates.push(`max_discount_amount = $${paramIndex++}`);
+      params.push(max_discount_amount);
+    }
+    if (min_purchase_amount !== undefined) {
+      updates.push(`min_purchase_amount = $${paramIndex++}`);
+      params.push(min_purchase_amount);
+    }
+    if (usage_limit !== undefined) {
+      updates.push(`usage_limit = $${paramIndex++}`);
+      params.push(usage_limit);
+    }
+    if (valid_from !== undefined) {
+      updates.push(`valid_from = $${paramIndex++}`);
+      params.push(valid_from);
+    }
+    if (valid_until !== undefined) {
+      updates.push(`valid_until = $${paramIndex++}`);
+      params.push(valid_until);
+    }
+    if (is_active !== undefined) {
+      updates.push(`is_active = $${paramIndex++}`);
+      params.push(is_active);
+    }
+    if (applicable_plans !== undefined) {
+      updates.push(`applicable_plans = $${paramIndex++}`);
+      params.push(applicable_plans ? JSON.stringify(applicable_plans) : null);
+    }
+    if (notes !== undefined) {
+      updates.push(`notes = $${paramIndex++}`);
+      params.push(notes);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: "No fields to update" });
+    }
+    
+    params.push(id);
+    const result = await query(
+      `UPDATE dietbyrd_coupon_codes SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      params
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Coupon not found" });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ success: false, error: "Coupon code already exists" });
+    }
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Delete coupon
+app.delete("/api/coupons/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await query(
+      "DELETE FROM dietbyrd_coupon_codes WHERE id = $1 RETURNING id",
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Coupon not found" });
+    }
+    
+    res.json({ success: true, message: "Coupon deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Apply coupon (increment usage count)
+app.post("/api/coupons/:id/apply", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, patient_id, subscription_id, discount_applied, order_amount } = req.body;
+    
+    // Increment usage count
+    const couponResult = await query(
+      `UPDATE dietbyrd_coupon_codes 
+       SET usage_count = usage_count + 1 
+       WHERE id = $1 
+       RETURNING *`,
+      [id]
+    );
+    
+    if (couponResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Coupon not found" });
+    }
+    
+    // Record usage
+    await query(
+      `INSERT INTO dietbyrd_coupon_usage 
+       (coupon_id, user_id, patient_id, subscription_id, discount_applied, order_amount)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, user_id, patient_id, subscription_id, discount_applied, order_amount]
+    );
+    
+    res.json({ 
+      success: true, 
+      message: "Coupon applied successfully",
+      data: couponResult.rows[0]
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Appointment Booking System ───────────────────────────────────────────────
+
+// Get dietician's weekly availability schedule
+app.get("/api/dieticians/:id/availability", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await query(
+      `SELECT * FROM dietbyrd_dietician_availability 
+       WHERE rd_id = $1 AND is_active = true 
+       ORDER BY day_of_week, start_time`,
+      [id]
+    );
+    
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Set/Update dietician's weekly availability
+app.post("/api/dieticians/:id/availability", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { schedules } = req.body; // Array of { day_of_week, start_time, end_time, slot_duration_minutes }
+    
+    if (!schedules || !Array.isArray(schedules)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "schedules array is required" 
+      });
+    }
+
+    // Start transaction
+    await query("BEGIN");
+    
+    try {
+      // Deactivate all existing schedules for this dietician
+      await query(
+        `UPDATE dietbyrd_dietician_availability 
+         SET is_active = false, updated_at = CURRENT_TIMESTAMP 
+         WHERE rd_id = $1`,
+        [id]
+      );
+      
+      // Insert new schedules
+      for (const schedule of schedules) {
+        await query(
+          `INSERT INTO dietbyrd_dietician_availability 
+           (rd_id, day_of_week, start_time, end_time, slot_duration_minutes, is_active)
+           VALUES ($1, $2, $3, $4, $5, true)
+           ON CONFLICT (rd_id, day_of_week, start_time) 
+           DO UPDATE SET 
+             end_time = EXCLUDED.end_time,
+             slot_duration_minutes = EXCLUDED.slot_duration_minutes,
+             is_active = true,
+             updated_at = CURRENT_TIMESTAMP`,
+          [id, schedule.day_of_week, schedule.start_time, schedule.end_time, schedule.slot_duration_minutes || 60]
+        );
+      }
+      
+      await query("COMMIT");
+      
+      // Return updated schedules
+      const result = await query(
+        `SELECT * FROM dietbyrd_dietician_availability 
+         WHERE rd_id = $1 AND is_active = true 
+         ORDER BY day_of_week, start_time`,
+        [id]
+      );
+      
+      res.json({ success: true, data: result.rows });
+    } catch (err) {
+      await query("ROLLBACK");
+      throw err;
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get available appointment slots for a dietician within a date range
+app.get("/api/dieticians/:id/available-slots", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { start_date, end_date } = req.query;
+    
+    if (!start_date || !end_date) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "start_date and end_date are required (YYYY-MM-DD format)" 
+      });
+    }
+
+    // Get dietician's weekly availability
+    const availabilityResult = await query(
+      `SELECT * FROM dietbyrd_dietician_availability 
+       WHERE rd_id = $1 AND is_active = true`,
+      [id]
+    );
+    
+    if (availabilityResult.rows.length === 0) {
+      return res.json({ success: true, data: [], message: "No availability set for this dietician" });
+    }
+
+    // Get already booked consultations in the date range
+    const bookedResult = await query(
+      `SELECT scheduled_at FROM dietbyrd_consultations 
+       WHERE rd_id = $1 
+       AND scheduled_at >= $2::timestamp 
+       AND scheduled_at < ($3::date + interval '1 day')::timestamp
+       AND status NOT IN ('cancelled', 'no_show')`,
+      [id, start_date, end_date]
+    );
+    
+    const bookedSlots = new Set(
+      bookedResult.rows.map(row => new Date(row.scheduled_at).toISOString())
+    );
+
+    // Get blocked slots for the date range
+    const blockedResult = await query(
+      `SELECT * FROM dietbyrd_dietician_blocked_slots 
+       WHERE rd_id = $1 
+       AND blocked_date >= $2::date 
+       AND blocked_date <= $3::date`,
+      [id, start_date, end_date]
+    );
+    
+    // Generate available slots
+    const availableSlots = [];
+    const startDateObj = new Date(start_date + "T00:00:00");
+    const endDateObj = new Date(end_date + "T23:59:59");
+    const now = new Date();
+    
+    // Add buffer time (don't allow booking within next 2 hours)
+    const minBookingTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    
+    for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
+      const dayOfWeek = d.getDay(); // 0=Sunday, 1=Monday, etc.
+      const dateStr = d.toISOString().split("T")[0];
+      
+      // Check if this day is completely blocked
+      const dayBlocked = blockedResult.rows.find(
+        b => b.blocked_date.toISOString().split("T")[0] === dateStr && !b.start_time
+      );
+      if (dayBlocked) continue;
+      
+      // Get availability for this day of week
+      const dayAvailability = availabilityResult.rows.filter(a => a.day_of_week === dayOfWeek);
+      
+      for (const avail of dayAvailability) {
+        const slotDuration = avail.slot_duration_minutes || 30;
+        
+        // Parse start and end times
+        const [startHour, startMin] = avail.start_time.split(":").map(Number);
+        const [endHour, endMin] = avail.end_time.split(":").map(Number);
+        
+        // Generate slots
+        let slotStart = new Date(d);
+        slotStart.setHours(startHour, startMin, 0, 0);
+        
+        const slotEnd = new Date(d);
+        slotEnd.setHours(endHour, endMin, 0, 0);
+        
+        while (slotStart.getTime() + slotDuration * 60 * 1000 <= slotEnd.getTime()) {
+          // Check if slot is in the past or too soon
+          if (slotStart < minBookingTime) {
+            slotStart = new Date(slotStart.getTime() + slotDuration * 60 * 1000);
+            continue;
+          }
+          
+          // Check if slot is booked
+          const slotISO = slotStart.toISOString();
+          if (bookedSlots.has(slotISO)) {
+            slotStart = new Date(slotStart.getTime() + slotDuration * 60 * 1000);
+            continue;
+          }
+          
+          // Check if slot is in a blocked time range for this specific date
+          const timeBlocked = blockedResult.rows.find(b => {
+            if (b.blocked_date.toISOString().split("T")[0] !== dateStr) return false;
+            if (!b.start_time) return false;
+            const blockStart = b.start_time.split(":").map(Number);
+            const blockEnd = b.end_time.split(":").map(Number);
+            const slotHour = slotStart.getHours();
+            const slotMin = slotStart.getMinutes();
+            const slotTimeNum = slotHour * 60 + slotMin;
+            const blockStartNum = blockStart[0] * 60 + blockStart[1];
+            const blockEndNum = blockEnd[0] * 60 + blockEnd[1];
+            return slotTimeNum >= blockStartNum && slotTimeNum < blockEndNum;
+          });
+          
+          if (timeBlocked) {
+            slotStart = new Date(slotStart.getTime() + slotDuration * 60 * 1000);
+            continue;
+          }
+          
+          // Slot is available
+          availableSlots.push({
+            date: dateStr,
+            start_time: slotStart.toTimeString().slice(0, 5),
+            datetime: slotStart.toISOString(),
+            duration_minutes: slotDuration
+          });
+          
+          slotStart = new Date(slotStart.getTime() + slotDuration * 60 * 1000);
+        }
+      }
+    }
+    
+    res.json({ success: true, data: availableSlots });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Book an appointment (create consultation)
+app.post("/api/appointments/book", async (req, res) => {
+  try {
+    const { patient_id, rd_id, scheduled_at, consultation_type, patient_notes } = req.body;
+    
+    if (!patient_id || !rd_id || !scheduled_at) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "patient_id, rd_id, and scheduled_at are required" 
+      });
+    }
+    
+    // Get or create registered_patient record
+    let regPatientResult = await query(
+      "SELECT id FROM dietbyrd_registered_patients WHERE patient_id = $1",
+      [patient_id]
+    );
+    
+    let registeredPatientId;
+    if (regPatientResult.rows.length === 0) {
+      const newRegPatient = await query(
+        `INSERT INTO dietbyrd_registered_patients (patient_id, assigned_rd_id)
+         VALUES ($1, $2) RETURNING id`,
+        [patient_id, rd_id]
+      );
+      registeredPatientId = newRegPatient.rows[0].id;
+    } else {
+      registeredPatientId = regPatientResult.rows[0].id;
+    }
+    
+    // Check if slot is still available
+    const existingResult = await query(
+      `SELECT id FROM dietbyrd_consultations 
+       WHERE rd_id = $1 
+       AND scheduled_at = $2::timestamp 
+       AND status NOT IN ('cancelled', 'no_show')`,
+      [rd_id, scheduled_at]
+    );
+    
+    if (existingResult.rows.length > 0) {
+      return res.status(409).json({ 
+        success: false, 
+        error: "This time slot is no longer available" 
+      });
+    }
+    
+    // Determine consultation type (first or returning)
+    const previousConsultations = await query(
+      `SELECT COUNT(*) as count FROM dietbyrd_consultations 
+       WHERE registered_patient_id = $1 AND status = 'completed'`,
+      [registeredPatientId]
+    );
+    const type = consultation_type || (previousConsultations.rows[0].count > 0 ? 'returning' : 'first');
+    
+    // Create the consultation
+    const result = await query(
+      `INSERT INTO dietbyrd_consultations 
+       (registered_patient_id, rd_id, scheduled_at, consultation_type, status, booked_by_patient, patient_notes)
+       VALUES ($1, $2, $3::timestamp, $4, 'scheduled', true, $5)
+       RETURNING *`,
+      [registeredPatientId, rd_id, scheduled_at, type, patient_notes || null]
+    );
+    
+    // Get full consultation details with names
+    const fullResult = await query(
+      `SELECT 
+        c.*,
+        p.name AS patient_name,
+        p.phone AS patient_phone,
+        rd.name AS dietician_name
+       FROM dietbyrd_consultations c
+       LEFT JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
+       LEFT JOIN dietbyrd_patients p ON rp.patient_id = p.id
+       LEFT JOIN dietbyrd_registered_dietitians rd ON c.rd_id = rd.id
+       WHERE c.id = $1`,
+      [result.rows[0].id]
+    );
+    
+    res.status(201).json({ success: true, data: fullResult.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get patient's appointments
+app.get("/api/patients/:id/appointments", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, upcoming_only } = req.query;
+    
+    let sql = `
+      SELECT 
+        c.*,
+        rd.name AS dietician_name,
+        rd.qualification AS dietician_qualification,
+        p.name AS patient_name
+      FROM dietbyrd_consultations c
+      LEFT JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
+      LEFT JOIN dietbyrd_patients p ON rp.patient_id = p.id
+      LEFT JOIN dietbyrd_registered_dietitians rd ON c.rd_id = rd.id
+      WHERE rp.patient_id = $1
+    `;
+    const params = [id];
+    
+    if (status) {
+      params.push(status);
+      sql += ` AND c.status = $${params.length}`;
+    }
+    
+    if (upcoming_only === 'true') {
+      sql += ` AND c.scheduled_at >= NOW() AND c.status NOT IN ('cancelled', 'no_show', 'completed')`;
+    }
+    
+    sql += ` ORDER BY c.scheduled_at DESC`;
+    
+    const result = await query(sql, params);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Cancel an appointment
+app.put("/api/appointments/:id/cancel", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { cancelled_by, reason } = req.body;
+    
+    const result = await query(
+      `UPDATE dietbyrd_consultations 
+       SET status = 'cancelled', 
+           cancelled_at = CURRENT_TIMESTAMP,
+           cancelled_by = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND status = 'scheduled'
+       RETURNING *`,
+      [id, cancelled_by || 'patient']
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Appointment not found or cannot be cancelled" 
+      });
+    }
+    
+    res.json({ success: true, data: result.rows[0], message: "Appointment cancelled successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Block time slots for a dietician (for leave, holidays, etc.)
+app.post("/api/dieticians/:id/blocked-slots", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { blocked_date, start_time, end_time, reason } = req.body;
+    
+    if (!blocked_date) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "blocked_date is required" 
+      });
+    }
+    
+    const result = await query(
+      `INSERT INTO dietbyrd_dietician_blocked_slots 
+       (rd_id, blocked_date, start_time, end_time, reason)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (rd_id, blocked_date, start_time) DO UPDATE SET
+         end_time = EXCLUDED.end_time,
+         reason = EXCLUDED.reason
+       RETURNING *`,
+      [id, blocked_date, start_time || null, end_time || null, reason || null]
+    );
+    
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get blocked slots for a dietician
+app.get("/api/dieticians/:id/blocked-slots", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { start_date, end_date } = req.query;
+    
+    let sql = `SELECT * FROM dietbyrd_dietician_blocked_slots WHERE rd_id = $1`;
+    const params = [id];
+    
+    if (start_date) {
+      params.push(start_date);
+      sql += ` AND blocked_date >= $${params.length}::date`;
+    }
+    if (end_date) {
+      params.push(end_date);
+      sql += ` AND blocked_date <= $${params.length}::date`;
+    }
+    
+    sql += ` ORDER BY blocked_date, start_time`;
+    
+    const result = await query(sql, params);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Remove blocked slot
+app.delete("/api/dieticians/:rdId/blocked-slots/:slotId", async (req, res) => {
+  try {
+    const { rdId, slotId } = req.params;
+    
+    const result = await query(
+      `DELETE FROM dietbyrd_dietician_blocked_slots 
+       WHERE id = $1 AND rd_id = $2
+       RETURNING *`,
+      [slotId, rdId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Blocked slot not found" });
+    }
+    
+    res.json({ success: true, message: "Blocked slot removed successfully" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

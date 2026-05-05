@@ -2,8 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
-import { CalendarDays, Minus, Plus, Search, Settings, Trash2, Users, UtensilsCrossed, Loader2, LogOut, ChevronDown, X, Download } from "lucide-react";
+import { CalendarDays, Minus, Plus, Search, Settings, Trash2, Users, UtensilsCrossed, Loader2, LogOut, ChevronDown, X, Download, Apple, SquarePen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,9 +14,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import AppSidebar from "@/components/AppSidebar";
-import { getDietician, getDieticianPatients, getConsultations, type Patient, type Dietician, type Consultation } from "@/lib/api";
+import { getDietician, getDieticianPatients, getConsultations, getReferrals, type Patient, type Dietician, type Consultation, type Referral } from "@/lib/api";
+import { foodService } from "@/lib/food-service";
+import type { Food as FoodLibraryItem } from "@/lib/diet-types";
+import { getRDA } from "@/lib/diet-utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { FoodLibraryAddDialog } from "@/components/diet";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface FoodItem {
@@ -27,6 +30,24 @@ interface FoodItem {
   protein: number;
   carbs: number;
   fat: number;
+  fiber?: number;
+  iron?: number;
+  calcium?: number;
+  magnesium?: number;
+  zinc?: number;
+  potassium?: number;
+  sodium?: number;
+  vitamin_a?: number;
+  vitamin_c?: number;
+  vitamin_d?: number;
+  vitamin_e?: number;
+  vitamin_k?: number;
+  vitamin_b1?: number;
+  vitamin_b2?: number;
+  vitamin_b3?: number;
+  vitamin_b6?: number;
+  vitamin_b9?: number;
+  vitamin_b12?: number;
   treat?: boolean;
 }
 
@@ -72,7 +93,11 @@ interface DisplayPatient {
   nextSession: string;
 }
 
-function transformPatient(patient: Patient, consultations: Consultation[]): DisplayPatient {
+function transformPatient(
+  patient: Patient,
+  consultations: Consultation[],
+  referralDoctorName?: string | null,
+): DisplayPatient {
   // Find next consultation for this patient
   const patientConsultations = consultations.filter(c => c.patient_id === patient.id);
   const upcomingConsultation = patientConsultations.find(c => 
@@ -95,12 +120,16 @@ function transformPatient(patient: Patient, consultations: Consultation[]): Disp
     }
   }
 
+  const doctorDisplayName = referralDoctorName?.trim() || patient.referring_doctor_name?.trim()
+    ? (referralDoctorName?.trim() || patient.referring_doctor_name?.trim() || "")
+    : "Direct Patient";
+
   return {
     id: patient.id,
     name: patient.name || "Unknown",
     age: patient.age || 0,
     diagnosis: patient.diagnosis || "General consultation",
-    doctor: "Referred Doctor", // Would need a join to get actual doctor name
+    doctor: doctorDisplayName,
     status: Math.random() > 0.3 ? "on-track" : "review", // Placeholder - would come from actual tracking
     nextSession,
   };
@@ -170,11 +199,34 @@ const DieticianDashboard = () => {
     enabled: !!currentDietician?.id,
   });
 
+  const { data: referrals = [] } = useQuery({
+    queryKey: ["referrals"],
+    queryFn: getReferrals,
+  });
+
+  const { data: foodLibrary = [], refetch: refetchFoodLibrary } = useQuery({
+    queryKey: ["food-library"],
+    queryFn: foodService.getAll,
+  });
+
   // Transform API data for UI
   const displayPatients = useMemo(() => {
     if (!patients || !consultations) return [];
-    return patients.map(p => transformPatient(p, consultations));
-  }, [patients, consultations]);
+
+    const latestReferralByPatient = new Map<number, Referral>();
+    referrals.forEach((referral) => {
+      const existing = latestReferralByPatient.get(referral.patient_id);
+      if (!existing || new Date(referral.created_at) > new Date(existing.created_at)) {
+        latestReferralByPatient.set(referral.patient_id, referral);
+      }
+    });
+
+    return patients.map((patient) => {
+      const referral = latestReferralByPatient.get(patient.id);
+      const referralDoctorName = referral?.doctor_name || null;
+      return transformPatient(patient, consultations, referralDoctorName);
+    });
+  }, [patients, consultations, referrals]);
 
   const displayConsultations = useMemo(() => {
     if (!consultations) return [];
@@ -225,160 +277,184 @@ const DieticianDashboard = () => {
     });
   };
 
-  // PDF Download Function
-  const downloadDietPlanPDF = () => {
-    if (!selectedPatient) {
-      toast.error("Please select a patient first");
-      return;
-    }
-
-    // Find the full patient data
+  // PDF Generation Function (Fitarc-style: modal flow with preview/download)
+  const generateDietPlanPDF = (): string => {
+    if (!selectedPatient) return '';
     const fullPatient = patients?.find(p => p.id === selectedPatient.id);
-
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Header
-    doc.setFillColor(20, 184, 166); // Teal color
-    doc.rect(0, 0, pageWidth, 45, 'F');
-    
-    // Logo/Title
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+
+    const DASHBOARD_SCALE = 0.75;
+    const DASH_HEADER_SIZE = 14 * DASHBOARD_SCALE;
+    const DASH_LABEL_SIZE = 8 * DASHBOARD_SCALE;
+
+    let y = 15;
+
+    // 1. HEADER — sky-blue title (no coloured rect background)
+    doc.setFontSize(22);
+    doc.setTextColor(14, 165, 233);
     doc.setFont('helvetica', 'bold');
-    doc.text('DietByRD', 15, 22);
-    
+    doc.text('DietByRD Diet Plan', margin, y);
+    y += 8;
+
     doc.setFontSize(10);
+    doc.setTextColor(0);
     doc.setFont('helvetica', 'normal');
-    doc.text('Personalized Diet Plan', 15, 32);
-    
-    // Plan date
+    doc.text(`Patient: ${selectedPatient.name} (${selectedPatient.age}y)`, margin, y);
+    doc.text(`Date: ${formatDate()}`, margin + 90, y);
+    y += 5;
+    doc.text(`Dietician: ${currentDietician?.name || 'N/A'}`, margin, y);
+    if (selectedPatient.diagnosis) doc.text(`Diagnosis: ${selectedPatient.diagnosis}`, margin + 90, y);
+    y += 6;
+    doc.setDrawColor(200);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 6;
+
+    // 2. DAILY SUMMARY — plain text row
+    const sexForRda = fullPatient?.gender === 'female' ? 'F' : 'M';
+    const ageForRda = fullPatient?.age || 30;
+    const proteinTarget = Math.max(1, (fullPatient?.weight || 70) * 1.6);
+    const carbsTarget = Math.max(1, (dailyTarget.calories * 0.45) / 4);
+    const fatTarget = Math.max(1, (dailyTarget.calories * 0.25) / 9);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(0);
+    doc.text('Daily Summary', margin, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.text(`Generated: ${formatDate()}`, pageWidth - 15, 22, { align: 'right' });
-    doc.text(`Dietician: ${currentDietician?.name || 'N/A'}`, pageWidth - 15, 32, { align: 'right' });
-    
-    // Patient info section
-    let yPos = 55;
-    doc.setTextColor(60, 60, 60);
-    doc.setFontSize(14);
+    doc.text(`Calories: ${Math.round(totalNutrients.calories)} / ${dailyTarget.calories} kcal`, margin, y);
+    doc.text(`Protein: ${totalNutrients.protein.toFixed(1)}g`, margin + 65, y);
+    doc.text(`Carbs: ${totalNutrients.carbs.toFixed(1)}g`, margin + 105, y);
+    doc.text(`Fat: ${totalNutrients.fat.toFixed(1)}g`, margin + 145, y);
+    y += 6;
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // 3. MEAL PLAN — rounded-rect headers + bullet points
     doc.setFont('helvetica', 'bold');
-    doc.text('Patient Information', 15, yPos);
-    
-    yPos += 10;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Name: ${selectedPatient.name}`, 15, yPos);
-    doc.text(`Age: ${selectedPatient.age} years`, 100, yPos);
-    yPos += 7;
-    doc.text(`Diagnosis: ${selectedPatient.diagnosis}`, 15, yPos);
-    if (fullPatient?.dietary_preference) {
-      doc.text(`Diet Type: ${fullPatient.dietary_preference}`, 100, yPos);
-    }
-    
-    // Divider
-    yPos += 12;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(15, yPos, pageWidth - 15, yPos);
-    
-    // Daily Nutrition Summary
-    yPos += 12;
     doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(60, 60, 60);
-    doc.text('Daily Nutrition Summary', 15, yPos);
-    
-    yPos += 10;
-    const summaryData = [
-      ['Calories', `${Math.round(totalNutrients.calories)} kcal`],
-      ['Protein', `${Math.round(totalNutrients.protein)} g`],
-      ['Carbohydrates', `${Math.round(totalNutrients.carbs)} g`],
-      ['Fat', `${Math.round(totalNutrients.fat)} g`],
-    ];
-    
-    autoTable(doc, {
-      startY: yPos,
-      head: [['Nutrient', 'Daily Total']],
-      body: summaryData,
-      theme: 'striped',
-      headStyles: { fillColor: [20, 184, 166], textColor: 255 },
-      styles: { fontSize: 10, cellPadding: 4 },
-      margin: { left: 15, right: 15 },
-      tableWidth: 'auto',
-    });
-    
-    // Get the final Y position after the table
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    yPos = (doc as any).lastAutoTable.finalY + 15;
-    
-    // Meal Plans
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Meal Plan', 15, yPos);
-    
+    doc.setTextColor(14, 165, 233);
+    doc.text('Meal Plan', margin, y);
+    y += 8;
+
     meals.forEach((meal) => {
-      yPos += 12;
-      
-      // Check if we need a new page
-      if (yPos > 250) {
-        doc.addPage();
-        yPos = 20;
-      }
-      
-      doc.setFontSize(12);
+      if (y > 250) { doc.addPage(); y = 20; }
+      doc.setFillColor(240, 249, 255);
+      doc.roundedRect(margin, y - 6, pageWidth - (margin * 2), 9, 2, 2, 'F');
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(20, 184, 166);
-      doc.text(meal.name, 15, yPos);
-      
-      const mealCalories = Math.round(getMealCalories(meal));
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(120, 120, 120);
+      doc.setFontSize(11);
+      doc.setTextColor(14, 165, 233);
+      doc.text(meal.name, margin + 3, y);
+      const mealCals = Math.round(getMealCalories(meal));
       doc.setFontSize(10);
-      doc.text(`${mealCalories} kcal`, pageWidth - 15, yPos, { align: 'right' });
-      
-      if (meal.items && meal.items.length > 0) {
-        yPos += 5;
-        const mealData = meal.items.map((item) => {
-          const factor = item.quantity / 100;
-          return [
-            item.name + (item.nameHindi ? ` (${item.nameHindi})` : ''),
-            `${item.quantity} ${item.unit}`,
-            `${Math.round(item.calories * factor)}`,
-            `${(item.protein * factor).toFixed(1)}`,
-            `${(item.carbs * factor).toFixed(1)}`,
-            `${(item.fat * factor).toFixed(1)}`,
-          ];
-        });
-        
-        autoTable(doc, {
-          startY: yPos,
-          head: [['Food Item', 'Quantity', 'Cal', 'P(g)', 'C(g)', 'F(g)']],
-          body: mealData,
-          theme: 'grid',
-          headStyles: { fillColor: [240, 240, 240], textColor: [60, 60, 60], fontSize: 8 },
-          styles: { fontSize: 9, cellPadding: 3 },
-          columnStyles: {
-            0: { cellWidth: 60 },
-            1: { cellWidth: 30, halign: 'center' },
-            2: { cellWidth: 20, halign: 'center' },
-            3: { cellWidth: 20, halign: 'center' },
-            4: { cellWidth: 20, halign: 'center' },
-            5: { cellWidth: 20, halign: 'center' },
-          },
-          margin: { left: 15, right: 15 },
-        });
-        
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        yPos = (doc as any).lastAutoTable.finalY + 5;
-      } else {
-        yPos += 8;
-        doc.setTextColor(150, 150, 150);
+      doc.setTextColor(100);
+      doc.text(`${mealCals} kcal`, pageWidth - margin - 20, y);
+      y += 8;
+
+      if (meal.items.length === 0) {
         doc.setFont('helvetica', 'italic');
-        doc.text('No items added', 20, yPos);
-        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(150);
+        doc.setFontSize(10);
+        doc.text('No items', margin + 5, y);
+        y += 8;
+      } else {
+        meal.items.forEach((item) => {
+          if (y > 270) { doc.addPage(); y = 20; }
+          const factor = item.quantity / 100;
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(0);
+          doc.setFontSize(10);
+          doc.text(`• ${item.name}`, margin + 5, y);
+          doc.setFontSize(9);
+          doc.setTextColor(80);
+          doc.text(`- ${item.quantity}${item.unit}`, margin + 72, y);
+          const macros = `${Math.round(item.calories * factor)} kcal  |  P: ${(item.protein * factor).toFixed(1)}  C: ${(item.carbs * factor).toFixed(1)}  F: ${(item.fat * factor).toFixed(1)}`;
+          doc.setTextColor(120);
+          doc.text(macros, pageWidth - margin - 80, y);
+          y += 6;
+        });
       }
+      y += 3;
     });
-    
-    // Footer
+
+    y += 5;
+
+    // 4. NUTRITION DASHBOARD — 75% scale, 3-column micros
+    if (y > 200) { doc.addPage(); y = 20; }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(DASH_HEADER_SIZE);
+    doc.setTextColor(14, 165, 233);
+    doc.text('Nutrition Dashboard', margin, y);
+    doc.setDrawColor(200);
+    doc.line(margin, y + 2, pageWidth - margin, y + 2);
+    y += 10 * DASHBOARD_SCALE;
+
+    const drawBarScaled = (label: string, val: number, max: number, x: number, barY: number, w: number, color: [number, number, number], unit: string = 'g') => {
+      doc.setFontSize(DASH_LABEL_SIZE);
+      doc.setTextColor(80);
+      doc.setFont('helvetica', 'bold');
+      doc.text(label, x, barY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${val.toFixed(1)} / ${max.toFixed(0)}${unit}`, x + w, barY, { align: 'right' });
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(x, barY + 2, w, 2.5, 0.75, 0.75, 'F');
+      doc.setFillColor(color[0], color[1], color[2]);
+      const pct = Math.min(val / max, 1);
+      if (pct > 0) doc.roundedRect(x, barY + 2, w * pct, 2.5, 0.75, 0.75, 'F');
+    };
+
+    drawBarScaled('Protein', totalNutrients.protein, proteinTarget, margin, y, 45, [14, 165, 233]);
+    drawBarScaled('Carbs', totalNutrients.carbs, carbsTarget, margin + 55, y, 45, [20, 184, 166]);
+    drawBarScaled('Fat', totalNutrients.fat, fatTarget, margin + 110, y, 45, [245, 158, 11]);
+    y += 12 * DASHBOARD_SCALE;
+
+    const microList = [
+      { label: 'Fiber', key: 'fiber', target: getRDA('fiber' as never, ageForRda, sexForRda), unit: 'g' },
+      { label: 'Calcium', key: 'calcium', target: getRDA('calcium' as never, ageForRda, sexForRda), unit: 'mg' },
+      { label: 'Iron', key: 'iron', target: getRDA('iron' as never, ageForRda, sexForRda), unit: 'mg' },
+      { label: 'Magnesium', key: 'magnesium', target: getRDA('magnesium' as never, ageForRda, sexForRda), unit: 'mg' },
+      { label: 'Zinc', key: 'zinc', target: getRDA('zinc' as never, ageForRda, sexForRda), unit: 'mg' },
+      { label: 'Potassium', key: 'potassium', target: getRDA('potassium' as never, ageForRda, sexForRda), unit: 'mg' },
+      { label: 'Sodium', key: 'sodium', target: getRDA('sodium' as never, ageForRda, sexForRda), unit: 'mg', reverse: true },
+      { label: 'Vitamin A', key: 'vitamin_a', target: getRDA('vitamin_a' as never, ageForRda, sexForRda), unit: 'ug' },
+      { label: 'Vitamin C', key: 'vitamin_c', target: getRDA('vitamin_c' as never, ageForRda, sexForRda), unit: 'mg' },
+      { label: 'Vitamin D', key: 'vitamin_d', target: getRDA('vitamin_d' as never, ageForRda, sexForRda), unit: 'ug' },
+      { label: 'Vitamin E', key: 'vitamin_e', target: getRDA('vitamin_e' as never, ageForRda, sexForRda), unit: 'mg' },
+      { label: 'Vitamin K', key: 'vitamin_k', target: getRDA('vitamin_k' as never, ageForRda, sexForRda), unit: 'ug' },
+      { label: 'B1', key: 'vitamin_b1', target: getRDA('vitamin_b1' as never, ageForRda, sexForRda), unit: 'mg' },
+      { label: 'B2', key: 'vitamin_b2', target: getRDA('vitamin_b2' as never, ageForRda, sexForRda), unit: 'mg' },
+      { label: 'B3', key: 'vitamin_b3', target: getRDA('vitamin_b3' as never, ageForRda, sexForRda), unit: 'mg' },
+      { label: 'B6', key: 'vitamin_b6', target: getRDA('vitamin_b6' as never, ageForRda, sexForRda), unit: 'mg' },
+      { label: 'B9', key: 'vitamin_b9', target: getRDA('vitamin_b9' as never, ageForRda, sexForRda), unit: 'ug' },
+      { label: 'B12', key: 'vitamin_b12', target: getRDA('vitamin_b12' as never, ageForRda, sexForRda), unit: 'ug' },
+    ];
+
+    const colWidthScaled = 45;
+    const rowHeightScaled = 6.5;
+    let col = 0, row = 0;
+    const startMicroY = y;
+    microList.forEach((m, i) => {
+      if (i > 0 && i % 6 === 0) { col++; row = 0; }
+      const x = margin + (col * (colWidthScaled + 12));
+      const currentY = startMicroY + (row * rowHeightScaled);
+      const val = (totalNutrients as Record<string, number>)[m.key] || 0;
+      const safeTarget = m.target || 1;
+      const pct = (val / safeTarget) * 100;
+      const color: [number, number, number] = (m as { reverse?: boolean }).reverse
+        ? (pct > 120 ? [239, 68, 68] : pct > 100 ? [249, 115, 22] : [34, 197, 94])
+        : (pct >= 80 && pct <= 120 ? [34, 197, 94] : pct > 150 ? [249, 115, 22] : pct >= 50 ? [234, 179, 8] : [239, 68, 68]);
+      drawBarScaled(m.label, val, safeTarget, x, currentY, colWidthScaled, color, m.unit);
+      row++;
+    });
+
+    y = startMicroY + (6 * rowHeightScaled) + 6 * DASHBOARD_SCALE;
+
+    // Footer on all pages
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
@@ -387,15 +463,68 @@ const DieticianDashboard = () => {
       doc.text(
         `Page ${i} of ${pageCount} | DietByRD - Your Health, Our Priority`,
         pageWidth / 2,
-        doc.internal.pageSize.getHeight() - 10,
+        pageHeight - 10,
         { align: 'center' }
       );
     }
-    
-    // Save PDF
-    const fileName = `DietPlan_${selectedPatient.name.replace(/\s+/g, '_')}_${formatDate().replace(/,\s*/g, '_').replace(/\s+/g, '_')}.pdf`;
-    doc.save(fileName);
-    toast.success("Diet plan PDF downloaded successfully!");
+
+    // Personalised note page
+    if (pdfNote.trim()) {
+      doc.addPage();
+      const bands = 40;
+      const bandHeight = pageHeight / bands;
+      for (let i = 0; i < bands; i++) {
+        const ratio = i / (bands - 1);
+        const r = Math.round(253 + (255 - 253) * ratio);
+        const g = Math.round(236 + (255 - 236) * ratio);
+        const b = Math.round(236 + (255 - 236) * ratio);
+        doc.setFillColor(r, g, b);
+        doc.rect(0, i * bandHeight, pageWidth, bandHeight + 0.5, 'F');
+      }
+      let currY = 30;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(24);
+      doc.setTextColor(30, 30, 30);
+      doc.text('A Note from Your Dietitian', pageWidth / 2, currY, { align: 'center' });
+      currY += 6;
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(9);
+      doc.setTextColor(140, 140, 140);
+      const subtitleLines = [
+        'At DietByRD, we follow a simple but meaningful ritual. Every dietitian personally writes to the people they work with.',
+        'This note is our way of telling you that your story did not fade in the crowd after the consultation ended.',
+        'We remember the details you shared, the challenges you spoke about, and the goals that matter to you.',
+        'Your concerns were heard, your context was understood, and this plan was built thoughtfully with care, specifically for you.',
+        'You are not one among many here. You are important to us, and we are genuinely invested in your progress.',
+      ];
+      doc.text(subtitleLines, pageWidth / 2, currY, { align: 'center', lineHeightFactor: 1.2 });
+      currY += (subtitleLines.length * 4.2) + 12;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.setTextColor(51, 51, 51);
+      const splitNote = doc.splitTextToSize(pdfNote.trim(), pageWidth - (margin * 2));
+      doc.text(splitNote, margin, currY, { lineHeightFactor: 1.5 });
+    }
+
+    return doc.output('bloburl');
+  };
+
+  const handleGeneratePDF = async () => {
+    if (!selectedPatient) {
+      toast.error("Please select a patient first");
+      return;
+    }
+    setIsGeneratingPdf(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+      const url = generateDietPlanPDF();
+      setPdfUrl(url);
+    } catch (e) {
+      console.error("PDF generation failed", e);
+      toast.error("Failed to generate PDF");
+    }
+    setIsGeneratingPdf(false);
   };
 
   const handleLogout = () => {
@@ -430,6 +559,37 @@ const DieticianDashboard = () => {
     }
     toast.success(`"${mealName}" removed`);
   };
+
+  const startEditMealName = (mealName: string) => {
+    setEditingMealName(mealName);
+    setEditMealNameInput(mealName);
+  };
+
+  const saveEditMealName = (originalMealName: string) => {
+    const trimmedName = editMealNameInput.trim();
+    if (!trimmedName) {
+      setEditingMealName(null);
+      setEditMealNameInput("");
+      return;
+    }
+
+    if (trimmedName !== originalMealName && meals.some((meal) => meal.name.toLowerCase() === trimmedName.toLowerCase())) {
+      toast.error("A meal with this name already exists");
+      return;
+    }
+
+    setMeals((prev) => prev.map((meal) => (
+      meal.name === originalMealName ? { ...meal, name: trimmedName } : meal
+    )));
+
+    if (activeMeal === originalMealName) {
+      setActiveMeal(trimmedName);
+    }
+
+    setEditingMealName(null);
+    setEditMealNameInput("");
+    toast.success("Meal name updated");
+  };
   
   const [meals, setMeals] = useState<MealSlot[]>([
     { name: "Breakfast", items: [] },
@@ -442,6 +602,15 @@ const DieticianDashboard = () => {
   // New meal state
   const [showAddMeal, setShowAddMeal] = useState(false);
   const [newMealName, setNewMealName] = useState<string>("");
+  const [editingMealName, setEditingMealName] = useState<string | null>(null);
+  const [editMealNameInput, setEditMealNameInput] = useState("");
+  const [showMicros, setShowMicros] = useState(false);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [pdfNote, setPdfNote] = useState("");
+  const [isFoodAddDialogOpen, setIsFoodAddDialogOpen] = useState(false);
+  const [searchedFoods, setSearchedFoods] = useState<FoodLibraryItem[]>([]);
 
   const dailyTarget = { calories: 1800, protein: 90, carbs: 200, fat: 60 };
 
@@ -455,9 +624,57 @@ const DieticianDashboard = () => {
     return c.status === scheduleFilter;
   });
 
-  const searchResults = searchTerm.length >= 2
-    ? foodDatabase.filter((f) => f.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    : [];
+  useEffect(() => {
+    const trimmedTerm = searchTerm.trim();
+
+    if (activeTab !== "diet" || !selectedPatient || trimmedTerm.length === 0) {
+      setSearchedFoods([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const runSearch = async () => {
+      const results = await foodService.search(trimmedTerm);
+      if (!cancelled) {
+        setSearchedFoods(results);
+      }
+    };
+
+    runSearch();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, selectedPatient, searchTerm]);
+
+  const searchResults: FoodItem[] = searchedFoods.map((food: FoodLibraryItem) => ({
+    name: food.name_en,
+    nameHindi: food.name_hi,
+    caloriesPer100: food.calories,
+    protein: food.protein,
+    carbs: food.carbs,
+    fat: food.fat,
+    fiber: food.fiber,
+    iron: food.iron,
+    calcium: food.calcium,
+    magnesium: food.magnesium,
+    zinc: food.zinc,
+    potassium: food.potassium,
+    sodium: food.sodium,
+    vitamin_a: food.vitamin_a,
+    vitamin_c: food.vitamin_c,
+    vitamin_d: food.vitamin_d,
+    vitamin_e: food.vitamin_e,
+    vitamin_k: food.vitamin_k,
+    vitamin_b1: food.vitamin_b1,
+    vitamin_b2: food.vitamin_b2,
+    vitamin_b3: food.vitamin_b3,
+    vitamin_b6: food.vitamin_b6,
+    vitamin_b9: food.vitamin_b9,
+    vitamin_b12: food.vitamin_b12,
+    treat: food.food_type === 'TREAT',
+  }));
 
   // Handlers
   const addFoodToMeal = (food: FoodItem) => {
@@ -507,14 +724,59 @@ const DieticianDashboard = () => {
         acc.protein += item.protein * factor;
         acc.carbs += item.carbs * factor;
         acc.fat += item.fat * factor;
+        acc.fiber += (item.fiber || 0) * factor;
+        acc.iron += (item.iron || 0) * factor;
+        acc.calcium += (item.calcium || 0) * factor;
+        acc.magnesium += (item.magnesium || 0) * factor;
+        acc.zinc += (item.zinc || 0) * factor;
+        acc.potassium += (item.potassium || 0) * factor;
+        acc.sodium += (item.sodium || 0) * factor;
+        acc.vitamin_a += (item.vitamin_a || 0) * factor;
+        acc.vitamin_c += (item.vitamin_c || 0) * factor;
+        acc.vitamin_d += (item.vitamin_d || 0) * factor;
+        acc.vitamin_e += (item.vitamin_e || 0) * factor;
+        acc.vitamin_k += (item.vitamin_k || 0) * factor;
+        acc.vitamin_b1 += (item.vitamin_b1 || 0) * factor;
+        acc.vitamin_b2 += (item.vitamin_b2 || 0) * factor;
+        acc.vitamin_b3 += (item.vitamin_b3 || 0) * factor;
+        acc.vitamin_b6 += (item.vitamin_b6 || 0) * factor;
+        acc.vitamin_b9 += (item.vitamin_b9 || 0) * factor;
+        acc.vitamin_b12 += (item.vitamin_b12 || 0) * factor;
       });
       return acc;
     },
-    { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    {
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      fiber: 0,
+      iron: 0,
+      calcium: 0,
+      magnesium: 0,
+      zinc: 0,
+      potassium: 0,
+      sodium: 0,
+      vitamin_a: 0,
+      vitamin_c: 0,
+      vitamin_d: 0,
+      vitamin_e: 0,
+      vitamin_k: 0,
+      vitamin_b1: 0,
+      vitamin_b2: 0,
+      vitamin_b3: 0,
+      vitamin_b6: 0,
+      vitamin_b9: 0,
+      vitamin_b12: 0,
+    }
   );
 
   const getMealCalories = (meal: MealSlot) =>
     meal.items.reduce((sum, item) => sum + (item.calories * item.quantity) / 100, 0);
+
+  const selectedPatientFull = patients?.find((patient) => patient.id === selectedPatient?.id);
+  const rdaAge = selectedPatientFull?.age || selectedPatient?.age || 30;
+  const rdaSex: 'M' | 'F' = selectedPatientFull?.gender === 'female' ? 'F' : 'M';
 
   const sidebarSections = [
     {
@@ -523,6 +785,7 @@ const DieticianDashboard = () => {
         { label: "My Patients", href: "/dietician", icon: Users, badge: displayPatients.length },
         { label: "My Schedule", href: "/dietician/schedule", icon: CalendarDays },
         { label: "Diet Plans", href: "/dietician/diet", icon: UtensilsCrossed },
+        { label: "Food Library", href: "/dietician/food-library", icon: Apple },
       ],
     },
     {
@@ -791,28 +1054,51 @@ const DieticianDashboard = () => {
                 
                 {meals.map((meal) => {
                   const cal = Math.round(getMealCalories(meal));
+                  const isDefaultMeal = ["Breakfast", "Lunch", "Dinner"].includes(meal.name);
                   return (
-                    <div key={meal.name} className="group relative">
+                    <div key={meal.name} className="group flex items-center gap-0.5">
                       <button
                         onClick={() => setActiveMeal(meal.name)}
-                        className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                        className={`flex-1 min-w-0 text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
                           activeMeal === meal.name
                             ? "bg-primary/10 text-primary font-semibold border border-primary/20"
                             : "hover:bg-muted text-foreground"
                         }`}
                       >
-                        <div className="flex justify-between items-center">
-                          <span>{meal.name}</span>
-                          <span className="text-xs text-muted-foreground">{cal} kcal</span>
-                        </div>
+                        {editingMealName === meal.name ? (
+                          <Input
+                            value={editMealNameInput}
+                            onChange={(event) => setEditMealNameInput(event.target.value)}
+                            onBlur={() => saveEditMealName(meal.name)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") saveEditMealName(meal.name);
+                              if (event.key === "Escape") {
+                                setEditingMealName(null);
+                                setEditMealNameInput("");
+                              }
+                            }}
+                            onClick={(event) => event.stopPropagation()}
+                            className="h-7 text-xs font-semibold"
+                            autoFocus
+                          />
+                        ) : (
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="truncate">{meal.name}</span>
+                            <span className="text-xs text-muted-foreground shrink-0">{cal} kcal</span>
+                          </div>
+                        )}
                       </button>
-                      {!["Breakfast", "Lunch", "Dinner"].includes(meal.name) && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startEditMealName(meal.name); }}
+                        className="shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-opacity"
+                        title="Edit meal name"
+                      >
+                        <SquarePen className="w-3 h-3" />
+                      </button>
+                      {!isDefaultMeal && (
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveMeal(meal.name);
-                          }}
-                          className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded text-destructive transition-opacity"
+                          onClick={(e) => { e.stopPropagation(); handleRemoveMeal(meal.name); }}
+                          className="shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-destructive transition-opacity"
                           title="Remove meal"
                         >
                           <Trash2 className="w-3 h-3" />
@@ -848,13 +1134,21 @@ const DieticianDashboard = () => {
                 {selectedPatient && (
                   <>
                     <div className="relative mb-6">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                      <Input
-                        placeholder="Search food..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-12 h-12 text-base rounded-xl border-2"
-                      />
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="relative flex-1 min-w-[260px]">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                          <Input
+                            placeholder="Search food..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-12 h-12 text-base rounded-xl border-2"
+                          />
+                        </div>
+                        <Button onClick={() => setIsFoodAddDialogOpen(true)} className="h-12">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add New Item
+                        </Button>
+                      </div>
                       {searchResults.length > 0 && (
                         <div className="absolute top-full left-0 right-0 bg-card border-2 border-t-0 rounded-b-xl shadow-lg z-10 max-h-64 overflow-y-auto">
                           {searchResults.map((food, i) => (
@@ -942,7 +1236,7 @@ const DieticianDashboard = () => {
               </div>
             </div>
 
-            <div className="w-72 border-l p-6 space-y-6">
+            <div className="w-72 border-l p-6 space-y-6 overflow-y-auto">
               <div className="text-center">
                 <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Calories</div>
                 <div className="relative w-32 h-32 mx-auto mt-4">
@@ -978,15 +1272,98 @@ const DieticianDashboard = () => {
                 ))}
               </div>
 
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Protein / kg</span>
-                <span className="font-semibold text-primary">{(totalNutrients.protein / 70).toFixed(1)} g</span>
+              <div className="pt-4 border-t border-slate-100">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Micronutrients</h4>
+                <div className="bg-slate-50 p-4 rounded-xl space-y-5">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Fiber</h4>
+                    {[
+                      { label: "Dietary Fiber", value: totalNutrients.fiber, key: "fiber", unit: "g" },
+                    ].map((micro) => {
+                      const target = getRDA(micro.key as never, rdaAge, rdaSex);
+                      const pct = target > 0 ? (micro.value / target) * 100 : 0;
+                      const colorClass = pct >= 80 && pct <= 120 ? "bg-green-500" : pct > 150 ? "bg-orange-500" : pct >= 50 ? "bg-yellow-500" : "bg-red-500";
+                      return (
+                        <div key={micro.label} className="mb-3">
+                          <div className="flex justify-between text-[10px] mb-1 text-slate-600">
+                            <span className="font-medium">{micro.label}</span>
+                            <span className="font-mono">{micro.value.toFixed(1)} / {target} {micro.unit}</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                            <div className={`${colorClass} h-full rounded-full transition-all duration-500`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Minerals</h4>
+                    {[
+                      { label: "Calcium", value: totalNutrients.calcium, key: "calcium", unit: "mg" },
+                      { label: "Iron", value: totalNutrients.iron, key: "iron", unit: "mg" },
+                      { label: "Magnesium", value: totalNutrients.magnesium, key: "magnesium", unit: "mg" },
+                      { label: "Zinc", value: totalNutrients.zinc, key: "zinc", unit: "mg" },
+                      { label: "Potassium", value: totalNutrients.potassium, key: "potassium", unit: "mg" },
+                      { label: "Sodium", value: totalNutrients.sodium, key: "sodium", unit: "mg", reverse: true },
+                    ].map((micro) => {
+                      const target = getRDA(micro.key as never, rdaAge, rdaSex);
+                      const pct = target > 0 ? (micro.value / target) * 100 : 0;
+                      const colorClass = (micro as { reverse?: boolean }).reverse
+                        ? pct > 120 ? "bg-red-500" : pct > 100 ? "bg-orange-500" : "bg-green-500"
+                        : pct >= 80 && pct <= 120 ? "bg-green-500" : pct > 150 ? "bg-orange-500" : pct >= 50 ? "bg-yellow-500" : "bg-red-500";
+                      return (
+                        <div key={micro.label} className="mb-3">
+                          <div className="flex justify-between text-[10px] mb-1 text-slate-600">
+                            <span className="font-medium">{micro.label}</span>
+                            <span className="font-mono">{micro.value.toFixed(1)} / {target} {micro.unit}</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                            <div className={`${colorClass} h-full rounded-full transition-all duration-500`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Vitamins</h4>
+                    {[
+                      { label: "Vitamin A", value: totalNutrients.vitamin_a, key: "vitamin_a", unit: "µg" },
+                      { label: "Vitamin C", value: totalNutrients.vitamin_c, key: "vitamin_c", unit: "mg" },
+                      { label: "Vitamin D", value: totalNutrients.vitamin_d, key: "vitamin_d", unit: "µg" },
+                      { label: "Vitamin E", value: totalNutrients.vitamin_e, key: "vitamin_e", unit: "mg" },
+                      { label: "Vitamin K", value: totalNutrients.vitamin_k, key: "vitamin_k", unit: "µg" },
+                      { label: "Thiamine (B1)", value: totalNutrients.vitamin_b1, key: "vitamin_b1", unit: "mg" },
+                      { label: "Riboflavin (B2)", value: totalNutrients.vitamin_b2, key: "vitamin_b2", unit: "mg" },
+                      { label: "Niacin (B3)", value: totalNutrients.vitamin_b3, key: "vitamin_b3", unit: "mg" },
+                      { label: "B6", value: totalNutrients.vitamin_b6, key: "vitamin_b6", unit: "mg" },
+                      { label: "Folate (B9)", value: totalNutrients.vitamin_b9, key: "vitamin_b9", unit: "µg" },
+                      { label: "B12", value: totalNutrients.vitamin_b12, key: "vitamin_b12", unit: "µg" },
+                    ].map((micro) => {
+                      const target = getRDA(micro.key as never, rdaAge, rdaSex);
+                      const pct = target > 0 ? (micro.value / target) * 100 : 0;
+                      const colorClass = pct >= 80 && pct <= 120 ? "bg-green-500" : pct > 150 ? "bg-orange-500" : pct >= 50 ? "bg-yellow-500" : "bg-red-500";
+                      return (
+                        <div key={micro.label} className="mb-3">
+                          <div className="flex justify-between text-[10px] mb-1 text-slate-600">
+                            <span className="font-medium">{micro.label}</span>
+                            <span className="font-mono">{micro.value.toFixed(1)} / {target} {micro.unit}</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                            <div className={`${colorClass} h-full rounded-full transition-all duration-500`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="text-[10px] text-slate-400 italic text-center pt-2">
+                    * Values calculated from available food data; missing nutrients are not counted.
+                  </div>
+                </div>
               </div>
 
-              <Button variant="outline" className="w-full">Show Full Micronutrient Panel</Button>
-              <Button 
-                className="w-full" 
-                onClick={downloadDietPlanPDF}
+              <Button
+                className="w-full"
+                onClick={() => setPdfModalOpen(true)}
                 disabled={!selectedPatient || meals.every(m => m.items.length === 0)}
               >
                 <Download className="w-4 h-4 mr-2" />
@@ -995,6 +1372,81 @@ const DieticianDashboard = () => {
             </div>
           </div>
         )}
+        {/* PDF Export Modal */}
+        {pdfModalOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Export Diet Plan</h3>
+                <button
+                  onClick={() => { setPdfModalOpen(false); setPdfUrl(null); setPdfNote(""); }}
+                  className="p-1 hover:bg-muted rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-muted-foreground" />
+                </button>
+              </div>
+              {!pdfUrl ? (
+                isGeneratingPdf ? (
+                  <div className="flex flex-col items-center gap-4 py-10">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    <p className="text-muted-foreground text-sm">Generating PDF...</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <p className="text-sm text-muted-foreground text-center">
+                      Generating plan for <strong>{selectedPatient?.name}</strong>
+                    </p>
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold">Personalised Note</label>
+                      <textarea
+                        className="w-full min-h-[120px] p-3 rounded-xl border border-input focus:ring-2 focus:ring-primary/30 outline-none text-sm transition-all resize-none"
+                        placeholder="Write a personal note for your patient..."
+                        value={pdfNote}
+                        onChange={(e) => setPdfNote(e.target.value)}
+                      />
+                      <p className="text-[10px] text-muted-foreground italic">Appears on the last page of the PDF</p>
+                    </div>
+                    <Button onClick={handleGeneratePDF} className="w-full">
+                      Generate PDF
+                    </Button>
+                  </div>
+                )
+              ) : (
+                <div className="space-y-4 text-center">
+                  <div className="bg-green-50 text-green-700 p-4 rounded-xl font-medium">
+                    PDF Generated Successfully!
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button variant="outline" onClick={() => window.open(pdfUrl!, '_blank')}>
+                      Preview
+                    </Button>
+                    <Button onClick={() => {
+                      const link = document.createElement('a');
+                      link.href = pdfUrl!;
+                      link.download = `DietPlan_${selectedPatient!.name.replace(/\s+/g, '_')}.pdf`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}>
+                      Download
+                    </Button>
+                  </div>
+                  <Button variant="ghost" onClick={() => setPdfUrl(null)} className="mt-2 text-xs">
+                    Edit Note & Regenerate
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <FoodLibraryAddDialog
+          open={isFoodAddDialogOpen}
+          onOpenChange={setIsFoodAddDialogOpen}
+          onSuccess={async () => {
+            await refetchFoodLibrary();
+          }}
+        />
       </main>
     </div>
   );

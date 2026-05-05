@@ -27,7 +27,7 @@ const AppSidebar = ({ title, subtitle, sections, bottomContent }: AppSidebarProp
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <aside className={`${collapsed ? 'w-16' : 'w-64'} min-h-screen flex flex-col bg-sidebar text-sidebar-foreground transition-all duration-300 relative border-r border-sidebar-border`}>
+    <aside className={`${collapsed ? 'w-16' : 'w-64'} sticky top-0 self-start h-screen shrink-0 overflow-y-auto flex flex-col bg-sidebar text-sidebar-foreground transition-all duration-300 relative border-r border-sidebar-border`}>
       {/* Collapse toggle */}
       <button
         onClick={() => setCollapsed(!collapsed)}
@@ -44,7 +44,7 @@ const AppSidebar = ({ title, subtitle, sections, bottomContent }: AppSidebarProp
         {!collapsed && (
           <div>
             <div className="font-bold text-sm text-sidebar-primary-foreground tracking-tight">{title}</div>
-            <div className="text-[11px] text-sidebar-foreground/50 mt-0.5">{subtitle}</div>
+            <div className="text-[11px] text-white mt-0.5">{subtitle}</div>
           </div>
         )}
       </div>
@@ -54,7 +54,7 @@ const AppSidebar = ({ title, subtitle, sections, bottomContent }: AppSidebarProp
         {sections.map((section) => (
           <div key={section.title}>
             {!collapsed && (
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/35 px-3 mb-3">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-white px-3 mb-3">
                 {section.title}
               </div>
             )}
@@ -71,7 +71,7 @@ const AppSidebar = ({ title, subtitle, sections, bottomContent }: AppSidebarProp
                       collapsed && "justify-center px-0",
                       isActive
                         ? "bg-primary text-primary-foreground shadow-sm"
-                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-primary-foreground"
+                        : "text-white hover:bg-sidebar-accent hover:text-white"
                     )}
                   >
                     <item.icon className="w-[18px] h-[18px] shrink-0" />
@@ -81,7 +81,7 @@ const AppSidebar = ({ title, subtitle, sections, bottomContent }: AppSidebarProp
                         "text-[11px] px-2 py-0.5 rounded-full font-semibold",
                         isActive
                           ? "bg-primary-foreground/20 text-primary-foreground"
-                          : "bg-sidebar-accent text-sidebar-foreground/60"
+                          : "bg-sidebar-accent text-white"
                       )}>
                         {item.badge}
                       </span>

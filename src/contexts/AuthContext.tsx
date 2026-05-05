@@ -19,6 +19,8 @@ interface AuthContextType {
   signup: (phone: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>;
   sendOtp: (phone: string) => Promise<{ success: boolean; error?: string; expiresIn?: number }>;
   verifyOtp: (phone: string, otp: string) => Promise<{ success: boolean; error?: string }>;
+  verifyOtpOnly: (phone: string, otp: string) => Promise<{ success: boolean; error?: string }>;
+  setPasswordAfterOtp: (phone: string, otp: string, password: string) => Promise<{ success: boolean; error?: string }>;
   sendSignupOtp: (phone: string, password: string, name?: string) => Promise<{ success: boolean; error?: string; expiresIn?: number }>;
   verifySignupOtp: (phone: string, otp: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
@@ -136,6 +138,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const verifyOtpOnly = async (phone: string, otp: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/verify-otp-only", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, otp }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || "OTP verification failed" };
+      }
+
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: "Network error. Please try again." };
+    }
+  };
+
+  const setPasswordAfterOtp = async (phone: string, otp: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/set-password-after-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, otp, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || "Failed to set password" };
+      }
+
+      const authUser: AuthUser = data.data;
+      setUser(authUser);
+      localStorage.setItem("dietbyrd_user", JSON.stringify(authUser));
+
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: "Network error. Please try again." };
+    }
+  };
+
   const sendSignupOtp = async (phone: string, password: string, name?: string): Promise<{ success: boolean; error?: string; expiresIn?: number }> => {
     try {
       const res = await fetch("/api/auth/signup/send-otp", {
@@ -186,7 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, sendOtp, verifyOtp, sendSignupOtp, verifySignupOtp, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, isLoading, login, signup, sendOtp, verifyOtp, verifyOtpOnly, setPasswordAfterOtp, sendSignupOtp, verifySignupOtp, logout, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );
@@ -212,6 +258,8 @@ export function getDashboardPath(role: UserRole): string {
     case "founder":
     case "tech_lead":
       return "/admin";
+    case "mlt_intern":
+      return "/mlt-intern";
     case "patient":
       return "/patient";
     default:

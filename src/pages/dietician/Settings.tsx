@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Settings as SettingsIcon, User, Bell, Shield, ArrowLeft, LogOut, Users, CalendarDays, UtensilsCrossed } from "lucide-react";
+import { Settings as SettingsIcon, User, Bell, Shield, ArrowLeft, LogOut, Users, CalendarDays, UtensilsCrossed, Apple } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -22,6 +22,7 @@ const DieticianSettings = () => {
         { label: "My Patients", href: "/dietician", icon: Users },
         { label: "My Schedule", href: "/dietician/schedule", icon: CalendarDays },
         { label: "Diet Plans", href: "/dietician/diet", icon: UtensilsCrossed },
+        { label: "Food Library", href: "/dietician/food-library", icon: Apple },
       ],
     },
     {

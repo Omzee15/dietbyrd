@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { UserPlus, Users, BarChart3, MessageCircle, FileText, Send, Search, ArrowLeft, X, IndianRupee, TrendingUp, Loader2, LogOut, Settings, ChevronDown, User, UserCheck, Plus, Trash2, Shield } from "lucide-react";
+import { UserPlus, Users, BarChart3, MessageCircle, FileText, Send, Search, ArrowLeft, X, IndianRupee, TrendingUp, Loader2, LogOut, Settings, ChevronDown, UserCheck, Plus, Trash2, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { getDoctorReferrals, getDoctor, getDoctorStats, getDoctorAssistants, createAssistant, deleteAssistant, createReferral, lookupPhoneNumber, Referral, Doctor, PhoneLookupResult, Assistant } from "@/lib/api";
+import { getDoctorReferrals, getDoctor, getDoctorStats, getDoctorAssistants, createAssistant, deleteAssistant, createReferral, lookupPhoneNumber, Referral, Doctor, Assistant } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 const diagnosisOptions = [
@@ -30,6 +30,18 @@ const isValidIndianPhone = (phone: string): boolean => {
 const formatPhoneForDisplay = (value: string): string => {
   // Only allow digits, limit to 10
   return value.replace(/\D/g, '').slice(0, 10);
+};
+
+const getReferralDateValue = (referral: Referral): string | undefined => {
+  const referralWithReferredAt = referral as Referral & { referred_at?: string };
+  return referralWithReferredAt.referred_at || referral.created_at;
+};
+
+const formatReferralDate = (referral: Referral): string => {
+  const dateValue = getReferralDateValue(referral);
+  if (!dateValue) return "—";
+  const parsedDate = new Date(dateValue);
+  return Number.isNaN(parsedDate.getTime()) ? "—" : parsedDate.toLocaleDateString();
 };
 
 type ActiveView = "refer" | "patients" | "admin";
@@ -64,35 +76,19 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
   
   // For assistants, get the doctor ID from user.doctorId, for doctors use profileId
   const doctorId = isAssistant ? user?.doctorId : user?.profileId;
-  
-  // Phone lookup state
-  const [showPhoneSuggestions, setShowPhoneSuggestions] = useState(false);
 
-  // Phone number lookup query
   const { data: phoneSuggestions = [] } = useQuery({
     queryKey: ["phone-lookup", patientPhone],
     queryFn: () => lookupPhoneNumber(patientPhone),
-    enabled: patientPhone.length >= 3 && patientPhone.length < 10,
+    enabled: patientPhone.length === 10 && isValidIndianPhone(patientPhone),
     staleTime: 30000,
   });
 
-  // Check if the entered phone is a new patient
-  const isExistingPatient = phoneSuggestions.some(p => p.phone === patientPhone);
-  const isNewPatient = patientPhone.length === 10 && isValidIndianPhone(patientPhone) && !isExistingPatient;
-
+  const isExistingPatient = phoneSuggestions.some((patient) => patient.phone === patientPhone);
+  
   const handlePhoneChange = (value: string) => {
     const formatted = formatPhoneForDisplay(value);
     setPatientPhone(formatted);
-    setShowPhoneSuggestions(formatted.length >= 3 && formatted.length < 10);
-  };
-
-  const selectPhoneSuggestion = (patient: PhoneLookupResult) => {
-    setPatientPhone(patient.phone);
-    setPatientName(patient.name || "");
-    if (patient.diagnosis && diagnosisOptions.includes(patient.diagnosis)) {
-      setDiagnosis(patient.diagnosis);
-    }
-    setShowPhoneSuggestions(false);
   };
 
   // Sync activeView with URL
@@ -141,10 +137,14 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
       queryClient.invalidateQueries({ queryKey: ["doctorReferrals"] });
       queryClient.invalidateQueries({ queryKey: ["referrals"] });
       queryClient.invalidateQueries({ queryKey: ["patients"] });
-      queryClient.invalidateQueries({ queryKey: ["phone-lookup"] });
+
+      if (data?.referral_sms?.sent) {
+        const referredPatientName = data.patient_name?.trim() || patientName.trim() || "patient";
+        toast.success(`Onboarding message to the ${referredPatientName} sent.`);
+      }
       
       if (data?.is_new_patient) {
-        toast.success("New patient referred! Registration SMS will be sent.");
+        toast.success("New patient referred! Registration link has been sent via SMS.");
       } else {
         toast.success("Patient referred successfully!");
       }
@@ -392,7 +392,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     {[
                       { label: "Diagnosis", value: selectedPatient.diagnosis || "Not specified" },
-                      { label: "Referred On", value: new Date(selectedPatient.created_at).toLocaleDateString() },
+                      { label: "Referred On", value: formatReferralDate(selectedPatient) },
                       { label: "Source", value: selectedPatient.source || "Doctor Portal" },
                     ].map((item) => (
                       <div key={item.label} className="bg-muted/50 rounded-xl p-4">
@@ -453,7 +453,12 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                         <TrendingUp className="w-6 h-6" />
                       </div>
                       <div>
-                        <div className="text-2xl font-bold">{referrals.filter(r => new Date(r.created_at).getMonth() === new Date().getMonth()).length}</div>
+                        <div className="text-2xl font-bold">{referrals.filter((referral) => {
+                          const dateValue = getReferralDateValue(referral);
+                          if (!dateValue) return false;
+                          const parsedDate = new Date(dateValue);
+                          return !Number.isNaN(parsedDate.getTime()) && parsedDate.getMonth() === new Date().getMonth();
+                        }).length}</div>
                         <div className="text-sm text-muted-foreground">This Month</div>
                       </div>
                     </div>
@@ -480,46 +485,14 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                         className={`mt-1.5 ${patientPhone && !isValidIndianPhone(patientPhone) ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
                         value={patientPhone}
                         onChange={(e) => handlePhoneChange(e.target.value)}
-                        onFocus={() => setShowPhoneSuggestions(patientPhone.length >= 3 && patientPhone.length < 10)}
-                        onBlur={() => setTimeout(() => setShowPhoneSuggestions(false), 200)}
                         maxLength={10}
                       />
-                      {/* Phone suggestions dropdown */}
-                      {showPhoneSuggestions && phoneSuggestions.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-card border rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
-                          {phoneSuggestions.map((p) => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              className="w-full flex items-center gap-3 p-3 hover:bg-muted transition-colors text-left"
-                              onMouseDown={() => selectPhoneSuggestion(p)}
-                            >
-                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                <User className="w-4 h-4 text-primary" />
-                              </div>
-                              <div>
-                                <div className="text-sm font-medium">{p.name || "Unknown"}</div>
-                                <div className="text-xs text-muted-foreground">{p.phone} · {p.diagnosis || "No diagnosis"}</div>
-                              </div>
-                              <Badge variant="outline" className="ml-auto text-xs">Existing</Badge>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {/* Validation / New patient indicator */}
+                      {/* Validation */}
                       {patientPhone && !isValidIndianPhone(patientPhone) && (
                         <p className="text-xs text-red-500 mt-1">Enter valid 10-digit number starting with 6-9</p>
                       )}
-                      {isNewPatient && (
-                        <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                          <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">New Patient</Badge>
-                          Will receive registration SMS
-                        </p>
-                      )}
-                      {isExistingPatient && patientPhone.length === 10 && (
-                        <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                          <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">Existing Patient</Badge>
-                        </p>
+                      {patientPhone.length === 10 && isValidIndianPhone(patientPhone) && isExistingPatient && (
+                        <p className="text-xs text-amber-600 mt-1">This number already exists</p>
                       )}
                     </div>
                     <div>
@@ -575,7 +548,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                               <div className="text-xs text-muted-foreground">{r.patient_phone}</div>
                             </td>
                             <td className="p-4 capitalize">{r.diagnosis || "—"}</td>
-                            <td className="p-4 text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</td>
+                            <td className="p-4 text-muted-foreground">{formatReferralDate(r)}</td>
                             <td className="p-4 text-right">
                               <Button variant="outline" size="sm" className="text-xs">View</Button>
                             </td>
@@ -621,7 +594,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                       </div>
                       <div className="mt-3 pt-3 border-t flex justify-between text-xs text-muted-foreground">
                         <span>{p.patient_phone}</span>
-                        <span>{new Date(p.created_at).toLocaleDateString()}</span>
+                        <span>{formatReferralDate(p)}</span>
                       </div>
                     </div>
                   ))}
@@ -798,7 +771,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                           <div className="text-xs text-muted-foreground capitalize">{r.diagnosis || "No diagnosis"}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</div>
+                          <div className="text-xs text-muted-foreground">{formatReferralDate(r)}</div>
                         </div>
                       </div>
                     ))}

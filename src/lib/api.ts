@@ -39,11 +39,27 @@ export interface Patient {
   dietary_preference?: string;
   assigned_rd_id?: number | null;
   assigned_dietician_name?: string | null;
+  assigned_dietician_qualification?: string | null;
   user_phone?: string;
   food_restrictions?: string | null;
   height?: number | null;  // in cm
   weight?: number | null;  // in kg
   allergies?: string | null;
+  workout_frequency?: number | null;  // 0-7 times per week
+  // Referring doctor info
+  referring_doctor_id?: number | null;
+  referring_doctor_name?: string | null;
+  referring_doctor_qualification?: string | null;
+  referring_doctor_clinic?: string | null;
+  payment_status?: "paid" | "unpaid";
+  payment_history?: Array<{
+    payment_id: number;
+    amount: number | string;
+    currency?: string;
+    status: "pending" | "success" | "failed" | "refunded" | string;
+    paid_at?: string | null;
+    created_at?: string;
+  }>;
 }
 
 export const getPatients = () => request<Patient[]>("/patients");
@@ -57,6 +73,24 @@ export const assignDietician = (patientId: number, dieticianId: number) =>
     method: "POST",
     body: JSON.stringify({ dietician_id: dieticianId }),
   });
+
+// ─── Patient Messages ─────────────────────────────────────────────────────────
+export interface PatientMessage {
+  id: string;
+  type: 'referral_sms' | 'welcome_whatsapp' | 'otp' | string;
+  channel: 'sms' | 'whatsapp';
+  content: string;
+  status: 'sent' | 'failed' | 'not_sent' | 'pending';
+  sent_at: string;
+  sent_by: string;
+  to?: string;
+  doctorName?: string;
+  error?: string;
+  [key: string]: unknown;
+}
+
+export const getPatientMessages = (patientId: number) =>
+  request<PatientMessage[]>(`/patients/${patientId}/messages`);
 
 // ─── Doctors ──────────────────────────────────────────────────────────────────
 export interface Doctor {
@@ -122,7 +156,8 @@ export interface Referral {
   referred_by_doctor_id: number;
   source: string;
   notes: string | null;
-  created_at: string;
+  created_at?: string;
+  referred_at?: string;
   patient_name?: string;
   patient_phone?: string;
   diagnosis?: string;
@@ -138,6 +173,10 @@ export const getDoctorReferrals = (doctorId: number) =>
 export interface CreateReferralResponse extends Referral {
   is_new_patient?: boolean;
   message?: string;
+  referral_sms?: {
+    sent?: boolean;
+    reason?: string;
+  };
 }
 export const createReferral = (data: {
   patient_name: string;
@@ -232,6 +271,9 @@ export interface DietPlan {
 export const getPatientDietPlans = (patientId: number) =>
   request<DietPlan[]>(`/patients/${patientId}/diet-plans`);
 
+export const getDietPlan = (id: number) =>
+  request<DietPlan>(`/diet-plans/${id}`);
+
 export const createDietPlan = (data: {
   patient_id: number;
   rd_id: number;
@@ -239,6 +281,9 @@ export const createDietPlan = (data: {
   consultation_id?: number;
 }) =>
   request<DietPlan>("/diet-plans", { method: "POST", body: JSON.stringify(data) });
+
+export const updateDietPlan = (id: number, data: { plan_json: object }) =>
+  request<DietPlan>(`/diet-plans/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 
 // ─── Join Requests ────────────────────────────────────────────────────────────
 export interface JoinRequest {
@@ -284,4 +329,108 @@ export const rejectJoinRequest = (id: number, reviewedBy?: number, reason?: stri
   request<{ message: string }>(`/join-requests/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ action: "reject", reviewed_by: reviewedBy, rejection_reason: reason }),
+  });
+
+// ─── Appointment Booking ──────────────────────────────────────────────────────
+export interface DieticianAvailability {
+  id: number;
+  rd_id: number;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  slot_duration_minutes: number;
+  is_active: boolean;
+}
+
+export interface AvailableSlot {
+  date: string;
+  start_time: string;
+  datetime: string;
+  duration_minutes: number;
+}
+
+export interface Appointment {
+  id: number;
+  registered_patient_id: number;
+  rd_id: number;
+  scheduled_at: string;
+  consultation_type: string;
+  status: string;
+  booked_by_patient: boolean;
+  patient_notes?: string;
+  cancelled_at?: string;
+  cancelled_by?: string;
+  dietician_name?: string;
+  dietician_qualification?: string;
+  patient_name?: string;
+}
+
+export const getDieticianAvailability = (dieticianId: number) =>
+  request<DieticianAvailability[]>(`/dieticians/${dieticianId}/availability`);
+
+export const setDieticianAvailability = (
+  dieticianId: number,
+  schedules: Array<{ day_of_week: number; start_time: string; end_time: string; slot_duration_minutes?: number }>
+) =>
+  request<DieticianAvailability[]>(`/dieticians/${dieticianId}/availability`, {
+    method: "POST",
+    body: JSON.stringify({ schedules }),
+  });
+
+export const getAvailableSlots = (dieticianId: number, startDate: string, endDate: string) =>
+  request<AvailableSlot[]>(`/dieticians/${dieticianId}/available-slots?start_date=${startDate}&end_date=${endDate}`);
+
+export const bookAppointment = (data: {
+  patient_id: number;
+  rd_id: number;
+  scheduled_at: string;
+  consultation_type?: string;
+  patient_notes?: string;
+}) =>
+  request<Appointment>("/appointments/book", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const getPatientAppointments = (patientId: number, options?: { status?: string; upcoming_only?: boolean }) => {
+  const params = new URLSearchParams();
+  if (options?.status) params.set("status", options.status);
+  if (options?.upcoming_only) params.set("upcoming_only", "true");
+  return request<Appointment[]>(`/patients/${patientId}/appointments?${params.toString()}`);
+};
+
+export const cancelAppointment = (appointmentId: number, cancelledBy?: string) =>
+  request<Appointment>(`/appointments/${appointmentId}/cancel`, {
+    method: "PUT",
+    body: JSON.stringify({ cancelled_by: cancelledBy }),
+  });
+
+export interface BlockedSlot {
+  id: number;
+  rd_id: number;
+  blocked_date: string;
+  start_time?: string;
+  end_time?: string;
+  reason?: string;
+}
+
+export const getDieticianBlockedSlots = (dieticianId: number, startDate?: string, endDate?: string) => {
+  const params = new URLSearchParams();
+  if (startDate) params.set("start_date", startDate);
+  if (endDate) params.set("end_date", endDate);
+  return request<BlockedSlot[]>(`/dieticians/${dieticianId}/blocked-slots?${params.toString()}`);
+};
+
+export const addBlockedSlot = (
+  dieticianId: number,
+  data: { blocked_date: string; start_time?: string; end_time?: string; reason?: string }
+) =>
+  request<BlockedSlot>(`/dieticians/${dieticianId}/blocked-slots`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const removeBlockedSlot = (dieticianId: number, slotId: number) =>
+  request<{ message: string }>(`/dieticians/${dieticianId}/blocked-slots/${slotId}`, {
+    method: "DELETE",
   });

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,7 +7,9 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 // Pages
+import Landing from "./pages/Landing";
 import Index from "./pages/Index";
+import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 
 // Doctor Pages
@@ -24,10 +26,12 @@ import DieticianDiet from "./pages/dietician/Diet";
 import DieticianSettings from "./pages/dietician/Settings";
 import DieticianPatientDetail from "./pages/dietician/PatientDetail";
 import DieticianCreateDiet from "./pages/dietician/CreateDiet";
+import DieticianFoodLibrary from "./pages/dietician/FoodLibrary";
 
 // Patient Pages
 import PatientDashboard from "./pages/PatientDashboard";
 import PatientProfile from "./pages/patient/PatientProfile";
+import PatientDietPlans from "./pages/patient/PatientDietPlans";
 
 // Admin Pages
 import AdminDashboard from "./pages/AdminDashboard";
@@ -37,6 +41,15 @@ import AdminDieticians from "./pages/admin/Dieticians";
 import AdminReferrals from "./pages/admin/Referrals";
 import AdminSettings from "./pages/admin/Settings";
 import AdminJoinRequests from "./pages/admin/JoinRequests";
+import AdminFoodLibrary from "./pages/admin/FoodLibrary";
+import AdminCoupons from "./pages/admin/Coupons";
+
+// MLT Intern Pages
+import MLTInternDashboard from "./pages/MLTInternDashboard";
+import MLTInternPatientDetail from "./pages/mlt-intern/PatientDetail";
+import MLTInternDoctorDetail from "./pages/mlt-intern/DoctorDetail";
+import MLTInternDieticianDetail from "./pages/mlt-intern/DieticianDetail";
+import MLTInternJoinRequestDetail from "./pages/mlt-intern/JoinRequestDetail";
 
 const queryClient = new QueryClient();
 
@@ -49,7 +62,9 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             {/* Public routes */}
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<Index />} />
+            <Route path="/register" element={<Register />} />
 
             {/* Doctor routes - doctors and their assistants */}
             <Route element={<ProtectedRoute allowedRoles={["doctor", "assistant"]} />}>
@@ -66,8 +81,10 @@ const App = () => (
               <Route path="/dietician" element={<DieticianDashboard />} />
               <Route path="/dietician/patient/:slug" element={<DieticianPatientDetail />} />
               <Route path="/dietician/patient/:slug/create-diet" element={<DieticianCreateDiet />} />
+              <Route path="/dietician/patient/:slug/edit-diet/:planId" element={<DieticianCreateDiet />} />
               <Route path="/dietician/schedule" element={<DieticianSchedule />} />
               <Route path="/dietician/diet" element={<DieticianDiet />} />
+              <Route path="/dietician/food-library" element={<DieticianFoodLibrary />} />
               <Route path="/dietician/settings" element={<DieticianSettings />} />
             </Route>
 
@@ -75,7 +92,7 @@ const App = () => (
             <Route element={<ProtectedRoute allowedRoles={["patient"]} />}>
               <Route path="/patient" element={<PatientDashboard />} />
               <Route path="/patient/profile" element={<PatientProfile />} />
-              <Route path="/patient/diet-plans" element={<PatientDashboard />} />
+              <Route path="/patient/diet-plans" element={<PatientDietPlans />} />
               <Route path="/patient/appointments" element={<PatientDashboard />} />
               <Route path="/patient/settings" element={<PatientDashboard />} />
             </Route>
@@ -88,7 +105,23 @@ const App = () => (
               <Route path="/admin/dieticians" element={<AdminDieticians />} />
               <Route path="/admin/referrals" element={<AdminReferrals />} />
               <Route path="/admin/join-requests" element={<AdminJoinRequests />} />
+              <Route path="/admin/food-library" element={<AdminFoodLibrary />} />
+              <Route path="/admin/coupons" element={<AdminCoupons />} />
               <Route path="/admin/settings" element={<AdminSettings />} />
+            </Route>
+
+            {/* MLT Intern routes */}
+            <Route element={<ProtectedRoute allowedRoles={["mlt_intern"]} />}>
+              <Route path="/mlt-intern" element={<Navigate to="/mlt-intern/patients" replace />} />
+              <Route path="/mlt-intern/patients" element={<MLTInternDashboard />} />
+              <Route path="/mlt-intern/doctors" element={<MLTInternDashboard />} />
+              <Route path="/mlt-intern/dieticians" element={<MLTInternDashboard />} />
+              <Route path="/mlt-intern/join-requests" element={<MLTInternDashboard />} />
+              <Route path="/mlt-intern/food-library" element={<MLTInternDashboard />} />
+              <Route path="/mlt-intern/patient/:id" element={<MLTInternPatientDetail />} />
+              <Route path="/mlt-intern/doctor/:id" element={<MLTInternDoctorDetail />} />
+              <Route path="/mlt-intern/dietician/:id" element={<MLTInternDieticianDetail />} />
+              <Route path="/mlt-intern/join-request/:id" element={<MLTInternJoinRequestDetail />} />
             </Route>
 
             {/* 404 */}

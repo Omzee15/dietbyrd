@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { Users, UserCheck, UserPlus, Stethoscope, UtensilsCrossed, BarChart3, Search, ArrowLeft, X, TrendingUp, Loader2, LogOut, Settings } from "lucide-react";
+import { Users, UserCheck, UserPlus, Stethoscope, UtensilsCrossed, BarChart3, Search, ArrowLeft, X, TrendingUp, Loader2, LogOut, Settings, Tag } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,32 @@ import { getPatients, getDoctors, getDieticians, getAnalytics, getReferrals, ass
 import { useAuth } from "@/contexts/AuthContext";
 
 type ActiveTab = "patients" | "doctors" | "dieticians" | "analytics";
+type TimeRangeFilter = "all" | "last_week" | "last_month" | "last_6_months" | "last_year" | "custom";
 
 interface PatientWithReferral extends Patient {
   referredBy?: string;
   dietician?: string;
   dieticianId?: number | null;
 }
+
+const PATIENT_PROGRESS_STEPS = [
+  "Patient Referral",
+  "Patient Payment",
+  "Patient Details",
+  "Patient Appointment Scheduling",
+] as const;
+
+const getPatientCompletionSteps = (patient: PatientWithReferral) => {
+  const hasReferral = Boolean(patient.referredBy && patient.referredBy !== "Direct");
+  const hasPayment =
+    patient.payment_status === "paid" ||
+    !!patient.dietary_preference ||
+    (patient.payment_history?.some((payment) => payment.status === "success") ?? false);
+  const hasDetails = Boolean(patient.age && patient.gender && patient.diagnosis);
+  const hasAppointmentScheduling = Boolean(patient.assigned_rd_id);
+
+  return [hasReferral, hasPayment, hasDetails, hasAppointmentScheduling];
+};
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -33,6 +53,11 @@ const AdminDashboard = () => {
   const [referredByFilter, setReferredByFilter] = useState<string>("all");
   const [dieticianFilter, setDieticianFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [timeRangeFilter, setTimeRangeFilter] = useState<TimeRangeFilter>("all");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+  const [patientPage, setPatientPage] = useState(1);
+  const [patientPageSize, setPatientPageSize] = useState(10);
 
   // Sync activeTab with URL
   useEffect(() => {
@@ -125,6 +150,42 @@ const AdminDashboard = () => {
   // Get unique referring doctors for filter dropdown
   const referringDoctors = [...new Set(enrichedPatients.map(p => p.referredBy).filter(Boolean))];
 
+  const matchesTimeRange = (createdAt: string) => {
+    if (timeRangeFilter === "all") return true;
+
+    const createdDate = new Date(createdAt);
+    if (Number.isNaN(createdDate.getTime())) return false;
+
+    if (timeRangeFilter === "custom") {
+      if (customStartDate) {
+        const start = new Date(customStartDate);
+        start.setHours(0, 0, 0, 0);
+        if (createdDate < start) return false;
+      }
+      if (customEndDate) {
+        const end = new Date(customEndDate);
+        end.setHours(23, 59, 59, 999);
+        if (createdDate > end) return false;
+      }
+      return true;
+    }
+
+    const now = new Date();
+    const start = new Date(now);
+
+    if (timeRangeFilter === "last_week") {
+      start.setDate(start.getDate() - 7);
+    } else if (timeRangeFilter === "last_month") {
+      start.setMonth(start.getMonth() - 1);
+    } else if (timeRangeFilter === "last_6_months") {
+      start.setMonth(start.getMonth() - 6);
+    } else if (timeRangeFilter === "last_year") {
+      start.setFullYear(start.getFullYear() - 1);
+    }
+
+    return createdDate >= start;
+  };
+
   const filteredPatients = enrichedPatients.filter((p) => {
     // Search filter
     const matchesSearch = 
@@ -144,19 +205,38 @@ const AdminDashboard = () => {
       matchesDietician = p.dieticianId?.toString() === dieticianFilter;
     }
     
-    // Status filter
+    // Payment status filter
     let matchesStatus = true;
-    if (statusFilter === "registered") {
+    if (statusFilter === "paid") {
       matchesStatus = !!p.dietary_preference;
-    } else if (statusFilter === "pending") {
+    } else if (statusFilter === "unpaid") {
       matchesStatus = !p.dietary_preference;
     }
+
+    const matchesTime = matchesTimeRange(p.created_at);
     
-    return matchesSearch && matchesReferredBy && matchesDietician && matchesStatus;
+    return matchesSearch && matchesReferredBy && matchesDietician && matchesStatus && matchesTime;
   });
 
-  const registeredCount = patients.filter((p) => p.dietary_preference).length;
-  const pendingCount = patients.length - registeredCount;
+  useEffect(() => {
+    setPatientPage(1);
+  }, [search, referredByFilter, dieticianFilter, statusFilter, timeRangeFilter, customStartDate, customEndDate]);
+
+  const totalPatientPages = Math.max(1, Math.ceil(filteredPatients.length / patientPageSize));
+
+  useEffect(() => {
+    if (patientPage > totalPatientPages) {
+      setPatientPage(totalPatientPages);
+    }
+  }, [patientPage, totalPatientPages]);
+
+  const paginatedPatients = filteredPatients.slice(
+    (patientPage - 1) * patientPageSize,
+    patientPage * patientPageSize
+  );
+
+  const paidCount = patients.filter((p) => p.dietary_preference).length;
+  const unpaidCount = patients.length - paidCount;
 
   // Fetch pending join requests count
   const { data: joinRequests = [] } = useQuery({
@@ -173,6 +253,13 @@ const AdminDashboard = () => {
         { label: "Dieticians", href: "/admin/dieticians", icon: UtensilsCrossed, badge: dieticians.length },
         { label: "Join Requests", href: "/admin/join-requests", icon: UserPlus, badge: joinRequests.length || undefined },
         { label: "Analytics", href: "/admin/referrals", icon: BarChart3 },
+      ],
+    },
+    {
+      title: "Data",
+      items: [
+        { label: "Food Library", href: "/admin/food-library", icon: UtensilsCrossed },
+        { label: "Coupon Codes", href: "/admin/coupons", icon: Tag },
       ],
     },
     {
@@ -233,7 +320,7 @@ const AdminDashboard = () => {
                           {selectedPatient.age || "?"} yrs · {selectedPatient.gender || "Unknown"} · {selectedPatient.phone}
                         </div>
                         <Badge variant="outline" className={`mt-1 ${selectedPatient.dietary_preference ? "bg-success/10 text-success border-success/20" : "bg-warning/10 text-warning border-warning/20"}`}>
-                          {selectedPatient.dietary_preference ? "✓ Registered" : "⏳ Pending"}
+                          {selectedPatient.dietary_preference ? "✓ Paid" : "⏳ Unpaid"}
                         </Badge>
                       </div>
                     </div>
@@ -305,8 +392,8 @@ const AdminDashboard = () => {
                     <div className="grid grid-cols-3 gap-4">
                       {[
                         { label: "Total Patients", value: patients.length, icon: Users, color: "text-primary" },
-                        { label: "Registered", value: registeredCount, icon: UserCheck, color: "text-success" },
-                        { label: "Pending", value: pendingCount, icon: Users, color: "text-warning" },
+                        { label: "Paid", value: paidCount, icon: UserCheck, color: "text-success" },
+                        { label: "Unpaid", value: unpaidCount, icon: Users, color: "text-warning" },
                       ].map((s) => (
                         <div key={s.label} className="bg-card rounded-xl border p-5 flex items-center gap-4">
                           <div className={`w-12 h-12 rounded-xl bg-muted flex items-center justify-center ${s.color}`}><s.icon className="w-6 h-6" /></div>
@@ -346,33 +433,101 @@ const AdminDashboard = () => {
                         </SelectContent>
                       </Select>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-[140px]">
-                          <SelectValue placeholder="Status" />
+                        <SelectTrigger className="w-[170px]">
+                          <SelectValue placeholder="Payment Status" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All Status</SelectItem>
-                          <SelectItem value="registered">Registered</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="all">All Payment Status</SelectItem>
+                          <SelectItem value="paid">Paid</SelectItem>
+                          <SelectItem value="unpaid">Unpaid</SelectItem>
                         </SelectContent>
                       </Select>
+                      <Select value={timeRangeFilter} onValueChange={(value) => setTimeRangeFilter(value as TimeRangeFilter)}>
+                        <SelectTrigger className="w-[170px]">
+                          <SelectValue placeholder="Time Range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Time</SelectItem>
+                          <SelectItem value="last_week">Last Week</SelectItem>
+                          <SelectItem value="last_month">Last Month</SelectItem>
+                          <SelectItem value="last_6_months">Last 6 Months</SelectItem>
+                          <SelectItem value="last_year">Last Year</SelectItem>
+                          <SelectItem value="custom">Custom Date</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {timeRangeFilter === "custom" && (
+                        <>
+                          <Input
+                            type="date"
+                            value={customStartDate}
+                            onChange={(e) => setCustomStartDate(e.target.value)}
+                            className="w-[170px]"
+                          />
+                          <Input
+                            type="date"
+                            value={customEndDate}
+                            onChange={(e) => setCustomEndDate(e.target.value)}
+                            className="w-[170px]"
+                          />
+                        </>
+                      )}
+                      <div className="ml-auto flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Rows</span>
+                        <Select
+                          value={patientPageSize.toString()}
+                          onValueChange={(value) => {
+                            setPatientPageSize(parseInt(value, 10));
+                            setPatientPage(1);
+                          }}
+                        >
+                          <SelectTrigger className="w-[90px]">
+                            <SelectValue placeholder="Rows" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="25">25</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <div className="bg-card rounded-xl border overflow-hidden">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
                             <th className="text-left p-4 font-semibold">Patient</th>
-                            <th className="text-left p-4 font-semibold">Diagnosis</th>
+                            <th className="text-left p-4 font-semibold">Progress</th>
                             <th className="text-left p-4 font-semibold">Referred By</th>
                             <th className="text-left p-4 font-semibold">Dietician</th>
-                            <th className="text-left p-4 font-semibold">Status</th>
                             <th className="text-right p-4 font-semibold">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredPatients.map((p) => (
+                          {paginatedPatients.map((p) => (
                             <tr key={p.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => setSelectedPatient(p)}>
                               <td className="p-4 font-medium">{p.name || "Unknown"}</td>
-                              <td className="p-4 capitalize">{p.diagnosis || "—"}</td>
+                              <td className="p-4 min-w-[320px]">
+                                {(() => {
+                                  const completionSteps = getPatientCompletionSteps(p);
+                                  const completedCount = completionSteps.filter(Boolean).length;
+                                  return (
+                                    <div className="space-y-2">
+                                      <div className="grid grid-cols-4 gap-1.5">
+                                        {completionSteps.map((isComplete, stepIndex) => (
+                                          <div
+                                            key={PATIENT_PROGRESS_STEPS[stepIndex]}
+                                            title={PATIENT_PROGRESS_STEPS[stepIndex]}
+                                            className={`h-2.5 rounded-full ${isComplete ? "bg-primary" : "bg-muted"}`}
+                                          />
+                                        ))}
+                                      </div>
+                                      <p className="text-[11px] text-muted-foreground">
+                                        {completedCount}/4 completed
+                                      </p>
+                                    </div>
+                                  );
+                                })()}
+                              </td>
                               <td className="p-4 text-muted-foreground">{p.referredBy}</td>
                               <td className="p-4">
                                 {p.dietician ? (
@@ -383,11 +538,6 @@ const AdminDashboard = () => {
                                   </Badge>
                                 )}
                               </td>
-                              <td className="p-4">
-                                <Badge variant="outline" className={p.dietary_preference ? "bg-success/10 text-success border-success/20" : "bg-warning/10 text-warning border-warning/20"}>
-                                  {p.dietary_preference ? "✓ Registered" : "⏳ Pending"}
-                                </Badge>
-                              </td>
                               <td className="p-4 text-right">
                                 <Button variant="outline" size="sm" className="text-xs">{p.dietary_preference ? "View" : "Assign"}</Button>
                               </td>
@@ -395,11 +545,40 @@ const AdminDashboard = () => {
                           ))}
                           {filteredPatients.length === 0 && (
                             <tr>
-                              <td colSpan={6} className="p-8 text-center text-muted-foreground">No patients found</td>
+                              <td colSpan={5} className="p-8 text-center text-muted-foreground">No patients found</td>
                             </tr>
                           )}
                         </tbody>
                       </table>
+                      {filteredPatients.length > 0 && (
+                        <div className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
+                          <span>
+                            Showing {(patientPage - 1) * patientPageSize + 1}
+                            -{Math.min(patientPage * patientPageSize, filteredPatients.length)} of {filteredPatients.length}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setPatientPage((prev) => Math.max(1, prev - 1))}
+                              disabled={patientPage === 1}
+                            >
+                              Previous
+                            </Button>
+                            <span>
+                              Page {patientPage} of {totalPatientPages}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setPatientPage((prev) => Math.min(totalPatientPages, prev + 1))}
+                              disabled={patientPage >= totalPatientPages}
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

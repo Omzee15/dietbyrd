@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import {
   ArrowLeft,
   CalendarDays,
@@ -21,6 +20,7 @@ import {
   User,
   Users,
   UtensilsCrossed,
+  Apple,
   Edit3,
   Download,
   ChevronDown,
@@ -204,172 +204,225 @@ const PatientDetail = () => {
       return;
     }
 
+    type PlanItem = {
+      name?: string;
+      nameHindi?: string;
+      quantity?: number;
+      unit?: string;
+      calories?: number;
+      protein?: number;
+      carbs?: number;
+      fat?: number;
+    };
+
+    type PlanMeal = {
+      name?: string;
+      items?: PlanItem[];
+    };
+
+    type PlanPrototype = {
+      name?: string;
+      meals?: PlanMeal[];
+      totals?: { calories?: number; protein?: number; carbs?: number; fat?: number };
+      targets?: { calories?: number; protein?: number; carbs?: number; fat?: number };
+    };
+
+    const planJson = (plan.plan_json ?? {}) as {
+      totals?: { calories?: number; protein?: number; carbs?: number; fat?: number };
+      targets?: { calories?: number; protein?: number; carbs?: number; fat?: number };
+      meals?: PlanMeal[];
+      weight?: { current?: number | null; target?: number | null };
+      note?: string;
+      prototypes?: PlanPrototype[];
+    };
+
+    const calculateTotalsFromMeals = (meals: PlanMeal[]) =>
+      meals.reduce(
+        (acc, meal) => {
+          (meal.items || []).forEach((item) => {
+            acc.calories += item.calories || 0;
+            acc.protein += item.protein || 0;
+            acc.carbs += item.carbs || 0;
+            acc.fat += item.fat || 0;
+          });
+          return acc;
+        },
+        { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      );
+
+    const prototypes = (Array.isArray(planJson.prototypes) && planJson.prototypes.length > 0
+      ? planJson.prototypes
+      : [
+          {
+            name: "Prototype 1",
+            meals: planJson.meals || [],
+            totals: planJson.totals,
+            targets: planJson.targets,
+          },
+        ]) as PlanPrototype[];
+
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Header
-    doc.setFillColor(20, 184, 166); // Teal color
-    doc.rect(0, 0, pageWidth, 45, 'F');
-    
-    // Logo/Title
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text('DietByRD', 15, 22);
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Personalized Diet Plan', 15, 32);
-    
-    // Plan date
-    doc.setFontSize(9);
-    doc.text(`Generated: ${formatDate(plan.issued_at || plan.created_at)}`, pageWidth - 15, 22, { align: 'right' });
-    doc.text(`Plan ID: #${plan.id}`, pageWidth - 15, 32, { align: 'right' });
-    
-    // Patient info section
-    let yPos = 55;
-    doc.setTextColor(60, 60, 60);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Patient Information', 15, yPos);
-    
-    yPos += 10;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Name: ${patient.name || 'N/A'}`, 15, yPos);
-    doc.text(`Age: ${patient.age || 'N/A'} years`, 100, yPos);
-    yPos += 7;
-    doc.text(`Diagnosis: ${patient.diagnosis || 'General'}`, 15, yPos);
-    doc.text(`Diet Type: ${patient.dietary_preference || 'Not specified'}`, 100, yPos);
-    
-    // Weight info
-    if (plan.plan_json?.weight) {
-      yPos += 7;
-      if (plan.plan_json.weight.current) {
-        doc.text(`Current Weight: ${plan.plan_json.weight.current} kg`, 15, yPos);
-      }
-      if (plan.plan_json.weight.target) {
-        doc.text(`Target Weight: ${plan.plan_json.weight.target} kg`, 100, yPos);
-      }
-    }
-    
-    // Divider
-    yPos += 12;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(15, yPos, pageWidth - 15, yPos);
-    
-    // Daily Nutrition Summary
-    yPos += 12;
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(60, 60, 60);
-    doc.text('Daily Nutrition Summary', 15, yPos);
-    
-    yPos += 10;
-    const totals = plan.plan_json?.totals as { calories?: number; protein?: number; carbs?: number; fat?: number } || {};
-    const summaryData = [
-      ['Calories', `${totals.calories || 0} kcal`],
-      ['Protein', `${totals.protein || 0} g`],
-      ['Carbohydrates', `${totals.carbs || 0} g`],
-      ['Fat', `${totals.fat || 0} g`],
-    ];
-    
-    autoTable(doc, {
-      startY: yPos,
-      head: [['Nutrient', 'Daily Target']],
-      body: summaryData,
-      theme: 'striped',
-      headStyles: { fillColor: [20, 184, 166], textColor: 255 },
-      styles: { fontSize: 10, cellPadding: 4 },
-      margin: { left: 15, right: 15 },
-      tableWidth: 'auto',
-    });
-    
-    // Get the final Y position after the table
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    yPos = (doc as any).lastAutoTable.finalY + 15;
-    
-    // Meal Plans
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Meal Plan', 15, yPos);
-    
-    const meals = plan.plan_json?.meals || [];
-    meals.forEach((meal: any) => {
-      yPos += 12;
-      
-      // Check if we need a new page
-      if (yPos > 250) {
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    let y = 20;
+
+    const drawMacroSegments = (item: PlanItem, x: number, yPos: number) => {
+      const segments: Array<{ text: string; color: [number, number, number] }> = [
+        { text: `${Math.round(item.calories || 0)} kcal`, color: [217, 119, 6] },
+        { text: "  |  ", color: [120, 120, 120] },
+        { text: `P: ${(item.protein || 0).toFixed(1)}`, color: [37, 99, 235] },
+        { text: "  ", color: [120, 120, 120] },
+        { text: `C: ${(item.carbs || 0).toFixed(1)}`, color: [22, 163, 74] },
+        { text: "  ", color: [120, 120, 120] },
+        { text: `F: ${(item.fat || 0).toFixed(1)}`, color: [219, 39, 119] },
+      ];
+
+      let currX = x;
+      segments.forEach((segment) => {
+        doc.setTextColor(...segment.color);
+        doc.text(segment.text, currX, yPos);
+        currX += doc.getTextWidth(segment.text);
+      });
+    };
+
+    prototypes.forEach((prototype, prototypeIndex) => {
+      if (prototypeIndex > 0) {
         doc.addPage();
-        yPos = 20;
+        y = 20;
       }
-      
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(20, 184, 166);
-      doc.text(meal.name, 15, yPos);
-      
-      const mealCalories = meal.items?.reduce((sum: number, item: any) => sum + (item.calories || 0), 0) || 0;
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(120, 120, 120);
+
+      const prototypeName = prototype.name || `Prototype ${prototypeIndex + 1}`;
+      const prototypeMeals = prototype.meals || [];
+      const totals = prototype.totals || calculateTotalsFromMeals(prototypeMeals);
+      const dailyTargetFromPlan = prototype.targets || planJson.targets || {};
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(20);
+      doc.setTextColor(14, 165, 233);
+      doc.text("DietByRD Diet Plan", margin, y);
+      y += 8;
+
       doc.setFontSize(10);
-      doc.text(`${mealCalories} kcal`, pageWidth - 15, yPos, { align: 'right' });
-      
-      if (meal.items && meal.items.length > 0) {
-        yPos += 5;
-        const mealData = meal.items.map((item: any) => [
-          item.name + (item.nameHindi ? ` (${item.nameHindi})` : ''),
-          `${item.quantity || ''} ${item.unit || 'g'}`,
-          `${item.calories || 0}`,
-          `${item.protein || 0}`,
-          `${item.carbs || 0}`,
-          `${item.fat || 0}`,
-        ]);
-        
-        autoTable(doc, {
-          startY: yPos,
-          head: [['Food Item', 'Quantity', 'Cal', 'P(g)', 'C(g)', 'F(g)']],
-          body: mealData,
-          theme: 'grid',
-          headStyles: { fillColor: [240, 240, 240], textColor: [60, 60, 60], fontSize: 8 },
-          styles: { fontSize: 9, cellPadding: 3 },
-          columnStyles: {
-            0: { cellWidth: 60 },
-            1: { cellWidth: 30, halign: 'center' },
-            2: { cellWidth: 20, halign: 'center' },
-            3: { cellWidth: 20, halign: 'center' },
-            4: { cellWidth: 20, halign: 'center' },
-            5: { cellWidth: 20, halign: 'center' },
-          },
-          margin: { left: 15, right: 15 },
-        });
-        
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        yPos = (doc as any).lastAutoTable.finalY + 5;
-      } else {
-        yPos += 8;
-        doc.setTextColor(150, 150, 150);
-        doc.setFont('helvetica', 'italic');
-        doc.text('No items added', 20, yPos);
-        doc.setFont('helvetica', 'normal');
+      doc.setTextColor(0);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Patient: ${patient.name || "N/A"} (${patient.age || "N/A"}y)`, margin, y);
+      doc.text(`Date: ${formatDate(plan.issued_at || plan.created_at)}`, margin + 90, y);
+      y += 5;
+      doc.text(`Dietician: ${currentDietician?.name || "N/A"}`, margin, y);
+      doc.text(`Variant: ${prototypeName}`, margin + 90, y);
+      y += 5;
+      if (patient.diagnosis) {
+        doc.text(`Diagnosis: ${patient.diagnosis}`, margin, y);
+        y += 5;
       }
-    });
-    
-    // Footer
-    const pageCount = doc.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
+      if (planJson.weight?.current || planJson.weight?.target) {
+        doc.text(
+          `Weight: ${planJson.weight?.current ?? "-"}kg → ${planJson.weight?.target ?? "-"}kg`,
+          margin,
+          y
+        );
+        y += 5;
+      }
+
+      doc.setDrawColor(200);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 6;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(0);
+      doc.text("Daily Summary", margin, y);
+      y += 5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
       doc.text(
-        `Page ${i} of ${pageCount} | DietByRD - Your Health, Our Priority`,
-        pageWidth / 2,
-        doc.internal.pageSize.getHeight() - 10,
-        { align: 'center' }
+        `Calories: ${Math.round(totals.calories || 0)} / ${Math.round(dailyTargetFromPlan.calories || dailyTarget.calories)} kcal`,
+        margin,
+        y
       );
+      doc.text(`Protein: ${(totals.protein || 0).toFixed(1)}g`, margin + 65, y);
+      doc.text(`Carbs: ${(totals.carbs || 0).toFixed(1)}g`, margin + 105, y);
+      doc.text(`Fat: ${(totals.fat || 0).toFixed(1)}g`, margin + 145, y);
+      y += 6;
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 10;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(14, 165, 233);
+      doc.text("Meal Plan", margin, y);
+      y += 8;
+
+      prototypeMeals.forEach((meal) => {
+        if (y > 250) {
+          doc.addPage();
+          y = 20;
+        }
+
+        doc.setFillColor(240, 249, 255);
+        doc.roundedRect(margin, y - 6, pageWidth - margin * 2, 9, 2, 2, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(14, 165, 233);
+        doc.text(meal.name || "Meal", margin + 3, y);
+        const mealCalories = (meal.items || []).reduce((sum, item) => sum + (item.calories || 0), 0);
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`${Math.round(mealCalories)} kcal`, pageWidth - margin - 20, y);
+        y += 8;
+
+        if (!meal.items || meal.items.length === 0) {
+          doc.setFont("helvetica", "italic");
+          doc.setTextColor(150);
+          doc.setFontSize(10);
+          doc.text("No items", margin + 5, y);
+          y += 8;
+        }
+
+        (meal.items || []).forEach((item) => {
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(0);
+          doc.setFontSize(10);
+          doc.text(`• ${item.name || "Food item"}`, margin + 5, y);
+          doc.setFontSize(9);
+          doc.setTextColor(80);
+          doc.text(`- ${item.quantity || 0} ${item.unit || "g"}`, margin + 70, y);
+          drawMacroSegments(item, pageWidth - margin - 86, y);
+          y += 6;
+        });
+
+        y += 3;
+      });
+    });
+
+    if (planJson.note?.trim()) {
+      doc.addPage();
+      const bands = 40;
+      const bandHeight = pageHeight / bands;
+      for (let i = 0; i < bands; i++) {
+        const ratio = i / (bands - 1);
+        const r = Math.round(253 + (255 - 253) * ratio);
+        const g = Math.round(236 + (255 - 236) * ratio);
+        const b = Math.round(236 + (255 - 236) * ratio);
+        doc.setFillColor(r, g, b);
+        doc.rect(0, i * bandHeight, pageWidth, bandHeight + 0.5, "F");
+      }
+
+      let currY = 30;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(24);
+      doc.setTextColor(30, 30, 30);
+      doc.text("A Note from Your Dietitian", pageWidth / 2, currY, { align: "center" });
+      currY += 10;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      doc.setTextColor(51, 51, 51);
+      const splitUserNote = doc.splitTextToSize(planJson.note.trim(), pageWidth - margin * 2);
+      doc.text(splitUserNote, margin, currY, { lineHeightFactor: 1.5 });
     }
-    
-    // Save PDF
+
     const fileName = `DietPlan_${patient.name?.replace(/\s+/g, '_') || 'Patient'}_${formatDate(plan.issued_at || plan.created_at).replace(/,\s*/g, '_').replace(/\s+/g, '_')}.pdf`;
     doc.save(fileName);
     toast.success("Diet plan PDF downloaded successfully!");
@@ -527,6 +580,7 @@ const PatientDetail = () => {
         { label: "My Patients", href: "/dietician", icon: Users },
         { label: "My Schedule", href: "/dietician/schedule", icon: CalendarDays },
         { label: "Diet Plans", href: "/dietician/diet", icon: UtensilsCrossed },
+        { label: "Food Library", href: "/dietician/food-library", icon: Apple },
       ],
     },
     {
