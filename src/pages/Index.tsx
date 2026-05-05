@@ -444,7 +444,7 @@ const Index = () => {
             }}
           />
 
-          <div className="relative flex items-center gap-3">
+          <Link to="/" className="relative flex items-center gap-3 hover:opacity-90 transition-opacity cursor-pointer">
             <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-lg">
               <Leaf className="w-6 h-6 text-white" />
             </div>
@@ -452,7 +452,7 @@ const Index = () => {
               <h1 className="text-2xl font-bold text-white tracking-tight">DietByRD</h1>
               <p className="text-xs text-emerald-200 font-medium tracking-wide">Clinical Nutrition Platform</p>
             </div>
-          </div>
+          </Link>
 
           <div className="relative max-w-lg">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 border border-white/20 rounded-full text-emerald-100 text-sm font-medium mb-6">

@@ -197,19 +197,6 @@ const Landing = () => {
           color: #fff;
           text-decoration: none;
           letter-spacing: -0.3px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .nav-logo-icon {
-          width: 36px;
-          height: 36px;
-          background: linear-gradient(135deg, var(--teal), var(--teal-m));
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 18px;
         }
         .nav-logo span { color: var(--gold); }
         .nav-links {
@@ -274,11 +261,15 @@ const Landing = () => {
           pointer-events: none;
         }
         .hero-content {
-          max-width: 1200px;
+          max-width: 1100px;
           margin: 0 auto;
           padding: 120px 5% 80px;
           position: relative;
           z-index: 2;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
         }
         .hero-badge {
           display: inline-flex;
@@ -311,10 +302,11 @@ const Landing = () => {
         .hero-sub {
           font-size: clamp(1rem, 1.8vw, 1.2rem);
           color: rgba(255,255,255,0.65);
-          max-width: 580px;
+          max-width: 600px;
           line-height: 1.75;
           margin-bottom: 40px;
           font-weight: 300;
+          text-align: center;
         }
         .hero-sub strong {
           color: #fff;
@@ -323,6 +315,7 @@ const Landing = () => {
         .hero-actions {
           display: flex;
           align-items: center;
+          justify-content: center;
           gap: 16px;
           flex-wrap: wrap;
         }
@@ -376,6 +369,7 @@ const Landing = () => {
           padding-top: 40px;
           border-top: 1px solid rgba(255,255,255,0.1);
           flex-wrap: wrap;
+          justify-content: center;
         }
         .hero-stat .num {
           font-family: 'Playfair Display', serif;
@@ -1033,7 +1027,6 @@ const Landing = () => {
       <nav className={`landing-nav ${scrolled ? 'scrolled' : ''}`}>
         <div className="nav-inner">
           <Link to="/" className="nav-logo">
-            <div className="nav-logo-icon">🥗</div>
             Diet <span>By RD</span>
           </Link>
           <div className="nav-links">
@@ -1082,31 +1075,6 @@ const Landing = () => {
             <div className="hero-stat">
               <div className="num">1:1</div>
               <div className="lbl">Personalised consultation</div>
-            </div>
-          </div>
-        </div>
-        <div className="hero-floating">
-          <div ref={addToRefs} className="hero-card reveal reveal-delay-2">
-            <div className="hero-card-title">Your RD handles</div>
-            <div className="hero-card-item">
-              <div className="hero-card-dot" />
-              <div className="hero-card-text">Type 2 Diabetes management</div>
-            </div>
-            <div className="hero-card-item">
-              <div className="hero-card-dot" />
-              <div className="hero-card-text">PCOS & hormonal nutrition</div>
-            </div>
-            <div className="hero-card-item">
-              <div className="hero-card-dot" />
-              <div className="hero-card-text">Thyroid diet planning</div>
-            </div>
-            <div className="hero-card-item">
-              <div className="hero-card-dot" />
-              <div className="hero-card-text">Cultural food compatibility</div>
-            </div>
-            <div className="hero-card-item">
-              <div className="hero-card-dot" />
-              <div className="hero-card-text">Evidence-based, not trend-based</div>
             </div>
           </div>
         </div>
