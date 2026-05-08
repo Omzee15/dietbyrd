@@ -3193,6 +3193,24 @@ app.post("/api/appointments/book", async (req, res) => {
       });
     }
     
+    // Check if patient has consultations left
+    const patientResult = await query(
+      `SELECT consultations_left FROM dietbyrd_patients WHERE id = $1`,
+      [patient_id]
+    );
+    
+    if (patientResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Patient not found" });
+    }
+    
+    const consultationsLeft = patientResult.rows[0].consultations_left || 0;
+    if (consultationsLeft <= 0) {
+      return res.status(402).json({ 
+        success: false, 
+        error: "No consultations left. Please purchase a consultation package to book an appointment." 
+      });
+    }
+    
     // Get or create registered_patient record
     let regPatientResult = await query(
       "SELECT id FROM dietbyrd_registered_patients WHERE patient_id = $1",
@@ -3242,6 +3260,15 @@ app.post("/api/appointments/book", async (req, res) => {
        VALUES ($1, $2, $3::timestamp, $4, 'scheduled', true, $5)
        RETURNING *`,
       [registeredPatientId, rd_id, scheduled_at, type, patient_notes || null]
+    );
+    
+    // Deduct one consultation from patient's balance
+    await query(
+      `UPDATE dietbyrd_patients 
+       SET consultations_left = GREATEST(0, COALESCE(consultations_left, 0) - 1),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [patient_id]
     );
     
     // Get full consultation details with names
@@ -3408,6 +3435,231 @@ app.delete("/api/dieticians/:rdId/blocked-slots/:slotId", async (req, res) => {
     
     res.json({ success: true, message: "Blocked slot removed successfully" });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Dietician Appointments (Calendar View) ───────────────────────────────────
+
+// Get all appointments for a dietician (for calendar view)
+app.get("/api/dieticians/:id/appointments", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { start_date, end_date, status } = req.query;
+    
+    let sql = `
+      SELECT 
+        c.*,
+        p.name AS patient_name,
+        p.phone AS patient_phone,
+        p.diagnosis,
+        rd.name AS dietician_name
+      FROM dietbyrd_consultations c
+      LEFT JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
+      LEFT JOIN dietbyrd_patients p ON rp.patient_id = p.id
+      LEFT JOIN dietbyrd_registered_dietitians rd ON c.rd_id = rd.id
+      WHERE c.rd_id = $1
+    `;
+    const params = [id];
+    
+    if (start_date) {
+      params.push(start_date);
+      sql += ` AND c.scheduled_at >= $${params.length}::date`;
+    }
+    
+    if (end_date) {
+      params.push(end_date);
+      sql += ` AND c.scheduled_at < ($${params.length}::date + interval '1 day')`;
+    }
+    
+    if (status) {
+      params.push(status);
+      sql += ` AND c.status = $${params.length}`;
+    }
+    
+    sql += ` ORDER BY c.scheduled_at ASC`;
+    
+    const result = await query(sql, params);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Consultation Packages & Razorpay Payments ────────────────────────────────
+
+// Razorpay configuration
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID;
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+
+// Get all consultation packages
+app.get("/api/consultation-packages", async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT * FROM dietbyrd_consultation_packages WHERE is_active = true ORDER BY num_consultations ASC`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Create Razorpay payment order
+app.post("/api/payments/create-order", async (req, res) => {
+  try {
+    const { patient_id, package_id, amount } = req.body;
+    
+    if (!patient_id || !package_id || !amount) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "patient_id, package_id, and amount are required" 
+      });
+    }
+
+    // Get package details
+    const pkgResult = await query(
+      `SELECT * FROM dietbyrd_consultation_packages WHERE id = $1 AND is_active = true`,
+      [package_id]
+    );
+    
+    if (pkgResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Package not found" });
+    }
+    
+    const pkg = pkgResult.rows[0];
+    
+    // Create or get Razorpay order
+    let razorpayOrderId;
+    
+    if (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET) {
+      // Real Razorpay integration
+      const Razorpay = (await import("razorpay")).default;
+      const razorpay = new Razorpay({
+        key_id: RAZORPAY_KEY_ID,
+        key_secret: RAZORPAY_KEY_SECRET,
+      });
+      
+      const order = await razorpay.orders.create({
+        amount: pkg.price, // Amount in paise
+        currency: "INR",
+        receipt: `order_${patient_id}_${Date.now()}`,
+        notes: {
+          patient_id: patient_id.toString(),
+          package_id: package_id.toString(),
+        },
+      });
+      
+      razorpayOrderId = order.id;
+    } else {
+      // Demo/test mode - generate fake order ID
+      razorpayOrderId = `demo_order_${Date.now()}`;
+    }
+    
+    // Store payment record
+    const paymentResult = await query(
+      `INSERT INTO dietbyrd_razorpay_payments 
+       (patient_id, razorpay_order_id, amount, currency, consultations_purchased, status)
+       VALUES ($1, $2, $3, 'INR', $4, 'created')
+       RETURNING *`,
+      [patient_id, razorpayOrderId, pkg.price, pkg.num_consultations]
+    );
+    
+    res.json({
+      success: true,
+      data: {
+        razorpay_order_id: razorpayOrderId,
+        amount: pkg.price,
+        currency: "INR",
+        patient_id,
+        package_id,
+      },
+    });
+  } catch (err) {
+    console.error("[payments/create-order] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Verify Razorpay payment
+app.post("/api/payments/verify", async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({
+        success: false,
+        error: "razorpay_order_id, razorpay_payment_id, and razorpay_signature are required",
+      });
+    }
+    
+    // Get payment record
+    const paymentResult = await query(
+      `SELECT * FROM dietbyrd_razorpay_payments WHERE razorpay_order_id = $1`,
+      [razorpay_order_id]
+    );
+    
+    if (paymentResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Payment not found" });
+    }
+    
+    const payment = paymentResult.rows[0];
+    
+    // Verify signature
+    let isValidSignature = false;
+    
+    if (RAZORPAY_KEY_SECRET && !razorpay_order_id.startsWith("demo_")) {
+      const expectedSignature = crypto
+        .createHmac("sha256", RAZORPAY_KEY_SECRET)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest("hex");
+      
+      isValidSignature = expectedSignature === razorpay_signature;
+    } else {
+      // Demo mode - accept any signature
+      isValidSignature = true;
+    }
+    
+    if (!isValidSignature) {
+      await query(
+        `UPDATE dietbyrd_razorpay_payments 
+         SET status = 'failed', error_description = 'Invalid signature', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [payment.id]
+      );
+      return res.status(400).json({ success: false, error: "Invalid payment signature" });
+    }
+    
+    // Update payment record
+    await query(
+      `UPDATE dietbyrd_razorpay_payments 
+       SET razorpay_payment_id = $1, 
+           razorpay_signature = $2, 
+           status = 'success',
+           payment_method = 'razorpay',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [razorpay_payment_id, razorpay_signature, payment.id]
+    );
+    
+    // Add consultations to patient
+    await query(
+      `UPDATE dietbyrd_patients 
+       SET consultations_left = COALESCE(consultations_left, 0) + $1,
+           last_payment_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [payment.consultations_purchased, payment.patient_id]
+    );
+    
+    res.json({
+      success: true,
+      data: {
+        success: true,
+        consultations_added: payment.consultations_purchased,
+      },
+    });
+  } catch (err) {
+    console.error("[payments/verify] Error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

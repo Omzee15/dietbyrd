@@ -434,3 +434,63 @@ export const removeBlockedSlot = (dieticianId: number, slotId: number) =>
   request<{ message: string }>(`/dieticians/${dieticianId}/blocked-slots/${slotId}`, {
     method: "DELETE",
   });
+
+// ─── Consultation Packages & Razorpay ─────────────────────────────────────────
+export interface ConsultationPackage {
+  id: number;
+  name: string;
+  num_consultations: number;
+  price: number; // in paise
+  discount_percentage: number;
+  is_active: boolean;
+  description?: string;
+}
+
+export interface PaymentOrder {
+  razorpay_order_id: string;
+  amount: number;
+  currency: string;
+  patient_id: number;
+  package_id: number;
+}
+
+export const getConsultationPackages = () =>
+  request<ConsultationPackage[]>("/consultation-packages");
+
+export const createPaymentOrder = (data: {
+  patient_id: number;
+  package_id: number;
+  amount: number;
+}) =>
+  request<PaymentOrder>("/payments/create-order", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const verifyPayment = (data: {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}) =>
+  request<{ success: boolean; consultations_added: number }>("/payments/verify", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+// ─── Dietician Appointments (for calendar view) ──────────────────────────────
+export interface DieticianAppointment extends Appointment {
+  patient_name?: string;
+  patient_phone?: string;
+  diagnosis?: string;
+}
+
+export const getDieticianAppointments = (
+  dieticianId: number,
+  options?: { start_date?: string; end_date?: string; status?: string }
+) => {
+  const params = new URLSearchParams();
+  if (options?.start_date) params.set("start_date", options.start_date);
+  if (options?.end_date) params.set("end_date", options.end_date);
+  if (options?.status) params.set("status", options.status);
+  return request<DieticianAppointment[]>(`/dieticians/${dieticianId}/appointments?${params.toString()}`);
+};

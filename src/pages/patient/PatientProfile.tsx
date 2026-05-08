@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Calendar,
+  CalendarDays,
   ChevronDown,
   FileText,
   Heart,
@@ -66,6 +67,7 @@ const PatientProfile = () => {
         { label: "Overview", href: "/patient", icon: User },
         { label: "My Profile", href: "/patient/profile", icon: Heart },
         { label: "Diet Plans", href: "/patient/diet-plans", icon: UtensilsCrossed },
+        { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
       ],
     },
     {

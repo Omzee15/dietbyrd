@@ -58,9 +58,13 @@ import {
   getAvailableSlots,
   bookAppointment,
   cancelAppointment,
+  getConsultationPackages,
+  createPaymentOrder,
+  verifyPayment,
   type DietPlan,
   type Consultation,
   type AvailableSlot,
+  type ConsultationPackage,
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -137,6 +141,11 @@ const PatientDashboard = () => {
   const [appointmentNotes, setAppointmentNotes] = useState("");
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current week, 1 = next week, etc.
 
+  // Payment state
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<ConsultationPackage | null>(null);
+  const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
+
   // Get patient data using the profileId from auth context
   const { data: patient, isLoading: patientLoading } = useQuery({
     queryKey: ["patient", user?.profileId],
@@ -180,6 +189,13 @@ const PatientDashboard = () => {
     enabled: !!patient?.assigned_rd_id && isBookingModalOpen,
   });
 
+  // Get consultation packages
+  const { data: packages } = useQuery({
+    queryKey: ["consultation-packages"],
+    queryFn: getConsultationPackages,
+    enabled: isPaymentModalOpen,
+  });
+
   // Book appointment mutation
   const bookAppointmentMutation = useMutation({
     mutationFn: (data: { scheduled_at: string; patient_notes?: string }) =>
@@ -191,6 +207,7 @@ const PatientDashboard = () => {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient-consultations"] });
+      queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
       toast.success("Appointment booked successfully!");
       setIsBookingModalOpen(false);
       setSelectedSlot(null);
@@ -198,7 +215,14 @@ const PatientDashboard = () => {
       refetchSlots();
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to book appointment");
+      // Check if it's a payment required error
+      if (error.message.includes("No consultations left") || error.message.includes("consultation package")) {
+        toast.error("No consultations left. Please purchase a package to book an appointment.");
+        setIsBookingModalOpen(false);
+        setIsPaymentModalOpen(true);
+      } else {
+        toast.error(error.message || "Failed to book appointment");
+      }
     },
   });
 
@@ -207,6 +231,7 @@ const PatientDashboard = () => {
     mutationFn: (appointmentId: number) => cancelAppointment(appointmentId, "patient"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient-consultations"] });
+      queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
       toast.success("Appointment cancelled");
     },
     onError: (error: Error) => {
@@ -227,10 +252,106 @@ const PatientDashboard = () => {
   // Handle booking confirmation
   const handleBookAppointment = () => {
     if (!selectedSlot) return;
+    
+    // Check if patient has consultations left
+    const consultationsLeft = (patient as any)?.consultations_left ?? 0;
+    if (consultationsLeft <= 0) {
+      toast.error("No consultations left. Please purchase a package first.");
+      setIsBookingModalOpen(false);
+      setIsPaymentModalOpen(true);
+      return;
+    }
+    
     bookAppointmentMutation.mutate({
       scheduled_at: selectedSlot.datetime,
       patient_notes: appointmentNotes || undefined,
     });
+  };
+
+  // Load Razorpay script
+  const loadRazorpay = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  // Handle payment
+  const handlePayment = async (pkg: ConsultationPackage) => {
+    setSelectedPackage(pkg);
+    setIsPaymentProcessing(true);
+
+    try {
+      const razorpayLoaded = await loadRazorpay();
+      if (!razorpayLoaded) {
+        toast.error("Failed to load payment gateway. Please try again.");
+        setIsPaymentProcessing(false);
+        return;
+      }
+
+      // Create order on backend
+      const order = await createPaymentOrder({
+        patient_id: user!.profileId!,
+        package_id: pkg.id,
+        amount: pkg.price,
+      });
+
+      const options = {
+        key: (import.meta as any).env.VITE_RAZORPAY_KEY_ID || "rzp_test_demo",
+        amount: order.amount,
+        currency: order.currency,
+        name: "DietByRD",
+        description: `${pkg.name} - ${pkg.num_consultations} Consultation(s)`,
+        order_id: order.razorpay_order_id,
+        handler: async function (response: any) {
+          try {
+            // Verify payment on backend
+            await verifyPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+
+            toast.success(`Payment successful! ${pkg.num_consultations} consultation(s) added.`);
+            queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
+            setIsPaymentModalOpen(false);
+            setIsPaymentProcessing(false);
+          } catch (err: any) {
+            toast.error(err.message || "Payment verification failed");
+            setIsPaymentProcessing(false);
+          }
+        },
+        prefill: {
+          name: patient?.name || "",
+          contact: patient?.phone || user?.phone || "",
+        },
+        theme: {
+          color: "#14b8a6",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsPaymentProcessing(false);
+          },
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on("payment.failed", function (response: any) {
+        toast.error(response.error.description || "Payment failed");
+        setIsPaymentProcessing(false);
+      });
+      rzp.open();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create payment order");
+      setIsPaymentProcessing(false);
+    }
   };
 
   // Sync body details form with patient data
@@ -1512,6 +1633,65 @@ const PatientDashboard = () => {
                 </Button>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Modal */}
+      <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Purchase Consultations
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Choose a consultation package to continue booking appointments with your dietician.
+            </p>
+
+            {packages?.map((pkg) => (
+              <div
+                key={pkg.id}
+                className={`p-4 border rounded-lg cursor-pointer transition-all hover:border-primary/50 ${
+                  selectedPackage?.id === pkg.id ? "border-primary ring-2 ring-primary/20" : ""
+                }`}
+                onClick={() => setSelectedPackage(pkg)}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold">{pkg.name}</p>
+                    <p className="text-sm text-muted-foreground">{pkg.description}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold">₹{(pkg.price / 100).toFixed(0)}</p>
+                    {pkg.discount_percentage > 0 && (
+                      <Badge variant="secondary" className="text-green-600">
+                        {pkg.discount_percentage}% OFF
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <Button
+              className="w-full"
+              onClick={() => selectedPackage && handlePayment(selectedPackage)}
+              disabled={!selectedPackage || isPaymentProcessing}
+            >
+              {isPaymentProcessing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  Pay ₹{selectedPackage ? (selectedPackage.price / 100).toFixed(0) : "0"}
+                </>
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

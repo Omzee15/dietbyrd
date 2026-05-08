@@ -21,6 +21,7 @@ import { getRDA } from "@/lib/diet-utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { FoodLibraryAddDialog } from "@/components/diet";
+import DieticianCalendarSchedule from "@/components/dietician/DieticianCalendarSchedule";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface FoodItem {
@@ -947,62 +948,14 @@ const DieticianDashboard = () => {
           </div>
         )}
 
-        {/* Schedule tab */}
+        {/* Schedule tab - Calendar View */}
         {!isLoading && activeTab === "schedule" && (
-          <div className="p-6 space-y-4">
-            <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
-              {([
-                { key: "today", label: "Today" },
-                { key: "tomorrow", label: "Tomorrow" },
-                { key: "this_week", label: "This Week" },
-                { key: "all", label: "All" },
-              ] as const).map((f) => (
-                <Button
-                  key={f.key}
-                  variant={scheduleFilter === f.key ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setScheduleFilter(f.key)}
-                  className="text-xs"
-                >
-                  {f.label}
-                </Button>
-              ))}
-            </div>
-            <div className="grid gap-3">
-              {filteredConsultations.map((c) => (
-                <div key={c.id} className="bg-card border rounded-xl p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                      {getInitials(c.patient)}
-                    </div>
-                    <div>
-                      <div className="font-medium">{c.patient}</div>
-                      <div className="text-sm text-muted-foreground">{c.type} · {c.date}</div>
-                    </div>
-                  </div>
-                  <div className="text-right flex items-center gap-3">
-                    <div>
-                      <div className="text-sm font-medium">{c.time}</div>
-                      <Badge variant="outline" className={
-                        c.status === "today" ? "text-primary border-primary/30" :
-                        c.status === "tomorrow" ? "text-info border-info/30" :
-                        "text-muted-foreground border-border"
-                      }>
-                        {c.status.replace("_", " ")}
-                      </Badge>
-                    </div>
-                    <Button size="sm" variant="outline">Join</Button>
-                  </div>
-                </div>
-              ))}
-              {filteredConsultations.length === 0 && (
-                <div className="text-center py-12 text-muted-foreground">
-                  <CalendarDays className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No consultations scheduled</p>
-                </div>
-              )}
-            </div>
-          </div>
+          <DieticianCalendarSchedule 
+            consultations={displayConsultations}
+            scheduleFilter={scheduleFilter}
+            setScheduleFilter={setScheduleFilter}
+            dieticianId={currentDietician?.id}
+          />
         )}
 
         {/* Diet chart tab */}

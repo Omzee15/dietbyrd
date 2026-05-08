@@ -32,6 +32,7 @@ import DieticianFoodLibrary from "./pages/dietician/FoodLibrary";
 import PatientDashboard from "./pages/PatientDashboard";
 import PatientProfile from "./pages/patient/PatientProfile";
 import PatientDietPlans from "./pages/patient/PatientDietPlans";
+import PatientAppointments from "./pages/patient/PatientAppointments";
 
 // Admin Pages
 import AdminDashboard from "./pages/AdminDashboard";
@@ -93,7 +94,7 @@ const App = () => (
               <Route path="/patient" element={<PatientDashboard />} />
               <Route path="/patient/profile" element={<PatientProfile />} />
               <Route path="/patient/diet-plans" element={<PatientDietPlans />} />
-              <Route path="/patient/appointments" element={<PatientDashboard />} />
+              <Route path="/patient/appointments" element={<PatientAppointments />} />
               <Route path="/patient/settings" element={<PatientDashboard />} />
             </Route>
 

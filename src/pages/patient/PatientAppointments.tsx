@@ -1,0 +1,859 @@
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Loader2,
+  LogOut,
+  Plus,
+  Settings,
+  User,
+  UtensilsCrossed,
+  X,
+  Heart,
+  CreditCard,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import AppSidebar from "@/components/AppSidebar";
+import {
+  getPatient,
+  getPatientAppointments,
+  getAvailableSlots,
+  bookAppointment,
+  cancelAppointment,
+  getConsultationPackages,
+  createPaymentOrder,
+  verifyPayment,
+  type Appointment,
+  type AvailableSlot,
+  type ConsultationPackage,
+} from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
+const PatientAppointments = () => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Appointment booking state
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
+  const [appointmentNotes, setAppointmentNotes] = useState("");
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedPackage, setSelectedPackage] = useState<ConsultationPackage | null>(null);
+  const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
+
+  // Get patient data
+  const { data: patient, isLoading: patientLoading } = useQuery({
+    queryKey: ["patient", user?.profileId],
+    queryFn: () => getPatient(user!.profileId!),
+    enabled: !!user?.profileId,
+  });
+
+  // Get patient appointments
+  const { data: appointments, isLoading: appointmentsLoading, refetch: refetchAppointments } = useQuery({
+    queryKey: ["patient-appointments", user?.profileId],
+    queryFn: () => getPatientAppointments(user!.profileId!),
+    enabled: !!user?.profileId,
+  });
+
+  // Calculate week date range for available slots
+  const weekDateRange = useMemo(() => {
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() + weekOffset * 7);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    return {
+      start: startOfWeek.toISOString().split("T")[0],
+      end: endOfWeek.toISOString().split("T")[0],
+      startDate: startOfWeek,
+      endDate: endOfWeek,
+    };
+  }, [weekOffset]);
+
+  // Get available slots
+  const { data: availableSlots, isLoading: slotsLoading, refetch: refetchSlots } = useQuery({
+    queryKey: ["available-slots", patient?.assigned_rd_id, weekDateRange.start, weekDateRange.end],
+    queryFn: () => getAvailableSlots(patient!.assigned_rd_id!, weekDateRange.start, weekDateRange.end),
+    enabled: !!patient?.assigned_rd_id && isBookingModalOpen,
+  });
+
+  // Get consultation packages
+  const { data: packages } = useQuery({
+    queryKey: ["consultation-packages"],
+    queryFn: getConsultationPackages,
+    enabled: isPaymentModalOpen || isBookingModalOpen,
+  });
+
+  // Book appointment mutation
+  const bookAppointmentMutation = useMutation({
+    mutationFn: (data: { scheduled_at: string; patient_notes?: string }) =>
+      bookAppointment({
+        patient_id: user!.profileId!,
+        rd_id: patient!.assigned_rd_id!,
+        scheduled_at: data.scheduled_at,
+        patient_notes: data.patient_notes,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
+      toast.success("Appointment booked successfully!");
+      setIsBookingModalOpen(false);
+      setSelectedSlot(null);
+      setAppointmentNotes("");
+      refetchSlots();
+      refetchAppointments();
+    },
+    onError: (error: Error) => {
+      // Check if it's a payment required error
+      if (error.message.includes("No consultations left")) {
+        toast.error("No consultations left. Please purchase a package to book an appointment.");
+        setIsBookingModalOpen(false);
+        setIsPaymentModalOpen(true);
+      } else {
+        toast.error(error.message || "Failed to book appointment");
+      }
+    },
+  });
+
+  // Cancel appointment mutation
+  const cancelAppointmentMutation = useMutation({
+    mutationFn: (appointmentId: number) => cancelAppointment(appointmentId, "patient"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
+      toast.success("Appointment cancelled");
+      refetchAppointments();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to cancel appointment");
+    },
+  });
+
+  // Group slots by date
+  const slotsByDate = useMemo(() => {
+    if (!availableSlots) return {};
+    return availableSlots.reduce((acc, slot) => {
+      if (!acc[slot.date]) acc[slot.date] = [];
+      acc[slot.date].push(slot);
+      return acc;
+    }, {} as Record<string, AvailableSlot[]>);
+  }, [availableSlots]);
+
+  // Handle booking
+  const handleBookAppointment = () => {
+    if (!selectedSlot) return;
+
+    // Check if patient has consultations left
+    const consultationsLeft = (patient as any)?.consultations_left ?? 0;
+    if (consultationsLeft <= 0) {
+      toast.error("No consultations left. Please purchase a package first.");
+      setIsBookingModalOpen(false);
+      setIsPaymentModalOpen(true);
+      return;
+    }
+
+    bookAppointmentMutation.mutate({
+      scheduled_at: selectedSlot.datetime,
+      patient_notes: appointmentNotes || undefined,
+    });
+  };
+
+  // Load Razorpay script
+  const loadRazorpay = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  // Handle payment
+  const handlePayment = async (pkg: ConsultationPackage) => {
+    setSelectedPackage(pkg);
+    setIsPaymentProcessing(true);
+
+    try {
+      const razorpayLoaded = await loadRazorpay();
+      if (!razorpayLoaded) {
+        toast.error("Failed to load payment gateway. Please try again.");
+        setIsPaymentProcessing(false);
+        return;
+      }
+
+      // Create order on backend
+      const order = await createPaymentOrder({
+        patient_id: user!.profileId!,
+        package_id: pkg.id,
+        amount: pkg.price,
+      });
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_demo",
+        amount: order.amount,
+        currency: order.currency,
+        name: "DietByRD",
+        description: `${pkg.name} - ${pkg.num_consultations} Consultation(s)`,
+        order_id: order.razorpay_order_id,
+        handler: async function (response: any) {
+          try {
+            // Verify payment on backend
+            await verifyPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+
+            toast.success(`Payment successful! ${pkg.num_consultations} consultation(s) added.`);
+            queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
+            
+            // If we have a selected slot, book the appointment after payment
+            if (selectedSlot && isBookingModalOpen) {
+              try {
+                await bookAppointment({
+                  patient_id: user!.profileId!,
+                  rd_id: patient!.assigned_rd_id!,
+                  scheduled_at: selectedSlot.datetime,
+                  patient_notes: appointmentNotes || undefined,
+                });
+                queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
+                toast.success("Appointment booked successfully!");
+                setIsBookingModalOpen(false);
+                setSelectedSlot(null);
+                setAppointmentNotes("");
+                refetchSlots();
+                refetchAppointments();
+              } catch (bookErr: any) {
+                toast.error(bookErr.message || "Payment successful but failed to book appointment. Please try booking again.");
+              }
+            }
+            
+            setIsPaymentModalOpen(false);
+            setIsPaymentProcessing(false);
+          } catch (err: any) {
+            toast.error(err.message || "Payment verification failed");
+            setIsPaymentProcessing(false);
+          }
+        },
+        prefill: {
+          name: patient?.name || "",
+          contact: patient?.phone || user?.phone || "",
+        },
+        theme: {
+          color: "#14b8a6",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsPaymentProcessing(false);
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", function (response: any) {
+        toast.error(response.error.description || "Payment failed");
+        setIsPaymentProcessing(false);
+      });
+      rzp.open();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create payment order");
+      setIsPaymentProcessing(false);
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const getInitials = (name: string) =>
+    name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?";
+
+  // Separate appointments
+  const upcomingAppointments = (appointments || [])
+    .filter((a) => a.status === "scheduled" && new Date(a.scheduled_at) > new Date())
+    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+
+  const pastAppointments = (appointments || [])
+    .filter((a) => a.status === "completed" || new Date(a.scheduled_at) <= new Date())
+    .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime());
+
+  const sidebarSections = [
+    {
+      title: "Dashboard",
+      items: [
+        { label: "Overview", href: "/patient", icon: User },
+        { label: "My Profile", href: "/patient/profile", icon: Heart },
+        { label: "Diet Plans", href: "/patient/diet-plans", icon: UtensilsCrossed },
+        { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
+      ],
+    },
+    {
+      title: "Settings",
+      items: [{ label: "Preferences", href: "/patient/settings", icon: Settings }],
+    },
+  ];
+
+  const bottomContent = (
+    <button
+      onClick={handleLogout}
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-red-400 hover:bg-red-500/10 transition-all duration-150"
+    >
+      <LogOut className="w-[18px] h-[18px] shrink-0" />
+      <span>Sign Out</span>
+    </button>
+  );
+
+  const isLoading = patientLoading || appointmentsLoading;
+  const consultationsLeft = (patient as any)?.consultations_left ?? 0;
+
+  return (
+    <div className="flex min-h-screen">
+      <AppSidebar
+        title="DietByRD"
+        subtitle="Patient Portal"
+        sections={sidebarSections}
+        bottomContent={bottomContent}
+      />
+
+      <main className="flex-1 bg-background">
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <h1 className="text-xl font-semibold">Appointments</h1>
+          {patient && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                    {getInitials(patient.name || "")}
+                  </div>
+                  <span className="text-sm font-medium">{patient.name}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => navigate("/patient/profile")}>
+                  My Profile
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-red-500">
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+
+        {/* Loading */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        )}
+
+        {/* Main Content */}
+        {!isLoading && patient && (
+          <div className="p-6 space-y-6 max-w-4xl mx-auto">
+            {/* Quick Actions */}
+            <div className="flex gap-4">
+              {patient?.assigned_rd_id ? (
+                <Button onClick={() => setIsBookingModalOpen(true)} className="flex-1">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Schedule New Appointment
+                </Button>
+              ) : (
+                <div className="flex-1 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900">
+                  <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
+                    <AlertCircle className="w-5 h-5" />
+                    <span className="text-sm font-medium">
+                      A dietician will be assigned to you soon. You'll be able to book appointments once assigned.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Upcoming Appointments */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="w-5 h-5" />
+                  Upcoming Appointments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {upcomingAppointments.length > 0 ? (
+                  <div className="space-y-4">
+                    {upcomingAppointments.map((appointment) => (
+                      <div
+                        key={appointment.id}
+                        className="flex items-center justify-between p-4 border rounded-lg bg-card"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <CalendarDays className="w-6 h-6 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">
+                              {appointment.consultation_type === "first"
+                                ? "Initial Consultation"
+                                : "Follow-up Consultation"}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {formatDate(appointment.scheduled_at)} at{" "}
+                              {formatTime(appointment.scheduled_at)}
+                            </p>
+                            {appointment.dietician_name && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                with {appointment.dietician_name}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="capitalize">
+                            {appointment.status}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                            onClick={() => {
+                              if (window.confirm("Cancel this appointment?")) {
+                                cancelAppointmentMutation.mutate(appointment.id);
+                              }
+                            }}
+                            disabled={cancelAppointmentMutation.isPending}
+                          >
+                            {cancelAppointmentMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <X className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <CalendarDays className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-30" />
+                    <p className="text-muted-foreground">No upcoming appointments</p>
+                    {patient?.assigned_rd_id && (
+                      <Button
+                        variant="outline"
+                        className="mt-4"
+                        onClick={() => setIsBookingModalOpen(true)}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Schedule Your First Appointment
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Past Appointments */}
+            {pastAppointments.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5" />
+                    Past Appointments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {pastAppointments.slice(0, 5).map((appointment) => (
+                      <div
+                        key={appointment.id}
+                        className="flex items-center justify-between p-3 border rounded-lg bg-muted/30"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                            <CheckCircle2 className="w-5 h-5 text-green-500" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">
+                              {appointment.consultation_type === "first"
+                                ? "Initial Consultation"
+                                : "Follow-up Consultation"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDate(appointment.scheduled_at)}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={
+                            appointment.status === "completed"
+                              ? "border-green-500/30 text-green-600"
+                              : appointment.status === "cancelled"
+                              ? "border-red-500/30 text-red-600"
+                              : ""
+                          }
+                        >
+                          {appointment.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* Not found state */}
+        {!isLoading && !patient && (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <User className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-30" />
+              <p className="text-muted-foreground">Patient data not found</p>
+              <Button variant="outline" className="mt-4" onClick={handleLogout}>
+                Sign Out
+              </Button>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Booking Modal */}
+      <Dialog open={isBookingModalOpen} onOpenChange={setIsBookingModalOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarDays className="w-5 h-5" />
+              Schedule Appointment
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6">
+                {/* Week Navigation */}
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setWeekOffset(Math.max(0, weekOffset - 1))}
+                    disabled={weekOffset === 0}
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    Previous Week
+                  </Button>
+                  <span className="text-sm font-medium">
+                    {weekDateRange.startDate.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                    {" - "}
+                    {weekDateRange.endDate.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setWeekOffset(weekOffset + 1)}
+                    disabled={weekOffset >= 4}
+                  >
+                    Next Week
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </div>
+
+                {/* Dietician Info */}
+                {patient?.assigned_dietician_name && (
+                  <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 dark:bg-green-950/30">
+                    <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                      <UtensilsCrossed className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Appointment with</p>
+                      <p className="font-semibold">{patient.assigned_dietician_name}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Loading */}
+                {slotsLoading && (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    <span className="ml-2 text-muted-foreground">Loading available slots...</span>
+                  </div>
+                )}
+
+                {/* Available Slots */}
+                {!slotsLoading && availableSlots && (
+                  <div className="space-y-4">
+                    {Object.keys(slotsByDate).length === 0 ? (
+                      <div className="text-center py-8">
+                        <CalendarDays className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-30" />
+                        <p className="text-muted-foreground">No available slots this week</p>
+                        <p className="text-sm text-muted-foreground">Try selecting a different week</p>
+                      </div>
+                    ) : (
+                      Object.entries(slotsByDate).map(([date, slots]) => {
+                        const dateObj = new Date(date + "T00:00:00");
+                        return (
+                          <div key={date} className="border rounded-lg p-4">
+                            <p className="font-medium mb-3">
+                              {dateObj.toLocaleDateString("en-US", {
+                                weekday: "long",
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {slots.map((slot) => (
+                                <Button
+                                  key={slot.datetime}
+                                  variant={selectedSlot?.datetime === slot.datetime ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setSelectedSlot(slot)}
+                                  className="min-w-[80px]"
+                                >
+                                  {slot.start_time}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* Selected Slot & Notes */}
+                {selectedSlot && (
+                  <div className="space-y-4 p-4 border rounded-lg bg-primary/5">
+                    <div className="flex items-center gap-3">
+                      <Clock className="w-5 h-5 text-primary" />
+                      <div>
+                        <p className="font-medium">Selected Time</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(selectedSlot.datetime).toLocaleDateString("en-US", {
+                            weekday: "long",
+                            month: "long",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                          {" at "}
+                          {selectedSlot.start_time}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Notes for your dietician (optional)</label>
+                      <Textarea
+                        placeholder="Any specific concerns or topics you'd like to discuss..."
+                        value={appointmentNotes}
+                        onChange={(e) => setAppointmentNotes(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+
+                    {/* Show payment options if no consultations left */}
+                    {consultationsLeft <= 0 ? (
+                      <div className="space-y-4">
+                        <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                            <AlertCircle className="w-4 h-4" />
+                            <span className="text-sm font-medium">
+                              Purchase a consultation package to confirm this appointment
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          {packages?.map((pkg) => (
+                            <div
+                              key={pkg.id}
+                              className={`p-3 border rounded-lg cursor-pointer transition-all hover:border-primary/50 ${
+                                selectedPackage?.id === pkg.id ? "border-primary ring-2 ring-primary/20" : ""
+                              }`}
+                              onClick={() => setSelectedPackage(pkg)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-medium text-sm">{pkg.name}</p>
+                                  <p className="text-xs text-muted-foreground">{pkg.num_consultations} consultation{pkg.num_consultations > 1 ? 's' : ''}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold">₹{(pkg.price / 100).toFixed(0)}</p>
+                                  {pkg.discount_percentage > 0 && (
+                                    <Badge variant="secondary" className="text-green-600 text-xs">
+                                      {pkg.discount_percentage}% OFF
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <Button
+                          className="w-full"
+                          onClick={() => selectedPackage && handlePayment(selectedPackage)}
+                          disabled={!selectedPackage || isPaymentProcessing}
+                        >
+                          {isPaymentProcessing ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Processing Payment...
+                            </>
+                          ) : (
+                            <>
+                              <CreditCard className="w-4 h-4 mr-2" />
+                              Pay ₹{selectedPackage ? (selectedPackage.price / 100).toFixed(0) : "0"} & Confirm
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        className="w-full"
+                        onClick={handleBookAppointment}
+                        disabled={bookAppointmentMutation.isPending}
+                      >
+                        {bookAppointmentMutation.isPending ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Booking...
+                          </>
+                        ) : (
+                          <>
+                            <CalendarDays className="w-4 h-4 mr-2" />
+                            Confirm Appointment
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Modal */}
+      <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5" />
+              Purchase Consultations
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Choose a consultation package to continue booking appointments with your dietician.
+            </p>
+
+            {packages?.map((pkg) => (
+              <div
+                key={pkg.id}
+                className={`p-4 border rounded-lg cursor-pointer transition-all hover:border-primary/50 ${
+                  selectedPackage?.id === pkg.id ? "border-primary ring-2 ring-primary/20" : ""
+                }`}
+                onClick={() => setSelectedPackage(pkg)}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold">{pkg.name}</p>
+                    <p className="text-sm text-muted-foreground">{pkg.description}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold">₹{(pkg.price / 100).toFixed(0)}</p>
+                    {pkg.discount_percentage > 0 && (
+                      <Badge variant="secondary" className="text-green-600">
+                        {pkg.discount_percentage}% OFF
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <Button
+              className="w-full"
+              onClick={() => selectedPackage && handlePayment(selectedPackage)}
+              disabled={!selectedPackage || isPaymentProcessing}
+            >
+              {isPaymentProcessing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Pay ₹{selectedPackage ? (selectedPackage.price / 100).toFixed(0) : "0"}
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default PatientAppointments;
