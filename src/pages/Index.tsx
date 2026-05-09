@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getDashboardPath, useAuth } from "@/contexts/AuthContext";
 
-type AuthStep = "phone" | "password" | "otp-send" | "otp-verify" | "not-found";
+type AuthStep = "phone" | "password" | "otp-send" | "otp-verify";
 
 type CheckPhoneResponse = {
   success?: boolean;
@@ -122,9 +122,11 @@ const Index = () => {
 
       setResolvedRole(userRole);
 
+      // If phone doesn't exist, default to patient OTP login
       if (!exists || authFlow === "phone-signin") {
-        setStep("not-found");
-        setSuccess("");
+        setResolvedRole("patient");
+        setStep("otp-send");
+        setSuccess("New patient? We'll send you an OTP to verify your phone number.");
         return;
       }
 
@@ -214,7 +216,7 @@ const Index = () => {
           </div>
         )}
 
-        {(step === "phone" || step === "not-found") && (
+        {step === "phone" && (
           <form onSubmit={handleLookupPhone} className="space-y-6">
             <div className="space-y-2">
               <label className="text-base font-medium text-slate-700">Phone Number</label>
@@ -245,17 +247,6 @@ const Index = () => {
                 </>
               )}
             </Button>
-
-            {step === "not-found" && (
-              <Button
-                type="button"
-                onClick={() => navigate("/register")}
-                variant="outline"
-                className="w-full h-14 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
-              >
-                Sign in using phone number
-              </Button>
-            )}
           </form>
         )}
 
@@ -377,7 +368,7 @@ const Index = () => {
                   <Loader2 className="w-6 h-6 animate-spin" />
                 ) : (
                   <>
-                    Login using OTP
+                    Send OTP
                     <MessageSquare className="w-5 h-5 ml-2 group-hover:scale-110 transition-transform" />
                   </>
                 )}

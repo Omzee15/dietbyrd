@@ -938,13 +938,39 @@ app.post("/api/auth/send-otp", async (req, res) => {
     }
 
     // Check if user exists
-    const userResult = await query(
+    let userResult = await query(
       "SELECT id, phone, is_active FROM dietbyrd_users WHERE phone = $1",
       [phone]
     );
 
+    // If user doesn't exist, create a new patient account
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "No account found with this phone number" });
+      console.log(`[OTP] New phone number detected: ${phone}. Creating patient account...`);
+      
+      try {
+        // Create user with patient role
+        const newUserResult = await query(
+          `INSERT INTO dietbyrd_users (phone, role, is_active)
+           VALUES ($1, 'patient', true)
+           RETURNING id, phone, is_active`,
+          [phone]
+        );
+        
+        const newUser = newUserResult.rows[0];
+        
+        // Create patient record
+        await query(
+          `INSERT INTO dietbyrd_patients (user_id, phone, referral_source)
+           VALUES ($1, $2, 'doctor')`,
+          [newUser.id, phone]
+        );
+        
+        console.log(`[OTP] Created new patient account for ${phone}, user_id: ${newUser.id}`);
+        userResult = newUserResult; // Update userResult with the newly created user
+      } catch (createErr) {
+        console.error("[OTP] Failed to create new patient:", createErr.message);
+        return res.status(500).json({ success: false, error: "Failed to create account. Please try again." });
+      }
     }
 
     const user = userResult.rows[0];
