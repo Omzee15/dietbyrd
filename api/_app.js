@@ -2023,6 +2023,50 @@ app.get("/api/referrals/doctor/:doctorId", async (req, res) => {
   }
 });
 
+// Get unregistered referrals (referred but not yet registered/paid)
+app.get("/api/referrals/unregistered", async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT 
+        p.id,
+        p.name,
+        p.phone,
+        p.age,
+        p.gender,
+        p.diagnosis,
+        p.diagnosis_description,
+        p.referral_source,
+        p.created_at,
+        r.referred_at,
+        r.source AS referral_method,
+        d.id AS doctor_id,
+        d.name AS doctor_name,
+        d.clinic_name AS doctor_clinic,
+        d.qualification AS doctor_qualification,
+        -- Check if any messages were sent
+        CASE 
+          WHEN jsonb_array_length(p.patient_messages) > 0 THEN true
+          ELSE false
+        END AS message_sent,
+        -- Get the last message status if available
+        CASE 
+          WHEN jsonb_array_length(p.patient_messages) > 0 
+          THEN (p.patient_messages->-1->>'status')::text
+          ELSE NULL
+        END AS last_message_status
+      FROM dietbyrd_patients p
+      INNER JOIN dietbyrd_referrals r ON r.patient_id = p.id
+      LEFT JOIN dietbyrd_doctors d ON r.doctor_id = d.id
+      LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id
+      WHERE rp.id IS NULL  -- Not registered yet
+      ORDER BY r.referred_at DESC`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post("/api/referrals", async (req, res) => {
   try {
     const { patient_name, phone, diagnosis, diagnosis_description, doctor_id } = req.body;

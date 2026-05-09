@@ -169,9 +169,30 @@ export interface Referral {
   gender?: string;
 }
 
+export interface UnregisteredReferral {
+  id: number; // patient ID
+  name: string | null;
+  phone: string;
+  age: number | null;
+  gender: string | null;
+  diagnosis: string | null;
+  diagnosis_description: string | null;
+  referral_source: string;
+  created_at: string;
+  referred_at: string;
+  referral_method: string;
+  doctor_id: number | null;
+  doctor_name: string | null;
+  doctor_clinic: string | null;
+  doctor_qualification: string | null;
+  message_sent: boolean;
+  last_message_status: string | null;
+}
+
 export const getReferrals = () => request<Referral[]>("/referrals");
 export const getDoctorReferrals = (doctorId: number) =>
   request<Referral[]>(`/referrals/doctor/${doctorId}`);
+export const getUnregisteredReferrals = () => request<UnregisteredReferral[]>("/referrals/unregistered");
 
 export interface CreateReferralResponse extends Referral {
   is_new_patient?: boolean;

@@ -119,6 +119,7 @@ const App = () => (
               <Route path="/mlt-intern/doctors" element={<MLTInternDashboard />} />
               <Route path="/mlt-intern/dieticians" element={<MLTInternDashboard />} />
               <Route path="/mlt-intern/join-requests" element={<MLTInternDashboard />} />
+              <Route path="/mlt-intern/unregistered-referrals" element={<MLTInternDashboard />} />
               <Route path="/mlt-intern/food-library" element={<MLTInternDashboard />} />
               <Route path="/mlt-intern/patient/:id" element={<MLTInternPatientDetail />} />
               <Route path="/mlt-intern/doctor/:id" element={<MLTInternDoctorDetail />} />

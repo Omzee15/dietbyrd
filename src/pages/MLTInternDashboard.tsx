@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { Users, Stethoscope, UtensilsCrossed, LogOut, Search, Apple, UserPlus, Plus } from "lucide-react";
+import { Users, Stethoscope, UtensilsCrossed, LogOut, Search, Apple, UserPlus, Plus, UserX } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { assignDietician, getPatients, getDoctors, getDieticians, getReferrals, getJoinRequests, Patient, Doctor, Dietician, Referral, JoinRequest } from "@/lib/api";
+import { assignDietician, getPatients, getDoctors, getDieticians, getReferrals, getUnregisteredReferrals, getJoinRequests, Patient, Doctor, Dietician, Referral, UnregisteredReferral, JoinRequest } from "@/lib/api";
 import { foodService } from "@/lib/food-service";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Food } from "@/lib/diet-types";
@@ -47,7 +47,7 @@ const MLTInternDashboard = () => {
   const queryClient = useQueryClient();
   const { logout } = useAuth();
   
-  const [activeSection, setActiveSection] = useState<'patients' | 'doctors' | 'dieticians' | 'food-library' | 'join-requests'>('patients');
+  const [activeSection, setActiveSection] = useState<'patients' | 'doctors' | 'dieticians' | 'food-library' | 'join-requests' | 'unregistered-referrals'>('patients');
   const [search, setSearch] = useState("");
   const [referredByFilter, setReferredByFilter] = useState<string>("all");
   const [dieticianFilter, setDieticianFilter] = useState<string>("all");
@@ -80,6 +80,8 @@ const MLTInternDashboard = () => {
       setActiveSection("food-library");
     } else if (location.pathname === "/mlt-intern/join-requests") {
       setActiveSection("join-requests");
+    } else if (location.pathname === "/mlt-intern/unregistered-referrals") {
+      setActiveSection("unregistered-referrals");
     }
   }, [location.pathname]);
 
@@ -116,6 +118,11 @@ const MLTInternDashboard = () => {
   const { data: joinRequests = [], isLoading: joinRequestsLoading } = useQuery({
     queryKey: ["join-requests", "pending"],
     queryFn: () => getJoinRequests("pending"),
+  });
+
+  const { data: unregisteredReferrals = [], isLoading: unregisteredReferralsLoading } = useQuery({
+    queryKey: ["unregistered-referrals"],
+    queryFn: getUnregisteredReferrals,
   });
 
   const assignDieticianMutation = useMutation({
@@ -266,6 +273,7 @@ const MLTInternDashboard = () => {
         { label: "Doctors", href: "/mlt-intern/doctors", icon: Stethoscope, badge: doctors.length },
         { label: "Dieticians", href: "/mlt-intern/dieticians", icon: UtensilsCrossed, badge: dieticians.length },
         { label: "Join Requests", href: "/mlt-intern/join-requests", icon: UserPlus, badge: joinRequests.length || undefined },
+        { label: "Unregistered Referrals", href: "/mlt-intern/unregistered-referrals", icon: UserX, badge: unregisteredReferrals.length || undefined },
         { label: "Food Library", href: "/mlt-intern/food-library", icon: Apple, badge: foods.length },
       ],
     },
@@ -281,7 +289,7 @@ const MLTInternDashboard = () => {
     </button>
   );
 
-  const isLoading = patientsLoading || doctorsLoading || dieticiansLoading || foodsLoading || joinRequestsLoading;
+  const isLoading = patientsLoading || doctorsLoading || dieticiansLoading || foodsLoading || joinRequestsLoading || unregisteredReferralsLoading;
 
   return (
     <div className="flex min-h-screen">
@@ -643,6 +651,80 @@ const MLTInternDashboard = () => {
                               <button
                                 type="button"
                                 onClick={() => navigate(`/mlt-intern/join-request/${request.id}`)}
+                                className="text-sm font-medium text-primary hover:underline"
+                              >
+                                View Details
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : activeSection === 'unregistered-referrals' ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Diagnosis</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Referred By</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Referred On</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Message Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {unregisteredReferrals.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                          No unregistered referrals found. All referred patients have completed registration!
+                        </td>
+                      </tr>
+                    ) : (
+                      unregisteredReferrals
+                        .filter((referral: UnregisteredReferral) =>
+                          (referral.name?.toLowerCase() || "").includes(search.toLowerCase()) ||
+                          referral.phone.toLowerCase().includes(search.toLowerCase()) ||
+                          (referral.diagnosis?.toLowerCase() || "").includes(search.toLowerCase()) ||
+                          (referral.doctor_name?.toLowerCase() || "").includes(search.toLowerCase())
+                        )
+                        .map((referral: UnregisteredReferral) => (
+                          <tr key={referral.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/mlt-intern/patient/${referral.id}`)}>
+                            <td className="px-6 py-4 text-sm font-medium text-gray-900">{referral.name || "—"}</td>
+                            <td className="px-6 py-4 text-sm text-gray-900 font-mono">{referral.phone}</td>
+                            <td className="px-6 py-4 text-sm text-gray-900">{referral.diagnosis || "—"}</td>
+                            <td className="px-6 py-4 text-sm text-gray-900">
+                              {referral.doctor_name ? (
+                                <div>
+                                  <div className="font-medium">Dr. {referral.doctor_name}</div>
+                                  {referral.doctor_clinic && (
+                                    <div className="text-xs text-gray-500">{referral.doctor_clinic}</div>
+                                  )}
+                                </div>
+                              ) : "—"}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-900">
+                              {new Date(referral.referred_at).toLocaleDateString()}
+                              <div className="text-xs text-gray-500">
+                                {Math.floor((Date.now() - new Date(referral.referred_at).getTime()) / (1000 * 60 * 60 * 24))} days ago
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              {referral.message_sent ? (
+                                <Badge variant={referral.last_message_status === "sent" ? "default" : "destructive"}>
+                                  {referral.last_message_status || "Sent"}
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary">Not Sent</Badge>
+                              )}
+                            </td>
+                            <td className="px-6 py-4" onClick={(event) => event.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/mlt-intern/patient/${referral.id}`)}
                                 className="text-sm font-medium text-primary hover:underline"
                               >
                                 View Details
