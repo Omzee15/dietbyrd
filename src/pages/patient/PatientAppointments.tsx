@@ -208,18 +208,38 @@ const PatientAppointments = () => {
   const handlePayment = async (pkg: ConsultationPackage) => {
     setSelectedPackage(pkg);
     setIsPaymentProcessing(true);
+    
+    // Capture all required values before closing modal (for async callbacks)
+    const slotToBook = selectedSlot;
+    const notesToSave = appointmentNotes;
+    const patientId = user?.profileId;
+    const rdId = patient?.assigned_rd_id;
+    const patientName = patient?.name || "";
+    const patientPhone = patient?.phone || user?.phone || "";
+    
+    // Validate we have all required data for booking
+    if (!slotToBook || !patientId || !rdId) {
+      toast.error("Missing required information. Please try again.");
+      setIsPaymentProcessing(false);
+      return;
+    }
+    
+    // Close the booking modal so Razorpay popup is accessible
+    setIsBookingModalOpen(false);
 
     try {
       const razorpayLoaded = await loadRazorpay();
       if (!razorpayLoaded) {
         toast.error("Failed to load payment gateway. Please try again.");
         setIsPaymentProcessing(false);
+        // Reopen modal on failure
+        setIsBookingModalOpen(true);
         return;
       }
 
       // Create order on backend
       const order = await createPaymentOrder({
-        patient_id: user!.profileId!,
+        patient_id: patientId,
         package_id: pkg.id,
         amount: pkg.price,
       });
@@ -241,27 +261,26 @@ const PatientAppointments = () => {
             });
 
             toast.success(`Payment successful! ${pkg.num_consultations} consultation(s) added.`);
-            queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
+            queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
             
-            // If we have a selected slot, book the appointment after payment
-            if (selectedSlot && isBookingModalOpen) {
-              try {
-                await bookAppointment({
-                  patient_id: user!.profileId!,
-                  rd_id: patient!.assigned_rd_id!,
-                  scheduled_at: selectedSlot.datetime,
-                  patient_notes: appointmentNotes || undefined,
-                });
-                queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
-                toast.success("Appointment booked successfully!");
-                setIsBookingModalOpen(false);
-                setSelectedSlot(null);
-                setAppointmentNotes("");
-                refetchSlots();
-                refetchAppointments();
-              } catch (bookErr: any) {
-                toast.error(bookErr.message || "Payment successful but failed to book appointment. Please try booking again.");
-              }
+            // Book the appointment after successful payment using captured values
+            try {
+              console.log("[Payment] Booking appointment...", { patientId, rdId, slotToBook });
+              await bookAppointment({
+                patient_id: patientId,
+                rd_id: rdId,
+                scheduled_at: slotToBook.datetime,
+                patient_notes: notesToSave || undefined,
+              });
+              queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
+              toast.success("Appointment booked successfully!");
+              setSelectedSlot(null);
+              setAppointmentNotes("");
+              refetchSlots();
+              refetchAppointments();
+            } catch (bookErr: any) {
+              console.error("[Payment] Booking failed:", bookErr);
+              toast.error(bookErr.message || "Payment successful but failed to book appointment. Please try booking again.");
             }
             
             setIsPaymentModalOpen(false);
@@ -272,8 +291,8 @@ const PatientAppointments = () => {
           }
         },
         prefill: {
-          name: patient?.name || "",
-          contact: patient?.phone || user?.phone || "",
+          name: patientName,
+          contact: patientPhone,
         },
         theme: {
           color: "#14b8a6",
@@ -281,19 +300,36 @@ const PatientAppointments = () => {
         modal: {
           ondismiss: function () {
             setIsPaymentProcessing(false);
+            // Reopen booking modal if user dismisses payment (after a short delay to let Razorpay fully close)
+            setTimeout(() => {
+              if (slotToBook) {
+                setSelectedSlot(slotToBook);
+                setAppointmentNotes(notesToSave);
+                setIsBookingModalOpen(true);
+              }
+            }, 300);
           },
+          escape: true,
+          backdropclose: false,
         },
       };
 
       const rzp = new window.Razorpay(options);
       rzp.on("payment.failed", function (response: any) {
-        toast.error(response.error.description || "Payment failed");
-        setIsPaymentProcessing(false);
+        // Don't show toast here - Razorpay already shows the error
+        // The modal ondismiss will handle reopening our booking modal
+        console.log("[Razorpay] Payment failed:", response.error.description);
       });
       rzp.open();
     } catch (err: any) {
       toast.error(err.message || "Failed to create payment order");
       setIsPaymentProcessing(false);
+      // Reopen modal on error
+      if (slotToBook) {
+        setSelectedSlot(slotToBook);
+        setAppointmentNotes(notesToSave);
+        setIsBookingModalOpen(true);
+      }
     }
   };
 
@@ -574,16 +610,26 @@ const PatientAppointments = () => {
       </main>
 
       {/* Booking Modal */}
-      <Dialog open={isBookingModalOpen} onOpenChange={setIsBookingModalOpen}>
+      <Dialog open={isBookingModalOpen} onOpenChange={(open) => {
+        setIsBookingModalOpen(open);
+        if (!open) {
+          setSelectedSlot(null);
+          setAppointmentNotes("");
+          setSelectedPackage(null);
+        }
+      }}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarDays className="w-5 h-5" />
-              Schedule Appointment
+              {selectedSlot ? "Confirm Appointment" : "Schedule Appointment"}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6">
+            {/* View 1: Slot Selection (when no slot selected) */}
+            {!selectedSlot && (
+              <>
                 {/* Week Navigation */}
                 <div className="flex items-center justify-between">
                   <Button
@@ -664,7 +710,7 @@ const PatientAppointments = () => {
                               {slots.map((slot) => (
                                 <Button
                                   key={slot.datetime}
-                                  variant={selectedSlot?.datetime === slot.datetime ? "default" : "outline"}
+                                  variant="outline"
                                   size="sm"
                                   onClick={() => setSelectedSlot(slot)}
                                   className="min-w-[80px]"
@@ -679,115 +725,158 @@ const PatientAppointments = () => {
                     )}
                   </div>
                 )}
+              </>
+            )}
 
-                {/* Selected Slot & Notes */}
-                {selectedSlot && (
-                  <div className="space-y-4 p-4 border rounded-lg bg-primary/5">
-                    <div className="flex items-center gap-3">
-                      <Clock className="w-5 h-5 text-primary" />
+            {/* View 2: Confirmation (when slot selected) */}
+            {selectedSlot && (
+              <div className="space-y-5">
+                {/* Back button to change slot */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedSlot(null)}
+                  className="gap-1 -ml-2"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Change Time
+                </Button>
+
+                {/* Appointment Summary Card */}
+                <div className="border rounded-xl p-5 space-y-4 bg-gradient-to-br from-primary/5 to-primary/10">
+                  {/* Dietician */}
+                  {patient?.assigned_dietician_name && (
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                        <UtensilsCrossed className="w-7 h-7 text-green-600 dark:text-green-400" />
+                      </div>
                       <div>
-                        <p className="font-medium">Selected Time</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Your Dietician</p>
+                        <p className="text-lg font-semibold">{patient.assigned_dietician_name}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="h-px bg-border" />
+
+                  {/* Date and Time */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+                        <CalendarDays className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Date</p>
+                        <p className="font-medium">
                           {new Date(selectedSlot.datetime).toLocaleDateString("en-US", {
-                            weekday: "long",
-                            month: "long",
+                            weekday: "short",
+                            month: "short",
                             day: "numeric",
-                            year: "numeric",
                           })}
-                          {" at "}
-                          {selectedSlot.start_time}
                         </p>
                       </div>
                     </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Notes for your dietician (optional)</label>
-                      <Textarea
-                        placeholder="Any specific concerns or topics you'd like to discuss..."
-                        value={appointmentNotes}
-                        onChange={(e) => setAppointmentNotes(e.target.value)}
-                        rows={3}
-                      />
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+                        <Clock className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Time</p>
+                        <p className="font-medium">{selectedSlot.start_time}</p>
+                      </div>
                     </div>
+                  </div>
+                </div>
 
-                    {/* Show payment options if no consultations left */}
-                    {consultationsLeft <= 0 ? (
-                      <div className="space-y-4">
-                        <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-                          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
-                            <AlertCircle className="w-4 h-4" />
-                            <span className="text-sm font-medium">
-                              Purchase a consultation package to confirm this appointment
-                            </span>
+                {/* Notes */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Notes for your dietician (optional)</label>
+                  <Textarea
+                    placeholder="Any specific concerns or topics you'd like to discuss..."
+                    value={appointmentNotes}
+                    onChange={(e) => setAppointmentNotes(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+
+                {/* Payment/Confirmation Section */}
+                {consultationsLeft <= 0 ? (
+                  <div className="space-y-4">
+                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                      <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                        <AlertCircle className="w-4 h-4" />
+                        <span className="text-sm font-medium">
+                          Purchase a consultation package to confirm
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {packages?.map((pkg) => (
+                        <div
+                          key={pkg.id}
+                          className={`p-3 border rounded-lg cursor-pointer transition-all hover:border-primary/50 ${
+                            selectedPackage?.id === pkg.id ? "border-primary ring-2 ring-primary/20" : ""
+                          }`}
+                          onClick={() => setSelectedPackage(pkg)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-sm">{pkg.name}</p>
+                              <p className="text-xs text-muted-foreground">{pkg.num_consultations} consultation{pkg.num_consultations > 1 ? 's' : ''}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold">₹{(pkg.price / 100).toFixed(0)}</p>
+                              {pkg.discount_percentage > 0 && (
+                                <Badge variant="secondary" className="text-green-600 text-xs">
+                                  {pkg.discount_percentage}% OFF
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        
-                        <div className="space-y-3">
-                          {packages?.map((pkg) => (
-                            <div
-                              key={pkg.id}
-                              className={`p-3 border rounded-lg cursor-pointer transition-all hover:border-primary/50 ${
-                                selectedPackage?.id === pkg.id ? "border-primary ring-2 ring-primary/20" : ""
-                              }`}
-                              onClick={() => setSelectedPackage(pkg)}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="font-medium text-sm">{pkg.name}</p>
-                                  <p className="text-xs text-muted-foreground">{pkg.num_consultations} consultation{pkg.num_consultations > 1 ? 's' : ''}</p>
-                                </div>
-                                <div className="text-right">
-                                  <p className="font-bold">₹{(pkg.price / 100).toFixed(0)}</p>
-                                  {pkg.discount_percentage > 0 && (
-                                    <Badge variant="secondary" className="text-green-600 text-xs">
-                                      {pkg.discount_percentage}% OFF
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                      ))}
+                    </div>
 
-                        <Button
-                          className="w-full"
-                          onClick={() => selectedPackage && handlePayment(selectedPackage)}
-                          disabled={!selectedPackage || isPaymentProcessing}
-                        >
-                          {isPaymentProcessing ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Processing Payment...
-                            </>
-                          ) : (
-                            <>
-                              <CreditCard className="w-4 h-4 mr-2" />
-                              Pay ₹{selectedPackage ? (selectedPackage.price / 100).toFixed(0) : "0"} & Confirm
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        className="w-full"
-                        onClick={handleBookAppointment}
-                        disabled={bookAppointmentMutation.isPending}
-                      >
-                        {bookAppointmentMutation.isPending ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Booking...
-                          </>
-                        ) : (
-                          <>
-                            <CalendarDays className="w-4 h-4 mr-2" />
-                            Confirm Appointment
-                          </>
-                        )}
-                      </Button>
-                    )}
+                    <Button
+                      className="w-full h-12 text-base"
+                      onClick={() => selectedPackage && handlePayment(selectedPackage)}
+                      disabled={!selectedPackage || isPaymentProcessing}
+                    >
+                      {isPaymentProcessing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Processing Payment...
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Pay ₹{selectedPackage ? (selectedPackage.price / 100).toFixed(0) : "0"} & Proceed
+                        </>
+                      )}
+                    </Button>
                   </div>
+                ) : (
+                  <Button
+                    className="w-full h-12 text-base"
+                    onClick={handleBookAppointment}
+                    disabled={bookAppointmentMutation.isPending}
+                  >
+                    {bookAppointmentMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Booking...
+                      </>
+                    ) : (
+                      <>
+                        <CalendarDays className="w-4 h-4 mr-2" />
+                        Confirm Appointment
+                      </>
+                    )}
+                  </Button>
                 )}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -7,11 +7,14 @@ import {
   Activity,
   AlertTriangle,
   CalendarDays,
+  Check,
   ChevronDown,
   ChevronUp,
   ChevronLeft,
   ChevronRight,
+  Circle,
   Clock,
+  CreditCard,
   Download,
   Dumbbell,
   Edit3,
@@ -27,6 +30,7 @@ import {
   Stethoscope,
   Target,
   User,
+  UserCheck,
   Users,
   UtensilsCrossed,
   X,
@@ -435,6 +439,20 @@ const PatientDashboard = () => {
     .filter((c) => c.status === "scheduled" && new Date(c.scheduled_at) > new Date())
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
+  // Check if patient has completed first consultation
+  const hasCompletedConsultation = (consultations || []).some((c) => c.status === "completed");
+  const hasScheduledAppointment = (consultations || []).some((c) => c.status === "scheduled");
+  const hasPaid = (patient as any)?.payment_status === "paid" || (patient as any)?.consultations_left > 0 || dietPlans?.length > 0;
+  
+  // Progress steps for onboarding
+  const progressSteps = [
+    { id: 1, label: "Registration", completed: !!patient, icon: UserCheck },
+    { id: 2, label: "Payment", completed: hasPaid, icon: CreditCard },
+    { id: 3, label: "Appointment", completed: hasScheduledAppointment || hasCompletedConsultation, icon: CalendarDays },
+    { id: 4, label: "Consultation", completed: hasCompletedConsultation, icon: UtensilsCrossed },
+  ];
+  const showProgressBar = !hasCompletedConsultation;
+
   // Get the active diet plan
   const activeDietPlan = dietPlans?.find((plan) => plan.is_active);
 
@@ -770,6 +788,80 @@ const PatientDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Progress Bar - Only shown until first consultation is completed */}
+            {showProgressBar && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Target className="w-5 h-5" />
+                    Your Journey Progress
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="relative">
+                    {/* Progress Line */}
+                    <div className="absolute top-5 left-0 right-0 h-0.5 bg-muted mx-8" />
+                    <div 
+                      className="absolute top-5 left-0 h-0.5 bg-primary mx-8 transition-all duration-500"
+                      style={{ 
+                        width: `calc(${(progressSteps.filter(s => s.completed).length - 1) / (progressSteps.length - 1) * 100}% - 4rem)` 
+                      }}
+                    />
+                    
+                    {/* Steps */}
+                    <div className="relative flex justify-between">
+                      {progressSteps.map((step, index) => {
+                        const Icon = step.icon;
+                        return (
+                          <div key={step.id} className="flex flex-col items-center gap-2">
+                            <div 
+                              className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
+                                step.completed 
+                                  ? "bg-primary border-primary text-primary-foreground" 
+                                  : index === progressSteps.findIndex(s => !s.completed)
+                                    ? "bg-background border-primary text-primary animate-pulse"
+                                    : "bg-background border-muted text-muted-foreground"
+                              }`}
+                            >
+                              {step.completed ? (
+                                <Check className="w-5 h-5" />
+                              ) : (
+                                <Icon className="w-5 h-5" />
+                              )}
+                            </div>
+                            <span className={`text-xs font-medium text-center ${
+                              step.completed ? "text-primary" : "text-muted-foreground"
+                            }`}>
+                              {step.label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {/* Current Step Message */}
+                  <div className="mt-4 pt-4 border-t">
+                    {!hasPaid && (
+                      <p className="text-sm text-muted-foreground text-center">
+                        <span className="font-medium text-primary">Next step:</span> Complete your payment to book a consultation
+                      </p>
+                    )}
+                    {hasPaid && !hasScheduledAppointment && !hasCompletedConsultation && (
+                      <p className="text-sm text-muted-foreground text-center">
+                        <span className="font-medium text-primary">Next step:</span> Schedule your appointment with a dietician
+                      </p>
+                    )}
+                    {hasScheduledAppointment && !hasCompletedConsultation && (
+                      <p className="text-sm text-muted-foreground text-center">
+                        <span className="font-medium text-primary">Almost there!</span> Attend your scheduled consultation
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Care Team Card */}
             {(patient.referring_doctor_name || patient.assigned_dietician_name) && (

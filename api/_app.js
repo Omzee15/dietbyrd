@@ -6,6 +6,10 @@ import crypto from "crypto";
 
 const { Pool } = pg;
 
+// App environment
+const APP_ENV = process.env.APP_ENV || "production";
+const IS_DEV = APP_ENV === "dev";
+
 // Twilio configuration
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || process.env.TWILLO_ACCOUNT_SID || process.env.TWILLO_ACCOUNT_SD;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || process.env.TWILLO_AUTH_TOKEN;
@@ -23,9 +27,34 @@ const getTwilioVerifyService = () => {
   return twilioClient.verify.v2.services(TWILIO_VERIFY_SERVICE_SID);
 };
 
+// Generate a 6-digit OTP for dev mode
+const generateDevOtp = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Send OTP - uses mock in dev mode, Twilio in production
 const sendOtpViaTwilio = async (phone, channel = "sms") => {
   const toNumber = formatPhoneE164(phone);
   const normalizedChannel = channel === "whatsapp" ? "whatsapp" : "sms";
+  
+  // Dev mode: generate mock OTP and log it
+  if (IS_DEV) {
+    const devOtp = generateDevOtp();
+    const messageContent = `Your DietByRD verification code is: ${devOtp}. Valid for 5 minutes.`;
+    
+    console.log(`\n========== DEV MODE OTP ==========`);
+    console.log(`Message send to ${toNumber}, message sent : ${messageContent}`);
+    console.log(`==================================\n`);
+    
+    return { 
+      verification: { sid: `dev_${Date.now()}`, status: "pending" }, 
+      toNumber, 
+      channel: normalizedChannel,
+      devOtp // Return OTP for storage
+    };
+  }
+  
+  // Production mode: use Twilio Verify
   const service = getTwilioVerifyService();
 
   const verification = await service.verifications.create({
@@ -809,11 +838,17 @@ app.post("/api/auth/send-otp", async (req, res) => {
       return res.status(401).json({ success: false, error: "Account is deactivated" });
     }
 
-    // Send OTP using Twilio Verify
+    // Send OTP using Twilio Verify (or mock in dev mode)
     console.log(`[OTP] Sending login OTP to ${phone} via ${channel}`);
     
     try {
-      const { verification, toNumber, channel: normalizedChannel } = await sendOtpViaTwilio(phone, channel);
+      const result = await sendOtpViaTwilio(phone, channel);
+      const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
+      
+      // In dev mode, store the OTP for verification
+      if (IS_DEV && devOtp) {
+        await storeOtp(phone, devOtp, 'login');
+      }
       
       console.log(`[OTP] Verification sent, SID: ${verification.sid}, Status: ${verification.status}`);
       return res.json({ 
@@ -840,16 +875,24 @@ app.post("/api/auth/verify-otp", async (req, res) => {
       return res.status(400).json({ success: false, error: "Phone and OTP are required" });
     }
 
-    // Verify OTP using Twilio Verify
-    try {
-      const verificationCheck = await verifyOtpViaTwilio(phone, otp);
-      
-      if (verificationCheck.status !== "approved") {
-        return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+    // Verify OTP - use local DB in dev mode, Twilio in production
+    if (IS_DEV) {
+      const verifyResult = await verifyOtpFromDb(phone, otp, 'login');
+      if (!verifyResult.valid) {
+        return res.status(400).json({ success: false, error: verifyResult.error || "Invalid OTP." });
       }
-    } catch (twilioErr) {
-      console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
-      return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
+      await clearOtp(phone, 'login');
+    } else {
+      try {
+        const verificationCheck = await verifyOtpViaTwilio(phone, otp);
+        
+        if (verificationCheck.status !== "approved") {
+          return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+        }
+      } catch (twilioErr) {
+        console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
+        return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
+      }
     }
 
     // Find user and login
@@ -1053,15 +1096,17 @@ app.post("/api/auth/signup/send-otp", async (req, res) => {
       return res.status(409).json({ success: false, error: "Phone number already registered" });
     }
 
-    // Store pending signup data (needed for verification step)
-    const pendingData = { phone, password, name };
-    await storeOtp(phone, "", 'signup', pendingData); // Empty OTP - Twilio handles the actual OTP
-
-    // Send OTP using Twilio Verify
+    // Send OTP using Twilio Verify (or mock in dev mode)
     console.log(`[OTP] Sending signup OTP to ${phone} via ${channel}`);
     
     try {
-      const { verification, toNumber, channel: normalizedChannel } = await sendOtpViaTwilio(phone, channel);
+      const result = await sendOtpViaTwilio(phone, channel);
+      const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
+      
+      // Store pending signup data (needed for verification step)
+      const pendingData = { phone, password, name };
+      // In dev mode, store the actual OTP; in production, Twilio handles it
+      await storeOtp(phone, devOtp || "", 'signup', pendingData);
       
       console.log(`[OTP] Verification sent, SID: ${verification.sid}, Status: ${verification.status}`);
       return res.json({ 
@@ -1089,17 +1134,23 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
       return res.status(400).json({ success: false, error: "Phone and OTP are required" });
     }
 
-    // Verify OTP using Twilio Verify
-    // Verify OTP using Twilio Verify
-    try {
-      const verificationCheck = await verifyOtpViaTwilio(phone, otp);
-      
-      if (verificationCheck.status !== "approved") {
-        return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+    // Verify OTP - use local DB in dev mode, Twilio in production
+    if (IS_DEV) {
+      const verifyResult = await verifyOtpFromDb(phone, otp, 'signup');
+      if (!verifyResult.valid) {
+        return res.status(400).json({ success: false, error: verifyResult.error || "Invalid OTP." });
       }
-    } catch (twilioErr) {
-      console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
-      return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
+    } else {
+      try {
+        const verificationCheck = await verifyOtpViaTwilio(phone, otp);
+        
+        if (verificationCheck.status !== "approved") {
+          return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+        }
+      } catch (twilioErr) {
+        console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
+        return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
+      }
     }
 
     // Get pending signup data from our database

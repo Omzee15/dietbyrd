@@ -77,13 +77,10 @@ CREATE TABLE IF NOT EXISTS dietbyrd_consultation_packages (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert default packages
-INSERT INTO dietbyrd_consultation_packages (name, num_consultations, price, discount_percentage, description)
+-- Insert default packages (only single consultation active for now)
+INSERT INTO dietbyrd_consultation_packages (name, num_consultations, price, discount_percentage, description, is_active)
 VALUES 
-    ('Single Consultation', 1, 49900, 0, 'One personalized diet consultation'),
-    ('3 Consultation Pack', 3, 129900, 13, 'Best for initial weight loss journey'),
-    ('5 Consultation Pack', 5, 199900, 20, 'Most popular - complete diet program'),
-    ('10 Consultation Pack', 10, 349900, 30, 'Premium package for long-term goals')
+    ('Single Consultation', 1, 49900, 0, 'One personalized diet consultation', true)
 ON CONFLICT DO NOTHING;
 
 COMMENT ON TABLE dietbyrd_razorpay_payments IS 'Tracks all Razorpay payments for consultation purchases';

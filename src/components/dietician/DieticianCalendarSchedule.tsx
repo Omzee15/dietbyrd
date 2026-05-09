@@ -79,12 +79,12 @@ const DieticianCalendarSchedule = ({
     return c.status === scheduleFilter;
   });
 
-  // Time slots for week view (9 AM to 6 PM)
-  const timeSlots = Array.from({ length: 10 }, (_, i) => {
-    const hour = 9 + i;
+  // Time slots for week view (6 AM to 9 PM)
+  const timeSlots = Array.from({ length: 16 }, (_, i) => {
+    const hour = 6 + i;
     return {
       hour,
-      label: `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? "PM" : "AM"}`,
+      label: `${hour > 12 ? hour - 12 : hour === 12 ? 12 : hour}:00 ${hour >= 12 ? "PM" : "AM"}`,
     };
   });
 

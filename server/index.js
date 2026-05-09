@@ -12,8 +12,13 @@ dotenv.config({ path: resolve(__dirname, "../.env") });
 const { default: app } = await import("../api/_app.js");
 
 const PORT = process.env.PORT || 3001;
+const APP_ENV = process.env.APP_ENV || "production";
 
 app.listen(PORT, () => {
   console.log(`\n🚀 DietByRD API Server running on http://localhost:${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/api/health\n`);
+  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  if (APP_ENV === "dev") {
+    console.log(`⚠️  DEV MODE: OTP codes will be printed to console`);
+  }
+  console.log();
 });
