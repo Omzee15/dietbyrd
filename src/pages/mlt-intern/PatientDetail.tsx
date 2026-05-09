@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, LogOut, User, Phone, Stethoscope, Activity, Scale, Ruler, Wheat, Dumbbell, MessageSquare, CheckCircle, XCircle, Clock } from "lucide-react";
+import { ArrowLeft, LogOut, User, Phone, Stethoscope, Activity, Scale, Ruler, Wheat, Dumbbell, MessageSquare, CheckCircle, XCircle, Clock, Calendar, Users, UtensilsCrossed, UserPlus, Apple } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getPatient, getPatientMessages, PatientMessage } from "@/lib/api";
+import { getPatient, getPatientMessages, getPatientAppointments, PatientMessage, Appointment } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 const MLTInternPatientDetail = () => {
@@ -24,6 +24,12 @@ const MLTInternPatientDetail = () => {
   const { data: messages = [], isLoading: messagesLoading } = useQuery({
     queryKey: ["patientMessages", patientId],
     queryFn: () => getPatientMessages(patientId),
+    enabled: !!patientId,
+  });
+
+  const { data: appointments = [], isLoading: appointmentsLoading } = useQuery({
+    queryKey: ["patientAppointments", patientId],
+    queryFn: () => getPatientAppointments(patientId),
     enabled: !!patientId,
   });
 
@@ -67,7 +73,11 @@ const MLTInternPatientDetail = () => {
     {
       title: "View",
       items: [
-        { label: "Patients", href: "/mlt-intern", icon: User },
+        { label: "Patients", href: "/mlt-intern/patients", icon: Users },
+        { label: "Doctors", href: "/mlt-intern/doctors", icon: Stethoscope },
+        { label: "Dieticians", href: "/mlt-intern/dieticians", icon: UtensilsCrossed },
+        { label: "Join Requests", href: "/mlt-intern/join-requests", icon: UserPlus },
+        { label: "Food Library", href: "/mlt-intern/food-library", icon: Apple },
       ],
     },
   ];
@@ -237,14 +247,86 @@ const MLTInternPatientDetail = () => {
                                 {payment.status}
                               </Badge>
                             </div>
-                            <p className="text-sm text-gray-700 mt-1">
-                              Amount: {payment.currency || "INR"} {Number(payment.amount || 0).toFixed(2)}
-                            </p>
+                            <div className="mt-1 space-y-0.5">
+                              <p className="text-sm text-gray-700">
+                                Amount: {payment.currency || "INR"} {(Number(payment.amount || 0) / 100).toFixed(2)}
+                              </p>
+                              {payment.razorpay_payment_id && (
+                                <p className="text-xs text-gray-500">
+                                  Razorpay ID: {payment.razorpay_payment_id}
+                                </p>
+                              )}
+                              {payment.consultations_purchased && (
+                                <p className="text-xs text-gray-500">
+                                  Consultations: {payment.consultations_purchased}
+                                </p>
+                              )}
+                              <p className="text-xs text-gray-500">
+                                Date: {new Date(payment.paid_at || payment.created_at).toLocaleString()}
+                              </p>
+                            </div>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Calendar className="w-4 h-4" />
+                    Appointments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {appointmentsLoading ? (
+                    <p className="text-sm text-gray-500">Loading appointments...</p>
+                  ) : appointments.length === 0 ? (
+                    <p className="text-sm text-gray-500">No appointments scheduled yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {appointments.map((appointment: Appointment) => (
+                        <div key={appointment.id} className="rounded-md border border-gray-200 p-3 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-sm font-medium">Appointment #{appointment.id}</span>
+                            <Badge variant={appointment.status === "completed" ? "default" : appointment.status === "cancelled" ? "destructive" : "secondary"}>
+                              {appointment.status}
+                            </Badge>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm text-gray-700">
+                              <strong>Dietician:</strong> {appointment.dietician_name || "N/A"}
+                            </p>
+                            {appointment.dietician_qualification && (
+                              <p className="text-sm text-gray-500">
+                                {appointment.dietician_qualification}
+                              </p>
+                            )}
+                            <p className="text-sm text-gray-700">
+                              <strong>Scheduled:</strong> {new Date(appointment.scheduled_at).toLocaleString()}
+                            </p>
+                            <p className="text-sm text-gray-700">
+                              <strong>Type:</strong> {appointment.consultation_type || "General"}
+                            </p>
+                            {appointment.patient_notes && (
+                              <div className="mt-2 bg-gray-50 rounded p-2">
+                                <p className="text-xs text-gray-500 mb-1">Patient Notes:</p>
+                                <p className="text-sm text-gray-700">{appointment.patient_notes}</p>
+                              </div>
+                            )}
+                            {appointment.cancelled_at && (
+                              <p className="text-xs text-red-500">
+                                Cancelled: {new Date(appointment.cancelled_at).toLocaleString()}
+                                {appointment.cancelled_by && ` by ${appointment.cancelled_by}`}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

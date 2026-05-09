@@ -820,7 +820,7 @@ const PatientDashboard = () => {
                                 step.completed 
                                   ? "bg-primary border-primary text-primary-foreground" 
                                   : index === progressSteps.findIndex(s => !s.completed)
-                                    ? "bg-background border-primary text-primary animate-pulse"
+                                    ? "bg-background border-primary text-primary"
                                     : "bg-background border-muted text-muted-foreground"
                               }`}
                             >
@@ -912,6 +912,110 @@ const PatientDashboard = () => {
                 </CardContent>
               </Card>
             )}
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Weight Tracking */}
+              {latestWeight && (latestWeight.current || latestWeight.target) && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Scale className="w-4 h-4" />
+                      Weight Progress
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-baseline gap-2">
+                      {latestWeight.current && (
+                        <span className="text-2xl font-bold">{latestWeight.current} kg</span>
+                      )}
+                      {latestWeight.target && (
+                        <span className="text-sm text-muted-foreground">
+                          → {latestWeight.target} kg target
+                        </span>
+                      )}
+                    </div>
+                    {latestWeight.current && latestWeight.target && (
+                      <p className="text-sm mt-1">
+                        {latestWeight.current > latestWeight.target ? (
+                          <span className="text-orange-600">
+                            {(latestWeight.current - latestWeight.target).toFixed(1)} kg to lose
+                          </span>
+                        ) : latestWeight.current < latestWeight.target ? (
+                          <span className="text-green-600">
+                            {(latestWeight.target - latestWeight.current).toFixed(1)} kg to gain
+                          </span>
+                        ) : (
+                          <span className="text-blue-600">At target weight!</span>
+                        )}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Active Diet Plan */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <UtensilsCrossed className="w-4 h-4" />
+                    Diet Plan
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {activeDietPlan ? (
+                    <>
+                      <div className="text-2xl font-bold">
+                        {activeDietPlan.plan_json?.totals?.calories || 0} kcal
+                      </div>
+                      <p className="text-sm text-muted-foreground">Daily target</p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No active diet plan</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Next Appointment */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <CalendarDays className="w-4 h-4" />
+                    Next Appointment
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {upcomingConsultations.length > 0 ? (
+                    <>
+                      <div className="text-2xl font-bold">
+                        {formatDate(upcomingConsultations[0].scheduled_at)}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        at {formatTime(upcomingConsultations[0].scheduled_at)}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No upcoming appointments</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Consultations Left */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Stethoscope className="w-4 h-4" />
+                    Consultations Left
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-primary">
+                    {(patient as any)?.consultations_left ?? 0}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Available sessions</p>
+                </CardContent>
+              </Card>
+            </div>
 
             {/* Body Details Card */}
             <Card>
@@ -1103,94 +1207,6 @@ const PatientDashboard = () => {
                 )}
               </CardContent>
             </Card>
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Weight Tracking */}
-              {latestWeight && (latestWeight.current || latestWeight.target) && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <Scale className="w-4 h-4" />
-                      Weight Progress
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-baseline gap-2">
-                      {latestWeight.current && (
-                        <span className="text-2xl font-bold">{latestWeight.current} kg</span>
-                      )}
-                      {latestWeight.target && (
-                        <span className="text-sm text-muted-foreground">
-                          → {latestWeight.target} kg target
-                        </span>
-                      )}
-                    </div>
-                    {latestWeight.current && latestWeight.target && (
-                      <p className="text-sm mt-1">
-                        {latestWeight.current > latestWeight.target ? (
-                          <span className="text-orange-600">
-                            {(latestWeight.current - latestWeight.target).toFixed(1)} kg to lose
-                          </span>
-                        ) : latestWeight.current < latestWeight.target ? (
-                          <span className="text-green-600">
-                            {(latestWeight.target - latestWeight.current).toFixed(1)} kg to gain
-                          </span>
-                        ) : (
-                          <span className="text-blue-600">At target weight!</span>
-                        )}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Active Diet Plan */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <UtensilsCrossed className="w-4 h-4" />
-                    Diet Plan
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {activeDietPlan ? (
-                    <>
-                      <div className="text-2xl font-bold">
-                        {activeDietPlan.plan_json?.totals?.calories || 0} kcal
-                      </div>
-                      <p className="text-sm text-muted-foreground">Daily target</p>
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No active diet plan</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Next Appointment */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <CalendarDays className="w-4 h-4" />
-                    Next Appointment
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {upcomingConsultations.length > 0 ? (
-                    <>
-                      <div className="text-2xl font-bold">
-                        {formatDate(upcomingConsultations[0].scheduled_at)}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        at {formatTime(upcomingConsultations[0].scheduled_at)}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No upcoming appointments</p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
 
             {/* Current Diet Plan */}
             {activeDietPlan && (

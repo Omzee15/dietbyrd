@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Edit3,
   Loader2,
   LogOut,
   Plus,
@@ -42,6 +43,7 @@ import {
   getAvailableSlots,
   bookAppointment,
   cancelAppointment,
+  rescheduleAppointment,
   getConsultationPackages,
   createPaymentOrder,
   verifyPayment,
@@ -71,9 +73,10 @@ const PatientAppointments = () => {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedPackage, setSelectedPackage] = useState<ConsultationPackage | null>(null);
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
 
   // Get patient data
-  const { data: patient, isLoading: patientLoading } = useQuery({
+  const { data: patient, isLoading: patientLoading, refetch: refetchPatient } = useQuery({
     queryKey: ["patient", user?.profileId],
     queryFn: () => getPatient(user!.profileId!),
     enabled: !!user?.profileId,
@@ -160,6 +163,25 @@ const PatientAppointments = () => {
     },
   });
 
+  // Reschedule appointment mutation
+  const rescheduleAppointmentMutation = useMutation({
+    mutationFn: (data: { appointmentId: number; newScheduledAt: string; patientNotes?: string }) =>
+      rescheduleAppointment(data.appointmentId, data.newScheduledAt, data.patientNotes),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
+      toast.success("Appointment rescheduled successfully!");
+      setIsBookingModalOpen(false);
+      setSelectedSlot(null);
+      setAppointmentNotes("");
+      setEditingAppointment(null);
+      refetchSlots();
+      refetchAppointments();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to reschedule appointment");
+    },
+  });
+
   // Group slots by date
   const slotsByDate = useMemo(() => {
     if (!availableSlots) return {};
@@ -170,11 +192,21 @@ const PatientAppointments = () => {
     }, {} as Record<string, AvailableSlot[]>);
   }, [availableSlots]);
 
-  // Handle booking
+  // Handle booking or rescheduling
   const handleBookAppointment = () => {
     if (!selectedSlot) return;
 
-    // Check if patient has consultations left
+    // If editing an existing appointment, reschedule it
+    if (editingAppointment) {
+      rescheduleAppointmentMutation.mutate({
+        appointmentId: editingAppointment.id,
+        newScheduledAt: selectedSlot.datetime,
+        patientNotes: appointmentNotes || undefined,
+      });
+      return;
+    }
+
+    // Check if patient has consultations left for new booking
     const consultationsLeft = (patient as any)?.consultations_left ?? 0;
     if (consultationsLeft <= 0) {
       toast.error("No consultations left. Please purchase a package first.");
@@ -187,6 +219,14 @@ const PatientAppointments = () => {
       scheduled_at: selectedSlot.datetime,
       patient_notes: appointmentNotes || undefined,
     });
+  };
+
+  // Handle modal close
+  const handleCloseBookingModal = () => {
+    setIsBookingModalOpen(false);
+    setSelectedSlot(null);
+    setAppointmentNotes("");
+    setEditingAppointment(null);
   };
 
   // Load Razorpay script
@@ -263,31 +303,31 @@ const PatientAppointments = () => {
             toast.success(`Payment successful! ${pkg.num_consultations} consultation(s) added.`);
             queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
             
-            // Book the appointment after successful payment using captured values
-            try {
-              console.log("[Payment] Booking appointment...", { patientId, rdId, slotToBook });
-              await bookAppointment({
-                patient_id: patientId,
-                rd_id: rdId,
-                scheduled_at: slotToBook.datetime,
-                patient_notes: notesToSave || undefined,
-              });
-              queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
-              toast.success("Appointment booked successfully!");
-              setSelectedSlot(null);
-              setAppointmentNotes("");
-              refetchSlots();
-              refetchAppointments();
-            } catch (bookErr: any) {
-              console.error("[Payment] Booking failed:", bookErr);
-              toast.error(bookErr.message || "Payment successful but failed to book appointment. Please try booking again.");
-            }
+            // Refetch patient data to get updated consultations_left
+            await refetchPatient();
             
+            // Close payment modal
             setIsPaymentModalOpen(false);
             setIsPaymentProcessing(false);
+            
+            // Reopen booking modal with the selected slot to complete booking
+            // Use setTimeout to ensure payment modal fully closes first
+            setTimeout(() => {
+              setSelectedSlot(slotToBook);
+              setAppointmentNotes(notesToSave);
+              setIsBookingModalOpen(true);
+              toast.info("Now confirm your appointment booking!");
+            }, 300);
+            
           } catch (err: any) {
             toast.error(err.message || "Payment verification failed");
             setIsPaymentProcessing(false);
+            // Reopen booking modal on payment failure too
+            setTimeout(() => {
+              setSelectedSlot(slotToBook);
+              setAppointmentNotes(notesToSave);
+              setIsBookingModalOpen(true);
+            }, 300);
           }
         },
         prefill: {
@@ -399,6 +439,19 @@ const PatientAppointments = () => {
 
   return (
     <div className="flex min-h-screen">
+      {/* Payment Processing Overlay */}
+      {isPaymentProcessing && (
+        <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 p-8 rounded-2xl bg-card border shadow-lg">
+            <Loader2 className="w-10 h-10 animate-spin text-primary" />
+            <div className="text-center">
+              <p className="font-semibold text-lg">Processing Payment</p>
+              <p className="text-sm text-muted-foreground mt-1">Please wait while we verify your payment...</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <AppSidebar
         title="DietByRD"
         subtitle="Patient Portal"
@@ -503,6 +556,17 @@ const PatientAppointments = () => {
                           <Badge variant="outline" className="capitalize">
                             {appointment.status}
                           </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-primary hover:text-primary/80"
+                            onClick={() => {
+                              setEditingAppointment(appointment);
+                              setIsBookingModalOpen(true);
+                            }}
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -611,22 +675,45 @@ const PatientAppointments = () => {
 
       {/* Booking Modal */}
       <Dialog open={isBookingModalOpen} onOpenChange={(open) => {
-        setIsBookingModalOpen(open);
         if (!open) {
-          setSelectedSlot(null);
-          setAppointmentNotes("");
-          setSelectedPackage(null);
+          handleCloseBookingModal();
+        } else {
+          setIsBookingModalOpen(open);
         }
       }}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarDays className="w-5 h-5" />
-              {selectedSlot ? "Confirm Appointment" : "Schedule Appointment"}
+              {editingAppointment 
+                ? (selectedSlot ? "Confirm Reschedule" : "Reschedule Appointment")
+                : (selectedSlot ? "Confirm Appointment" : "Schedule Appointment")}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6">
+            {/* Reschedule Notice */}
+            {editingAppointment && !selectedSlot && (
+              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  <strong>Current appointment:</strong>{" "}
+                  {new Date(editingAppointment.scheduled_at).toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  })}{" "}
+                  at{" "}
+                  {new Date(editingAppointment.scheduled_at).toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                  Select a new time slot below to reschedule.
+                </p>
+              </div>
+            )}
+
             {/* View 1: Slot Selection (when no slot selected) */}
             {!selectedSlot && (
               <>
@@ -800,7 +887,7 @@ const PatientAppointments = () => {
                 </div>
 
                 {/* Payment/Confirmation Section */}
-                {consultationsLeft <= 0 ? (
+                {consultationsLeft <= 0 && !editingAppointment ? (
                   <div className="space-y-4">
                     <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
                       <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
@@ -860,17 +947,17 @@ const PatientAppointments = () => {
                   <Button
                     className="w-full h-12 text-base"
                     onClick={handleBookAppointment}
-                    disabled={bookAppointmentMutation.isPending}
+                    disabled={bookAppointmentMutation.isPending || rescheduleAppointmentMutation.isPending}
                   >
-                    {bookAppointmentMutation.isPending ? (
+                    {(bookAppointmentMutation.isPending || rescheduleAppointmentMutation.isPending) ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Booking...
+                        {editingAppointment ? "Rescheduling..." : "Booking..."}
                       </>
                     ) : (
                       <>
                         <CalendarDays className="w-4 h-4 mr-2" />
-                        Confirm Appointment
+                        {editingAppointment ? "Confirm Reschedule" : "Confirm Appointment"}
                       </>
                     )}
                   </Button>

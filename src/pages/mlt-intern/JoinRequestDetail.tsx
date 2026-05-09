@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, LogOut, UserPlus, Phone, Building2, MapPin, FileText, CalendarDays, UserCheck, CircleX } from "lucide-react";
+import { ArrowLeft, LogOut, UserPlus, Phone, Building2, MapPin, FileText, CalendarDays, UserCheck, CircleX, Users, Stethoscope, UtensilsCrossed, Apple } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,11 @@ const MLTInternJoinRequestDetail = () => {
     {
       title: "View",
       items: [
+        { label: "Patients", href: "/mlt-intern/patients", icon: Users },
+        { label: "Doctors", href: "/mlt-intern/doctors", icon: Stethoscope },
+        { label: "Dieticians", href: "/mlt-intern/dieticians", icon: UtensilsCrossed },
         { label: "Join Requests", href: "/mlt-intern/join-requests", icon: UserPlus },
+        { label: "Food Library", href: "/mlt-intern/food-library", icon: Apple },
       ],
     },
   ];

@@ -1,10 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Calendar,
   CalendarDays,
   ChevronDown,
+  Edit3,
   FileText,
   Heart,
   Loader2,
@@ -12,12 +14,16 @@ import {
   Mail,
   MapPin,
   Phone,
+  Ruler,
+  Save,
   Scale,
   Settings,
   User,
   UtensilsCrossed,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,12 +35,22 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import AppSidebar from "@/components/AppSidebar";
-import { getPatient, getPatientDietPlans } from "@/lib/api";
+import { getPatient, getPatientDietPlans, updatePatient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const PatientProfile = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Edit state for body details
+  const [isEditingBody, setIsEditingBody] = useState(false);
+  const [bodyDetails, setBodyDetails] = useState({
+    age: 0,
+    height: "",
+    weight: "",
+  });
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", user?.profileId],
@@ -47,6 +63,37 @@ const PatientProfile = () => {
     queryFn: () => getPatientDietPlans(user!.profileId!),
     enabled: !!user?.profileId,
   });
+
+  // Update patient mutation
+  const updatePatientMutation = useMutation({
+    mutationFn: (data: { age?: number; height?: string; weight?: string }) =>
+      updatePatient(user!.profileId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
+      toast.success("Body details updated successfully!");
+      setIsEditingBody(false);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update body details");
+    },
+  });
+
+  const handleEditBody = () => {
+    setBodyDetails({
+      age: patient?.age || 0,
+      height: (patient as any)?.height || "",
+      weight: (patient as any)?.weight || "",
+    });
+    setIsEditingBody(true);
+  };
+
+  const handleSaveBody = () => {
+    updatePatientMutation.mutate({
+      age: bodyDetails.age || undefined,
+      height: bodyDetails.height || undefined,
+      weight: bodyDetails.weight || undefined,
+    });
+  };
 
   const handleLogout = () => {
     logout();
@@ -224,6 +271,123 @@ const PatientProfile = () => {
                       <p className="text-xs text-muted-foreground uppercase tracking-wider">Address</p>
                       <p className="font-semibold">{patient.address || "Not provided"}</p>
                     </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* My Body Details - Editable */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Scale className="w-5 h-5" />
+                    My Body Details
+                  </CardTitle>
+                  {!isEditingBody ? (
+                    <Button variant="ghost" size="sm" onClick={handleEditBody}>
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setIsEditingBody(false)}
+                        disabled={updatePatientMutation.isPending}
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Cancel
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        onClick={handleSaveBody}
+                        disabled={updatePatientMutation.isPending}
+                      >
+                        {updatePatientMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4 mr-2" />
+                        )}
+                        Save
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Age */}
+                  <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
+                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+                      <Calendar className="w-5 h-5 text-primary" />
+                    </div>
+                    {isEditingBody ? (
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Age (years)</p>
+                        <Input
+                          type="number"
+                          value={bodyDetails.age || ""}
+                          onChange={(e) => setBodyDetails({...bodyDetails, age: parseInt(e.target.value) || 0})}
+                          placeholder="Enter age"
+                          className="h-8"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Age</p>
+                        <p className="font-semibold">{patient.age ? `${patient.age} years` : "Not set"}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Height */}
+                  <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
+                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+                      <Ruler className="w-5 h-5 text-primary" />
+                    </div>
+                    {isEditingBody ? (
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Height (cm)</p>
+                        <Input
+                          type="text"
+                          value={bodyDetails.height}
+                          onChange={(e) => setBodyDetails({...bodyDetails, height: e.target.value})}
+                          placeholder="e.g., 170"
+                          className="h-8"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Height</p>
+                        <p className="font-semibold">{(patient as any)?.height ? `${(patient as any).height} cm` : "Not set"}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Weight */}
+                  <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
+                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+                      <Scale className="w-5 h-5 text-primary" />
+                    </div>
+                    {isEditingBody ? (
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Weight (kg)</p>
+                        <Input
+                          type="text"
+                          value={bodyDetails.weight}
+                          onChange={(e) => setBodyDetails({...bodyDetails, weight: e.target.value})}
+                          placeholder="e.g., 70"
+                          className="h-8"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Weight</p>
+                        <p className="font-semibold">{(patient as any)?.weight ? `${(patient as any).weight} kg` : "Not set"}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>

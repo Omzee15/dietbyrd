@@ -56,7 +56,10 @@ export interface Patient {
     payment_id: number;
     amount: number | string;
     currency?: string;
-    status: "pending" | "success" | "failed" | "refunded" | string;
+    status: "pending" | "success" | "failed" | "refunded" | "created" | string;
+    consultations_purchased?: number;
+    payment_method?: string;
+    razorpay_payment_id?: string;
     paid_at?: string | null;
     created_at?: string;
   }>;
@@ -403,6 +406,12 @@ export const cancelAppointment = (appointmentId: number, cancelledBy?: string) =
   request<Appointment>(`/appointments/${appointmentId}/cancel`, {
     method: "PUT",
     body: JSON.stringify({ cancelled_by: cancelledBy }),
+  });
+
+export const rescheduleAppointment = (appointmentId: number, newScheduledAt: string, patientNotes?: string) =>
+  request<Appointment>(`/appointments/${appointmentId}/reschedule`, {
+    method: "PUT",
+    body: JSON.stringify({ new_scheduled_at: newScheduledAt, patient_notes: patientNotes }),
   });
 
 export interface BlockedSlot {

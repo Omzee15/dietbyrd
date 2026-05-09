@@ -80,6 +80,7 @@ const App = () => (
             {/* Dietician routes */}
             <Route element={<ProtectedRoute allowedRoles={["rd"]} />}>
               <Route path="/dietician" element={<DieticianDashboard />} />
+              <Route path="/dietician/patients" element={<DieticianDashboard />} />
               <Route path="/dietician/patient/:slug" element={<DieticianPatientDetail />} />
               <Route path="/dietician/patient/:slug/create-diet" element={<DieticianCreateDiet />} />
               <Route path="/dietician/patient/:slug/edit-diet/:planId" element={<DieticianCreateDiet />} />

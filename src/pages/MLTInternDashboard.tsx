@@ -211,9 +211,15 @@ const MLTInternDashboard = () => {
 
     let matchesStatus = true;
     if (statusFilter === "paid") {
-      matchesStatus = !!patient.dietary_preference;
+      matchesStatus = 
+        patient.payment_status === "paid" ||
+        patient.payment_history?.some((payment) => payment.status === "success") ||
+        !!patient.dietary_preference;
     } else if (statusFilter === "unpaid") {
-      matchesStatus = !patient.dietary_preference;
+      matchesStatus = 
+        patient.payment_status !== "paid" &&
+        !patient.payment_history?.some((payment) => payment.status === "success") &&
+        !patient.dietary_preference;
     }
 
     const matchesTime = matchesTimeRange(patient.created_at);
@@ -420,6 +426,7 @@ const MLTInternDashboard = () => {
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sr. No.</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Progress</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Referred By</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assign Dietician</th>
@@ -428,7 +435,7 @@ const MLTInternDashboard = () => {
                   <tbody className="divide-y divide-gray-200">
                     {filteredPatients.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                           No patients found
                         </td>
                       </tr>
@@ -441,6 +448,28 @@ const MLTInternDashboard = () => {
                         >
                           <td className="px-6 py-4 text-sm text-gray-900">{(patientPage - 1) * patientPageSize + index + 1}</td>
                           <td className="px-6 py-4 font-medium text-gray-900">{patient.name || 'N/A'}</td>
+                          <td className="px-6 py-4">
+                            {(() => {
+                              const hasPaid = 
+                                patient.payment_status === "paid" ||
+                                patient.payment_history?.some((payment) => payment.status === "success") ||
+                                !!patient.dietary_preference;
+                              const paymentCount = patient.payment_history?.filter(p => p.status === "success").length || 0;
+                              
+                              return (
+                                <div className="flex flex-col gap-1">
+                                  <Badge variant={hasPaid ? "default" : "secondary"} className="w-fit">
+                                    {hasPaid ? "Paid" : "Unpaid"}
+                                  </Badge>
+                                  {paymentCount > 0 && (
+                                    <span className="text-xs text-gray-500">
+                                      {paymentCount} payment{paymentCount !== 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
                           <td className="px-6 py-4 min-w-[320px]">
                             {(() => {
                               const completionSteps = getPatientCompletionSteps(patient);

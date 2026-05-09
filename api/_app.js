@@ -149,7 +149,7 @@ const TWILIO_SMS_FROM = process.env.TWILIO_SMS_FROM
   || process.env.TWILLO_PHONE_NUMBER;
 const TWILIO_MESSAGING_SERVICE_SID = process.env.TWILIO_MESSAGING_SERVICE_SID
   || process.env.TWILLO_MESSAGING_SERVICE_SID;
-const REFERRAL_SMS_MODE = String(process.env.REFERRAL_SMS_MODE || "log").toLowerCase(); // log | twilio
+const REFERRAL_SMS_MODE = String(process.env.REFERRAL_SMS_MODE || "log").trim().toLowerCase(); // log | twilio
 
 let cachedSmsFrom = TWILIO_SMS_FROM || null;
 let cachedMessagingServiceSid = TWILIO_MESSAGING_SERVICE_SID || null;
@@ -223,6 +223,120 @@ const resolveTwilioSmsSender = async () => {
   }
 };
 
+// Send referral message via WhatsApp using approved template
+const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName, registrationLink }) => {
+  const messageBody = `Hello ${patientName || "there"}!\n\nYou have been referred to DietByRD by Dr. ${doctorName || "your doctor"}.\n\nComplete your registration here:\n${registrationLink}\n\n- Team DietByRD`;
+  
+  // Format phone for WhatsApp
+  const cleanPhone = phone.replace(/\D/g, '').replace(/^91/, '');
+  const toNumber = `whatsapp:+91${cleanPhone}`;
+  
+  if (REFERRAL_SMS_MODE !== "twilio") {
+    console.log("[Referral WhatsApp][LOG-ONLY] Message flow executed", {
+      mode: REFERRAL_SMS_MODE,
+      to: toNumber,
+      patientName: patientName || "there",
+      doctorName: doctorName || "your doctor",
+      registrationLink,
+      body: messageBody,
+    });
+    
+    // Store the message even in log-only mode
+    await storePatientMessage({
+      patientId,
+      phone,
+      messageType: 'referral_whatsapp',
+      channel: 'whatsapp',
+      content: messageBody,
+      status: 'sent',
+      metadata: { to: toNumber, mode: 'log_only', doctorName, registrationLink }
+    });
+    
+    return {
+      sent: true,
+      mode: "log_only",
+      toNumber,
+      reason: "console_logged_only",
+    };
+  }
+
+  if (!twilioClient) {
+    console.log("[Referral WhatsApp] Skipped: Twilio client not configured");
+    
+    await storePatientMessage({
+      patientId,
+      phone,
+      messageType: 'referral_whatsapp',
+      channel: 'whatsapp',
+      content: messageBody,
+      status: 'not_sent',
+      metadata: { reason: 'twilio_not_configured', doctorName }
+    });
+    
+    return { sent: false, reason: "twilio_not_configured" };
+  }
+
+  try {
+    // Use WhatsApp template with content variables
+    // Template: Hello {{1}}! You have been referred to DietByRD by Dr. {{2}}. Complete your registration here: {{3}}
+    // Strip "Dr." prefix from doctorName since template already includes it
+    const cleanDoctorName = (doctorName || "your doctor").replace(/^Dr\.?\s*/i, '');
+    
+    // Try using Messaging Service if available, otherwise fall back to direct from number
+    const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+    const msgOptions = {
+      to: toNumber,
+      contentSid: TWILIO_TEMPLATE_REFERRAL_SID,
+      contentVariables: JSON.stringify({
+        "1": patientName || "there",
+        "2": cleanDoctorName,
+        "3": registrationLink
+      })
+    };
+    
+    if (messagingServiceSid) {
+      msgOptions.messagingServiceSid = messagingServiceSid;
+    } else {
+      msgOptions.from = TWILIO_WHATSAPP_FROM;
+    }
+    
+    const msg = await twilioClient.messages.create(msgOptions);
+    
+    console.log(`[Referral WhatsApp] Sent successfully to ${toNumber}. SID: ${msg.sid}`);
+    
+    // Store successful message
+    await storePatientMessage({
+      patientId,
+      phone,
+      messageType: 'referral_whatsapp',
+      channel: 'whatsapp',
+      content: messageBody,
+      status: 'sent',
+      metadata: { to: toNumber, sid: msg.sid, templateSid: TWILIO_TEMPLATE_REFERRAL_SID, doctorName }
+    });
+    
+    return { sent: true, sid: msg.sid, toNumber };
+  } catch (err) {
+    const code = err?.code || "unknown";
+    const message = err?.message || "unknown error";
+    console.log(`[Referral WhatsApp] Failed for ${toNumber}. code=${code} message=${message}`);
+    
+    // Store failed message attempt
+    await storePatientMessage({
+      patientId,
+      phone,
+      messageType: 'referral_whatsapp',
+      channel: 'whatsapp',
+      content: messageBody,
+      status: 'failed',
+      metadata: { to: toNumber, error: message, errorCode: code, doctorName }
+    });
+    
+    return { sent: false, reason: "twilio_send_failed", code, message };
+  }
+};
+
+// Legacy SMS function (kept for fallback if needed)
 const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doctorName, registrationLink }) => {
   const toNumber = formatPhoneE164(phone);
   const body = `Hello ${patientName || "there"}!\n\nYou have been referred to DietByRD by Dr. ${doctorName || "your doctor"}.\n\nComplete your registration here:\n${registrationLink}\n\n- Team DietByRD`;
@@ -1509,11 +1623,39 @@ app.get("/api/patients", async (req, res) => {
         rp.state_region,
         rp.city,
         rp.assigned_rd_id,
-        rd.name AS assigned_dietician_name
+        rd.name AS assigned_dietician_name,
+        COALESCE(payment_summary.payment_status, 'unpaid') AS payment_status,
+        COALESCE(payment_summary.payment_history, '[]'::json) AS payment_history
       FROM dietbyrd_patients p
       LEFT JOIN dietbyrd_users u ON p.user_id = u.id
       LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id
       LEFT JOIN dietbyrd_registered_dietitians rd ON rp.assigned_rd_id = rd.id
+      LEFT JOIN LATERAL (
+        SELECT
+          CASE
+            WHEN COUNT(*) FILTER (WHERE pay.status = 'success') > 0 OR rp.dietary_preference IS NOT NULL THEN 'paid'
+            ELSE 'unpaid'
+          END AS payment_status,
+          COALESCE(
+            json_agg(
+              json_build_object(
+                'payment_id', pay.id,
+                'amount', pay.amount,
+                'currency', pay.currency,
+                'status', pay.status,
+                'consultations_purchased', pay.consultations_purchased,
+                'payment_method', pay.payment_method,
+                'razorpay_payment_id', pay.razorpay_payment_id,
+                'paid_at', pay.updated_at,
+                'created_at', pay.created_at
+              )
+              ORDER BY pay.created_at DESC
+            ) FILTER (WHERE pay.id IS NOT NULL),
+            '[]'::json
+          ) AS payment_history
+        FROM dietbyrd_razorpay_payments pay
+        WHERE pay.patient_id = p.id
+      ) AS payment_summary ON true
       ORDER BY p.created_at DESC
       LIMIT 100`
     );
@@ -1526,45 +1668,6 @@ app.get("/api/patients", async (req, res) => {
 app.get("/api/patients/:id(\\d+)", async (req, res) => {
   try {
     const { id } = req.params;
-    await ensurePaymentsTable();
-
-    await query(
-      `INSERT INTO dietbyrd_payments (
-         patient_id,
-         registered_patient_id,
-         amount,
-         currency,
-         payment_type,
-         status,
-         gateway_transaction_id,
-         paid_at,
-         created_at,
-         updated_at
-       )
-       SELECT
-         p.id,
-         rp.id,
-         999.00,
-         'INR',
-         'manual',
-         'success',
-         CONCAT('DUMMY-PAY-', p.id, '-', EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)::bigint),
-         COALESCE(rp.created_at, p.created_at, CURRENT_TIMESTAMP),
-         COALESCE(rp.created_at, p.created_at, CURRENT_TIMESTAMP),
-         CURRENT_TIMESTAMP
-       FROM dietbyrd_patients p
-       LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id
-       WHERE p.id = $1
-         AND rp.id IS NOT NULL
-         AND rp.dietary_preference IS NOT NULL
-         AND NOT EXISTS (
-           SELECT 1
-           FROM dietbyrd_payments pay
-           WHERE pay.patient_id = p.id
-              OR (pay.registered_patient_id IS NOT NULL AND pay.registered_patient_id = rp.id)
-         )`,
-      [id]
-    );
 
     const result = await query(
       `SELECT 
@@ -1600,16 +1703,18 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
                 'amount', pay.amount,
                 'currency', pay.currency,
                 'status', pay.status,
-                'paid_at', pay.paid_at,
+                'consultations_purchased', pay.consultations_purchased,
+                'payment_method', pay.payment_method,
+                'razorpay_payment_id', pay.razorpay_payment_id,
+                'paid_at', pay.updated_at,
                 'created_at', pay.created_at
               )
-              ORDER BY COALESCE(pay.paid_at, pay.created_at) DESC
-            ),
+              ORDER BY pay.created_at DESC
+            ) FILTER (WHERE pay.id IS NOT NULL),
             '[]'::json
           ) AS payment_history
-        FROM dietbyrd_payments pay
+        FROM dietbyrd_razorpay_payments pay
         WHERE pay.patient_id = p.id
-           OR (rp.id IS NOT NULL AND pay.registered_patient_id = rp.id)
       ) AS payment_summary ON true
       WHERE p.id = $1`,
       [id]
@@ -1977,8 +2082,8 @@ app.post("/api/referrals", async (req, res) => {
       [patientId, doctor_id]
     );
 
-    // Generate registration token and send SMS
-    let referralSmsStatus = { sent: false, reason: "not_attempted" };
+    // Generate registration token and send WhatsApp message
+    let referralMessageStatus = { sent: false, reason: "not_attempted" };
     try {
       const tokenData = {
         patient_name,
@@ -1993,7 +2098,7 @@ app.post("/api/referrals", async (req, res) => {
       const registrationLink = `${process.env.FRONTEND_URL || "http://localhost:5173"}/register?token=${registrationToken}`;
 
       console.log(`[Referral SMS] Referral created. isNewPatient=${isNewPatient} phone=${phone}`);
-      referralSmsStatus = await sendReferralRegistrationSms({
+      referralMessageStatus = await sendReferralRegistrationSms({
         patientId,
         patientName: patient_name,
         phone,
@@ -2002,7 +2107,7 @@ app.post("/api/referrals", async (req, res) => {
       });
     } catch (tokenErr) {
       console.log(`[Referral Token] Error: ${tokenErr.message}`);
-      referralSmsStatus = { sent: false, reason: "token_generation_failed", message: tokenErr.message };
+      referralMessageStatus = { sent: false, reason: "token_generation_failed", message: tokenErr.message };
     }
 
     res.status(201).json({ 
@@ -2011,9 +2116,9 @@ app.post("/api/referrals", async (req, res) => {
         ...referral.rows[0],
         patient_id: patientId,
         is_new_patient: isNewPatient,
-        referral_sms: referralSmsStatus,
+        referral_message: referralMessageStatus,
         message: isNewPatient 
-          ? "New patient created and referred successfully. Registration SMS has been sent."
+          ? "New patient created and referred successfully. Registration WhatsApp has been sent."
           : "Existing patient referred successfully."
       }
     });
@@ -3121,9 +3226,9 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
       return res.json({ success: true, data: [], message: "No availability set for this dietician" });
     }
 
-    // Get already booked consultations in the date range
+    // Get already booked consultations in the date range (stored as IST)
     const bookedResult = await query(
-      `SELECT scheduled_at FROM dietbyrd_consultations 
+      `SELECT TO_CHAR(scheduled_at, 'YYYY-MM-DD"T"HH24:MI:SS') as scheduled_at_str FROM dietbyrd_consultations 
        WHERE rd_id = $1 
        AND scheduled_at >= $2::timestamp 
        AND scheduled_at < ($3::date + interval '1 day')::timestamp
@@ -3132,76 +3237,109 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
     );
     
     const bookedSlots = new Set(
-      bookedResult.rows.map(row => new Date(row.scheduled_at).toISOString())
+      bookedResult.rows.map(row => row.scheduled_at_str)
     );
 
     // Get blocked slots for the date range
     const blockedResult = await query(
-      `SELECT * FROM dietbyrd_dietician_blocked_slots 
+      `SELECT *, TO_CHAR(blocked_date, 'YYYY-MM-DD') as blocked_date_str FROM dietbyrd_dietician_blocked_slots 
        WHERE rd_id = $1 
        AND blocked_date >= $2::date 
        AND blocked_date <= $3::date`,
       [id, start_date, end_date]
     );
     
-    // Generate available slots
+    // Helper to format datetime as local string (no timezone)
+    const formatLocalDatetime = (date, time) => {
+      const [hour, min] = time.split(":").map(Number);
+      const hh = String(hour).padStart(2, '0');
+      const mm = String(min).padStart(2, '0');
+      return `${date}T${hh}:${mm}:00`;
+    };
+    
+    // Helper to get IST "now" for comparison (IST = UTC + 5:30)
+    const getISTNow = () => {
+      const now = new Date();
+      // Add 5:30 hours to UTC to get IST
+      return new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+    };
+    
+    // Helper to format date as YYYY-MM-DD without timezone conversion
+    const formatDateStr = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    // Generate available slots (all times in IST)
     const availableSlots = [];
-    const startDateObj = new Date(start_date + "T00:00:00");
-    const endDateObj = new Date(end_date + "T23:59:59");
-    const now = new Date();
+    const startDateParts = start_date.split("-").map(Number);
+    const endDateParts = end_date.split("-").map(Number);
     
-    // Add buffer time (don't allow booking within next 2 hours)
-    const minBookingTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    // Create date objects for iteration (using local date parts only)
+    let currentDate = new Date(startDateParts[0], startDateParts[1] - 1, startDateParts[2]);
+    const endDate = new Date(endDateParts[0], endDateParts[1] - 1, endDateParts[2]);
     
-    for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
-      const dayOfWeek = d.getDay(); // 0=Sunday, 1=Monday, etc.
-      const dateStr = d.toISOString().split("T")[0];
+    // Get current IST time for filtering past slots
+    const istNow = getISTNow();
+    const minBookingTime = new Date(istNow.getTime() + 2 * 60 * 60 * 1000); // 2 hour buffer
+    
+    while (currentDate <= endDate) {
+      const dayOfWeek = currentDate.getDay(); // 0=Sunday, 1=Monday, etc.
+      const dateStr = formatDateStr(currentDate);
       
       // Check if this day is completely blocked
       const dayBlocked = blockedResult.rows.find(
-        b => b.blocked_date.toISOString().split("T")[0] === dateStr && !b.start_time
+        b => b.blocked_date_str === dateStr && !b.start_time
       );
-      if (dayBlocked) continue;
+      if (dayBlocked) {
+        currentDate.setDate(currentDate.getDate() + 1);
+        continue;
+      }
       
       // Get availability for this day of week
       const dayAvailability = availabilityResult.rows.filter(a => a.day_of_week === dayOfWeek);
       
       for (const avail of dayAvailability) {
-        const slotDuration = avail.slot_duration_minutes || 30;
+        const slotDuration = avail.slot_duration_minutes || 60;
         
         // Parse start and end times
         const [startHour, startMin] = avail.start_time.split(":").map(Number);
         const [endHour, endMin] = avail.end_time.split(":").map(Number);
         
-        // Generate slots
-        let slotStart = new Date(d);
-        slotStart.setHours(startHour, startMin, 0, 0);
+        // Convert to minutes for easier calculation
+        let slotMinutes = startHour * 60 + startMin;
+        const endMinutes = endHour * 60 + endMin;
         
-        const slotEnd = new Date(d);
-        slotEnd.setHours(endHour, endMin, 0, 0);
-        
-        while (slotStart.getTime() + slotDuration * 60 * 1000 <= slotEnd.getTime()) {
-          // Check if slot is in the past or too soon
-          if (slotStart < minBookingTime) {
-            slotStart = new Date(slotStart.getTime() + slotDuration * 60 * 1000);
+        while (slotMinutes + slotDuration <= endMinutes) {
+          const slotHour = Math.floor(slotMinutes / 60);
+          const slotMin = slotMinutes % 60;
+          const slotTimeStr = `${String(slotHour).padStart(2, '0')}:${String(slotMin).padStart(2, '0')}`;
+          const slotDatetime = formatLocalDatetime(dateStr, slotTimeStr);
+          
+          // Create a Date object for this slot to compare with minBookingTime
+          const slotDate = new Date(currentDate);
+          slotDate.setHours(slotHour, slotMin, 0, 0);
+          
+          // Check if slot is in the past or too soon (comparing IST to IST)
+          if (slotDate < minBookingTime) {
+            slotMinutes += slotDuration;
             continue;
           }
           
           // Check if slot is booked
-          const slotISO = slotStart.toISOString();
-          if (bookedSlots.has(slotISO)) {
-            slotStart = new Date(slotStart.getTime() + slotDuration * 60 * 1000);
+          if (bookedSlots.has(slotDatetime)) {
+            slotMinutes += slotDuration;
             continue;
           }
           
           // Check if slot is in a blocked time range for this specific date
           const timeBlocked = blockedResult.rows.find(b => {
-            if (b.blocked_date.toISOString().split("T")[0] !== dateStr) return false;
+            if (b.blocked_date_str !== dateStr) return false;
             if (!b.start_time) return false;
             const blockStart = b.start_time.split(":").map(Number);
             const blockEnd = b.end_time.split(":").map(Number);
-            const slotHour = slotStart.getHours();
-            const slotMin = slotStart.getMinutes();
             const slotTimeNum = slotHour * 60 + slotMin;
             const blockStartNum = blockStart[0] * 60 + blockStart[1];
             const blockEndNum = blockEnd[0] * 60 + blockEnd[1];
@@ -3209,21 +3347,23 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
           });
           
           if (timeBlocked) {
-            slotStart = new Date(slotStart.getTime() + slotDuration * 60 * 1000);
+            slotMinutes += slotDuration;
             continue;
           }
           
-          // Slot is available
+          // Slot is available - send datetime as local string (no Z suffix = no UTC conversion)
           availableSlots.push({
             date: dateStr,
-            start_time: slotStart.toTimeString().slice(0, 5),
-            datetime: slotStart.toISOString(),
+            start_time: slotTimeStr,
+            datetime: slotDatetime,
             duration_minutes: slotDuration
           });
           
-          slotStart = new Date(slotStart.getTime() + slotDuration * 60 * 1000);
+          slotMinutes += slotDuration;
         }
       }
+      
+      currentDate.setDate(currentDate.getDate() + 1);
     }
     
     res.json({ success: true, data: availableSlots });
@@ -3406,6 +3546,75 @@ app.put("/api/appointments/:id/cancel", async (req, res) => {
     }
     
     res.json({ success: true, data: result.rows[0], message: "Appointment cancelled successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Reschedule an appointment
+app.put("/api/appointments/:id/reschedule", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { new_scheduled_at, patient_notes } = req.body;
+    
+    if (!new_scheduled_at) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "new_scheduled_at is required" 
+      });
+    }
+    
+    // Get the current appointment to check its rd_id
+    const currentAppt = await query(
+      `SELECT rd_id FROM dietbyrd_consultations WHERE id = $1 AND status = 'scheduled'`,
+      [id]
+    );
+    
+    if (currentAppt.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Appointment not found or cannot be rescheduled" 
+      });
+    }
+    
+    const rdId = currentAppt.rows[0].rd_id;
+    
+    // Check if new slot is available
+    const existingResult = await query(
+      `SELECT id FROM dietbyrd_consultations 
+       WHERE rd_id = $1 
+       AND scheduled_at = $2::timestamp 
+       AND status NOT IN ('cancelled', 'no_show')
+       AND id != $3`,
+      [rdId, new_scheduled_at, id]
+    );
+    
+    if (existingResult.rows.length > 0) {
+      return res.status(409).json({ 
+        success: false, 
+        error: "The new time slot is no longer available" 
+      });
+    }
+    
+    // Update the appointment
+    const result = await query(
+      `UPDATE dietbyrd_consultations 
+       SET scheduled_at = $2::timestamp,
+           patient_notes = COALESCE($3, patient_notes),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND status = 'scheduled'
+       RETURNING *`,
+      [id, new_scheduled_at, patient_notes || null]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Failed to reschedule appointment" 
+      });
+    }
+    
+    res.json({ success: true, data: result.rows[0], message: "Appointment rescheduled successfully" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

@@ -208,9 +208,15 @@ const AdminDashboard = () => {
     // Payment status filter
     let matchesStatus = true;
     if (statusFilter === "paid") {
-      matchesStatus = !!p.dietary_preference;
+      matchesStatus = 
+        p.payment_status === "paid" ||
+        p.payment_history?.some((payment) => payment.status === "success") ||
+        !!p.dietary_preference;
     } else if (statusFilter === "unpaid") {
-      matchesStatus = !p.dietary_preference;
+      matchesStatus = 
+        p.payment_status !== "paid" &&
+        !p.payment_history?.some((payment) => payment.status === "success") &&
+        !p.dietary_preference;
     }
 
     const matchesTime = matchesTimeRange(p.created_at);

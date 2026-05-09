@@ -241,7 +241,7 @@ const DieticianDashboard = () => {
   }, [consultations]);
 
   // UI state
-  const [activeTab, setActiveTab] = useState<TabType>("patients");
+  const [activeTab, setActiveTab] = useState<TabType>("schedule");
   const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
   const [patientSearch, setPatientSearch] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -250,19 +250,20 @@ const DieticianDashboard = () => {
 
   // Sync activeTab with URL
   useEffect(() => {
-    if (location.pathname === "/dietician/schedule") {
-      setActiveTab("schedule");
+    if (location.pathname === "/dietician/patients") {
+      setActiveTab("patients");
     } else if (location.pathname === "/dietician/diet") {
       setActiveTab("diet");
-    } else if (location.pathname === "/dietician") {
-      setActiveTab("patients");
+    } else {
+      // Default to schedule (appointments) for /dietician and /dietician/schedule
+      setActiveTab("schedule");
     }
   }, [location.pathname]);
 
   const handleTabChange = (tab: TabType) => {
     const paths: Record<TabType, string> = {
-      patients: "/dietician",
-      schedule: "/dietician/schedule",
+      schedule: "/dietician",
+      patients: "/dietician/patients",
       diet: "/dietician/diet",
     };
     navigate(paths[tab]);
@@ -783,8 +784,8 @@ const DieticianDashboard = () => {
     {
       title: "Dashboard",
       items: [
-        { label: "My Patients", href: "/dietician", icon: Users, badge: displayPatients.length },
-        { label: "My Schedule", href: "/dietician/schedule", icon: CalendarDays },
+        { label: "Appointments", href: "/dietician", icon: CalendarDays },
+        { label: "My Patients", href: "/dietician/patients", icon: Users, badge: displayPatients.length },
         { label: "Diet Plans", href: "/dietician/diet", icon: UtensilsCrossed },
         { label: "Food Library", href: "/dietician/food-library", icon: Apple },
       ],
@@ -851,7 +852,7 @@ const DieticianDashboard = () => {
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h1 className="text-xl font-semibold">
-            {activeTab === "patients" ? "My Patients" : activeTab === "schedule" ? "My Schedule" : "Diet Plan"}
+            {activeTab === "patients" ? "My Patients" : activeTab === "schedule" ? "Appointments" : "Diet Plan"}
           </h1>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
