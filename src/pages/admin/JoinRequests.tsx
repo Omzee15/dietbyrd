@@ -3,9 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { 
   Search, UserPlus, Stethoscope, UtensilsCrossed, 
-  Check, X, Loader2, Clock, CheckCircle, XCircle, Filter,
-  Users, BarChart3, Settings, LogOut
+  Check, X, Loader2, Clock, CheckCircle, XCircle, Filter, LogOut
 } from "lucide-react";
+import { getAdminSidebarSections } from "@/lib/admin-sidebar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -123,24 +123,12 @@ const JoinRequests = () => {
     );
   };
 
-  const sidebarSections = [
-    {
-      title: "Management",
-      items: [
-        { label: "Patients", href: "/admin", icon: Users, badge: patients.length },
-        { label: "Doctors", href: "/admin/doctors", icon: Stethoscope, badge: doctors.length },
-        { label: "Dieticians", href: "/admin/dieticians", icon: UtensilsCrossed, badge: dieticians.length },
-        { label: "Join Requests", href: "/admin/join-requests", icon: UserPlus, badge: pendingRequests.length || undefined },
-        { label: "Analytics", href: "/admin/referrals", icon: BarChart3 },
-      ],
-    },
-    {
-      title: "Settings",
-      items: [
-        { label: "Settings", href: "/admin/settings", icon: Settings },
-      ],
-    },
-  ];
+  const sidebarSections = getAdminSidebarSections({
+    patients: patients.length,
+    doctors: doctors.length,
+    dieticians: dieticians.length,
+    joinRequests: pendingRequests.length || undefined
+  });
 
   const bottomContent = (
     <button

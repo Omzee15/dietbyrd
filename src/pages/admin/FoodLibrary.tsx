@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { getAdminSidebarSections } from "@/lib/admin-sidebar";
 
 interface Food {
   id: string;
@@ -175,31 +176,7 @@ const AdminFoodLibrary = () => {
     URL.revokeObjectURL(url);
   };
 
-  const sidebarSections = [
-    {
-      title: "Management",
-      items: [
-        { label: "Patients", href: "/admin", icon: Users },
-        { label: "Doctors", href: "/admin/doctors", icon: Stethoscope },
-        { label: "Dieticians", href: "/admin/dieticians", icon: UtensilsCrossed },
-        { label: "Join Requests", href: "/admin/join-requests", icon: UserPlus },
-        { label: "Analytics", href: "/admin/referrals", icon: BarChart3 },
-      ],
-    },
-    {
-      title: "Data",
-      items: [
-        { label: "Food Library", href: "/admin/food-library", icon: UtensilsCrossed },
-        { label: "Coupon Codes", href: "/admin/coupons", icon: BarChart3 },
-      ],
-    },
-    {
-      title: "Settings",
-      items: [
-        { label: "Settings", href: "/admin/settings", icon: Settings },
-      ],
-    },
-  ];
+  const sidebarSections = getAdminSidebarSections();
 
   const bottomContent = (
     <button

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { Users, Stethoscope, UtensilsCrossed, BarChart3, UserPlus, Settings, LogOut, Plus, Edit, Trash2, Tag } from "lucide-react";
+import { LogOut, Plus, Edit, Trash2, Tag } from "lucide-react";
+import { getAdminSidebarSections } from "@/lib/admin-sidebar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -129,31 +130,7 @@ const AdminCoupons = () => {
     saveMutation.mutate(editingCoupon);
   };
 
-  const sidebarSections = [
-    {
-      title: "Management",
-      items: [
-        { label: "Patients", href: "/admin", icon: Users },
-        { label: "Doctors", href: "/admin/doctors", icon: Stethoscope },
-        { label: "Dieticians", href: "/admin/dieticians", icon: UtensilsCrossed },
-        { label: "Join Requests", href: "/admin/join-requests", icon: UserPlus },
-        { label: "Analytics", href: "/admin/referrals", icon: BarChart3 },
-      ],
-    },
-    {
-      title: "Data",
-      items: [
-        { label: "Food Library", href: "/admin/food-library", icon: UtensilsCrossed },
-        { label: "Coupon Codes", href: "/admin/coupons", icon: Tag },
-      ],
-    },
-    {
-      title: "Settings",
-      items: [
-        { label: "Settings", href: "/admin/settings", icon: Settings },
-      ],
-    },
-  ];
+  const sidebarSections = getAdminSidebarSections();
 
   const bottomContent = (
     <button

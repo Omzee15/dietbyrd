@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import { Settings as SettingsIcon, User, Bell, Shield, ArrowLeft, LogOut, Users, Stethoscope, UtensilsCrossed, BarChart3 } from "lucide-react";
+import { Settings as SettingsIcon, User, Bell, Shield, ArrowLeft } from "lucide-react";
+import { getAdminSidebarSections } from "@/lib/admin-sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -15,23 +16,7 @@ const AdminSettings = () => {
     navigate("/");
   };
 
-  const sidebarSections = [
-    {
-      title: "Management",
-      items: [
-        { label: "Patients", href: "/admin", icon: Users },
-        { label: "Doctors", href: "/admin/doctors", icon: Stethoscope },
-        { label: "Dieticians", href: "/admin/dieticians", icon: UtensilsCrossed },
-        { label: "Analytics", href: "/admin/referrals", icon: BarChart3 },
-      ],
-    },
-    {
-      title: "Settings",
-      items: [
-        { label: "Settings", href: "/admin/settings", icon: SettingsIcon },
-      ],
-    },
-  ];
+  const sidebarSections = getAdminSidebarSections();
 
   return (
     <div className="flex min-h-screen">

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { getPatients, getDoctors, getDieticians, getAnalytics, getReferrals, assignDietician, getJoinRequests, Patient, Doctor, Dietician, Referral } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { getAdminSidebarSections } from "@/lib/admin-sidebar";
 
 type ActiveTab = "patients" | "doctors" | "dieticians" | "analytics";
 type TimeRangeFilter = "all" | "last_week" | "last_month" | "last_6_months" | "last_year" | "custom";
@@ -244,39 +245,22 @@ const AdminDashboard = () => {
   const paidCount = patients.filter((p) => p.dietary_preference).length;
   const unpaidCount = patients.length - paidCount;
 
+  // Calculate registration status counts
+  const registeredCount = patients.filter((p) => p.dietary_preference || p.age || p.gender).length;
+  const pendingCount = patients.length - registeredCount;
+
   // Fetch pending join requests count
   const { data: joinRequests = [] } = useQuery({
     queryKey: ["join-requests", "pending"],
     queryFn: () => getJoinRequests("pending"),
   });
 
-  const sidebarSections = [
-    {
-      title: "Management",
-      items: [
-        { label: "Patients", href: "/admin", icon: Users, badge: patients.length },
-        { label: "Doctors", href: "/admin/doctors", icon: Stethoscope, badge: doctors.length },
-        { label: "Dieticians", href: "/admin/dieticians", icon: UtensilsCrossed, badge: dieticians.length },
-        { label: "MLT Interns", href: "/admin/mlt-interns", icon: UserCheck },
-        { label: "Support Team", href: "/admin/support-team", icon: UserCheck },
-        { label: "Join Requests", href: "/admin/join-requests", icon: UserPlus, badge: joinRequests.length || undefined },
-        { label: "Analytics", href: "/admin/referrals", icon: BarChart3 },
-      ],
-    },
-    {
-      title: "Data",
-      items: [
-        { label: "Food Library", href: "/admin/food-library", icon: UtensilsCrossed },
-        { label: "Coupon Codes", href: "/admin/coupons", icon: Tag },
-      ],
-    },
-    {
-      title: "Settings",
-      items: [
-        { label: "Settings", href: "/admin/settings", icon: Settings },
-      ],
-    },
-  ];
+  const sidebarSections = getAdminSidebarSections({
+    patients: patients.length,
+    doctors: doctors.length,
+    dieticians: dieticians.length,
+    joinRequests: joinRequests.length,
+  });
 
   const bottomContent = (
     <button
@@ -684,23 +668,131 @@ const AdminDashboard = () => {
                           ))}
                         </div>
 
-                        {/* Referral funnel */}
-                        <div className="bg-card rounded-xl border p-6">
-                          <h3 className="text-sm font-semibold mb-4">Registration Status</h3>
-                          <div className="space-y-3">
-                            {[
-                              { stage: "Total Patients", count: patients.length, percent: 100 },
-                              { stage: "Registered (with preferences)", count: registeredCount, percent: patients.length > 0 ? Math.round((registeredCount / patients.length) * 100) : 0 },
-                              { stage: "Pending Registration", count: pendingCount, percent: patients.length > 0 ? Math.round((pendingCount / patients.length) * 100) : 0 },
-                            ].map((s) => (
-                              <div key={s.stage} className="flex items-center gap-4">
-                                <div className="w-48 text-sm">{s.stage}</div>
-                                <div className="flex-1 bg-muted rounded-full h-4 overflow-hidden">
-                                  <div className="bg-primary h-full rounded-full transition-all" style={{ width: `${s.percent}%` }} />
+                        {/* Payment Statistics */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          <div className="bg-card rounded-xl border p-6">
+                            <h3 className="text-sm font-semibold mb-4">Payment Overview</h3>
+                            <div className="space-y-4">
+                              {(() => {
+                                const paymentsByDate = patients.reduce((acc: Record<string, { count: number; total: number }>, p) => {
+                                  if (p.payment_history && p.payment_history.length > 0) {
+                                    p.payment_history.forEach((payment) => {
+                                      if (payment.status === 'success' && payment.created_at) {
+                                        const date = new Date(payment.created_at).toLocaleDateString();
+                                        if (!acc[date]) {
+                                          acc[date] = { count: 0, total: 0 };
+                                        }
+                                        acc[date].count += 1;
+                                        acc[date].total += payment.amount || 0;
+                                      }
+                                    });
+                                  }
+                                  return acc;
+                                }, {});
+
+                                const sortedDates = Object.entries(paymentsByDate)
+                                  .sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime())
+                                  .slice(0, 7);
+
+                                const totalPayments = Object.values(paymentsByDate).reduce((sum, item) => sum + item.count, 0);
+                                const totalAmount = Object.values(paymentsByDate).reduce((sum, item) => sum + item.total, 0);
+
+                                return (
+                                  <>
+                                    <div className="flex items-center justify-between p-4 bg-success/10 rounded-lg">
+                                      <div>
+                                        <div className="text-xs text-muted-foreground uppercase">Total Payments</div>
+                                        <div className="text-2xl font-bold text-success">{totalPayments}</div>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="text-xs text-muted-foreground uppercase">Total Amount</div>
+                                        <div className="text-xl font-bold text-success">₹{totalAmount.toLocaleString()}</div>
+                                      </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <div className="text-xs font-medium text-muted-foreground uppercase">Recent by Date</div>
+                                      {sortedDates.length > 0 ? sortedDates.map(([date, data]) => (
+                                        <div key={date} className="flex items-center justify-between py-2 border-b last:border-0">
+                                          <div className="text-sm">{date}</div>
+                                          <div className="flex items-center gap-4">
+                                            <span className="text-sm text-muted-foreground">{data.count} payment{data.count !== 1 ? 's' : ''}</span>
+                                            <span className="text-sm font-medium">₹{data.total.toLocaleString()}</span>
+                                          </div>
+                                        </div>
+                                      )) : (
+                                        <div className="text-center text-muted-foreground py-4 text-sm">No payments yet</div>
+                                      )}
+                                    </div>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+
+                          {/* Patient Growth Chart */}
+                          <div className="bg-card rounded-xl border p-6">
+                            <h3 className="text-sm font-semibold mb-4">Patient Growth</h3>
+                            {(() => {
+                              const patientsByMonth = patients.reduce((acc: Record<string, { joined: number; paid: number }>, p) => {
+                                const date = new Date(p.created_at);
+                                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                                if (!acc[monthKey]) {
+                                  acc[monthKey] = { joined: 0, paid: 0 };
+                                }
+                                acc[monthKey].joined += 1;
+                                if (p.payment_status === 'paid' || p.payment_history?.some(ph => ph.status === 'success') || p.dietary_preference) {
+                                  acc[monthKey].paid += 1;
+                                }
+                                return acc;
+                              }, {});
+
+                              const sortedMonths = Object.entries(patientsByMonth)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .slice(-6);
+
+                              const maxValue = Math.max(...sortedMonths.map(([_, data]) => Math.max(data.joined, data.paid)), 1);
+
+                              return (
+                                <div className="space-y-4">
+                                  {sortedMonths.length > 0 ? sortedMonths.map(([month, data]) => {
+                                    const [year, monthNum] = month.split('-');
+                                    const monthName = new Date(parseInt(year), parseInt(monthNum) - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                                    
+                                    return (
+                                      <div key={month} className="space-y-2">
+                                        <div className="text-xs font-medium text-muted-foreground">{monthName}</div>
+                                        <div className="space-y-1.5">
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-16 text-xs text-muted-foreground">Joined:</div>
+                                            <div className="flex-1 bg-muted rounded-full h-6 overflow-hidden relative">
+                                              <div 
+                                                className="bg-primary h-full rounded-full transition-all flex items-center justify-end pr-2" 
+                                                style={{ width: `${(data.joined / maxValue) * 100}%` }}
+                                              >
+                                                <span className="text-xs font-medium text-primary-foreground">{data.joined}</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-16 text-xs text-muted-foreground">Paid:</div>
+                                            <div className="flex-1 bg-muted rounded-full h-6 overflow-hidden relative">
+                                              <div 
+                                                className="bg-success h-full rounded-full transition-all flex items-center justify-end pr-2" 
+                                                style={{ width: `${(data.paid / maxValue) * 100}%` }}
+                                              >
+                                                <span className="text-xs font-medium text-white">{data.paid}</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  }) : (
+                                    <div className="text-center text-muted-foreground py-8 text-sm">No patient data yet</div>
+                                  )}
                                 </div>
-                                <div className="w-20 text-right text-sm font-medium">{s.count} ({s.percent}%)</div>
-                              </div>
-                            ))}
+                              );
+                            })()}
                           </div>
                         </div>
 
