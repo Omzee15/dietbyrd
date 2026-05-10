@@ -465,7 +465,11 @@ const PatientProfile = () => {
                 {patient.allergies && (
                   <div className="p-4 bg-red-50 dark:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-900">
                     <p className="text-xs text-red-600 dark:text-red-400 uppercase tracking-wider mb-2">Allergies</p>
-                    <p className="text-sm font-medium text-red-700 dark:text-red-300">{patient.allergies}</p>
+                    <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                      {Array.isArray(patient.allergies) 
+                        ? patient.allergies.join(", ") 
+                        : patient.allergies}
+                    </p>
                   </div>
                 )}
               </CardContent>

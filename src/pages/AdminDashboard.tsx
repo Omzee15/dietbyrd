@@ -683,7 +683,8 @@ const AdminDashboard = () => {
                                           acc[date] = { count: 0, total: 0 };
                                         }
                                         acc[date].count += 1;
-                                        acc[date].total += payment.amount || 0;
+                                        // Convert paise to rupees by dividing by 100
+                                        acc[date].total += (payment.amount || 0) / 100;
                                       }
                                     });
                                   }
@@ -706,7 +707,7 @@ const AdminDashboard = () => {
                                       </div>
                                       <div className="text-right">
                                         <div className="text-xs text-muted-foreground uppercase">Total Amount</div>
-                                        <div className="text-xl font-bold text-success">₹{totalAmount.toLocaleString()}</div>
+                                        <div className="text-xl font-bold text-success">₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                       </div>
                                     </div>
                                     <div className="space-y-2">
@@ -716,7 +717,7 @@ const AdminDashboard = () => {
                                           <div className="text-sm">{date}</div>
                                           <div className="flex items-center gap-4">
                                             <span className="text-sm text-muted-foreground">{data.count} payment{data.count !== 1 ? 's' : ''}</span>
-                                            <span className="text-sm font-medium">₹{data.total.toLocaleString()}</span>
+                                            <span className="text-sm font-medium">₹{data.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                           </div>
                                         </div>
                                       )) : (

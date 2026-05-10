@@ -207,7 +207,13 @@ const MLTInternPatientDetail = () => {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Allergies</p>
-                      <p className="font-medium">{patient.allergies || "None"}</p>
+                      <p className="font-medium">
+                        {patient.allergies 
+                          ? (Array.isArray(patient.allergies) 
+                              ? patient.allergies.join(", ") 
+                              : patient.allergies)
+                          : "None"}
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 flex items-center gap-1"><Dumbbell className="w-3 h-3" />Workout Frequency</p>

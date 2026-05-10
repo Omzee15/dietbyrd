@@ -308,6 +308,15 @@ const PatientDashboard = () => {
         amount: pkg.price,
       });
 
+      // Debug logging
+      console.log('[Payment Debug] Order created:', {
+        order_id: order.razorpay_order_id,
+        amount: order.amount,
+        razorpay_key: (import.meta as any).env.VITE_RAZORPAY_KEY_ID,
+        fallback_key_used: !(import.meta as any).env.VITE_RAZORPAY_KEY_ID,
+        environment: import.meta.env.MODE
+      });
+
       const options = {
         key: (import.meta as any).env.VITE_RAZORPAY_KEY_ID || "rzp_test_demo",
         amount: order.amount,
@@ -364,7 +373,11 @@ const PatientDashboard = () => {
     setBodyAge(patient?.age?.toString() || "");
     setBodyHeight(patient?.height?.toString() || "");
     setBodyWeight(patient?.weight?.toString() || "");
-    setBodyAllergies(patient?.allergies || "");
+    setBodyAllergies(
+      Array.isArray(patient?.allergies) 
+        ? patient.allergies.join(", ") 
+        : (patient?.allergies || "")
+    );
     setBodyWorkoutFrequency(patient?.workout_frequency?.toString() || "");
     setIsEditingBody(true);
   };
@@ -1191,7 +1204,11 @@ const PatientDashboard = () => {
                           <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
                           <p className="text-xs text-red-600 dark:text-red-400 uppercase tracking-wider font-semibold">Allergies</p>
                         </div>
-                        <p className="text-sm font-medium text-red-700 dark:text-red-300">{patient.allergies}</p>
+                        <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                          {Array.isArray(patient.allergies) 
+                            ? patient.allergies.join(", ") 
+                            : patient.allergies}
+                        </p>
                       </div>
                     )}
                     

@@ -1786,10 +1786,17 @@ app.patch("/api/join-requests/:id", async (req, res) => {
         [userId, joinRequest.name, joinRequest.qualification, joinRequest.clinic_name, joinRequest.clinic_address]
       );
     } else if (joinRequest.requested_role === "rd") {
+      // Prepare specializations for JSONB column
+      const specializationsValue = joinRequest.specializations 
+        ? (typeof joinRequest.specializations === 'string' 
+            ? joinRequest.specializations  // Already a JSON string
+            : JSON.stringify(joinRequest.specializations))  // Object from DB, needs stringify
+        : null;
+      
       await query(
         `INSERT INTO dietbyrd_registered_dietitians (user_id, name, qualification, specializations, is_active)
-         VALUES ($1, $2, $3, $4, true)`,
-        [userId, joinRequest.name, joinRequest.qualification, joinRequest.specializations]
+         VALUES ($1, $2, $3, $4::jsonb, true)`,
+        [userId, joinRequest.name, joinRequest.qualification, specializationsValue]
       );
     }
 
@@ -1996,6 +2003,16 @@ app.patch("/api/patients/:id(\\d+)", async (req, res) => {
   try {
     const { id } = req.params;
     const { name, age, gender, diagnosis, diagnosis_description, height, weight, allergies, workout_frequency } = req.body;
+    
+    // Prepare allergies for JSONB column
+    let allergiesValue = null;
+    if (allergies !== undefined && allergies !== null && allergies !== '') {
+      // If it's already a string or array, stringify it for JSONB
+      allergiesValue = typeof allergies === 'string' 
+        ? JSON.stringify([allergies]) // Wrap plain string in array
+        : JSON.stringify(allergies);   // Stringify array
+    }
+    
     const result = await query(
       `UPDATE dietbyrd_patients
        SET name = COALESCE($1, name),
@@ -2005,12 +2022,12 @@ app.patch("/api/patients/:id(\\d+)", async (req, res) => {
            diagnosis_description = COALESCE($5, diagnosis_description),
            height = COALESCE($6, height),
            weight = COALESCE($7, weight),
-           allergies = COALESCE($8, allergies),
+           allergies = COALESCE($8::jsonb, allergies),
            workout_frequency = COALESCE($9, workout_frequency),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $10
        RETURNING *`,
-      [name, age, gender, diagnosis, diagnosis_description, height, weight, allergies, workout_frequency, id]
+      [name, age, gender, diagnosis, diagnosis_description, height, weight, allergiesValue, workout_frequency, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: "Patient not found" });
     res.json({ success: true, data: result.rows[0] });

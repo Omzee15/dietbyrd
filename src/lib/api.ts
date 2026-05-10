@@ -44,7 +44,7 @@ export interface Patient {
   food_restrictions?: string | null;
   height?: number | null;  // in cm
   weight?: number | null;  // in kg
-  allergies?: string | null;
+  allergies?: string | string[] | null;  // Can be string or array from JSONB
   workout_frequency?: number | null;  // 0-7 times per week
   // Referring doctor info
   referring_doctor_id?: number | null;
