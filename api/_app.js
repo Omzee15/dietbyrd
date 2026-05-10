@@ -1006,6 +1006,53 @@ app.post("/api/auth/send-otp", async (req, res) => {
   }
 });
 
+// Send OTP for registration (no account creation)
+app.post("/api/auth/send-otp-registration", async (req, res) => {
+  try {
+    const { phone, channel = "sms" } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({ success: false, error: "Phone number is required" });
+    }
+
+    // Check if user already exists
+    const userResult = await query(
+      "SELECT id FROM dietbyrd_users WHERE phone = $1",
+      [phone]
+    );
+
+    if (userResult.rows.length > 0) {
+      return res.status(409).json({ success: false, error: "Phone number already registered. Please login instead." });
+    }
+
+    // Just send OTP without creating any account
+    console.log(`[OTP] Sending registration OTP to ${phone} via ${channel}`);
+    
+    try {
+      const result = await sendOtpViaTwilio(phone, channel);
+      const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
+      
+      // In dev mode, store the OTP for verification
+      if (IS_DEV && devOtp) {
+        await storeOtp(phone, devOtp, 'login');
+      }
+      
+      console.log(`[OTP] Registration verification sent, SID: ${verification.sid}, Status: ${verification.status}`);
+      return res.json({ 
+        success: true, 
+        message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
+        to: toNumber,
+        expiresIn: 600
+      });
+    } catch (twilioErr) {
+      console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
+      return res.status(500).json({ success: false, error: "Failed to send OTP. Please try again." });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Verify OTP and login
 app.post("/api/auth/verify-otp", async (req, res) => {
   try {
@@ -1320,6 +1367,42 @@ app.post("/api/auth/verify-otp-only", async (req, res) => {
     }
 
     return res.json({ success: true, data: { verified: true } });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Verify OTP for join request registration (no account creation/checking)
+app.post("/api/auth/verify-otp-registration", async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+
+    if (!phone || !otp) {
+      return res.status(400).json({ success: false, error: "Phone and OTP are required" });
+    }
+
+    // Verify OTP - use local DB in dev mode, Twilio in production
+    if (IS_DEV) {
+      const verifyResult = await verifyOtpFromDb(phone, otp, 'login');
+      if (!verifyResult.valid) {
+        return res.status(400).json({ success: false, error: verifyResult.error || "Invalid OTP." });
+      }
+      await clearOtp(phone, 'login');
+    } else {
+      try {
+        const verificationCheck = await verifyOtpViaTwilio(phone, otp);
+        
+        if (verificationCheck.status !== "approved") {
+          return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+        }
+      } catch (twilioErr) {
+        console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
+        return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
+      }
+    }
+
+    // Just return success - no account creation or checking
+    return res.json({ success: true, data: { verified: true, phone } });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -1793,11 +1876,30 @@ app.patch("/api/join-requests/:id", async (req, res) => {
             : JSON.stringify(joinRequest.specializations))  // Object from DB, needs stringify
         : null;
       
-      await query(
+      const rdResult = await query(
         `INSERT INTO dietbyrd_registered_dietitians (user_id, name, qualification, specializations, is_active)
-         VALUES ($1, $2, $3, $4::jsonb, true)`,
+         VALUES ($1, $2, $3, $4::jsonb, true)
+         RETURNING id`,
         [userId, joinRequest.name, joinRequest.qualification, specializationsValue]
       );
+      
+      const rdId = rdResult.rows[0].id;
+      
+      // Create default availability: Monday-Friday, 9 AM - 5 PM
+      const defaultAvailability = [];
+      for (let day = 1; day <= 5; day++) { // 1=Monday, 5=Friday
+        defaultAvailability.push(
+          query(
+            `INSERT INTO dietbyrd_dietician_availability (rd_id, day_of_week, start_time, end_time, slot_duration_minutes, is_active)
+             VALUES ($1, $2, '09:00', '17:00', 60, true)`,
+            [rdId, day]
+          )
+        );
+      }
+      
+      // Execute all availability inserts
+      await Promise.all(defaultAvailability);
+      console.log(`[Dietician] Created default availability (Mon-Fri, 9-5) for RD ID: ${rdId}`);
     }
 
     // Update the join request

@@ -22,22 +22,22 @@ interface PatientWithReferral extends Patient {
 }
 
 const PATIENT_PROGRESS_STEPS = [
-  "Patient Referral",
-  "Patient Payment",
-  "Patient Details",
-  "Patient Appointment Scheduling",
+  "Registration",
+  "Payment",
+  "Appointment",
+  "Consultation",
 ] as const;
 
 const getPatientCompletionSteps = (patient: PatientWithReferral) => {
-  const hasReferral = Boolean(patient.referredBy && patient.referredBy !== "Direct");
+  const hasRegistration = Boolean(patient.name && patient.phone);
   const hasPayment =
     patient.payment_status === "paid" ||
     !!patient.dietary_preference ||
     (patient.payment_history?.some((payment) => payment.status === "success") ?? false);
-  const hasDetails = Boolean(patient.age && patient.gender && patient.diagnosis);
-  const hasAppointmentScheduling = Boolean(patient.assigned_rd_id);
+  const hasAppointment = Boolean(patient.assigned_rd_id);
+  const hasConsultation = false; // TODO: Check if patient has completed consultation
 
-  return [hasReferral, hasPayment, hasDetails, hasAppointmentScheduling];
+  return [hasRegistration, hasPayment, hasAppointment, hasConsultation];
 };
 
 const AdminDashboard = () => {

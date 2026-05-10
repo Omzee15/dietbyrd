@@ -797,7 +797,9 @@ const PatientDashboard = () => {
                   <div>
                     <h2 className="text-2xl font-bold">Welcome, {patient.name?.split(" ")[0] || "Patient"}!</h2>
                     <p className="text-muted-foreground">
-                      {patient.diagnosis ? `Managing ${patient.diagnosis}` : "Your health journey dashboard"}
+                      {patient.diagnosis && patient.diagnosis !== "other" 
+                        ? `Managing ${patient.diagnosis}` 
+                        : "Your health journey dashboard"}
                     </p>
                   </div>
                 </div>
