@@ -22,6 +22,7 @@ import {
   Heart,
   Loader2,
   LogOut,
+  MessageSquare,
   Plus,
   Ruler,
   Save,
@@ -702,6 +703,7 @@ const PatientDashboard = () => {
         { label: "My Profile", href: "/patient/profile", icon: Heart },
         { label: "Diet Plans", href: "/patient/diet-plans", icon: UtensilsCrossed },
         { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
+        { label: "Support", href: "/patient/support", icon: MessageSquare },
       ],
     },
     {
@@ -1678,8 +1680,10 @@ const PatientDashboard = () => {
                               size="sm"
                               onClick={() => setSelectedSlot(slot)}
                               className="min-w-[80px]"
+                              disabled={slot.is_booked}
                             >
                               {slot.start_time}
+                              {slot.is_booked && " (Booked)"}
                             </Button>
                           ))}
                         </div>

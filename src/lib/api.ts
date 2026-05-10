@@ -371,6 +371,7 @@ export interface AvailableSlot {
   start_time: string;
   datetime: string;
   duration_minutes: number;
+  is_booked?: boolean;
 }
 
 export interface Appointment {

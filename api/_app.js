@@ -1041,14 +1041,58 @@ app.post("/api/auth/verify-otp", async (req, res) => {
       [phone]
     );
 
+    // If user doesn't exist, this is a new patient - they need to complete welcome form
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "User not found" });
+      return res.json({ 
+        success: true, 
+        data: { 
+          isNewPatient: true, 
+          phone: phone,
+          requiresWelcomeForm: true 
+        } 
+      });
     }
 
     const user = userResult.rows[0];
 
     if (!user.is_active) {
       return res.status(401).json({ success: false, error: "Account is deactivated" });
+    }
+
+    // For patients, check if they have completed their profile
+    if (user.role === "patient") {
+      const patientResult = await query(
+        "SELECT id, name, age, gender FROM dietbyrd_patients WHERE user_id = $1", 
+        [user.id]
+      );
+      
+      // If patient profile doesn't exist or is incomplete, show welcome form
+      if (patientResult.rows.length === 0) {
+        return res.json({ 
+          success: true, 
+          data: { 
+            isNewPatient: true, 
+            phone: phone,
+            requiresWelcomeForm: true,
+            userId: user.id
+          } 
+        });
+      }
+      
+      const patientProfile = patientResult.rows[0];
+      
+      // Check if essential fields are missing
+      if (!patientProfile.name || !patientProfile.age || !patientProfile.gender) {
+        return res.json({ 
+          success: true, 
+          data: { 
+            isNewPatient: true, 
+            phone: phone,
+            requiresWelcomeForm: true,
+            userId: user.id
+          } 
+        });
+      }
     }
 
     // Get profile ID based on role
@@ -1085,9 +1129,159 @@ app.post("/api/auth/verify-otp", async (req, res) => {
         profileId,
         doctorId,
         isVerified: user.is_verified ?? true,
+        isNewPatient: false,
       },
     });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Complete patient welcome form for new patients
+app.post("/api/auth/complete-welcome", async (req, res) => {
+  try {
+    const { 
+      phone, 
+      name,
+      email,
+      age, 
+      gender, 
+      diagnosis, 
+      diagnosisDescription,
+      allergies,
+      height,
+      weight,
+      workoutFrequency,
+      dietaryPreference
+    } = req.body;
+    
+    if (!phone || !name) {
+      return res.status(400).json({ success: false, error: "Phone and name are required" });
+    }
+
+    // Check if user already exists
+    const existingUser = await query(
+      "SELECT id, phone, role, name, is_active, is_verified FROM dietbyrd_users WHERE phone = $1",
+      [phone]
+    );
+
+    let userId, userPhone, userRole, userName;
+
+    if (existingUser.rows.length > 0) {
+      // User exists - just update/create their patient profile
+      const user = existingUser.rows[0];
+      userId = user.id;
+      userPhone = user.phone;
+      userRole = user.role;
+      userName = name; // Use the provided name from the form
+      
+      // Update user name and email if they weren't set
+      if (!user.name || email) {
+        await query(
+          "UPDATE dietbyrd_users SET name = COALESCE($1, name), email = COALESCE($2, email) WHERE id = $3",
+          [name, email, userId]
+        );
+      }
+    } else {
+      // Create new user account
+      const userResult = await query(
+        `INSERT INTO dietbyrd_users (phone, role, name, email, is_active, is_verified) 
+         VALUES ($1, 'patient', $2, $3, true, true) 
+         RETURNING id, phone, role, name, is_active, is_verified`,
+        [phone, name, email]
+      );
+
+      const newUser = userResult.rows[0];
+      userId = newUser.id;
+      userPhone = newUser.phone;
+      userRole = newUser.role;
+      userName = newUser.name;
+    }
+
+    // Check if patient profile exists
+    const existingPatient = await query(
+      "SELECT id FROM dietbyrd_patients WHERE user_id = $1",
+      [userId]
+    );
+
+    let patientId;
+
+    if (existingPatient.rows.length > 0) {
+      // Update existing patient profile
+      patientId = existingPatient.rows[0].id;
+      await query(
+        `UPDATE dietbyrd_patients SET 
+          name = $1,
+          email = $2,
+          age = $3, 
+          gender = $4, 
+          diagnosis = $5, 
+          diagnosis_description = $6,
+          allergies = $7, 
+          height = $8, 
+          weight = $9, 
+          workout_frequency = $10,
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = $11`,
+        [
+          name,
+          email,
+          age || null,
+          gender || null,
+          diagnosis || null,
+          diagnosisDescription || null,
+          allergies ? JSON.stringify(allergies) : null,
+          height || null,
+          weight || null,
+          workoutFrequency || null,
+          patientId
+        ]
+      );
+    } else {
+      // Create new patient profile
+      const patientResult = await query(
+        `INSERT INTO dietbyrd_patients (
+          user_id, name, phone, email, age, gender, diagnosis, diagnosis_description,
+          allergies, height, weight, workout_frequency, referral_source
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'self_signup')
+        RETURNING id`,
+        [
+          userId,
+          name,
+          phone,
+          email,
+          age || null,
+          gender || null,
+          diagnosis || null,
+          diagnosisDescription || null,
+          allergies ? JSON.stringify(allergies) : null,
+          height || null,
+          weight || null,
+          workoutFrequency || null
+        ]
+      );
+
+      patientId = patientResult.rows[0].id;
+    }
+
+    // Update last login
+    await query("UPDATE dietbyrd_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1", [userId]);
+
+    // Return user session data
+    res.json({
+      success: true,
+      data: {
+        id: userId,
+        phone: userPhone,
+        role: userRole,
+        name: userName,
+        profileId: patientId,
+        isVerified: true,
+        isNewPatient: false,
+      },
+    });
+  } catch (err) {
+    console.error("[Welcome] Error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -3399,10 +3593,7 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
           }
           
           // Check if slot is booked
-          if (bookedSlots.has(slotDatetime)) {
-            slotMinutes += slotDuration;
-            continue;
-          }
+          const isBooked = bookedSlots.has(slotDatetime);
           
           // Check if slot is in a blocked time range for this specific date
           const timeBlocked = blockedResult.rows.find(b => {
@@ -3421,12 +3612,13 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
             continue;
           }
           
-          // Slot is available - send datetime as local string (no Z suffix = no UTC conversion)
+          // Include all slots (both booked and available), with is_booked flag
           availableSlots.push({
             date: dateStr,
             start_time: slotTimeStr,
             datetime: slotDatetime,
-            duration_minutes: slotDuration
+            duration_minutes: slotDuration,
+            is_booked: isBooked
           });
           
           slotMinutes += slotDuration;
@@ -3990,6 +4182,357 @@ app.post("/api/payments/verify", async (req, res) => {
     });
   } catch (err) {
     console.error("[payments/verify] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Admin Staff Management ──────────────────────────────────────────────────
+// Get staff members by role (mlt_intern or support_intern)
+app.get("/api/admin/staff/:role", async (req, res) => {
+  try {
+    const { role } = req.params;
+    
+    // Validate role
+    if (!['mlt_intern', 'support_intern'].includes(role)) {
+      return res.status(400).json({ success: false, error: "Invalid role. Must be mlt_intern or support_intern" });
+    }
+
+    const result = await query(
+      `SELECT id, phone, name, role, is_active, created_at, last_login_at 
+       FROM dietbyrd_users 
+       WHERE role = $1 
+       ORDER BY created_at DESC`,
+      [role]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("[admin/staff] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Create staff account with random 8-digit password
+app.post("/api/admin/staff/create", async (req, res) => {
+  try {
+    const { phone, role, name } = req.body;
+    
+    if (!phone || !role || !name) {
+      return res.status(400).json({ success: false, error: "Phone, role, and name are required" });
+    }
+
+    // Validate role
+    if (!['mlt_intern', 'support_intern'].includes(role)) {
+      return res.status(400).json({ success: false, error: "Invalid role. Must be mlt_intern or support_intern" });
+    }
+
+    // Check if user already exists
+    const existingUser = await query(
+      "SELECT id FROM dietbyrd_users WHERE phone = $1",
+      [phone]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ success: false, error: "User with this phone number already exists" });
+    }
+
+    // Generate random 8-digit password
+    const password = Math.floor(10000000 + Math.random() * 90000000).toString();
+
+    // Create user account
+    const userResult = await query(
+      `INSERT INTO dietbyrd_users (phone, role, password, name, is_active, is_verified) 
+       VALUES ($1, $2, $3, $4, true, true) 
+       RETURNING id, phone, role, name`,
+      [phone, role, password, name]
+    );
+
+    const newUser = userResult.rows[0];
+
+    res.json({
+      success: true,
+      data: {
+        id: newUser.id,
+        phone: newUser.phone,
+        role: newUser.role,
+        name: newUser.name,
+        password: password, // Return password only once at creation
+      },
+    });
+  } catch (err) {
+    console.error("[admin/staff/create] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// SUPPORT TEAM ENDPOINTS
+// ==========================================
+
+// Get all doctors for support team
+app.get("/api/support/doctors", async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT u.id, u.name, u.phone, u.email, u.is_active, u.created_at
+       FROM dietbyrd_users u
+       WHERE u.role = 'doctor'
+       ORDER BY u.name ASC`
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("[support/doctors] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get all patients for support team
+app.get("/api/support/patients", async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT p.id, u.name, u.phone, u.email, p.date_of_birth, p.gender, 
+              p.address, p.state, p.pincode, p.is_active, p.created_at,
+              (SELECT COUNT(*) FROM dietbyrd_appointments WHERE patient_id = p.id) as appointment_count
+       FROM dietbyrd_patients p
+       JOIN dietbyrd_users u ON u.id = p.user_id
+       ORDER BY p.created_at DESC`
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("[support/patients] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get all dieticians for support team
+app.get("/api/support/dieticians", async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT d.id, u.name, u.phone, u.email, d.specialization, d.qualification,
+              d.experience_years, d.consultation_fee, d.is_active, d.created_at,
+              (SELECT COUNT(*) FROM dietbyrd_appointments WHERE dietician_id = d.id) as appointment_count
+       FROM dietbyrd_dieticians d
+       JOIN dietbyrd_users u ON u.id = d.user_id
+       ORDER BY u.name ASC`
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("[support/dieticians] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get all tickets
+app.get("/api/support/tickets", async (req, res) => {
+  try {
+    const { status, priority, patient_id } = req.query;
+
+    let queryText = `
+      SELECT t.*,
+             u_patient.name as patient_name, u_patient.phone as patient_phone,
+             u_assigned.name as assigned_to_name,
+             u_created.name as created_by_name,
+             (SELECT COUNT(*) FROM dietbyrd_ticket_comments WHERE ticket_id = t.id) as comment_count
+      FROM dietbyrd_tickets t
+      LEFT JOIN dietbyrd_patients p ON p.id = t.patient_id
+      LEFT JOIN dietbyrd_users u_patient ON u_patient.id = p.user_id
+      LEFT JOIN dietbyrd_users u_assigned ON u_assigned.id = t.assigned_to
+      JOIN dietbyrd_users u_created ON u_created.id = t.created_by
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let paramIndex = 1;
+
+    if (status) {
+      queryText += ` AND t.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (priority) {
+      queryText += ` AND t.priority = $${paramIndex}`;
+      params.push(priority);
+      paramIndex++;
+    }
+
+    if (patient_id) {
+      queryText += ` AND t.patient_id = $${paramIndex}`;
+      params.push(patient_id);
+      paramIndex++;
+    }
+
+    queryText += ` ORDER BY t.created_at DESC`;
+
+    const result = await query(queryText, params);
+
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("[support/tickets] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get single ticket with comments
+app.get("/api/support/tickets/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const ticketResult = await query(
+      `SELECT t.*,
+              u_patient.name as patient_name, u_patient.phone as patient_phone,
+              u_assigned.name as assigned_to_name,
+              u_created.name as created_by_name
+       FROM dietbyrd_tickets t
+       LEFT JOIN dietbyrd_patients p ON p.id = t.patient_id
+       LEFT JOIN dietbyrd_users u_patient ON u_patient.id = p.user_id
+       LEFT JOIN dietbyrd_users u_assigned ON u_assigned.id = t.assigned_to
+       JOIN dietbyrd_users u_created ON u_created.id = t.created_by
+       WHERE t.id = $1`,
+      [id]
+    );
+
+    if (ticketResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Ticket not found" });
+    }
+
+    const commentsResult = await query(
+      `SELECT c.*, u.name as user_name, u.role as user_role
+       FROM dietbyrd_ticket_comments c
+       JOIN dietbyrd_users u ON u.id = c.user_id
+       WHERE c.ticket_id = $1
+       ORDER BY c.created_at ASC`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        ticket: ticketResult.rows[0],
+        comments: commentsResult.rows,
+      },
+    });
+  } catch (err) {
+    console.error("[support/tickets/:id] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Create new ticket
+app.post("/api/support/tickets", async (req, res) => {
+  try {
+    const { patient_id, title, description, category, priority, created_by } = req.body;
+
+    if (!title || !description || !created_by) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Title, description, and created_by are required" 
+      });
+    }
+
+    const result = await query(
+      `INSERT INTO dietbyrd_tickets (
+        patient_id, title, description, category, priority, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *`,
+      [patient_id || null, title, description, category || 'general', priority || 'medium', created_by]
+    );
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error("[support/tickets create] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Update ticket
+app.patch("/api/support/tickets/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, priority, assigned_to, resolution_notes } = req.body;
+
+    const updates = [];
+    const params = [];
+    let paramIndex = 1;
+
+    if (status) {
+      updates.push(`status = $${paramIndex}`);
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (priority) {
+      updates.push(`priority = $${paramIndex}`);
+      params.push(priority);
+      paramIndex++;
+    }
+
+    if (assigned_to !== undefined) {
+      updates.push(`assigned_to = $${paramIndex}`);
+      params.push(assigned_to);
+      paramIndex++;
+    }
+
+    if (resolution_notes) {
+      updates.push(`resolution_notes = $${paramIndex}`);
+      params.push(resolution_notes);
+      paramIndex++;
+    }
+
+    if (status === 'resolved' || status === 'closed') {
+      updates.push(`resolved_at = NOW()`);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: "No updates provided" });
+    }
+
+    params.push(id);
+    const queryText = `
+      UPDATE dietbyrd_tickets 
+      SET ${updates.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `;
+
+    const result = await query(queryText, params);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Ticket not found" });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error("[support/tickets update] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Add comment to ticket
+app.post("/api/support/tickets/:id/comments", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, comment, is_internal } = req.body;
+
+    if (!user_id || !comment) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "User ID and comment are required" 
+      });
+    }
+
+    const result = await query(
+      `INSERT INTO dietbyrd_ticket_comments (ticket_id, user_id, comment, is_internal)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [id, user_id, comment, is_internal || false]
+    );
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error("[support/tickets/:id/comments] Error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

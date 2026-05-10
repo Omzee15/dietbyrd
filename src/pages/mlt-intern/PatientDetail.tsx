@@ -369,7 +369,7 @@ const MLTInternPatientDetail = () => {
                             </Badge>
                           </div>
                           <div className="bg-gray-50 rounded p-2">
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{message.content}</p>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{message.content}</p>
                           </div>
                           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
                             <span>Sent: {new Date(message.sent_at).toLocaleString()}</span>

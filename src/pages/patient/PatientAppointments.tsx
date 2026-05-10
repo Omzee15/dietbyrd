@@ -801,8 +801,10 @@ const PatientAppointments = () => {
                                   size="sm"
                                   onClick={() => setSelectedSlot(slot)}
                                   className="min-w-[80px]"
+                                  disabled={slot.is_booked}
                                 >
                                   {slot.start_time}
+                                  {slot.is_booked && " (Booked)"}
                                 </Button>
                               ))}
                             </div>

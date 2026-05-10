@@ -10,6 +10,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Register from "./pages/Register";
+import JoinForm from "./pages/JoinForm";
 import NotFound from "./pages/NotFound";
 
 // Doctor Pages
@@ -33,6 +34,7 @@ import PatientDashboard from "./pages/PatientDashboard";
 import PatientProfile from "./pages/patient/PatientProfile";
 import PatientDietPlans from "./pages/patient/PatientDietPlans";
 import PatientAppointments from "./pages/patient/PatientAppointments";
+import PatientSupport from "./pages/patient/PatientSupport";
 
 // Admin Pages
 import AdminDashboard from "./pages/AdminDashboard";
@@ -44,6 +46,8 @@ import AdminSettings from "./pages/admin/Settings";
 import AdminJoinRequests from "./pages/admin/JoinRequests";
 import AdminFoodLibrary from "./pages/admin/FoodLibrary";
 import AdminCoupons from "./pages/admin/Coupons";
+import AdminMLTInterns from "./pages/admin/MLTInterns";
+import AdminSupportTeam from "./pages/admin/SupportTeam";
 
 // MLT Intern Pages
 import MLTInternDashboard from "./pages/MLTInternDashboard";
@@ -51,6 +55,9 @@ import MLTInternPatientDetail from "./pages/mlt-intern/PatientDetail";
 import MLTInternDoctorDetail from "./pages/mlt-intern/DoctorDetail";
 import MLTInternDieticianDetail from "./pages/mlt-intern/DieticianDetail";
 import MLTInternJoinRequestDetail from "./pages/mlt-intern/JoinRequestDetail";
+
+// Support Team Pages
+import SupportDashboard from "./pages/SupportDashboard";
 
 const queryClient = new QueryClient();
 
@@ -66,6 +73,7 @@ const App = () => (
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Index />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/join" element={<JoinForm />} />
 
             {/* Doctor routes - doctors and their assistants */}
             <Route element={<ProtectedRoute allowedRoles={["doctor", "assistant"]} />}>
@@ -96,6 +104,7 @@ const App = () => (
               <Route path="/patient/profile" element={<PatientProfile />} />
               <Route path="/patient/diet-plans" element={<PatientDietPlans />} />
               <Route path="/patient/appointments" element={<PatientAppointments />} />
+              <Route path="/patient/support" element={<PatientSupport />} />
               <Route path="/patient/settings" element={<PatientDashboard />} />
             </Route>
 
@@ -105,6 +114,8 @@ const App = () => (
               <Route path="/admin/patients" element={<AdminPatients />} />
               <Route path="/admin/doctors" element={<AdminDoctors />} />
               <Route path="/admin/dieticians" element={<AdminDieticians />} />
+              <Route path="/admin/mlt-interns" element={<AdminMLTInterns />} />
+              <Route path="/admin/support-team" element={<AdminSupportTeam />} />
               <Route path="/admin/referrals" element={<AdminReferrals />} />
               <Route path="/admin/join-requests" element={<AdminJoinRequests />} />
               <Route path="/admin/food-library" element={<AdminFoodLibrary />} />
@@ -125,6 +136,11 @@ const App = () => (
               <Route path="/mlt-intern/doctor/:id" element={<MLTInternDoctorDetail />} />
               <Route path="/mlt-intern/dietician/:id" element={<MLTInternDieticianDetail />} />
               <Route path="/mlt-intern/join-request/:id" element={<MLTInternJoinRequestDetail />} />
+            </Route>
+
+            {/* Support Team routes */}
+            <Route element={<ProtectedRoute allowedRoles={["support_intern"]} />}>
+              <Route path="/support" element={<SupportDashboard />} />
             </Route>
 
             {/* 404 */}

@@ -144,7 +144,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
       }
       
       if (data?.is_new_patient) {
-        toast.success("New patient referred! Registration link has been sent via SMS.");
+        toast.success("New patient referred! Registration link has been sent.");
       } else {
         toast.success("Patient referred successfully!");
       }

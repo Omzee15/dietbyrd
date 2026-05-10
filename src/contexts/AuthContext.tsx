@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
-export type UserRole = "doctor" | "assistant" | "rd" | "patient" | "ops_manager" | "founder" | "tech_lead";
+export type UserRole = "doctor" | "assistant" | "rd" | "patient" | "mlt_intern" | "support_intern" | "ops_manager" | "founder" | "tech_lead";
 
 export interface AuthUser {
   id: number;
@@ -10,6 +10,8 @@ export interface AuthUser {
   profileId?: number; // doctor_id, rd_id, assistant_id, or patient_id
   doctorId?: number; // For assistants - links to the doctor they work for
   isVerified?: boolean; // For doctors/dieticians - false until admin approves
+  isNewPatient?: boolean; // Flag for new patients who need to complete welcome form
+  requiresWelcomeForm?: boolean; // Requires welcome form to be filled
 }
 
 interface AuthContextType {
@@ -18,7 +20,7 @@ interface AuthContextType {
   login: (phone: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (phone: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>;
   sendOtp: (phone: string) => Promise<{ success: boolean; error?: string; expiresIn?: number }>;
-  verifyOtp: (phone: string, otp: string) => Promise<{ success: boolean; error?: string }>;
+  verifyOtp: (phone: string, otp: string) => Promise<{ success: boolean; error?: string; data?: AuthUser }>;
   verifyOtpOnly: (phone: string, otp: string) => Promise<{ success: boolean; error?: string }>;
   setPasswordAfterOtp: (phone: string, otp: string, password: string) => Promise<{ success: boolean; error?: string }>;
   sendSignupOtp: (phone: string, password: string, name?: string) => Promise<{ success: boolean; error?: string; expiresIn?: number }>;
@@ -114,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const verifyOtp = async (phone: string, otp: string): Promise<{ success: boolean; error?: string }> => {
+  const verifyOtp = async (phone: string, otp: string): Promise<{ success: boolean; error?: string; data?: AuthUser }> => {
     try {
       const res = await fetch("/api/auth/verify-otp", {
         method: "POST",
@@ -129,10 +131,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       const authUser: AuthUser = data.data;
+      
+      // If this is a new patient who needs to complete the welcome form, don't log them in yet
+      if (authUser.isNewPatient || authUser.requiresWelcomeForm) {
+        return { success: true, data: authUser };
+      }
+      
+      // Existing user - log them in
       setUser(authUser);
       localStorage.setItem("dietbyrd_user", JSON.stringify(authUser));
       
-      return { success: true };
+      return { success: true, data: authUser };
     } catch (err) {
       return { success: false, error: "Network error. Please try again." };
     }
@@ -260,6 +269,8 @@ export function getDashboardPath(role: UserRole): string {
       return "/admin";
     case "mlt_intern":
       return "/mlt-intern";
+    case "support_intern":
+      return "/support";
     case "patient":
       return "/patient";
     default:
