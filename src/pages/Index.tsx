@@ -16,8 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getDashboardPath, useAuth, type AuthUser } from "@/contexts/AuthContext";
-import { PatientWelcomeForm } from "@/components/PatientWelcomeForm";
+import { getDashboardPath, useAuth } from "@/contexts/AuthContext";
 import { JoinRequestForm } from "@/components/JoinRequestForm";
 
 type AuthStep = "phone" | "password" | "otp-send" | "otp-verify" | "welcome-form" | "join-form";
@@ -58,6 +57,7 @@ const Index = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [resolvedRole, setResolvedRole] = useState<string | null>(null);
 
+  const [nameInput, setNameInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [checkingPhone, setCheckingPhone] = useState(false);
   const [error, setError] = useState("");
@@ -84,6 +84,7 @@ const Index = () => {
     setError("");
     setSuccess("");
     setShowPassword(false);
+    setNameInput("");
   };
 
   const handleChangePhone = () => {
@@ -202,17 +203,92 @@ const Index = () => {
     setIsLoading(false);
   };
 
-  // Handle welcome form completion
-  const handleWelcomeComplete = (userData: AuthUser) => {
-    // Set user in localStorage and navigate to dashboard
-    localStorage.setItem("dietbyrd_user", JSON.stringify(userData));
-    window.location.href = getDashboardPath(userData.role);
+  const handleNameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nameInput.trim()) {
+      setError("Please enter your name");
+      return;
+    }
+    setError("");
+    setIsLoading(true);
+    try {
+      const digits = phone.replace(/\D/g, "").slice(-10);
+      const res = await fetch("/api/auth/complete-welcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: digits,
+          name: nameInput.trim(),
+          email: null,
+          age: null,
+          gender: null,
+          diagnosis: null,
+          diagnosisDescription: null,
+          allergies: [],
+          height: null,
+          weight: null,
+          workoutFrequency: null,
+          dietaryPreference: null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || "Failed to create account");
+        setIsLoading(false);
+        return;
+      }
+      localStorage.setItem("dietbyrd_user", JSON.stringify(data.data));
+      window.location.href = getDashboardPath(data.data.role);
+    } catch {
+      setError("Network error. Please try again.");
+      setIsLoading(false);
+    }
   };
 
   const renderStepContent = () => {
-    // Show welcome form without the default header
+    // Show simplified name-only form for new patients
     if (step === "welcome-form") {
-      return <PatientWelcomeForm phone={phone} onComplete={handleWelcomeComplete} inline />;
+      return (
+        <>
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold text-slate-900">Almost there!</h2>
+            <p className="text-slate-500 mt-2 text-base">What should we call you?</p>
+          </div>
+          {error && (
+            <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-base flex items-center gap-3 mb-6">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
+              {error}
+            </div>
+          )}
+          <form onSubmit={handleNameSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-base font-medium text-slate-700">Your Name</label>
+              <Input
+                type="text"
+                placeholder="Enter your full name"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                className="h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base"
+                required
+              />
+            </div>
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full h-14 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-base shadow-lg shadow-emerald-500/25 transition-all duration-300"
+            >
+              {isLoading ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : (
+                "Get Started →"
+              )}
+            </Button>
+            <p className="text-xs text-center text-slate-400">
+              You can complete your health profile after signing in.
+            </p>
+          </form>
+        </>
+      );
     }
 
     // Show join request form
@@ -463,6 +539,57 @@ const Index = () => {
   return (
     <div className="h-screen bg-slate-200 p-4 lg:p-6 xl:p-8 flex">
       <div className="w-full h-full flex flex-col lg:flex-row gap-4 lg:gap-5">
+        <div className="flex-1 lg:w-[30%] flex flex-col items-center justify-center bg-white rounded-3xl shadow-xl p-8 lg:p-10 overflow-y-auto">
+          {step !== "join-form" && step !== "welcome-form" && (
+            <Link 
+              to="/" 
+              className="self-start mb-6 -mt-4 flex items-center gap-2 text-sm text-slate-500 hover:text-emerald-600 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Home
+            </Link>
+          )}
+          
+          <div className="lg:hidden flex items-center gap-3 mb-10">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <Leaf className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">DietByRD</h1>
+              <p className="text-xs text-slate-500 font-medium">Clinical Nutrition Platform</p>
+            </div>
+          </div>
+
+          <div className="w-full max-w-md">
+            {renderStepContent()}
+
+            {/* Join as Professional Link */}
+            {step !== "welcome-form" && step !== "join-form" && (
+              <div className="mt-8 mb-6 text-center">
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200" />
+                  </div>
+                  <div className="relative flex justify-center text-xs">
+                    <span className="px-2 bg-white text-slate-500">Healthcare Professional?</span>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  className="w-full mt-4 border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 transition-all"
+                  onClick={() => setStep("join-form")}
+                >
+                  Join as Doctor or Dietician
+                </Button>
+              </div>
+            )}
+
+            <p className="text-center text-sm text-slate-400 mt-8">
+              By using DietByRD, you agree to our <a href="#" className="text-emerald-600 hover:underline">Terms</a> and <a href="#" className="text-emerald-600 hover:underline">Privacy Policy</a>
+            </p>
+          </div>
+        </div>
+
         <div className="hidden lg:flex lg:w-[70%] flex-col justify-between p-10 xl:p-12 bg-gradient-to-br from-emerald-700 via-teal-700 to-emerald-900 rounded-3xl shadow-xl relative overflow-hidden">
           <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-white/5 animate-float-slow-1" />
           <div className="absolute bottom-0 -left-16 w-64 h-64 rounded-full bg-teal-500/10 animate-float-slow-2" />
@@ -537,57 +664,6 @@ const Index = () => {
                 <span className="text-xs text-emerald-200/80 text-center leading-tight">{stat.label}</span>
               </div>
             ))}
-          </div>
-        </div>
-
-        <div className="flex-1 lg:w-[30%] flex flex-col items-center justify-center bg-white rounded-3xl shadow-xl p-8 lg:p-10 overflow-y-auto">
-          {step !== "join-form" && step !== "welcome-form" && (
-            <Link 
-              to="/" 
-              className="self-start mb-6 -mt-4 flex items-center gap-2 text-sm text-slate-500 hover:text-emerald-600 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Home
-            </Link>
-          )}
-          
-          <div className="lg:hidden flex items-center gap-3 mb-10">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <Leaf className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">DietByRD</h1>
-              <p className="text-xs text-slate-500 font-medium">Clinical Nutrition Platform</p>
-            </div>
-          </div>
-
-          <div className="w-full max-w-md">
-            {renderStepContent()}
-
-            {/* Join as Professional Link */}
-            {step !== "welcome-form" && step !== "join-form" && (
-              <div className="mt-8 mb-6 text-center">
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-slate-200" />
-                  </div>
-                  <div className="relative flex justify-center text-xs">
-                    <span className="px-2 bg-white text-slate-500">Healthcare Professional?</span>
-                  </div>
-                </div>
-                <Button 
-                  variant="outline" 
-                  className="w-full mt-4 border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 transition-all"
-                  onClick={() => setStep("join-form")}
-                >
-                  Join as Doctor or Dietician
-                </Button>
-              </div>
-            )}
-
-            <p className="text-center text-sm text-slate-400 mt-8">
-              By using DietByRD, you agree to our <a href="#" className="text-emerald-600 hover:underline">Terms</a> and <a href="#" className="text-emerald-600 hover:underline">Privacy Policy</a>
-            </p>
           </div>
         </div>
       </div>

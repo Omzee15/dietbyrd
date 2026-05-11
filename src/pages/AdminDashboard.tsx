@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { Users, UserCheck, UserPlus, Stethoscope, UtensilsCrossed, BarChart3, Search, ArrowLeft, X, TrendingUp, Loader2, LogOut, Settings, Tag } from "lucide-react";
+import { Users, UserCheck, UserPlus, Stethoscope, UtensilsCrossed, BarChart3, Search, ArrowLeft, X, TrendingUp, Loader2, LogOut, Settings, Tag, Trash2, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { getPatients, getDoctors, getDieticians, getAnalytics, getReferrals, assignDietician, getJoinRequests, Patient, Doctor, Dietician, Referral } from "@/lib/api";
@@ -49,6 +50,8 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>("patients");
   const [search, setSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<PatientWithReferral | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "patient" | "doctor" | "dietician"; id: number; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Patient list filter state
   const [referredByFilter, setReferredByFilter] = useState<string>("all");
@@ -136,6 +139,25 @@ const AdminDashboard = () => {
       toast.error(error.message || "Failed to assign dietician");
     },
   });
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      const urlMap = { patient: "patients", doctor: "doctors", dietician: "dieticians" };
+      const res = await fetch(`/api/${urlMap[deleteTarget.type]}/${deleteTarget.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      toast.success(`${deleteTarget.name} deleted successfully`);
+      queryClient.invalidateQueries({ queryKey: [urlMap[deleteTarget.type]] });
+      setDeleteTarget(null);
+      if (selectedPatient?.id === deleteTarget.id) setSelectedPatient(null);
+    } catch (err: any) {
+      toast.error(err.message || "Delete failed");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Enrich patients with referral and dietician info
   const enrichedPatients: PatientWithReferral[] = patients.map((p) => {
@@ -531,7 +553,17 @@ const AdminDashboard = () => {
                                 )}
                               </td>
                               <td className="p-4 text-right">
-                                <Button variant="outline" size="sm" className="text-xs">{p.dietary_preference ? "View" : "Assign"}</Button>
+                                <div className="flex items-center justify-end gap-2">
+                                  <Button variant="outline" size="sm" className="text-xs">{p.dietary_preference ? "View" : "Assign"}</Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
+                                    onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "patient", id: p.id, name: p.name || "Patient" }); }}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -597,7 +629,14 @@ const AdminDashboard = () => {
                           </div>
                           <div className="mt-3 pt-3 border-t flex justify-between text-xs text-muted-foreground">
                             <span>{d.total_referrals || 0} patients referred</span>
-                            <Button size="sm" variant="ghost" className="text-xs h-7">View Details →</Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs h-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "doctor", id: d.id, name: d.name }); }}
+                            >
+                              <Trash2 className="w-3 h-3 mr-1" /> Delete
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -630,7 +669,14 @@ const AdminDashboard = () => {
                           </div>
                           <div className="mt-3 pt-3 border-t flex justify-between text-xs text-muted-foreground">
                             <span>{d.active_patients || 0} active patients</span>
-                            <Button size="sm" variant="ghost" className="text-xs h-7">View Details →</Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs h-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "dietician", id: d.id, name: d.name }); }}
+                            >
+                              <Trash2 className="w-3 h-3 mr-1" /> Delete
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -826,6 +872,31 @@ const AdminDashboard = () => {
           </>
         )}
       </main>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              Confirm Delete
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
+              <br />
+              <span className="text-red-600 font-medium">This action is not reversible.</span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+              {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

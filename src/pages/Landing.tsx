@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth, getDashboardPath } from "@/contexts/AuthContext";
+import { PublicBookingModal } from "@/components/PublicBookingModal";
+import {
+  CalendarDays,
+  Heart,
+  LogOut,
+  MessageSquare,
+  UtensilsCrossed,
+  User,
+} from "lucide-react";
 
 const testimonials = [
   {
@@ -49,51 +58,64 @@ const conditions = [
   { icon: '💪', name: 'Gym Diet' },
 ];
 
+const patientNavItems = [
+  { label: "My all bookings", href: "/patient/appointments", icon: CalendarDays },
+  { label: "My diet charts", href: "/patient/diet-plans", icon: UtensilsCrossed },
+  { label: "My blood reports", href: "/patient", icon: Heart },
+  { label: "Help/support", href: "/patient/support", icon: MessageSquare },
+];
+
 const Landing = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [statsVisible, setStatsVisible] = useState(false);
+  const statsRef = useRef<HTMLDivElement | null>(null);
   const revealRefs = useRef<(HTMLElement | null)[]>([]);
 
-  // Redirect authenticated users
+  const isPatient = isAuthenticated && user?.role === "patient";
+
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (isAuthenticated && user && user.role !== "patient" && !isBookingModalOpen) {
       navigate(getDashboardPath(user.role));
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user, navigate, isBookingModalOpen]);
 
-  // Scroll effects
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
-    };
+    const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Intersection observer for reveal animations
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('revealed');
-          }
+          if (entry.isIntersecting) entry.target.classList.add('revealed');
         });
       },
       { threshold: 0.12 }
     );
-
-    revealRefs.current.forEach((ref) => {
-      if (ref) observer.observe(ref);
-    });
-
+    revealRefs.current.forEach((ref) => { if (ref) observer.observe(ref); });
     return () => observer.disconnect();
   }, []);
 
-  // Auto-rotate testimonials
+  // Stats bar intersection observer
+  useEffect(() => {
+    const el = statsRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setStatsVisible(true); },
+      { threshold: 0.3 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTestimonial((prev) => (prev + 1) % testimonials.length);
@@ -101,24 +123,30 @@ const Landing = () => {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!isProfileMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".profile-menu-wrap")) setIsProfileMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isProfileMenuOpen]);
+
   const addToRefs = (el: HTMLElement | null) => {
-    if (el && !revealRefs.current.includes(el)) {
-      revealRefs.current.push(el);
-    }
+    if (el && !revealRefs.current.includes(el)) revealRefs.current.push(el);
   };
 
   const goToLogin = () => {
     setIsTransitioning(true);
-    setTimeout(() => {
-      navigate('/login');
-    }, 600);
+    setTimeout(() => navigate('/login'), 600);
   };
 
   return (
     <div className={`landing-page ${isTransitioning ? 'transitioning' : ''}`}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap');
-        
+
         .landing-page {
           --navy: #0A1628;
           --teal: #0B6E4F;
@@ -145,31 +173,19 @@ const Landing = () => {
           scroll-behavior: smooth;
           scroll-padding-top: var(--header-height);
         }
-
         .landing-page * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* Page transition */
         .landing-page.transitioning {
           animation: slideUpOut 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
         @keyframes slideUpOut {
-          0% {
-            transform: translateY(0);
-            opacity: 1;
-          }
-          100% {
-            transform: translateY(-100%);
-            opacity: 0;
-          }
+          0% { transform: translateY(0); opacity: 1; }
+          100% { transform: translateY(-100%); opacity: 0; }
         }
 
         /* Navigation */
         .landing-nav {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          z-index: 1000;
+          position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
           padding: 0 5%;
           transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
           background: rgba(10, 22, 40, 0.85);
@@ -183,857 +199,478 @@ const Landing = () => {
           border-bottom: 1px solid rgba(255,255,255,0.1);
         }
         .nav-inner {
-          max-width: 1200px;
-          margin: 0 auto;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          height: 72px;
+          max-width: 1200px; margin: 0 auto;
+          display: flex; align-items: center; justify-content: space-between; height: 72px;
         }
         .nav-logo {
           font-family: 'Playfair Display', serif;
-          font-size: 24px;
-          font-weight: 700;
-          color: #fff;
-          text-decoration: none;
-          letter-spacing: -0.3px;
+          font-size: 24px; font-weight: 700; color: #fff;
+          text-decoration: none; letter-spacing: -0.3px;
         }
         .nav-logo span { color: var(--gold); }
-        .nav-links {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
+        .nav-links { display: flex; align-items: center; gap: 8px; }
         .nav-links a {
-          color: rgba(255,255,255,0.7);
-          text-decoration: none;
-          font-size: 14px;
-          font-weight: 500;
-          transition: all 0.2s;
-          padding: 8px 16px;
-          border-radius: 8px;
+          color: rgba(255,255,255,0.7); text-decoration: none;
+          font-size: 14px; font-weight: 500; transition: all 0.2s;
+          padding: 8px 16px; border-radius: 8px;
         }
-        .nav-links a:hover {
-          color: #fff;
-          background: rgba(255,255,255,0.08);
-        }
+        .nav-links a:hover { color: #fff; background: rgba(255,255,255,0.08); }
         .nav-cta {
           background: linear-gradient(135deg, var(--teal), var(--teal-m)) !important;
-          color: #fff !important;
-          padding: 10px 24px;
-          border-radius: 10px;
-          transition: all 0.25s !important;
-          cursor: pointer;
-          border: none;
-          font-family: 'DM Sans', sans-serif;
-          font-size: 14px;
-          font-weight: 600;
-          margin-left: 8px;
-          box-shadow: 0 2px 12px rgba(11,110,79,0.3);
+          color: #fff !important; padding: 10px 24px; border-radius: 10px;
+          transition: all 0.25s !important; cursor: pointer; border: none;
+          font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
+          margin-left: 8px; box-shadow: 0 2px 12px rgba(11,110,79,0.3);
         }
-        .nav-cta:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 20px rgba(11,110,79,0.4) !important;
+        .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(11,110,79,0.4) !important; }
+
+        /* Profile avatar menu */
+        .profile-menu-wrap { position: relative; margin-left: 8px; }
+        .profile-avatar {
+          width: 38px; height: 38px; border-radius: 50%;
+          background: linear-gradient(135deg, var(--teal), var(--teal-m));
+          border: 2px solid rgba(255,255,255,0.25);
+          color: #fff; display: flex; align-items: center; justify-content: center;
+          cursor: pointer; transition: all 0.2s; font-size: 16px;
         }
+        .profile-avatar:hover { border-color: rgba(255,255,255,0.6); transform: scale(1.05); }
+        .profile-dropdown {
+          position: absolute; top: calc(100% + 10px); right: 0; min-width: 210px;
+          background: rgba(10, 22, 40, 0.97);
+          backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 6px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+          opacity: 0; visibility: hidden; transform: translateY(-6px);
+          transition: all 0.2s cubic-bezier(0.4,0,0.2,1); z-index: 9999;
+        }
+        .profile-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
+        .profile-dropdown-header {
+          padding: 10px 12px 8px;
+          border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 4px;
+        }
+        .profile-dropdown-header span { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.9); display: block; }
+        .profile-dropdown-header small { font-size: 11px; color: rgba(255,255,255,0.4); }
+        .profile-dropdown a, .profile-dropdown button {
+          display: flex; align-items: center; gap: 10px; width: 100%;
+          padding: 9px 12px; border-radius: 8px; font-size: 13px; font-weight: 500;
+          color: rgba(255,255,255,0.75); text-decoration: none;
+          background: transparent; border: none; cursor: pointer;
+          font-family: 'DM Sans', sans-serif; transition: all 0.15s; text-align: left;
+        }
+        .profile-dropdown a:hover, .profile-dropdown button:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .profile-dropdown .logout-btn {
+          color: rgba(239,68,68,0.8); margin-top: 2px;
+          border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;
+        }
+        .profile-dropdown .logout-btn:hover { background: rgba(239,68,68,0.1); color: rgb(239,68,68); }
 
         /* Hero */
         .hero {
-          min-height: 100vh;
-          background: var(--navy);
-          display: flex;
-          align-items: center;
-          position: relative;
-          overflow: hidden;
-          scroll-snap-align: start;
+          min-height: 100vh; background: var(--navy);
+          display: flex; align-items: center;
+          position: relative; overflow: hidden; scroll-snap-align: start;
         }
         .hero-bg {
-          position: absolute;
-          inset: 0;
+          position: absolute; inset: 0;
           background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(11,110,79,0.18) 0%, transparent 70%);
           pointer-events: none;
         }
         .hero-grid {
-          position: absolute;
-          inset: 0;
+          position: absolute; inset: 0;
           background-image: linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
                             linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
-          background-size: 60px 60px;
-          pointer-events: none;
+          background-size: 60px 60px; pointer-events: none;
         }
         .hero-content {
-          max-width: 1100px;
-          margin: 0 auto;
-          padding: 120px 5% 80px;
-          position: relative;
-          z-index: 2;
-          text-align: center;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
+          max-width: 1100px; margin: 0 auto; padding: 120px 5% 80px;
+          position: relative; z-index: 2; text-align: center;
+          display: flex; flex-direction: column; align-items: center;
         }
         .hero-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          background: rgba(201,149,42,0.15);
-          border: 1px solid rgba(201,149,42,0.3);
-          border-radius: 100px;
-          padding: 6px 16px;
-          font-size: 13px;
-          font-weight: 500;
-          color: var(--gold);
-          margin-bottom: 28px;
-          letter-spacing: 0.02em;
+          display: inline-flex; align-items: center; gap: 8px;
+          background: rgba(201,149,42,0.15); border: 1px solid rgba(201,149,42,0.3);
+          border-radius: 100px; padding: 6px 16px; font-size: 13px; font-weight: 500;
+          color: var(--gold); margin-bottom: 28px; letter-spacing: 0.02em;
         }
         .hero-badge::before { content: '★'; font-size: 11px; }
         .hero-h1 {
           font-family: 'Playfair Display', serif;
-          font-size: clamp(2.8rem, 5.5vw, 5rem);
-          font-weight: 900;
-          color: #fff;
-          line-height: 1.08;
-          letter-spacing: -0.03em;
-          margin-bottom: 22px;
+          font-size: clamp(2.8rem, 5.5vw, 5rem); font-weight: 900; color: #fff;
+          line-height: 1.08; letter-spacing: -0.03em; margin-bottom: 22px;
         }
-        .hero-h1 em {
-          font-style: italic;
-          color: var(--gold);
-        }
+        .hero-h1 em { font-style: italic; color: var(--gold); }
         .hero-sub {
-          font-size: clamp(1rem, 1.8vw, 1.2rem);
-          color: rgba(255,255,255,0.65);
-          max-width: 600px;
-          line-height: 1.75;
-          margin-bottom: 40px;
-          font-weight: 300;
-          text-align: center;
+          font-size: clamp(1rem, 1.8vw, 1.2rem); color: rgba(255,255,255,0.65);
+          max-width: 600px; line-height: 1.75; margin-bottom: 40px;
+          font-weight: 300; text-align: center;
         }
-        .hero-sub strong {
-          color: #fff;
-          font-weight: 600;
-        }
+        .hero-sub strong { color: #fff; font-weight: 600; }
         .hero-actions {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 16px;
-          flex-wrap: wrap;
+          display: flex; align-items: center; justify-content: center;
+          gap: 12px; flex-wrap: wrap;
         }
         .btn-primary {
-          display: inline-flex;
-          align-items: center;
-          gap: 10px;
-          background: var(--teal);
-          color: #fff;
-          padding: 16px 32px;
-          border-radius: 10px;
-          font-size: 16px;
-          font-weight: 600;
-          text-decoration: none;
-          transition: all 0.2s;
-          border: none;
-          cursor: pointer;
-          font-family: 'DM Sans', sans-serif;
+          display: inline-flex; align-items: center; gap: 10px;
+          background: var(--teal); color: #fff; padding: 16px 32px;
+          border-radius: 10px; font-size: 16px; font-weight: 600;
+          text-decoration: none; transition: all 0.2s; border: none;
+          cursor: pointer; font-family: 'DM Sans', sans-serif;
         }
-        .btn-primary:hover {
-          background: var(--teal-m);
-          transform: translateY(-1px);
-          box-shadow: 0 12px 30px rgba(11,110,79,0.35);
-        }
+        .btn-primary:hover { background: var(--teal-m); transform: translateY(-1px); box-shadow: 0 12px 30px rgba(11,110,79,0.35); }
         .btn-primary .price {
-          background: rgba(255,255,255,0.2);
-          padding: 3px 10px;
-          border-radius: 5px;
-          font-size: 14px;
-          font-weight: 700;
+          background: rgba(255,255,255,0.2); padding: 3px 10px;
+          border-radius: 5px; font-size: 14px; font-weight: 700;
         }
         .btn-ghost {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          color: rgba(255,255,255,0.7);
-          font-size: 15px;
-          text-decoration: none;
-          font-weight: 500;
-          transition: color 0.2s;
-          background: none;
-          border: none;
-          cursor: pointer;
-          font-family: 'DM Sans', sans-serif;
+          display: inline-flex; align-items: center; gap: 8px;
+          color: rgba(255,255,255,0.7); font-size: 15px; text-decoration: none;
+          font-weight: 500; transition: color 0.2s; background: none;
+          border: none; cursor: pointer; font-family: 'DM Sans', sans-serif;
         }
         .btn-ghost:hover { color: #fff; }
+        .btn-outline {
+          display: inline-flex; align-items: center; gap: 8px;
+          color: rgba(255,255,255,0.75); font-size: 14px; text-decoration: none;
+          font-weight: 500; transition: all 0.2s;
+          background: rgba(255,255,255,0.07);
+          border: 1px solid rgba(255,255,255,0.18);
+          cursor: pointer; font-family: 'DM Sans', sans-serif;
+          padding: 13px 22px; border-radius: 10px;
+        }
+        .btn-outline:hover { background: rgba(255,255,255,0.13); color: #fff; border-color: rgba(255,255,255,0.3); }
         .hero-stats {
-          display: flex;
-          gap: 40px;
-          margin-top: 56px;
-          padding-top: 40px;
+          display: flex; gap: 40px; margin-top: 56px; padding-top: 40px;
           border-top: 1px solid rgba(255,255,255,0.1);
-          flex-wrap: wrap;
-          justify-content: center;
+          flex-wrap: wrap; justify-content: center;
         }
         .hero-stat .num {
           font-family: 'Playfair Display', serif;
-          font-size: 2rem;
-          font-weight: 700;
-          color: #fff;
-          line-height: 1;
+          font-size: 2rem; font-weight: 700; color: #fff; line-height: 1;
         }
-        .hero-stat .lbl {
-          font-size: 13px;
-          color: rgba(255,255,255,0.5);
-          margin-top: 4px;
-          font-weight: 400;
-        }
-        .hero-floating {
-          position: absolute;
-          right: 5%;
-          top: 50%;
-          transform: translateY(-50%);
-          width: min(420px, 40vw);
-          opacity: 0.9;
-        }
-        .hero-card {
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 20px;
-          padding: 28px;
-          backdrop-filter: blur(12px);
-        }
-        .hero-card-title {
-          font-size: 13px;
-          color: rgba(255,255,255,0.5);
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          margin-bottom: 16px;
-          font-weight: 500;
-        }
-        .hero-card-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 10px 0;
-          border-bottom: 1px solid rgba(255,255,255,0.06);
-        }
-        .hero-card-item:last-child { border-bottom: none; }
-        .hero-card-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: var(--teal-m);
-          flex-shrink: 0;
-        }
-        .hero-card-text {
-          font-size: 14px;
-          color: rgba(255,255,255,0.8);
-          font-weight: 400;
-        }
+        .hero-stat .lbl { font-size: 13px; color: rgba(255,255,255,0.5); margin-top: 4px; font-weight: 400; }
 
         /* Sections */
-        .section {
-          padding: 96px 5%;
-          scroll-snap-align: center;
-        }
-        .section-inner {
-          max-width: 1200px;
-          margin: 0 auto;
-        }
+        .section { padding: 96px 5%; scroll-snap-align: center; }
+        .section-inner { max-width: 1200px; margin: 0 auto; }
         .section-eyebrow {
-          display: inline-block;
-          font-size: 12px;
-          font-weight: 600;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          color: var(--teal);
-          margin-bottom: 12px;
+          display: inline-block; font-size: 12px; font-weight: 600;
+          letter-spacing: 0.1em; text-transform: uppercase;
+          color: var(--teal); margin-bottom: 12px;
         }
         .section-title {
           font-family: 'Playfair Display', serif;
-          font-size: clamp(2rem, 4vw, 3rem);
-          font-weight: 700;
-          line-height: 1.15;
-          letter-spacing: -0.02em;
-          color: var(--navy);
-          margin-bottom: 16px;
+          font-size: clamp(2rem, 4vw, 3rem); font-weight: 700;
+          line-height: 1.15; letter-spacing: -0.02em;
+          color: var(--navy); margin-bottom: 16px;
         }
         .section-sub {
-          font-size: 1.05rem;
-          color: var(--text2);
-          max-width: 600px;
-          line-height: 1.75;
-          font-weight: 300;
+          font-size: 1.05rem; color: var(--text2);
+          max-width: 600px; line-height: 1.75; font-weight: 300;
         }
 
         /* Reveal animations */
-        .reveal {
-          opacity: 0;
-          transform: translateY(28px);
-          transition: opacity 0.7s ease, transform 0.7s ease;
-        }
-        .reveal.revealed {
-          opacity: 1;
-          transform: none;
-        }
+        .reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.7s ease, transform 0.7s ease; }
+        .reveal.revealed { opacity: 1; transform: none; }
         .reveal-delay-1 { transition-delay: 0.1s; }
         .reveal-delay-2 { transition-delay: 0.2s; }
         .reveal-delay-3 { transition-delay: 0.3s; }
 
+        /* CTA section */
+        .cta-section {
+          background: linear-gradient(180deg, var(--navy) 0%, #081220 100%);
+          text-align: center; padding: 100px 5%; scroll-snap-align: center;
+        }
+        .cta-inner { max-width: 700px; margin: 0 auto; }
+        .cta-eyebrow {
+          display: inline-block; font-size: 11px; font-weight: 700;
+          letter-spacing: 0.12em; text-transform: uppercase;
+          color: #5FCC99; margin-bottom: 14px;
+        }
+        .cta-headline {
+          font-family: 'Playfair Display', serif;
+          font-size: clamp(1.8rem, 3.5vw, 2.8rem); font-weight: 900; color: #fff;
+          line-height: 1.15; letter-spacing: -0.02em; margin-bottom: 16px;
+        }
+        .cta-headline em { font-style: italic; color: #5FCC99; }
+        .cta-body {
+          font-size: 1rem; color: rgba(255,255,255,0.65); line-height: 1.75;
+          margin-bottom: 36px; font-weight: 300;
+        }
+        .cta-body strong { color: #fff; font-weight: 600; }
+        .cta-price-badge {
+          display: inline-flex; align-items: center; gap: 12px;
+          background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+          border-radius: 100px; padding: 8px 8px 8px 20px; margin-bottom: 28px;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+        }
+        .cta-price-badge .pb-text { font-size: 15px; color: rgba(255,255,255,0.7); font-weight: 400; }
+        .cta-price-badge .pb-price {
+          background: var(--teal); color: #fff; padding: 8px 16px;
+          border-radius: 100px; font-weight: 700; font-size: 16px;
+        }
+        .cta-disclaimer { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 16px; }
+
         /* Compare section - WHITE */
-        .rd-section {
-          background: #fff;
-          overflow: hidden;
-          position: relative;
-        }
-        .rd-section .section-eyebrow {
-          color: var(--teal);
-        }
-        .rd-section .section-title {
-          color: var(--navy);
-        }
-        .rd-section .section-sub {
-          color: var(--text2);
-        }
+        .rd-section { background: #fff; overflow: hidden; position: relative; }
+        .rd-section .section-eyebrow { color: var(--teal); }
+        .rd-section .section-title { color: var(--navy); }
+        .rd-section .section-sub { color: var(--text2); }
         .compare-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 0;
-          margin: 48px 0;
-          border-radius: 20px;
-          overflow: hidden;
+          display: grid; grid-template-columns: 1fr 1fr;
+          gap: 0; margin: 48px 0; border-radius: 20px; overflow: hidden;
           box-shadow: 0 4px 30px rgba(0,0,0,0.08);
         }
-        .compare-col {
-          padding: 40px 36px;
-        }
-        .compare-col.rd-col {
-          background: linear-gradient(135deg, #E8F5F0 0%, #D1F0E4 100%);
-          border: 1px solid rgba(11,110,79,0.15);
-        }
-        .compare-col.nut-col {
-          background: linear-gradient(135deg, #FFF5F5 0%, #FED7D7 100%);
-          border: 1px solid rgba(197,48,48,0.12);
-        }
-        .compare-header {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 28px;
-        }
-        .compare-icon {
-          width: 42px;
-          height: 42px;
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 20px;
-          flex-shrink: 0;
-        }
+        .compare-col { padding: 40px 36px; }
+        .compare-col.rd-col { background: linear-gradient(135deg, #E8F5F0 0%, #D1F0E4 100%); border: 1px solid rgba(11,110,79,0.15); }
+        .compare-col.nut-col { background: linear-gradient(135deg, #FFF5F5 0%, #FED7D7 100%); border: 1px solid rgba(197,48,48,0.12); }
+        .compare-header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+        .compare-icon { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
         .compare-icon.rd { background: rgba(11,110,79,0.2); }
         .compare-icon.nut { background: rgba(197,48,48,0.15); }
-        .compare-title {
-          font-family: 'Playfair Display', serif;
-          font-size: 1.4rem;
-          font-weight: 700;
-          color: var(--navy);
-        }
-        .compare-subtitle {
-          font-size: 12px;
-          font-weight: 500;
-          letter-spacing: 0.06em;
-          text-transform: uppercase;
-          margin-top: 2px;
-        }
+        .compare-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; font-weight: 700; color: var(--navy); }
+        .compare-subtitle { font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px; }
         .compare-subtitle.rd { color: var(--teal); }
         .compare-subtitle.nut { color: var(--red); }
-        .compare-list {
-          list-style: none;
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
-        }
-        .compare-list li {
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          font-size: 14px;
-          line-height: 1.6;
-          color: var(--text);
-        }
-        .compare-list li .ci {
-          flex-shrink: 0;
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 10px;
-          margin-top: 1px;
-        }
+        .compare-list { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+        .compare-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.6; color: var(--text); }
+        .compare-list li .ci { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; margin-top: 1px; }
         .compare-list li .ci.ok { background: rgba(11,110,79,0.2); color: var(--teal); }
         .compare-list li .ci.no { background: rgba(197,48,48,0.15); color: var(--red); }
         .awareness-tag {
           background: linear-gradient(135deg, #FBF4E6 0%, #F5E6C8 100%);
-          border: 1px solid rgba(201,149,42,0.25);
-          border-radius: 12px;
-          padding: 16px 28px;
-          text-align: center;
-          color: var(--text);
-          font-size: 15px;
-          line-height: 1.7;
-          max-width: 600px;
-          margin: 0 auto 36px;
+          border: 1px solid rgba(201,149,42,0.25); border-radius: 12px;
+          padding: 16px 28px; text-align: center; color: var(--text);
+          font-size: 15px; line-height: 1.7; max-width: 600px; margin: 0 auto 36px;
         }
         .awareness-tag strong { color: var(--gold); }
 
+        /* Privacy carousel */
+        .privacy-section {
+          background: linear-gradient(135deg, #0B6E4F 0%, #0F8A63 100%);
+          padding: 64px 5%; scroll-snap-align: center;
+        }
+        .privacy-inner { max-width: 1100px; margin: 0 auto; text-align: center; }
+        .privacy-heading {
+          font-family: 'Playfair Display', serif;
+          font-size: clamp(1.2rem, 2.5vw, 1.7rem); color: #fff;
+          margin-bottom: 36px; font-weight: 600; line-height: 1.3;
+        }
+        .privacy-badges { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+        .privacy-badge {
+          display: flex; align-items: center; gap: 14px;
+          background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+          border-radius: 16px; padding: 18px 32px; color: #fff;
+          font-size: 15px; font-weight: 600; backdrop-filter: blur(10px);
+          transition: transform 0.2s;
+        }
+        .privacy-badge:hover { transform: translateY(-2px); }
+        .privacy-badge-icon { font-size: 24px; }
+
         /* Approach section */
-        .approach-section { 
-          background: linear-gradient(180deg, var(--navy) 0%, #0d1f35 100%);
-        }
-        .approach-section .section-eyebrow {
-          color: #5FCC99;
-        }
-        .approach-section .section-title {
-          color: #fff;
-        }
-        .approach-section .section-sub {
-          color: rgba(255,255,255,0.65);
-        }
-        .approach-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 64px;
-          align-items: center;
-          margin-top: 48px;
-        }
-        .approach-features {
-          display: flex;
-          flex-direction: column;
-          gap: 28px;
-        }
-        .feature-item {
-          display: flex;
-          gap: 18px;
-          align-items: flex-start;
-        }
+        .approach-section { background: linear-gradient(180deg, var(--navy) 0%, #0d1f35 100%); }
+        .approach-section .section-eyebrow { color: #5FCC99; }
+        .approach-section .section-title { color: #fff; }
+        .approach-section .section-sub { color: rgba(255,255,255,0.65); }
+        .approach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; margin-top: 48px; }
+        .approach-features { display: flex; flex-direction: column; gap: 28px; }
+        .feature-item { display: flex; gap: 18px; align-items: flex-start; }
         .feature-icon {
-          width: 48px;
-          height: 48px;
-          background: rgba(11,110,79,0.25);
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 22px;
-          flex-shrink: 0;
-          border: 1px solid rgba(11,110,79,0.3);
+          width: 48px; height: 48px; background: rgba(11,110,79,0.25);
+          border-radius: 12px; display: flex; align-items: center; justify-content: center;
+          font-size: 22px; flex-shrink: 0; border: 1px solid rgba(11,110,79,0.3);
         }
-        .feature-text h4 {
-          font-size: 16px;
-          font-weight: 600;
-          color: #fff;
-          margin-bottom: 4px;
-        }
-        .feature-text p {
-          font-size: 14px;
-          color: rgba(255,255,255,0.65);
-          line-height: 1.65;
-        }
+        .feature-text h4 { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+        .feature-text p { font-size: 14px; color: rgba(255,255,255,0.65); line-height: 1.65; }
 
         /* Testimonial */
         .testimonial-card {
-          background: rgba(255,255,255,0.06);
-          border-radius: 20px;
-          padding: 36px;
-          box-shadow: 0 4px 24px rgba(0,0,0,0.2);
-          border: 1px solid rgba(255,255,255,0.1);
-          position: relative;
-          overflow: hidden;
-          transition: opacity 0.3s, transform 0.3s;
+          background: rgba(255,255,255,0.06); border-radius: 20px; padding: 36px;
+          box-shadow: 0 4px 24px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1);
+          position: relative; overflow: hidden; transition: opacity 0.3s, transform 0.3s;
           backdrop-filter: blur(12px);
         }
         .testimonial-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 4px;
+          content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
           background: linear-gradient(90deg, var(--teal), var(--teal-m));
         }
-        .testimonial-quote {
-          font-size: 56px;
+        .testimonial-quote { font-size: 56px; font-family: 'Playfair Display', serif; color: #5FCC99; opacity: 0.4; line-height: 0.8; margin-bottom: 12px; }
+        .testimonial-text { font-size: 16px; color: rgba(255,255,255,0.85); line-height: 1.8; margin-bottom: 20px; font-style: italic; font-weight: 300; }
+        .testimonial-text strong { font-style: normal; font-weight: 600; color: #5FCC99; }
+        .testimonial-author { display: flex; align-items: center; gap: 14px; }
+        .testimonial-avatar { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, var(--teal), var(--teal-m)); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+        .testimonial-name { font-weight: 600; font-size: 15px; color: #fff; }
+        .testimonial-detail { font-size: 13px; color: rgba(255,255,255,0.5); margin-top: 1px; }
+        .testimonial-condition { display: inline-block; background: rgba(11,110,79,0.25); color: #5FCC99; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 100px; margin-top: 6px; letter-spacing: 0.03em; }
+        .carousel-nav { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+        .carousel-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); cursor: pointer; font-size: 16px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; color: #fff; }
+        .carousel-btn:hover { background: var(--teal); color: #fff; border-color: var(--teal); }
+        .carousel-dots { display: flex; gap: 8px; margin-top: 20px; justify-content: center; }
+        .carousel-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.25); cursor: pointer; transition: all 0.2s; border: none; }
+        .carousel-dot.active { background: var(--teal); width: 24px; border-radius: 4px; }
+
+        /* Stats bar */
+        .stats-bar { background: #0d1f35; padding: 72px 5%; scroll-snap-align: center; }
+        .stats-bar-inner {
+          max-width: 1100px; margin: 0 auto;
+          display: grid; grid-template-columns: repeat(4, 1fr);
+          background: rgba(255,255,255,0.06); border-radius: 20px; overflow: hidden;
+          border: 1px solid rgba(255,255,255,0.09);
+        }
+        .stat-item {
+          padding: 44px 28px; text-align: center;
+          border-right: 1px solid rgba(255,255,255,0.07);
+          opacity: 0; transform: translateY(24px);
+          transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .stat-item:last-child { border-right: none; }
+        .stat-item.stat-visible { opacity: 1; transform: none; }
+        .stat-item:nth-child(2) { transition-delay: 0.1s; }
+        .stat-item:nth-child(3) { transition-delay: 0.2s; }
+        .stat-item:nth-child(4) { transition-delay: 0.3s; }
+        .stat-item-num { font-family: 'Playfair Display', serif; font-size: 2.8rem; font-weight: 700; color: #fff; line-height: 1; margin-bottom: 10px; }
+        .stat-item-num .gold { color: var(--gold); }
+        .stat-item-lbl { font-size: 13px; color: rgba(255,255,255,0.5); line-height: 1.5; font-weight: 400; }
+
+        /* About Us & Our Vision */
+        .about-section { background: #fff; padding: 96px 5%; scroll-snap-align: center; }
+        .about-inner { max-width: 820px; margin: 0 auto; }
+        .about-quote {
           font-family: 'Playfair Display', serif;
-          color: #5FCC99;
-          opacity: 0.4;
-          line-height: 0.8;
-          margin-bottom: 12px;
+          font-size: clamp(1.3rem, 2.5vw, 1.9rem); font-style: italic;
+          color: var(--navy); line-height: 1.45; margin-bottom: 44px;
+          border-left: 4px solid var(--teal); padding-left: 24px;
         }
-        .testimonial-text {
-          font-size: 16px;
-          color: rgba(255,255,255,0.85);
-          line-height: 1.8;
-          margin-bottom: 20px;
-          font-style: italic;
-          font-weight: 300;
+        .about-body { font-size: 15.5px; color: var(--text2); line-height: 1.9; }
+        .about-body p { margin-bottom: 18px; }
+        .about-body .highlight { color: var(--teal); font-weight: 600; }
+        .about-body .bold { color: var(--navy); font-weight: 600; }
+
+        /* Founder Story */
+        .founder-section {
+          background: linear-gradient(180deg, #0a1628 0%, #0d1f35 100%);
+          padding: 96px 5%; scroll-snap-align: center;
         }
-        .testimonial-text strong {
-          font-style: normal;
-          font-weight: 600;
-          color: #5FCC99;
+        .founder-inner { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 280px 1fr; gap: 64px; align-items: center; }
+        .founder-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #5FCC99; margin-bottom: 12px; }
+        .founder-title { font-family: 'Playfair Display', serif; font-size: clamp(1.8rem, 3vw, 2.5rem); font-weight: 700; color: #fff; line-height: 1.15; margin-bottom: 28px; }
+        .founder-body { font-size: 15px; color: rgba(255,255,255,0.7); line-height: 1.85; }
+        .founder-body p { margin-bottom: 16px; }
+        .founder-body .bold { color: #fff; font-weight: 600; }
+        .founder-cta { margin-top: 28px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.1); }
+        .founder-cta .cta-p { font-family: 'Playfair Display', serif; font-size: 1.1rem; font-style: italic; color: #fff; margin-bottom: 4px; }
+        .founder-cta small { color: rgba(255,255,255,0.5); font-size: 13px; }
+        .founder-avatar-wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+        .founder-avatar {
+          width: 220px; height: 280px;
+          background: linear-gradient(135deg, rgba(11,110,79,0.3), rgba(15,138,99,0.15));
+          border-radius: 20px; border: 1px solid rgba(11,110,79,0.4);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 80px;
         }
-        .testimonial-author {
-          display: flex;
-          align-items: center;
-          gap: 14px;
+        .founder-name { font-size: 16px; font-weight: 600; color: #fff; }
+        .founder-desc { font-size: 12px; color: rgba(255,255,255,0.45); text-align: center; margin-top: 4px; }
+
+        /* Industry Standards */
+        .standards-section { background: #fff; padding: 96px 5%; scroll-snap-align: center; }
+        .standards-inner { max-width: 1000px; margin: 0 auto; }
+        .standards-list { display: flex; flex-direction: column; gap: 20px; margin-top: 48px; }
+        .standard-card {
+          background: linear-gradient(135deg, #E8F5F0 0%, #F0FAF5 100%);
+          border: 1px solid rgba(11,110,79,0.12); border-radius: 16px;
+          padding: 28px 32px; display: flex; gap: 20px; align-items: flex-start;
         }
-        .testimonial-avatar {
-          width: 48px;
-          height: 48px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, var(--teal), var(--teal-m));
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 20px;
-          flex-shrink: 0;
-        }
-        .testimonial-name {
-          font-weight: 600;
-          font-size: 15px;
-          color: #fff;
-        }
-        .testimonial-detail {
-          font-size: 13px;
-          color: rgba(255,255,255,0.5);
-          margin-top: 1px;
-        }
-        .testimonial-condition {
-          display: inline-block;
-          background: rgba(11,110,79,0.25);
-          color: #5FCC99;
-          font-size: 11px;
-          font-weight: 600;
-          padding: 3px 10px;
-          border-radius: 100px;
-          margin-top: 6px;
-          letter-spacing: 0.03em;
-        }
-        .carousel-nav {
-          display: flex;
-          gap: 10px;
-          justify-content: flex-end;
-          margin-top: 16px;
-        }
-        .carousel-btn {
-          width: 38px;
-          height: 38px;
-          border-radius: 50%;
-          border: 1px solid rgba(255,255,255,0.2);
-          background: rgba(255,255,255,0.08);
-          cursor: pointer;
-          font-size: 16px;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #fff;
-        }
-        .carousel-btn:hover {
-          background: var(--teal);
-          color: #fff;
-          border-color: var(--teal);
-        }
-        .carousel-dots {
-          display: flex;
-          gap: 8px;
-          margin-top: 20px;
-          justify-content: center;
-        }
-        .carousel-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: rgba(255,255,255,0.25);
-          cursor: pointer;
-          transition: all 0.2s;
-          border: none;
-        }
-        .carousel-dot.active {
-          background: var(--teal);
-          width: 24px;
-          border-radius: 4px;
-        }
+        .standard-icon { width: 46px; height: 46px; background: rgba(11,110,79,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+        .standard-content h4 { font-size: 15px; font-weight: 600; color: var(--navy); margin-bottom: 6px; }
+        .standard-content p { font-size: 14px; color: var(--text2); line-height: 1.7; }
 
         /* Trust section - WHITE */
-        .trust-section {
-          background: #fff;
-          position: relative;
-          overflow: hidden;
-        }
+        .trust-section { background: #fff; position: relative; overflow: hidden; }
         .trust-inner { position: relative; z-index: 1; }
-        .trust-title {
-          font-family: 'Playfair Display', serif;
-          font-size: clamp(2rem, 4vw, 3rem);
-          font-weight: 700;
-          color: var(--navy);
-          text-align: center;
-          margin-bottom: 12px;
-        }
-        .trust-sub {
-          text-align: center;
-          color: var(--text2);
-          font-size: 1rem;
-          margin-bottom: 56px;
-          font-weight: 300;
-        }
-        .doctor-trust-banner {
-          background: linear-gradient(135deg, #E8F5F0 0%, #D1F0E4 100%);
-          border: 1px solid rgba(11,110,79,0.15);
-          border-radius: 20px;
-          padding: 40px;
-          text-align: center;
-          margin-bottom: 56px;
-        }
-        .trust-quote-big {
-          font-family: 'Playfair Display', serif;
-          font-size: clamp(1.1rem, 2vw, 1.4rem);
-          font-style: italic;
-          color: var(--text);
-          line-height: 1.6;
-          max-width: 700px;
-          margin: 0 auto 20px;
-        }
-        .trust-proof-row {
-          display: flex;
-          justify-content: center;
-          gap: 40px;
-          flex-wrap: wrap;
-        }
+        .trust-title { font-family: 'Playfair Display', serif; font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: var(--navy); text-align: center; margin-bottom: 12px; }
+        .trust-sub { text-align: center; color: var(--text2); font-size: 1rem; margin-bottom: 56px; font-weight: 300; }
+        .doctor-trust-banner { background: linear-gradient(135deg, #E8F5F0 0%, #D1F0E4 100%); border: 1px solid rgba(11,110,79,0.15); border-radius: 20px; padding: 40px; text-align: center; margin-bottom: 56px; }
+        .trust-quote-big { font-family: 'Playfair Display', serif; font-size: clamp(1.1rem, 2vw, 1.4rem); font-style: italic; color: var(--text); line-height: 1.6; max-width: 700px; margin: 0 auto 20px; }
+        .trust-proof-row { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
         .trust-proof { text-align: center; }
-        .trust-proof .tp-num {
-          font-family: 'Playfair Display', serif;
-          font-size: 2rem;
-          font-weight: 700;
-          color: var(--teal);
-        }
-        .trust-proof .tp-lbl {
-          font-size: 12px;
-          color: var(--text3);
-          margin-top: 2px;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-        }
-        .conditions-grid {
-          display: flex;
-          flex-wrap: wrap;
-          justify-content: center;
-          gap: 12px;
-          margin-bottom: 64px;
-        }
-        .condition-pill {
-          background: #FAFAFA;
-          border: 1px solid var(--border);
-          border-radius: 12px;
-          padding: 14px 18px;
-          text-align: center;
-          transition: all 0.2s;
-          cursor: default;
-          min-width: 140px;
-          flex: 0 1 160px;
-        }
-        .condition-pill:hover {
-          background: var(--teal-l);
-          border-color: rgba(11,110,79,0.3);
-          transform: translateY(-2px);
-          box-shadow: 0 4px 15px rgba(11,110,79,0.1);
-        }
+        .trust-proof .tp-num { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 700; color: var(--teal); }
+        .trust-proof .tp-lbl { font-size: 12px; color: var(--text3); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+        .conditions-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-bottom: 64px; }
+        .condition-pill { background: #FAFAFA; border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; text-align: center; transition: all 0.2s; cursor: default; min-width: 140px; flex: 0 1 160px; }
+        .condition-pill:hover { background: var(--teal-l); border-color: rgba(11,110,79,0.3); transform: translateY(-2px); box-shadow: 0 4px 15px rgba(11,110,79,0.1); }
         .condition-pill .cicon { font-size: 24px; margin-bottom: 7px; }
-        .condition-pill .ctxt {
-          font-size: 13px;
-          color: var(--text);
-          font-weight: 500;
-          line-height: 1.3;
-        }
-
-        /* CTA section */
-        .cta-section {
-          background: linear-gradient(180deg, var(--navy) 0%, #081220 100%);
-          text-align: center;
-          padding: 100px 5%;
-          scroll-snap-align: center;
-        }
-        .cta-inner {
-          max-width: 700px;
-          margin: 0 auto;
-        }
-        .cta-eyebrow {
-          display: inline-block;
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: #5FCC99;
-          margin-bottom: 14px;
-        }
-        .cta-headline {
-          font-family: 'Playfair Display', serif;
-          font-size: clamp(1.8rem, 3.5vw, 2.8rem);
-          font-weight: 900;
-          color: #fff;
-          line-height: 1.15;
-          letter-spacing: -0.02em;
-          margin-bottom: 16px;
-        }
-        .cta-headline em {
-          font-style: italic;
-          color: #5FCC99;
-        }
-        .cta-body {
-          font-size: 1rem;
-          color: rgba(255,255,255,0.65);
-          line-height: 1.75;
-          margin-bottom: 36px;
-          font-weight: 300;
-        }
-        .cta-body strong {
-          color: #fff;
-          font-weight: 600;
-        }
-        .cta-price-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 12px;
-          background: rgba(255,255,255,0.08);
-          border: 1px solid rgba(255,255,255,0.15);
-          border-radius: 100px;
-          padding: 8px 8px 8px 20px;
-          margin-bottom: 28px;
-          box-shadow: 0 2px 12px rgba(0,0,0,0.2);
-        }
-        .cta-price-badge .pb-text {
-          font-size: 15px;
-          color: rgba(255,255,255,0.7);
-          font-weight: 400;
-        }
-        .cta-price-badge .pb-price {
-          background: var(--teal);
-          color: #fff;
-          padding: 8px 16px;
-          border-radius: 100px;
-          font-weight: 700;
-          font-size: 16px;
-        }
-        .cta-disclaimer {
-          font-size: 12px;
-          color: rgba(255,255,255,0.45);
-          margin-top: 16px;
-        }
+        .condition-pill .ctxt { font-size: 13px; color: var(--text); font-weight: 500; line-height: 1.3; }
 
         /* Footer */
-        .landing-footer {
-          background: var(--navy);
-          color: rgba(255,255,255,0.6);
-          padding: 60px 5% 36px;
-          scroll-snap-align: center;
-        }
-        .footer-inner {
-          max-width: 1200px;
-          margin: 0 auto;
-        }
-        .footer-top {
-          display: grid;
-          grid-template-columns: 1.5fr 1fr 1fr 1fr;
-          gap: 48px;
-          padding-bottom: 40px;
-          border-bottom: 1px solid rgba(255,255,255,0.08);
-        }
-        .footer-brand .fb-logo {
-          font-family: 'Playfair Display', serif;
-          font-size: 20px;
-          font-weight: 700;
-          color: #fff;
-          margin-bottom: 10px;
-        }
+        .landing-footer { background: var(--navy); color: rgba(255,255,255,0.6); padding: 60px 5% 36px; scroll-snap-align: center; }
+        .footer-inner { max-width: 1200px; margin: 0 auto; }
+        .footer-top { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 40px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .footer-brand .fb-logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 10px; }
         .footer-brand .fb-logo span { color: var(--gold); }
-        .footer-brand p {
-          font-size: 13.5px;
-          line-height: 1.8;
-          color: rgba(255,255,255,0.5);
-          font-weight: 300;
-          max-width: 280px;
-        }
-        .footer-col h5 {
-          font-size: 12px;
-          font-weight: 600;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: rgba(255,255,255,0.85);
-          margin-bottom: 16px;
-        }
-        .footer-col a {
-          display: block;
-          font-size: 13.5px;
-          color: rgba(255,255,255,0.5);
-          text-decoration: none;
-          margin-bottom: 10px;
-          transition: color 0.2s;
-        }
+        .footer-brand p { font-size: 13.5px; line-height: 1.8; color: rgba(255,255,255,0.5); font-weight: 300; max-width: 280px; }
+        .footer-col h5 { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.85); margin-bottom: 16px; }
+        .footer-col a { display: block; font-size: 13.5px; color: rgba(255,255,255,0.5); text-decoration: none; margin-bottom: 10px; transition: color 0.2s; }
         .footer-col a:hover { color: #fff; }
-        .footer-bottom {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding-top: 28px;
-          flex-wrap: wrap;
-          gap: 16px;
-        }
-        .footer-bottom p {
-          font-size: 13px;
-          color: rgba(255,255,255,0.3);
-        }
-        .footer-badges {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-        .f-badge {
-          font-size: 11px;
-          padding: 4px 10px;
-          border-radius: 6px;
-          font-weight: 500;
-          background: rgba(255,255,255,0.06);
-          color: rgba(255,255,255,0.4);
-          border: 1px solid rgba(255,255,255,0.08);
-        }
+        .footer-bottom { display: flex; align-items: center; justify-content: space-between; padding-top: 28px; flex-wrap: wrap; gap: 16px; }
+        .footer-bottom p { font-size: 13px; color: rgba(255,255,255,0.3); }
+        .footer-badges { display: flex; gap: 10px; flex-wrap: wrap; }
+        .f-badge { font-size: 11px; padding: 4px 10px; border-radius: 6px; font-weight: 500; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.08); }
 
         /* Responsive */
         @media (max-width: 900px) {
-          .compare-grid, .approach-grid { grid-template-columns: 1fr; }
-          .hero-floating { display: none; }
+          .compare-grid, .approach-grid, .founder-inner { grid-template-columns: 1fr; }
+          .stats-bar-inner { grid-template-columns: 1fr 1fr; }
           .footer-top { grid-template-columns: 1fr 1fr; }
           .nav-links .nav-mid { display: none; }
+          .founder-avatar-wrap { order: -1; }
+          .founder-avatar { width: 160px; height: 200px; font-size: 60px; }
         }
         @media (max-width: 600px) {
           .hero-content { padding: 110px 5% 60px; }
-          .hero-stats { gap: 24px; }
           .footer-top { grid-template-columns: 1fr; }
           .nav-links { gap: 12px; }
           .section { padding: 64px 5%; }
+          .stats-bar-inner { grid-template-columns: 1fr 1fr; }
+          .privacy-badges { flex-direction: column; align-items: center; }
         }
       `}</style>
 
       {/* Navigation */}
       <nav className={`landing-nav ${scrolled ? 'scrolled' : ''}`}>
         <div className="nav-inner">
-          <Link to="/" className="nav-logo">
-            Diet <span>By RD</span>
-          </Link>
+          <Link to="/" className="nav-logo">Diet <span>By RD</span></Link>
           <div className="nav-links">
             <a href="#rd-section" className="nav-mid">Why RD?</a>
             <a href="#approach" className="nav-mid">How It Works</a>
             <a href="#trust" className="nav-mid">Conditions</a>
-            <button onClick={goToLogin} className="nav-cta">Get Started →</button>
+            {isPatient ? (
+              <div className="profile-menu-wrap">
+                <button
+                  className="profile-avatar"
+                  onClick={() => setIsProfileMenuOpen((p) => !p)}
+                  aria-label="Profile menu"
+                >
+                  <User size={18} />
+                </button>
+                <div className={`profile-dropdown${isProfileMenuOpen ? " open" : ""}`}>
+                  <div className="profile-dropdown-header">
+                    <span>{user?.name || "My Account"}</span>
+                    <small>Patient</small>
+                  </div>
+                  {patientNavItems.map((item) => (
+                    <a key={item.href} href={item.href} onClick={() => setIsProfileMenuOpen(false)}>
+                      <item.icon size={15} />
+                      {item.label}
+                    </a>
+                  ))}
+                  <button className="logout-btn" onClick={() => { logout(); setIsProfileMenuOpen(false); }}>
+                    <LogOut size={15} />
+                    Log out
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={goToLogin} className="nav-cta">Login / Sign Up</button>
+            )}
           </div>
         </div>
       </nav>
@@ -1053,11 +690,12 @@ const Landing = () => {
             India's first platform where every single consultation is exclusively with a <strong>Registered Dietitian</strong> — the only clinically credentialed nutrition professionals in India. Not coaches. Not influencers. The real thing.
           </p>
           <div ref={addToRefs} className="hero-actions reveal reveal-delay-3">
-            <button onClick={goToLogin} className="btn-primary">
+            <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
               Book Your Consultation
               <span className="price">₹999</span>
             </button>
-            <a href="#rd-section" className="btn-ghost">What is an RD? →</a>
+            <button onClick={goToLogin} className="btn-outline">Join as Doctor / Dietitian</button>
+            <a href="#trust" className="btn-ghost">Contact / Support →</a>
           </div>
           <div ref={addToRefs} className="hero-stats reveal reveal-delay-3">
             <div className="hero-stat">
@@ -1070,7 +708,7 @@ const Landing = () => {
             </div>
             <div className="hero-stat">
               <div className="num">₹999</div>
-              <div className="lbl">Per month. Cancel anytime.</div>
+              <div className="lbl">Honest pricing</div>
             </div>
             <div className="hero-stat">
               <div className="num">1:1</div>
@@ -1080,13 +718,34 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* RD vs Nutritionist */}
+      {/* CTA — Page 1 */}
+      <section className="cta-section">
+        <div className="cta-inner">
+          <span ref={addToRefs} className="cta-eyebrow reveal">Your health deserves better</span>
+          <h2 ref={addToRefs} className="cta-headline reveal reveal-delay-1">
+            Your health deserves a<br /><em>Registered Dietitian</em>,<br />not an Instagram influencer.
+          </h2>
+          <p ref={addToRefs} className="cta-body reveal reveal-delay-2">
+            One consultation changes the direction. An RD who understands your food, your condition, and your life — not a generic PDF, not a supplement upsell. <strong>Real clinical nutrition, personalised for you.</strong>
+          </p>
+          <div ref={addToRefs} className="reveal reveal-delay-2">
+            <div className="cta-price-badge">
+              <span className="pb-text">Starting at just</span>
+              <span className="pb-price">₹999</span>
+            </div>
+          </div>
+          <button ref={addToRefs} onClick={() => setIsBookingModalOpen(true)} className="btn-primary reveal reveal-delay-3" style={{ fontSize: '18px', padding: '18px 40px' }}>
+            Book Your Consultation Now →
+          </button>
+          <p ref={addToRefs} className="cta-disclaimer reveal reveal-delay-3">100% Registered Dietitians · IDA Certified · Evidence-Based</p>
+        </div>
+      </section>
+
+      {/* RD vs Nutritionist — Page 2 */}
       <section id="rd-section" className="section rd-section">
         <div className="section-inner">
           <div style={{ textAlign: 'center' }}>
-            <span ref={addToRefs} className="section-eyebrow reveal">
-              The truth no one tells you
-            </span>
+            <span ref={addToRefs} className="section-eyebrow reveal">The truth no one tells you</span>
             <h2 ref={addToRefs} className="section-title reveal reveal-delay-1" style={{ textAlign: 'center', margin: '0 auto 12px' }}>
               Before you trust anyone<br />with your health — <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}>know the difference.</em>
             </h2>
@@ -1105,11 +764,10 @@ const Landing = () => {
                 </div>
               </div>
               <ul className="compare-list">
-                <li><span className="ci ok">✓</span><span>The title "RD" is <strong style={{ color: 'var(--navy)' }}>legally protected in India</strong> — only those who clear the RD exam may use it.</span></li>
-                <li><span className="ci ok">✓</span><span>Holds a B.Sc. in Nutrition/Dietetics plus completed internship and cleared the IDA's RD examination.</span></li>
+                <li><span className="ci ok">✓</span><span>The title "RD" is <strong style={{ color: 'var(--navy)' }}>legally protected in India</strong>. Only qualified healthcare professionals can use it.</span></li>
+                <li><span className="ci ok">✓</span><span>At Diet by RD, all Dietitians hold a <strong style={{ color: 'var(--navy)' }}>B.Sc / M.Sc</strong> in Nutrition and Dietetics, cleared the RD exam, and are well clinically trained to manage your weight, lifestyle, and medical condition.</span></li>
                 <li><span className="ci ok">✓</span><span>Recognised as the <strong style={{ color: 'var(--navy)' }}>gold standard for clinical nutrition</strong> in India.</span></li>
-                <li><span className="ci ok">✓</span><span>Complete, evidence-based knowledge of how the human body functions.</span></li>
-                <li><span className="ci ok">✓</span><span>Trained to manage medical conditions — diabetes, PCOS, thyroid, hypertension.</span></li>
+                <li><span className="ci ok">✓</span><span>Complete, evidence-based knowledge of how the human body functions and interacts with every nutrient you consume.</span></li>
               </ul>
             </div>
             <div className="compare-col nut-col">
@@ -1121,11 +779,10 @@ const Landing = () => {
                 </div>
               </div>
               <ul className="compare-list">
-                <li><span className="ci no">✗</span><span>Can be anyone with an <strong style={{ color: 'var(--navy)' }}>unrelated degree + a 3–6 month certificate course</strong>.</span></li>
-                <li><span className="ci no">✗</span><span>No single standardised qualification required anywhere in India.</span></li>
-                <li><span className="ci no">✗</span><span>Could be a practitioner of <strong style={{ color: 'var(--navy)' }}>bro science, detox myths, fad diets</strong>.</span></li>
-                <li><span className="ci no">✗</span><span>The title "Nutritionist" is <strong style={{ color: 'var(--navy)' }}>highly unregulated globally.</strong></span></li>
-                <li><span className="ci no">✗</span><span>You may be paying for false promises, pseudoscience advice, and fearmongering.</span></li>
+                <li><span className="ci no">✗</span><span>Can be anyone with an <strong style={{ color: 'var(--navy)' }}>unrelated degree + a 3–6 month certificate course</strong> — or even just a short online diploma.</span></li>
+                <li><span className="ci no">✗</span><span>No single standardised qualification required anywhere in India to legally advertise as a "nutritionist" or "health coach."</span></li>
+                <li><span className="ci no">✗</span><span>High chances of practising <strong style={{ color: 'var(--navy)' }}>bro science, detox myths, fad diets</strong> — with a confident social media following. You genuinely cannot know how much credibility exists behind the title.</span></li>
+                <li><span className="ci no">✗</span><span>You may be paying for <strong style={{ color: 'var(--navy)' }}>false promises, fearmongering</strong> and individual experiences, not facts — with your money and your health. This could be dangerous if it went wrong.</span></li>
               </ul>
             </div>
           </div>
@@ -1136,7 +793,7 @@ const Landing = () => {
           </div>
 
           <div style={{ textAlign: 'center' }} ref={addToRefs} className="reveal reveal-delay-3">
-            <button onClick={goToLogin} className="btn-primary">
+            <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
               Book with a Registered Dietitian
               <span className="price">₹999</span>
             </button>
@@ -1144,7 +801,30 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Approach + Testimonial */}
+      {/* Privacy Carousel — between Page 2 & 3 */}
+      <section className="privacy-section">
+        <div className="privacy-inner">
+          <h3 ref={addToRefs} className="privacy-heading reveal">
+            Because we deeply care about you and your privacy
+          </h3>
+          <div ref={addToRefs} className="privacy-badges reveal reveal-delay-1">
+            <div className="privacy-badge">
+              <span className="privacy-badge-icon">🛡️</span>
+              <span>DPDPA Compliant</span>
+            </div>
+            <div className="privacy-badge">
+              <span className="privacy-badge-icon">🇪🇺</span>
+              <span>EU GDPR Aligned</span>
+            </div>
+            <div className="privacy-badge">
+              <span className="privacy-badge-icon">🔒</span>
+              <span>256-bit SSL Secured</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How We Work + Testimonial — Page 3 */}
       <section id="approach" className="section approach-section">
         <div className="section-inner">
           <div className="approach-grid">
@@ -1175,19 +855,12 @@ const Landing = () => {
                   <div className="feature-icon">💰</div>
                   <div className="feature-text">
                     <h4>Affordable without compromise</h4>
-                    <p>Clinical expertise at ₹999/month. The same standard of care hospitals charge ten times more for.</p>
-                  </div>
-                </div>
-                <div ref={addToRefs} className="feature-item reveal reveal-delay-3">
-                  <div className="feature-icon">📅</div>
-                  <div className="feature-text">
-                    <h4>Consistent, not one-and-done</h4>
-                    <p>Monthly consultations with the same RD who knows your history.</p>
+                    <p>Clinical expertise at ₹999. The same standard of care hospitals charge ten times more for.</p>
                   </div>
                 </div>
               </div>
               <div style={{ marginTop: '36px' }} ref={addToRefs} className="reveal reveal-delay-3">
-                <button onClick={goToLogin} className="btn-primary">
+                <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
                   Start your journey
                   <span className="price">₹999</span>
                 </button>
@@ -1212,11 +885,7 @@ const Landing = () => {
               </div>
               <div className="carousel-dots">
                 {testimonials.map((_, i) => (
-                  <button
-                    key={i}
-                    className={`carousel-dot ${i === currentTestimonial ? 'active' : ''}`}
-                    onClick={() => setCurrentTestimonial(i)}
-                  />
+                  <button key={i} className={`carousel-dot ${i === currentTestimonial ? 'active' : ''}`} onClick={() => setCurrentTestimonial(i)} />
                 ))}
               </div>
             </div>
@@ -1224,7 +893,117 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Trust + Conditions */}
+      {/* Stats Bar — between Page 3 & 4 */}
+      <div className="stats-bar">
+        <div className="stats-bar-inner" ref={statsRef}>
+          <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
+            <div className="stat-item-num">RD</div>
+            <div className="stat-item-lbl">Legally protected title in India</div>
+          </div>
+          <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
+            <div className="stat-item-num">100%</div>
+            <div className="stat-item-lbl">Clinically credentialed dietitians</div>
+          </div>
+          <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
+            <div className="stat-item-num"><span className="gold">₹</span>999</div>
+            <div className="stat-item-lbl">Honest pricing</div>
+          </div>
+          <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
+            <div className="stat-item-num">1:1</div>
+            <div className="stat-item-lbl">Personalised consultation</div>
+          </div>
+        </div>
+      </div>
+
+      {/* About Us & Our Vision — Page 4 */}
+      <section className="about-section">
+        <div className="section-inner">
+          <div className="about-inner">
+            <span ref={addToRefs} className="section-eyebrow reveal">Who we are</span>
+            <h2 ref={addToRefs} className="section-title reveal reveal-delay-1">About Us &amp; Our Vision</h2>
+            <blockquote ref={addToRefs} className="about-quote reveal reveal-delay-2">
+              "In a country where anyone with a camera and half-baked knowledge can claim to be a 'health expert,' the truth often gets lost."
+            </blockquote>
+            <div ref={addToRefs} className="about-body reveal reveal-delay-2">
+              <p><span className="bold">Somewhere in India right now, someone is getting it wrong.</span></p>
+              <p>Not because they're careless. Because they care too much — and they trusted the wrong person.</p>
+              <p>They Googled their symptoms at midnight. They found a confident face on Instagram. The person had thousands of followers, a clean aesthetic, and the word "nutritionist" in their bio. They paid. They followed the plan. And weeks later, nothing changed — or worse, something did.</p>
+              <p><span className="highlight">Misinformation spreads faster than science, and people end up paying the price — with their money, their trust, and sometimes even their health.</span></p>
+              <p>This happens every single day. In every city. In every language. To people who are trying their absolute best.</p>
+              <p><span className="bold">Diet By RD was born to change that.</span></p>
+              <p><span className="highlight">We are not here to add noise. We are here to set new industry standards.</span> At Diet By RD, you don't get self-proclaimed "coaches" or certificate-driven influencers. You get licensed professionals — experts who own their craft, stand by evidence, and remain committed to your goals. And we've made it possible at a price that respects the value of your hard-earned money.</p>
+              <p>But we are not just about affordability or credibility. <span className="bold">We are about vision.</span></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* The Story Behind Diet By RD — Page 5 */}
+      <section className="founder-section">
+        <div className="section-inner">
+          <div className="founder-inner">
+            <div ref={addToRefs} className="founder-avatar-wrap reveal">
+              <div className="founder-avatar">👨‍💼</div>
+              <div className="founder-name">Aryan Bhagat</div>
+              <div className="founder-desc">Founder, Diet By RD<br />Darbhanga, Bihar</div>
+            </div>
+            <div>
+              <p ref={addToRefs} className="founder-label reveal">The people behind this</p>
+              <h2 ref={addToRefs} className="founder-title reveal reveal-delay-1">The Story Behind<br />Diet By RD</h2>
+              <div ref={addToRefs} className="founder-body reveal reveal-delay-2">
+                <p>Diet By RD was founded by <span className="bold">Aryan Bhagat</span>, a young mind from Darbhanga, Bihar — in a household where money was counted carefully and trust was given completely.</p>
+                <p>He saw people around him losing their health on detox programmes, and their hard-earned money on advice that was confidently delivered and clinically worthless.</p>
+                <p>It felt wrong. Deeply, personally wrong. That the people with the least room for error were the most exposed to it.</p>
+                <p><span className="bold">Diet By RD was built for you.</span></p>
+                <p>Not by a corporation. Not by investors looking for a return. By someone who grew up watching the problem happen in real time, who studied hard enough to understand it, and who decided that the most useful thing he could do with that knowledge and skin in the game was to make it available to the people who needed it most.</p>
+              </div>
+              <div ref={addToRefs} className="founder-cta reveal reveal-delay-3">
+                <p className="cta-p">Diet By RD.</p>
+                <p className="cta-p" style={{ fontStyle: 'normal', fontSize: '1rem', color: 'rgba(255,255,255,0.75)', fontFamily: 'DM Sans, sans-serif' }}>Gold standard clinical nutrition. Honest price. Real credentials.</p>
+                <small>Your first consultation is one decision away.</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Setting the New Industry Standards — Page 6 */}
+      <section className="standards-section">
+        <div className="section-inner">
+          <div className="standards-inner">
+            <span ref={addToRefs} className="section-eyebrow reveal">At Diet By RD</span>
+            <h2 ref={addToRefs} className="section-title reveal reveal-delay-1">Setting the New<br />Industry Standards</h2>
+            <p ref={addToRefs} className="section-sub reveal reveal-delay-2">
+              We don't just hire Registered Dietitians. We train them to be exceptional.
+            </p>
+            <div ref={addToRefs} className="standards-list reveal reveal-delay-2">
+              <div className="standard-card">
+                <div className="standard-icon">🧠</div>
+                <div className="standard-content">
+                  <h4>Critical Thinking Training</h4>
+                  <p>Each Registered Dietitian goes through a critical thinking training. This is to ensure you don't face a professional with a credible title and an unscientific mind.</p>
+                </div>
+              </div>
+              <div className="standard-card">
+                <div className="standard-icon">📚</div>
+                <div className="standard-content">
+                  <h4>Always Up to Date</h4>
+                  <p>Each Registered Dietitian is updated with the latest literature, research, and findings in their subject. No dietitians with outdated or stale knowledge.</p>
+                </div>
+              </div>
+              <div className="standard-card">
+                <div className="standard-icon">🌏</div>
+                <div className="standard-content">
+                  <h4>Trained for India's Diverse Food Culture</h4>
+                  <p>Each dietitian knows how to build a diet for idli-dosa for South Indians, a poha breakfast for a busy Mumbaikar, dal bhat chokha for people of Bihar, sweet lassi at every cheering moment for Punjabians. With our expertise, you get a tailored diet that loves you, and you love back.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Referred by Leading Clinicians + Conditions — Page 7 */}
       <section id="trust" className="section trust-section">
         <div className="section-inner trust-inner">
           <div ref={addToRefs} className="doctor-trust-banner reveal">
@@ -1241,7 +1020,7 @@ const Landing = () => {
               </div>
               <div className="trust-proof">
                 <div className="tp-num">₹999</div>
-                <div className="tp-lbl">Per month subscription</div>
+                <div className="tp-lbl">Honest pricing</div>
               </div>
             </div>
           </div>
@@ -1250,7 +1029,6 @@ const Landing = () => {
           <p ref={addToRefs} className="trust-sub reveal reveal-delay-2">
             Your RD is trained to manage these conditions clinically — not with generic advice, but with a personalised plan designed around your specific case.
           </p>
-
           <div ref={addToRefs} className="conditions-grid reveal reveal-delay-2">
             {conditions.map((c, i) => (
               <div key={i} className="condition-pill">
@@ -1259,29 +1037,6 @@ const Landing = () => {
               </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="cta-section">
-        <div className="cta-inner">
-          <span ref={addToRefs} className="cta-eyebrow reveal">Your health deserves better</span>
-          <h2 ref={addToRefs} className="cta-headline reveal reveal-delay-1">
-            Your health deserves a<br /><em>Registered Dietitian</em>,<br />not an Instagram influencer.
-          </h2>
-          <p ref={addToRefs} className="cta-body reveal reveal-delay-2">
-            One consultation changes the direction. An RD who understands your food, your condition, and your life — not a generic PDF, not a supplement upsell. <strong>Real clinical nutrition, personalised for you.</strong>
-          </p>
-          <div ref={addToRefs} className="reveal reveal-delay-2">
-            <div className="cta-price-badge">
-              <span className="pb-text">Monthly subscription</span>
-              <span className="pb-price">₹999 / month</span>
-            </div>
-          </div>
-          <button ref={addToRefs} onClick={goToLogin} className="btn-primary reveal reveal-delay-3" style={{ fontSize: '18px', padding: '18px 40px' }}>
-            Book Your Consultation Now →
-          </button>
-          <p ref={addToRefs} className="cta-disclaimer reveal reveal-delay-3">Cancel anytime · No lock-in · 100% Registered Dietitians</p>
         </div>
       </section>
 
@@ -1295,21 +1050,21 @@ const Landing = () => {
             </div>
             <div className="footer-col">
               <h5>Platform</h5>
-              <a href="#" onClick={(e) => { e.preventDefault(); goToLogin(); }}>Book Consultation</a>
+              <a href="#" onClick={(e) => { e.preventDefault(); setIsBookingModalOpen(true); }}>Book Consultation</a>
               <a href="#approach">How It Works</a>
               <a href="#trust">Conditions</a>
             </div>
             <div className="footer-col">
               <h5>Company</h5>
               <a href="#rd-section">Why RD?</a>
-              <a href="#">For Doctors</a>
-              <a href="#">Careers</a>
+              <a href="/login">For Doctors</a>
+              <a href="/login">Join as Dietitian</a>
             </div>
             <div className="footer-col">
               <h5>Legal</h5>
               <a href="#">Privacy Policy</a>
               <a href="#">Terms of Service</a>
-              <a href="#">Contact</a>
+              <a href="/patient/support">Contact / Support</a>
             </div>
           </div>
           <div className="footer-bottom">
@@ -1323,6 +1078,8 @@ const Landing = () => {
           </div>
         </div>
       </footer>
+
+      <PublicBookingModal open={isBookingModalOpen} onOpenChange={setIsBookingModalOpen} />
     </div>
   );
 };

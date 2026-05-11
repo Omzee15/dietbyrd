@@ -53,9 +53,9 @@ const PatientSupport = () => {
 
   // Fetch patient data
   const { data: patient } = useQuery({
-    queryKey: ["patient", user?.id],
-    queryFn: () => (user?.id ? getPatient(user.id) : Promise.reject()),
-    enabled: !!user?.id,
+    queryKey: ["patient", user?.profileId],
+    queryFn: () => (user?.profileId ? getPatient(user.profileId) : Promise.reject()),
+    enabled: !!user?.profileId,
   });
 
   // Fetch patient's tickets
@@ -233,48 +233,26 @@ const PatientSupport = () => {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Category</label>
-                      <Select
-                        value={ticketForm.category}
-                        onValueChange={(value) =>
-                          setTicketForm({ ...ticketForm, category: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="general">General</SelectItem>
-                          <SelectItem value="technical">Technical Issue</SelectItem>
-                          <SelectItem value="billing">Billing</SelectItem>
-                          <SelectItem value="appointment">Appointment</SelectItem>
-                          <SelectItem value="diet_plan">Diet Plan</SelectItem>
-                          <SelectItem value="complaint">Complaint</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Priority</label>
-                      <Select
-                        value={ticketForm.priority}
-                        onValueChange={(value) =>
-                          setTicketForm({ ...ticketForm, priority: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Low</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="urgent">Urgent</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Category</label>
+                    <Select
+                      value={ticketForm.category}
+                      onValueChange={(value) =>
+                        setTicketForm({ ...ticketForm, category: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="general">General</SelectItem>
+                        <SelectItem value="technical">Technical Issue</SelectItem>
+                        <SelectItem value="billing">Billing</SelectItem>
+                        <SelectItem value="appointment">Appointment</SelectItem>
+                        <SelectItem value="diet_plan">Diet Plan</SelectItem>
+                        <SelectItem value="complaint">Complaint</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="flex justify-end gap-3 pt-4">

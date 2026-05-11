@@ -8,11 +8,60 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, CheckCircle2, Heart, Stethoscope, UtensilsCrossed } from "lucide-react";
 
+const QUALIFICATION_OPTIONS = [
+  "MBBS",
+  "MD",
+  "MS",
+  "BDS",
+  "BAMS",
+  "BHMS",
+  "BUMS",
+  "BSc Nutrition",
+  "MSc Nutrition",
+  "BSc Dietetics",
+  "MSc Dietetics",
+  "PG Diploma in Dietetics",
+  "PG Diploma in Clinical Nutrition",
+  "PhD Nutrition",
+  "RD (Registered Dietitian)",
+  "Others",
+];
+
+const DOCTOR_SPECIALIZATIONS = [
+  "General Medicine",
+  "Endocrinology",
+  "Cardiology",
+  "Nephrology",
+  "Gastroenterology",
+  "Diabetology",
+  "Internal Medicine",
+  "Pulmonology",
+  "Neurology",
+  "Oncology",
+  "Others",
+];
+
+const RD_SPECIALIZATIONS = [
+  "Clinical Nutrition",
+  "Sports Nutrition",
+  "Pediatric Nutrition",
+  "Renal Nutrition",
+  "Oncology Nutrition",
+  "Bariatric Nutrition",
+  "Diabetes Nutrition",
+  "Gut Health & IBS",
+  "Weight Management",
+  "Women's Health & PCOS",
+  "Others",
+];
+
 const JoinForm = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  
+  const [qualificationOther, setQualificationOther] = useState("");
+  const [specializationOther, setSpecializationOther] = useState("");
+
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -64,6 +113,11 @@ const JoinForm = () => {
         ? [formData.specialization] 
         : [];
 
+      const finalQualification = formData.qualification === "Others" ? qualificationOther : formData.qualification;
+      const finalSpecializations = specializations.map((s) =>
+        s === "Others" ? specializationOther : s
+      );
+
       const res = await fetch("/api/join-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -72,10 +126,10 @@ const JoinForm = () => {
           password: tempPassword,
           name: formData.name,
           role: formData.role,
-          qualification: formData.qualification,
+          qualification: finalQualification,
           clinic_name: formData.clinic_name || null,
           clinic_address: formData.clinic_address || null,
-          specializations: specializations.length > 0 ? specializations : null,
+          specializations: finalSpecializations.length > 0 ? finalSpecializations : null,
         }),
       });
 
@@ -217,13 +271,25 @@ const JoinForm = () => {
                 <label className="text-sm font-medium">
                   Qualification <span className="text-red-500">*</span>
                 </label>
-                <Input
-                  type="text"
-                  placeholder="MBBS, MD, RD, MSc Nutrition, etc."
-                  value={formData.qualification}
-                  onChange={(e) => handleChange("qualification", e.target.value)}
-                  required
-                />
+                <Select value={formData.qualification} onValueChange={(v) => handleChange("qualification", v)} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select your qualification" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {QUALIFICATION_OPTIONS.map((q) => (
+                      <SelectItem key={q} value={q}>{q}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {formData.qualification === "Others" && (
+                  <Input
+                    type="text"
+                    placeholder="Please specify your qualification"
+                    value={qualificationOther}
+                    onChange={(e) => setQualificationOther(e.target.value)}
+                    required
+                  />
+                )}
               </div>
 
               {formData.role === "doctor" && (
@@ -233,13 +299,25 @@ const JoinForm = () => {
                       <label className="text-sm font-medium">
                         Specialization <span className="text-red-500">*</span>
                       </label>
-                      <Input
-                        type="text"
-                        placeholder="Endocrinology, Cardiology, etc."
-                        value={formData.specialization}
-                        onChange={(e) => handleChange("specialization", e.target.value)}
-                        required
-                      />
+                      <Select value={formData.specialization} onValueChange={(v) => handleChange("specialization", v)} required>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select specialization" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DOCTOR_SPECIALIZATIONS.map((s) => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {formData.specialization === "Others" && (
+                        <Input
+                          type="text"
+                          placeholder="Please specify your specialization"
+                          value={specializationOther}
+                          onChange={(e) => setSpecializationOther(e.target.value)}
+                          required
+                        />
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -273,12 +351,24 @@ const JoinForm = () => {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Specialization</label>
-                    <Input
-                      type="text"
-                      placeholder="Clinical Nutrition, Sports Nutrition, etc."
-                      value={formData.specialization}
-                      onChange={(e) => handleChange("specialization", e.target.value)}
-                    />
+                    <Select value={formData.specialization} onValueChange={(v) => handleChange("specialization", v)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select specialization" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RD_SPECIALIZATIONS.map((s) => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {formData.specialization === "Others" && (
+                      <Input
+                        type="text"
+                        placeholder="Please specify your specialization"
+                        value={specializationOther}
+                        onChange={(e) => setSpecializationOther(e.target.value)}
+                      />
+                    )}
                   </div>
 
                   <div className="space-y-2">

@@ -74,6 +74,30 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
+// ─── Height Input Helpers ───────────────────────────────────────────────────────
+const heightAllowedKeys = new Set([
+  "Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Home", "End",
+]);
+
+const filterHeightKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  if (heightAllowedKeys.has(e.key)) return;
+  if (/^[0-9'".]$/.test(e.key)) return;
+  e.preventDefault();
+};
+
+const parseHeightToCm = (raw: string): string => {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  if (trimmed.includes("'")) {
+    const parts = trimmed.replace(/"/g, "").split("'");
+    const feet = parseFloat(parts[0]) || 0;
+    const inches = parseFloat(parts[1] ?? "0") || 0;
+    const cm = (feet * 12 + inches) * 2.54;
+    return cm > 0 ? cm.toFixed(1) : "";
+  }
+  return trimmed;
+};
+
 // ─── BMI/TDEE Calculation Helpers ──────────────────────────────────────────────
 const calculateBMI = (weight: number, heightCm: number): number | null => {
   if (!weight || !heightCm || heightCm <= 0) return null;
@@ -139,6 +163,18 @@ const PatientDashboard = () => {
   const [bodyWeight, setBodyWeight] = useState<string>("");
   const [bodyAllergies, setBodyAllergies] = useState<string>("");
   const [bodyWorkoutFrequency, setBodyWorkoutFrequency] = useState<string>("");
+
+  // Profile completion state
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileAge, setProfileAge] = useState("");
+  const [profileGender, setProfileGender] = useState("");
+  const [profileDiagnosis, setProfileDiagnosis] = useState("");
+  const [profileHeight, setProfileHeight] = useState("");
+  const [profileWeight, setProfileWeight] = useState("");
+  const [profileAllergies, setProfileAllergies] = useState("");
+  const [profileWorkout, setProfileWorkout] = useState("");
+  const [profileDietary, setProfileDietary] = useState("");
 
   // Appointment booking state
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -392,6 +428,36 @@ const PatientDashboard = () => {
     });
   };
 
+  const openProfileCompletion = () => {
+    setProfileName(patient?.name || "");
+    setProfileAge(patient?.age?.toString() || "");
+    setProfileGender(patient?.gender || "");
+    setProfileDiagnosis(patient?.diagnosis || "");
+    setProfileHeight(patient?.height?.toString() || "");
+    setProfileWeight(patient?.weight?.toString() || "");
+    setProfileAllergies(
+      Array.isArray(patient?.allergies) ? patient.allergies.join(", ") : (patient?.allergies || "")
+    );
+    setProfileWorkout(patient?.workout_frequency?.toString() || "");
+    setProfileDietary(patient?.dietary_preference || "");
+    setIsProfileModalOpen(true);
+  };
+
+  const handleSaveProfile = () => {
+    updatePatientMutation.mutate({
+      name: profileName.trim() || undefined,
+      age: profileAge ? parseInt(profileAge) : undefined,
+      gender: profileGender as any || undefined,
+      diagnosis: profileDiagnosis || undefined,
+      height: profileHeight ? parseFloat(profileHeight) : undefined,
+      weight: profileWeight ? parseFloat(profileWeight) : undefined,
+      allergies: profileAllergies || undefined,
+      workout_frequency: profileWorkout ? parseInt(profileWorkout) : undefined,
+      dietary_preference: profileDietary || undefined,
+    });
+    setIsProfileModalOpen(false);
+  };
+
   // Helper to get workout frequency label
   const getWorkoutLabel = (freq: number | null | undefined): string => {
     if (freq === null || freq === undefined) return "—";
@@ -466,6 +532,9 @@ const PatientDashboard = () => {
     { id: 4, label: "Consultation", completed: hasCompletedConsultation, icon: UtensilsCrossed },
   ];
   const showProgressBar = !hasCompletedConsultation;
+
+  // Profile completion check — show banner if key health fields are missing
+  const isProfileIncomplete = patient && (!patient.age || !patient.gender || !patient.height || !patient.weight);
 
   // Get the active diet plan
   const activeDietPlan = dietPlans?.find((plan) => plan.is_active);
@@ -806,6 +875,34 @@ const PatientDashboard = () => {
               </CardContent>
             </Card>
 
+            {/* Profile Completion Banner */}
+            {isProfileIncomplete && (
+              <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+                <CardContent className="pt-5 pb-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center shrink-0">
+                        <User className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-amber-800 dark:text-amber-200">Complete your health profile</p>
+                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-0.5">
+                          Help your dietitian give you the best advice by sharing your age, weight, height, and other details.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white"
+                      onClick={openProfileCompletion}
+                    >
+                      Complete Now
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Progress Bar - Only shown until first consultation is completed */}
             {showProgressBar && (
               <Card>
@@ -1084,13 +1181,15 @@ const PatientDashboard = () => {
                     <div className="space-y-2">
                       <label className="text-sm font-medium flex items-center gap-2">
                         <Ruler className="w-4 h-4 text-muted-foreground" />
-                        Height (cm)
+                        Height (cm or 5'10")
                       </label>
                       <Input
-                        type="number"
-                        placeholder="e.g. 170"
+                        type="text"
+                        placeholder={`e.g. 170 or 5'10"`}
                         value={bodyHeight}
                         onChange={(e) => setBodyHeight(e.target.value)}
+                        onKeyDown={filterHeightKey}
+                        onBlur={(e) => setBodyHeight(parseHeightToCm(e.target.value))}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1610,6 +1709,108 @@ const PatientDashboard = () => {
           </div>
         )}
       </main>
+
+      {/* Profile Completion Modal */}
+      <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="w-5 h-5" />
+              Complete Your Health Profile
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              This helps your dietitian create a truly personalised plan for you.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium">Full Name</label>
+                <Input value={profileName} onChange={e => setProfileName(e.target.value)} placeholder="Your name" className="mt-1" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium">Age</label>
+                  <Input type="number" value={profileAge} onChange={e => setProfileAge(e.target.value)} placeholder="Years" min="1" max="120" className="mt-1" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Gender</label>
+                  <select
+                    value={profileGender}
+                    onChange={e => setProfileGender(e.target.value)}
+                    className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Primary Health Concern</label>
+                <select
+                  value={profileDiagnosis}
+                  onChange={e => setProfileDiagnosis(e.target.value)}
+                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <option value="">Select if applicable</option>
+                  <option value="diabetes">Diabetes</option>
+                  <option value="pcos">PCOS</option>
+                  <option value="thyroid">Thyroid</option>
+                  <option value="hypertension">Hypertension</option>
+                  <option value="obesity">Obesity</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-sm font-medium">Height (cm or 5'10")</label>
+                  <Input
+                    type="text"
+                    value={profileHeight}
+                    onChange={e => setProfileHeight(e.target.value)}
+                    onKeyDown={filterHeightKey}
+                    onBlur={e => setProfileHeight(parseHeightToCm(e.target.value))}
+                    placeholder={`170 or 5'10"`}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Weight (kg)</label>
+                  <Input type="number" value={profileWeight} onChange={e => setProfileWeight(e.target.value)} placeholder="70" className="mt-1" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Workouts/week</label>
+                  <Input type="number" value={profileWorkout} onChange={e => setProfileWorkout(e.target.value)} placeholder="0–7" min="0" max="7" className="mt-1" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Allergies (optional)</label>
+                <Input value={profileAllergies} onChange={e => setProfileAllergies(e.target.value)} placeholder="e.g., Nuts, Dairy (comma-separated)" className="mt-1" />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Dietary Preference (optional)</label>
+                <Input value={profileDietary} onChange={e => setProfileDietary(e.target.value)} placeholder="e.g., Vegetarian, Vegan" className="mt-1" />
+              </div>
+            </div>
+
+            <Button className="w-full" onClick={handleSaveProfile} disabled={updatePatientMutation.isPending}>
+              {updatePatientMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
+              ) : (
+                <><Save className="w-4 h-4 mr-2" /> Save Profile</>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Appointment Booking Modal */}
       <Dialog open={isBookingModalOpen} onOpenChange={setIsBookingModalOpen}>

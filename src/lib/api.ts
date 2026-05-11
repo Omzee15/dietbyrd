@@ -407,7 +407,7 @@ export const getAvailableSlots = (dieticianId: number, startDate: string, endDat
 
 export const bookAppointment = (data: {
   patient_id: number;
-  rd_id: number;
+  rd_id?: number | null;
   scheduled_at: string;
   consultation_type?: string;
   patient_notes?: string;
@@ -416,6 +416,30 @@ export const bookAppointment = (data: {
     method: "POST",
     body: JSON.stringify(data),
   });
+
+export interface UnassignedAppointment {
+  id: number;
+  scheduled_at: string;
+  consultation_type: string;
+  status: string;
+  created_at: string;
+  patient_id: number;
+  patient_name: string;
+  patient_phone: string;
+  patient_diagnosis: string | null;
+}
+
+export const getUnassignedAppointments = () =>
+  request<UnassignedAppointment[]>("/appointments/unassigned");
+
+export interface AutoAssignResult {
+  assigned: number;
+  total_pending: number;
+  details: { consultation_id: number; scheduled_at: string; assigned: boolean; rd_name?: string; reason?: string }[];
+}
+
+export const triggerAutoAssign = () =>
+  request<AutoAssignResult>("/appointments/trigger-auto-assign", { method: "POST" });
 
 export const getPatientAppointments = (patientId: number, options?: { status?: string; upcoming_only?: boolean }) => {
   const params = new URLSearchParams();

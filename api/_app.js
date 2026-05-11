@@ -663,16 +663,20 @@ const storeOtp = async (phone, otp, purpose = 'login', pendingData = null) => {
 };
 
 const verifyOtpFromDb = async (phone, otp, purpose = 'login') => {
+  if (IS_DEV) {
+    return { valid: true, pendingData: null };
+  }
+
   await ensureOtpTable();
   const result = await query(`
-    SELECT * FROM dietbyrd_otps 
+    SELECT * FROM dietbyrd_otps
     WHERE phone = $1 AND purpose = $2 AND expires_at > NOW()
   `, [phone, purpose]);
-  
+
   if (result.rows.length === 0) {
     return { valid: false, error: "OTP expired or not requested" };
   }
-  
+
   const stored = result.rows[0];
   if (stored.otp !== otp) {
     return { valid: false, error: "Invalid OTP" };
@@ -1342,15 +1346,17 @@ app.post("/api/auth/verify-otp-only", async (req, res) => {
       return res.status(400).json({ success: false, error: "Phone and OTP are required" });
     }
 
-    try {
-      const verificationCheck = await verifyOtpViaTwilio(phone, otp);
+    if (!IS_DEV) {
+      try {
+        const verificationCheck = await verifyOtpViaTwilio(phone, otp);
 
-      if (verificationCheck.status !== "approved") {
-        return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+        if (verificationCheck.status !== "approved") {
+          return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+        }
+      } catch (twilioErr) {
+        console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
+        return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
       }
-    } catch (twilioErr) {
-      console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
-      return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
     }
 
     const userResult = await query(
@@ -1421,15 +1427,17 @@ app.post("/api/auth/set-password-after-otp", async (req, res) => {
       return res.status(400).json({ success: false, error: "Password must be at least 6 characters" });
     }
 
-    try {
-      const verificationCheck = await verifyOtpViaTwilio(phone, otp);
+    if (!IS_DEV) {
+      try {
+        const verificationCheck = await verifyOtpViaTwilio(phone, otp);
 
-      if (verificationCheck.status !== "approved") {
-        return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+        if (verificationCheck.status !== "approved") {
+          return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+        }
+      } catch (twilioErr) {
+        console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
+        return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
       }
-    } catch (twilioErr) {
-      console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
-      return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
     }
 
     const userResult = await query(
@@ -2055,6 +2063,32 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
   }
 });
 
+app.delete("/api/patients/:id(\\d+)", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const patient = await query(
+      "SELECT user_id FROM dietbyrd_patients WHERE id = $1",
+      [id]
+    );
+    if (patient.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Patient not found" });
+    }
+    const userId = patient.rows[0].user_id;
+    // Cancel any scheduled consultations
+    await query(
+      "UPDATE dietbyrd_consultations SET status = 'cancelled' WHERE patient_id = $1 AND status = 'scheduled'",
+      [id]
+    );
+    await query("DELETE FROM dietbyrd_patients WHERE id = $1", [id]);
+    if (userId) {
+      await query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
+    }
+    res.json({ success: true, message: "Patient deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get patient message history
 app.get("/api/patients/:id(\\d+)/messages", async (req, res) => {
   try {
@@ -2256,6 +2290,27 @@ app.post("/api/doctors", async (req, res) => {
   }
 });
 
+app.delete("/api/doctors/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doctor = await query(
+      "SELECT user_id FROM dietbyrd_doctors WHERE id = $1",
+      [id]
+    );
+    if (doctor.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Doctor not found" });
+    }
+    const userId = doctor.rows[0].user_id;
+    await query("DELETE FROM dietbyrd_doctors WHERE id = $1", [id]);
+    if (userId) {
+      await query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
+    }
+    res.json({ success: true, message: "Doctor deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ─── Dieticians ───────────────────────────────────────────────────────────────
 app.get("/api/dieticians", async (req, res) => {
   try {
@@ -2289,6 +2344,32 @@ app.get("/api/dieticians/:id", async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: "Dietician not found" });
     res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete("/api/dieticians/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dietician = await query(
+      "SELECT user_id FROM dietbyrd_registered_dietitians WHERE id = $1",
+      [id]
+    );
+    if (dietician.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Dietician not found" });
+    }
+    const userId = dietician.rows[0].user_id;
+    // Unassign from pending consultations before deleting
+    await query(
+      "UPDATE dietbyrd_consultations SET rd_id = NULL WHERE rd_id = $1 AND status = 'scheduled'",
+      [id]
+    );
+    await query("DELETE FROM dietbyrd_registered_dietitians WHERE id = $1", [id]);
+    if (userId) {
+      await query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
+    }
+    res.json({ success: true, message: "Dietician deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -3757,95 +3838,98 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
 app.post("/api/appointments/book", async (req, res) => {
   try {
     const { patient_id, rd_id, scheduled_at, consultation_type, patient_notes } = req.body;
-    
-    if (!patient_id || !rd_id || !scheduled_at) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "patient_id, rd_id, and scheduled_at are required" 
+    // rd_id is optional — when null the appointment is pending dietitian assignment
+    const rdId = rd_id || null;
+
+    if (!patient_id || !scheduled_at) {
+      return res.status(400).json({
+        success: false,
+        error: "patient_id and scheduled_at are required"
       });
     }
-    
+
     // Check if patient has consultations left
     const patientResult = await query(
       `SELECT consultations_left FROM dietbyrd_patients WHERE id = $1`,
       [patient_id]
     );
-    
+
     if (patientResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Patient not found" });
     }
-    
+
     const consultationsLeft = patientResult.rows[0].consultations_left || 0;
     if (consultationsLeft <= 0) {
-      return res.status(402).json({ 
-        success: false, 
-        error: "No consultations left. Please purchase a consultation package to book an appointment." 
+      return res.status(402).json({
+        success: false,
+        error: "No consultations left. Please purchase a consultation package to book an appointment."
       });
     }
-    
+
     // Get or create registered_patient record
     let regPatientResult = await query(
       "SELECT id FROM dietbyrd_registered_patients WHERE patient_id = $1",
       [patient_id]
     );
-    
+
     let registeredPatientId;
     if (regPatientResult.rows.length === 0) {
       const newRegPatient = await query(
         `INSERT INTO dietbyrd_registered_patients (patient_id, assigned_rd_id)
          VALUES ($1, $2) RETURNING id`,
-        [patient_id, rd_id]
+        [patient_id, rdId]
       );
       registeredPatientId = newRegPatient.rows[0].id;
     } else {
       registeredPatientId = regPatientResult.rows[0].id;
     }
-    
-    // Check if slot is still available
-    const existingResult = await query(
-      `SELECT id FROM dietbyrd_consultations 
-       WHERE rd_id = $1 
-       AND scheduled_at = $2::timestamp 
-       AND status NOT IN ('cancelled', 'no_show')`,
-      [rd_id, scheduled_at]
-    );
-    
-    if (existingResult.rows.length > 0) {
-      return res.status(409).json({ 
-        success: false, 
-        error: "This time slot is no longer available" 
-      });
+
+    // Only check slot availability when a specific dietitian is requested
+    if (rdId) {
+      const existingResult = await query(
+        `SELECT id FROM dietbyrd_consultations
+         WHERE rd_id = $1
+         AND scheduled_at = $2::timestamp
+         AND status NOT IN ('cancelled', 'no_show')`,
+        [rdId, scheduled_at]
+      );
+      if (existingResult.rows.length > 0) {
+        return res.status(409).json({
+          success: false,
+          error: "This time slot is no longer available"
+        });
+      }
     }
-    
+
     // Determine consultation type (first or returning)
     const previousConsultations = await query(
-      `SELECT COUNT(*) as count FROM dietbyrd_consultations 
+      `SELECT COUNT(*) as count FROM dietbyrd_consultations
        WHERE registered_patient_id = $1 AND status = 'completed'`,
       [registeredPatientId]
     );
     const type = consultation_type || (previousConsultations.rows[0].count > 0 ? 'returning' : 'first');
-    
-    // Create the consultation
+
+    // Create the consultation (rd_id may be NULL — pending auto-assignment)
     const result = await query(
-      `INSERT INTO dietbyrd_consultations 
+      `INSERT INTO dietbyrd_consultations
        (registered_patient_id, rd_id, scheduled_at, consultation_type, status, booked_by_patient, patient_notes)
        VALUES ($1, $2, $3::timestamp, $4, 'scheduled', true, $5)
        RETURNING *`,
-      [registeredPatientId, rd_id, scheduled_at, type, patient_notes || null]
+      [registeredPatientId, rdId, scheduled_at, type, patient_notes || null]
     );
-    
+
     // Deduct one consultation from patient's balance
     await query(
-      `UPDATE dietbyrd_patients 
+      `UPDATE dietbyrd_patients
        SET consultations_left = GREATEST(0, COALESCE(consultations_left, 0) - 1),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
       [patient_id]
     );
-    
+
     // Get full consultation details with names
     const fullResult = await query(
-      `SELECT 
+      `SELECT
         c.*,
         p.name AS patient_name,
         p.phone AS patient_phone,
@@ -3857,7 +3941,7 @@ app.post("/api/appointments/book", async (req, res) => {
        WHERE c.id = $1`,
       [result.rows[0].id]
     );
-    
+
     res.status(201).json({ success: true, data: fullResult.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -4652,6 +4736,150 @@ app.post("/api/support/tickets/:id/comments", async (req, res) => {
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error("[support/tickets/:id/comments] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Unassigned appointments (pending dietitian allocation) ──────────────────────
+app.get("/api/appointments/unassigned", async (_req, res) => {
+  try {
+    const result = await query(
+      `SELECT
+        c.id,
+        c.scheduled_at,
+        c.consultation_type,
+        c.status,
+        c.created_at,
+        p.id AS patient_id,
+        p.name AS patient_name,
+        p.phone AS patient_phone,
+        p.diagnosis AS patient_diagnosis
+       FROM dietbyrd_consultations c
+       LEFT JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
+       LEFT JOIN dietbyrd_patients p ON rp.patient_id = p.id
+       WHERE c.rd_id IS NULL
+         AND c.status = 'scheduled'
+       ORDER BY c.scheduled_at ASC`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Core auto-assign logic (shared by scheduler and HTTP endpoint) ────────────
+async function runAutoAssign() {
+  const pending = await query(
+    `SELECT
+      c.id AS consultation_id,
+      c.scheduled_at,
+      c.registered_patient_id
+     FROM dietbyrd_consultations c
+     WHERE c.rd_id IS NULL
+       AND c.status = 'scheduled'
+       AND c.scheduled_at > NOW()
+       AND c.scheduled_at <= NOW() + INTERVAL '48 hours'
+     ORDER BY c.scheduled_at ASC`
+  );
+
+  if (pending.rows.length === 0) {
+    return { assigned: 0, total_pending: 0, details: [] };
+  }
+
+  let assignedCount = 0;
+  const details = [];
+
+  for (const consultation of pending.rows) {
+    const { consultation_id, scheduled_at } = consultation;
+
+    const bestRd = await query(
+      `SELECT
+        rd.id,
+        rd.name,
+        (
+          SELECT COUNT(*)
+          FROM dietbyrd_consultations c2
+          WHERE c2.rd_id = rd.id
+            AND c2.scheduled_at >= date_trunc('week', $1::timestamp)
+            AND c2.scheduled_at < date_trunc('week', $1::timestamp) + INTERVAL '7 days'
+            AND c2.status NOT IN ('cancelled', 'no_show')
+        ) AS week_bookings
+       FROM dietbyrd_registered_dietitians rd
+       WHERE rd.is_active = true
+         AND NOT EXISTS (
+           SELECT 1 FROM dietbyrd_consultations cx
+           WHERE cx.rd_id = rd.id
+             AND cx.scheduled_at = $1::timestamp
+             AND cx.status NOT IN ('cancelled', 'no_show')
+         )
+         AND EXISTS (
+           SELECT 1 FROM dietbyrd_dietician_availability da
+           WHERE da.rd_id = rd.id
+             AND da.is_active = true
+             AND da.day_of_week = EXTRACT(DOW FROM $1::timestamp)::int
+             AND $1::time >= da.start_time
+             AND $1::time < da.end_time
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM dietbyrd_dietician_blocked_slots bs
+           WHERE bs.rd_id = rd.id
+             AND bs.blocked_date = $1::date
+             AND (
+               bs.start_time IS NULL
+               OR ($1::time >= bs.start_time AND $1::time < bs.end_time)
+             )
+         )
+       ORDER BY week_bookings ASC
+       LIMIT 1`,
+      [scheduled_at]
+    );
+
+    if (bestRd.rows.length === 0) {
+      details.push({ consultation_id, scheduled_at, assigned: false, reason: "No available dietitian found" });
+      continue;
+    }
+
+    const rd = bestRd.rows[0];
+
+    await query(
+      `UPDATE dietbyrd_consultations
+       SET rd_id = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [rd.id, consultation_id]
+    );
+
+    assignedCount++;
+    details.push({ consultation_id, scheduled_at, assigned: true, rd_id: rd.id, rd_name: rd.name });
+  }
+
+  return { assigned: assignedCount, total_pending: pending.rows.length, details };
+}
+
+// Run once on startup, then every hour
+runAutoAssign()
+  .then(({ assigned, total_pending }) => {
+    if (total_pending > 0) {
+      console.log(`[auto-assign] startup run: assigned ${assigned}/${total_pending}`);
+    }
+  })
+  .catch((err) => console.error("[auto-assign] startup error:", err.message));
+
+setInterval(() => {
+  runAutoAssign()
+    .then(({ assigned, total_pending }) => {
+      if (total_pending > 0) {
+        console.log(`[auto-assign] hourly run: assigned ${assigned}/${total_pending}`);
+      }
+    })
+    .catch((err) => console.error("[auto-assign] hourly error:", err.message));
+}, 60 * 60 * 1000);
+
+// ─── Manual trigger endpoint (for the dashboard "Auto-Assign Now" button) ──────
+app.post("/api/appointments/trigger-auto-assign", async (_req, res) => {
+  try {
+    const result = await runAutoAssign();
+    res.json({ success: true, ...result });
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });

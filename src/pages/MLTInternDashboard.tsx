@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { Users, Stethoscope, UtensilsCrossed, LogOut, Search, Apple, UserPlus, Plus, UserX } from "lucide-react";
+import { Users, Stethoscope, UtensilsCrossed, LogOut, Search, Apple, UserPlus, Plus, UserX, AlertTriangle, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { assignDietician, getPatients, getDoctors, getDieticians, getReferrals, getUnregisteredReferrals, getJoinRequests, Patient, Doctor, Dietician, Referral, UnregisteredReferral, JoinRequest } from "@/lib/api";
+import { assignDietician, getPatients, getDoctors, getDieticians, getReferrals, getUnregisteredReferrals, getJoinRequests, getUnassignedAppointments, triggerAutoAssign, Patient, Doctor, Dietician, Referral, UnregisteredReferral, JoinRequest } from "@/lib/api";
 import { foodService } from "@/lib/food-service";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Food } from "@/lib/diet-types";
@@ -123,6 +123,23 @@ const MLTInternDashboard = () => {
   const { data: unregisteredReferrals = [], isLoading: unregisteredReferralsLoading } = useQuery({
     queryKey: ["unregistered-referrals"],
     queryFn: getUnregisteredReferrals,
+  });
+
+  const { data: unassignedAppointments = [], refetch: refetchUnassigned } = useQuery({
+    queryKey: ["unassigned-appointments"],
+    queryFn: getUnassignedAppointments,
+    refetchInterval: 60_000,
+  });
+
+  const autoAssignMutation = useMutation({
+    mutationFn: triggerAutoAssign,
+    onSuccess: (data) => {
+      refetchUnassigned();
+      toast.success(`Auto-assigned ${data.assigned} of ${data.total_pending} appointments`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Auto-assign failed");
+    },
   });
 
   const assignDieticianMutation = useMutation({
@@ -302,6 +319,39 @@ const MLTInternDashboard = () => {
             <h1 className="text-3xl font-bold text-gray-900">MLT Intern Dashboard</h1>
             <p className="text-gray-500 mt-1">Manage patient-to-dietician assignments and view system data</p>
           </div>
+
+          {/* Dietitian allotment required banner */}
+          {unassignedAppointments.length > 0 && (
+            <div className="flex items-center justify-between gap-4 px-5 py-4 bg-amber-50 border border-amber-300 rounded-xl">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                <div>
+                  <p className="font-semibold text-amber-900">
+                    Dietitian allotment required — {unassignedAppointments.length} appointment{unassignedAppointments.length > 1 ? "s" : ""}
+                  </p>
+                  <p className="text-sm text-amber-700 mt-0.5">
+                    {unassignedAppointments.slice(0, 3).map((a) => {
+                      const dt = new Date(a.scheduled_at);
+                      return `${a.patient_name} (${dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })})`;
+                    }).join(" · ")}
+                    {unassignedAppointments.length > 3 && ` +${unassignedAppointments.length - 3} more`}
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700 text-white shrink-0"
+                onClick={() => autoAssignMutation.mutate()}
+                disabled={autoAssignMutation.isPending}
+              >
+                {autoAssignMutation.isPending ? (
+                  <><RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> Assigning…</>
+                ) : (
+                  <><RefreshCw className="w-4 h-4 mr-1.5" /> Auto-Assign Now</>
+                )}
+              </Button>
+            </div>
+          )}
 
           {/* Search */}
           <div className="flex flex-wrap items-center gap-3">

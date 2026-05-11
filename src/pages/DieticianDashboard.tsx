@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { jsPDF } from "jspdf";
-import { CalendarDays, Minus, Plus, Search, Settings, Trash2, Users, UtensilsCrossed, Loader2, LogOut, ChevronDown, X, Download, Apple, SquarePen } from "lucide-react";
+import { AlertTriangle, CalendarDays, Minus, Plus, RefreshCw, Search, Settings, Trash2, Users, UtensilsCrossed, Loader2, LogOut, ChevronDown, X, Download, Apple, SquarePen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import AppSidebar from "@/components/AppSidebar";
-import { getDietician, getDieticianPatients, getConsultations, getReferrals, type Patient, type Dietician, type Consultation, type Referral } from "@/lib/api";
+import { getDietician, getDieticianPatients, getConsultations, getReferrals, getUnassignedAppointments, triggerAutoAssign, type Patient, type Dietician, type Consultation, type Referral } from "@/lib/api";
 import { foodService } from "@/lib/food-service";
 import type { Food as FoodLibraryItem } from "@/lib/diet-types";
 import { getRDA } from "@/lib/diet-utils";
@@ -208,6 +208,23 @@ const DieticianDashboard = () => {
   const { data: foodLibrary = [], refetch: refetchFoodLibrary } = useQuery({
     queryKey: ["food-library"],
     queryFn: foodService.getAll,
+  });
+
+  const { data: unassignedAppointments = [], refetch: refetchUnassigned } = useQuery({
+    queryKey: ["unassigned-appointments"],
+    queryFn: getUnassignedAppointments,
+    refetchInterval: 60_000,
+  });
+
+  const autoAssignMutation = useMutation({
+    mutationFn: triggerAutoAssign,
+    onSuccess: (data) => {
+      refetchUnassigned();
+      toast.success(`Auto-assigned ${data.assigned} of ${data.total_pending} appointments`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Auto-assign failed");
+    },
   });
 
   // Transform API data for UI
@@ -889,6 +906,39 @@ const DieticianDashboard = () => {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <span className="ml-2 text-muted-foreground">Loading data...</span>
+          </div>
+        )}
+
+        {/* Dietitian allotment required banner */}
+        {!isLoading && unassignedAppointments.length > 0 && (
+          <div className="mx-6 mt-4 flex items-center justify-between gap-4 px-5 py-4 bg-amber-50 border border-amber-300 rounded-xl">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+              <div>
+                <p className="font-semibold text-amber-900">
+                  Dietitian allotment required — {unassignedAppointments.length} appointment{unassignedAppointments.length > 1 ? "s" : ""}
+                </p>
+                <p className="text-sm text-amber-700 mt-0.5">
+                  {unassignedAppointments.slice(0, 3).map((a) => {
+                    const dt = new Date(a.scheduled_at);
+                    return `${a.patient_name} (${dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })})`;
+                  }).join(" · ")}
+                  {unassignedAppointments.length > 3 && ` +${unassignedAppointments.length - 3} more`}
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              className="bg-amber-600 hover:bg-amber-700 text-white shrink-0"
+              onClick={() => autoAssignMutation.mutate()}
+              disabled={autoAssignMutation.isPending}
+            >
+              {autoAssignMutation.isPending ? (
+                <><RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> Assigning…</>
+              ) : (
+                <><RefreshCw className="w-4 h-4 mr-1.5" /> Auto-Assign Now</>
+              )}
+            </Button>
           </div>
         )}
 
