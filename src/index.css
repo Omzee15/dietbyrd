@@ -6,7 +6,10 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
+    /* Diet By RD — Landing page colour palette */
+    /* --navy: #0A1628  --teal: #0B6E4F  --teal-m: #0F8A63  --gold: #C9952A */
+
+    --background: 38 60% 98%;        /* near-white cream */
     --foreground: 222 20% 10%;
 
     --card: 0 0% 100%;
@@ -15,52 +18,53 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 20% 10%;
 
-    /* FitArc Sky Blue Primary */
-    --primary: 199 89% 48%;
+    /* Diet By RD Teal Primary (#0B6E4F) */
+    --primary: 160 82% 24%;
     --primary-foreground: 0 0% 100%;
 
-    /* FitArc Teal Secondary */
-    --secondary: 172 66% 50%;
+    /* Diet By RD Teal-Mid Secondary (#0F8A63) */
+    --secondary: 161 80% 30%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 40% 96%;
+    --muted: 160 20% 95%;
     --muted-foreground: 215 16% 47%;
 
-    --accent: 199 89% 48%;
+    /* Diet By RD Gold Accent (#C9952A) */
+    --accent: 40 65% 48%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 199 89% 48%;
+    --border: 160 20% 88%;
+    --input: 160 20% 88%;
+    --ring: 160 82% 24%;
 
     --radius: 0.75rem;
 
-    /* Sidebar - FitArc Dark Theme */
-    --sidebar-bg: 222 47% 11%;
+    /* Sidebar - Diet By RD Navy (#0A1628) */
+    --sidebar-bg: 216 60% 10%;
     --sidebar-fg: 210 40% 80%;
-    --sidebar-active: 199 89% 48%;
+    --sidebar-active: 160 82% 24%;
     --sidebar-active-fg: 0 0% 100%;
     --sidebar-hover: 217 33% 17%;
     --sidebar-section: 215 16% 47%;
 
-    --warning: 38 92% 50%;
+    --warning: 40 65% 48%;
     --warning-foreground: 0 0% 100%;
-    --success: 172 66% 50%;
+    --success: 160 82% 24%;
     --success-foreground: 0 0% 100%;
-    --info: 199 89% 48%;
+    --info: 160 82% 24%;
     --info-foreground: 0 0% 100%;
 
-    --sidebar-background: 222 47% 11%;
+    --sidebar-background: 216 60% 10%;
     --sidebar-foreground: 210 40% 80%;
-    --sidebar-primary: 199 89% 48%;
+    --sidebar-primary: 160 82% 24%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 217 33% 17%;
     --sidebar-accent-foreground: 210 40% 80%;
     --sidebar-border: 217 33% 20%;
-    --sidebar-ring: 199 89% 48%;
+    --sidebar-ring: 160 82% 24%;
   }
 }
 
