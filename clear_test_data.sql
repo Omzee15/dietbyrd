@@ -34,7 +34,6 @@ TRUNCATE TABLE dietbyrd_coupon_usage CASCADE;
 TRUNCATE TABLE dietbyrd_coupon_codes CASCADE;
 
 -- Food and diet data
-TRUNCATE TABLE dietbyrd_food_library CASCADE;
 TRUNCATE TABLE dietbyrd_food_database CASCADE;
 TRUNCATE TABLE dietbyrd_diet_plans CASCADE;
 

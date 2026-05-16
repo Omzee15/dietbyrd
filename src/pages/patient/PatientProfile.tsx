@@ -21,9 +21,11 @@ import {
   User,
   UtensilsCrossed,
   X,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +54,15 @@ const PatientProfile = () => {
     weight: "",
   });
 
+  // Edit state for personal info
+  const [isEditingPersonal, setIsEditingPersonal] = useState(false);
+  const [personalDetails, setPersonalDetails] = useState({
+    name: "",
+    email: "",
+    age: 0,
+    gender: "",
+  });
+
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", user?.profileId],
     queryFn: () => getPatient(user!.profileId!),
@@ -64,7 +75,7 @@ const PatientProfile = () => {
     enabled: !!user?.profileId,
   });
 
-  // Update patient mutation
+  // Update patient mutation — body details
   const updatePatientMutation = useMutation({
     mutationFn: (data: { age?: number; height?: string; weight?: string }) =>
       updatePatient(user!.profileId!, data),
@@ -75,6 +86,20 @@ const PatientProfile = () => {
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to update body details");
+    },
+  });
+
+  // Update patient mutation — personal info
+  const updatePersonalMutation = useMutation({
+    mutationFn: (data: { name?: string; email?: string | null; age?: number; gender?: string }) =>
+      updatePatient(user!.profileId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
+      toast.success("Personal information updated successfully!");
+      setIsEditingPersonal(false);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update personal information");
     },
   });
 
@@ -92,6 +117,29 @@ const PatientProfile = () => {
       age: bodyDetails.age || undefined,
       height: bodyDetails.height || undefined,
       weight: bodyDetails.weight || undefined,
+    });
+  };
+
+  const handleEditPersonal = () => {
+    setPersonalDetails({
+      name: patient?.name || "",
+      email: patient?.email || "",
+      age: patient?.age || 0,
+      gender: patient?.gender || "",
+    });
+    setIsEditingPersonal(true);
+  };
+
+  const handleSavePersonal = () => {
+    if (!personalDetails.name.trim()) {
+      toast.error("Name cannot be empty");
+      return;
+    }
+    updatePersonalMutation.mutate({
+      name: personalDetails.name.trim() || undefined,
+      email: personalDetails.email.trim() || null,
+      age: personalDetails.age || undefined,
+      gender: personalDetails.gender || undefined,
     });
   };
 
@@ -115,6 +163,7 @@ const PatientProfile = () => {
         { label: "My Profile", href: "/patient/profile", icon: Heart },
         { label: "Diet Plans", href: "/patient/diet-plans", icon: UtensilsCrossed },
         { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
+        { label: "Support", href: "/patient/support", icon: MessageSquare },
       ],
     },
     {
@@ -216,13 +265,46 @@ const PatientProfile = () => {
             {/* Personal Information */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <User className="w-5 h-5" />
-                  Personal Information
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <User className="w-5 h-5" />
+                    Personal Information
+                  </CardTitle>
+                  {!isEditingPersonal ? (
+                    <Button variant="ghost" size="sm" onClick={handleEditPersonal}>
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsEditingPersonal(false)}
+                        disabled={updatePersonalMutation.isPending}
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSavePersonal}
+                        disabled={updatePersonalMutation.isPending}
+                      >
+                        {updatePersonalMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4 mr-2" />
+                        )}
+                        Save
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Phone - always read-only */}
                   <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
                     <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
                       <Phone className="w-5 h-5 text-primary" />
@@ -233,43 +315,117 @@ const PatientProfile = () => {
                     </div>
                   </div>
 
+                  {/* Name */}
                   <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
-                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
-                      <Calendar className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Age</p>
-                      <p className="font-semibold">{patient.age ? `${patient.age} years` : "Not provided"}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
-                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center shrink-0">
                       <User className="w-5 h-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Gender</p>
-                      <p className="font-semibold capitalize">{patient.gender || "Not specified"}</p>
-                    </div>
+                    {isEditingPersonal ? (
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Name</p>
+                        <Input
+                          type="text"
+                          value={personalDetails.name}
+                          onChange={(e) => setPersonalDetails({ ...personalDetails, name: e.target.value.replace(/[^a-zA-Z\s.\-']/g, "") })}
+                          placeholder="Your name"
+                          className="h-8"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Name</p>
+                        <p className="font-semibold">{patient.name || "Not provided"}</p>
+                      </div>
+                    )}
                   </div>
 
+                  {/* Age */}
                   <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
-                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center shrink-0">
+                      <Calendar className="w-5 h-5 text-primary" />
+                    </div>
+                    {isEditingPersonal ? (
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Age (years)</p>
+                        <Input
+                          type="number"
+                          value={personalDetails.age || ""}
+                          onChange={(e) => setPersonalDetails({ ...personalDetails, age: parseInt(e.target.value) || 0 })}
+                          onKeyDown={(e) => ['e', 'E', '+', '-', '.'].includes(e.key) && e.preventDefault()}
+                          placeholder="Your age"
+                          className="h-8"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Age</p>
+                        <p className="font-semibold">{patient.age ? `${patient.age} years` : "Not provided"}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Gender */}
+                  <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
+                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center shrink-0">
+                      <User className="w-5 h-5 text-primary" />
+                    </div>
+                    {isEditingPersonal ? (
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Gender</p>
+                        <Select
+                          value={personalDetails.gender}
+                          onValueChange={(value) => setPersonalDetails({ ...personalDetails, gender: value })}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue placeholder="Select gender" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="male">Male</SelectItem>
+                            <SelectItem value="female">Female</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Gender</p>
+                        <p className="font-semibold capitalize">{patient.gender || "Not specified"}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Email */}
+                  <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
+                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center shrink-0">
                       <Mail className="w-5 h-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Email</p>
-                      <p className="font-semibold">{patient.email || "Not provided"}</p>
-                    </div>
+                    {isEditingPersonal ? (
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Email</p>
+                        <Input
+                          type="email"
+                          value={personalDetails.email}
+                          onChange={(e) => setPersonalDetails({ ...personalDetails, email: e.target.value })}
+                          placeholder="your@email.com"
+                          className="h-8"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Email</p>
+                        <p className="font-semibold">{patient.email || "Not provided"}</p>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl md:col-span-2">
+                  {/* Address - read-only (no DB column) */}
+                  <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
                     <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
                       <MapPin className="w-5 h-5 text-primary" />
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground uppercase tracking-wider">Address</p>
-                      <p className="font-semibold">{patient.address || "Not provided"}</p>
+                      <p className="font-semibold">{(patient as any).address || "Not provided"}</p>
                     </div>
                   </div>
                 </div>
@@ -330,6 +486,7 @@ const PatientProfile = () => {
                           type="number"
                           value={bodyDetails.age || ""}
                           onChange={(e) => setBodyDetails({...bodyDetails, age: parseInt(e.target.value) || 0})}
+                          onKeyDown={(e) => ['e','E','+','-','.'].includes(e.key) && e.preventDefault()}
                           placeholder="Enter age"
                           className="h-8"
                         />
@@ -353,7 +510,7 @@ const PatientProfile = () => {
                         <Input
                           type="text"
                           value={bodyDetails.height}
-                          onChange={(e) => setBodyDetails({...bodyDetails, height: e.target.value})}
+                          onChange={(e) => setBodyDetails({...bodyDetails, height: e.target.value.replace(/[^0-9.'"\s]/g, "")})}
                           placeholder="e.g., 170"
                           className="h-8"
                         />
@@ -377,7 +534,7 @@ const PatientProfile = () => {
                         <Input
                           type="text"
                           value={bodyDetails.weight}
-                          onChange={(e) => setBodyDetails({...bodyDetails, weight: e.target.value})}
+                          onChange={(e) => setBodyDetails({...bodyDetails, weight: e.target.value.replace(/[^0-9.]/g, "")})}
                           placeholder="e.g., 70"
                           className="h-8"
                         />

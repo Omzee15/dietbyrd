@@ -17,7 +17,8 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (phone: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (phone: string, password: string) => Promise<{ success: boolean; error?: string; pending?: boolean; admin_message?: string | null }>;
+  loginWithData: (authUser: AuthUser) => void;
   signup: (phone: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>;
   sendOtp: (phone: string) => Promise<{ success: boolean; error?: string; expiresIn?: number }>;
   verifyOtp: (phone: string, otp: string) => Promise<{ success: boolean; error?: string; data?: AuthUser }>;
@@ -48,24 +49,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const login = async (phone: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (phone: string, password: string): Promise<{ success: boolean; error?: string; pending?: boolean; admin_message?: string | null }> => {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, password }),
       });
-      
+
       const data = await res.json();
-      
+
       if (!res.ok || !data.success) {
+        if (res.status === 403 && data.data?.pending) {
+          return { success: false, error: data.error, pending: true, admin_message: data.data.admin_message ?? null };
+        }
         return { success: false, error: data.error || "Login failed" };
       }
-      
+
       const authUser: AuthUser = data.data;
       setUser(authUser);
       localStorage.setItem("dietbyrd_user", JSON.stringify(authUser));
-      
+
       return { success: true };
     } catch (err) {
       return { success: false, error: "Network error. Please try again." };
@@ -235,13 +239,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithData = (authUser: AuthUser) => {
+    setUser(authUser);
+    localStorage.setItem("dietbyrd_user", JSON.stringify(authUser));
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem("dietbyrd_user");
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, sendOtp, verifyOtp, verifyOtpOnly, setPasswordAfterOtp, sendSignupOtp, verifySignupOtp, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, isLoading, login, loginWithData, signup, sendOtp, verifyOtp, verifyOtpOnly, setPasswordAfterOtp, sendSignupOtp, verifySignupOtp, logout, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );

@@ -16,9 +16,14 @@ interface StaffMember {
   phone: string;
   name: string | null;
   role: string;
+  password: string | null;
   is_active: boolean;
   created_at: string;
   last_login_at: string | null;
+}
+
+interface PasswordVisibility {
+  [id: number]: boolean;
 }
 
 interface CreateAccountResponse {
@@ -38,7 +43,9 @@ const MLTInternsPage = () => {
   const [name, setName] = useState("");
   const [createdAccount, setCreatedAccount] = useState<CreateAccountResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedPassword, setCopiedPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [listPasswordVisible, setListPasswordVisible] = useState<PasswordVisibility>({});
 
   const handleLogout = () => {
     logout();
@@ -99,13 +106,23 @@ const MLTInternsPage = () => {
 
   const handleCopyCredentials = () => {
     if (!createdAccount) return;
-    
     const credentials = `Phone: ${createdAccount.phone}\nPassword: ${createdAccount.password}`;
     navigator.clipboard.writeText(credentials);
     setCopied(true);
     toast.success("Credentials copied to clipboard!");
-    
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyPasswordOnly = () => {
+    if (!createdAccount) return;
+    navigator.clipboard.writeText(createdAccount.password);
+    setCopiedPassword(true);
+    toast.success("Password copied to clipboard!");
+    setTimeout(() => setCopiedPassword(false), 2000);
+  };
+
+  const toggleListPassword = (id: number) => {
+    setListPasswordVisible(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   const handleCloseSuccess = () => {
@@ -171,6 +188,20 @@ const MLTInternsPage = () => {
                         <div>
                           <p className="font-medium">{intern.name || "Not Set"}</p>
                           <p className="text-sm text-gray-500">{intern.phone}</p>
+                          {intern.password && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <p className="text-xs text-gray-400 font-mono">
+                                Password: {listPasswordVisible[intern.id] ? intern.password : "••••••••"}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => toggleListPassword(intern.id)}
+                                className="text-gray-400 hover:text-gray-600"
+                              >
+                                {listPasswordVisible[intern.id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                              </button>
+                            </div>
+                          )}
                           {intern.last_login_at && (
                             <p className="text-xs text-gray-400 mt-1">
                               Last login: {new Date(intern.last_login_at).toLocaleString()}
@@ -271,24 +302,23 @@ const MLTInternsPage = () => {
                   </div>
                 </div>
 
-                <Button onClick={handleCopyCredentials} className="w-full" variant="outline">
-                  {copied ? (
-                    <>
-                      <Check className="w-4 h-4 mr-2" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4 mr-2" />
-                      Copy Credentials
-                    </>
-                  )}
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={handleCopyCredentials} className="flex-1" variant="outline">
+                    {copied ? (
+                      <><Check className="w-4 h-4 mr-2" />Copied!</>
+                    ) : (
+                      <><Copy className="w-4 h-4 mr-2" />Copy All</>
+                    )}
+                  </Button>
+                  <Button onClick={handleCopyPasswordOnly} className="flex-1" variant="outline">
+                    {copiedPassword ? (
+                      <><Check className="w-4 h-4 mr-2" />Copied!</>
+                    ) : (
+                      <><Copy className="w-4 h-4 mr-2" />Copy Password</>
+                    )}
+                  </Button>
+                </div>
               </div>
-
-              <p className="text-xs text-amber-600 bg-amber-50 p-3 rounded border border-amber-200">
-                ⚠️ Make sure to save these credentials. The password cannot be retrieved later.
-              </p>
 
               <div className="flex justify-end">
                 <Button onClick={handleCloseSuccess}>

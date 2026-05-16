@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { jsPDF } from "jspdf";
-import { AlertTriangle, CalendarDays, Minus, Plus, RefreshCw, Search, Settings, Trash2, Users, UtensilsCrossed, Loader2, LogOut, ChevronDown, X, Download, Apple, SquarePen } from "lucide-react";
+import { AlertTriangle, CalendarDays, Minus, Plus, RefreshCw, Search, Settings, Trash2, Users, UtensilsCrossed, Loader2, LogOut, ChevronDown, X, Download, Apple, SquarePen, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import AppSidebar from "@/components/AppSidebar";
-import { getDietician, getDieticianPatients, getConsultations, getReferrals, getUnassignedAppointments, triggerAutoAssign, type Patient, type Dietician, type Consultation, type Referral } from "@/lib/api";
+import { getDietician, getDieticianPatients, getConsultations, getReferrals, getUnassignedAppointments, triggerAutoAssign, type Patient, type Dietician, type Consultation, type Referral, type AutoAssignResult } from "@/lib/api";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { foodService } from "@/lib/food-service";
 import type { Food as FoodLibraryItem } from "@/lib/diet-types";
 import { getRDA } from "@/lib/diet-utils";
@@ -220,7 +221,7 @@ const DieticianDashboard = () => {
     mutationFn: triggerAutoAssign,
     onSuccess: (data) => {
       refetchUnassigned();
-      toast.success(`Auto-assigned ${data.assigned} of ${data.total_pending} appointments`);
+      setAutoAssignResult(data);
     },
     onError: (error: Error) => {
       toast.error(error.message || "Auto-assign failed");
@@ -630,6 +631,7 @@ const DieticianDashboard = () => {
   const [pdfNote, setPdfNote] = useState("");
   const [isFoodAddDialogOpen, setIsFoodAddDialogOpen] = useState(false);
   const [searchedFoods, setSearchedFoods] = useState<FoodLibraryItem[]>([]);
+  const [autoAssignResult, setAutoAssignResult] = useState<AutoAssignResult | null>(null);
 
   const dailyTarget = { calories: 1800, protein: 90, carbs: 200, fat: 60 };
 
@@ -1451,6 +1453,46 @@ const DieticianDashboard = () => {
             await refetchFoodLibrary();
           }}
         />
+
+        {/* Auto-assign result dialog */}
+        <Dialog open={!!autoAssignResult} onOpenChange={(open) => !open && setAutoAssignResult(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Auto-Assign Results</DialogTitle>
+              <DialogDescription>
+                {autoAssignResult && autoAssignResult.total_pending === 0
+                  ? "No unassigned appointments due within 48 hours."
+                  : autoAssignResult
+                  ? `Assigned ${autoAssignResult.assigned} of ${autoAssignResult.total_pending} pending appointment${autoAssignResult.total_pending !== 1 ? "s" : ""}`
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+            {autoAssignResult && autoAssignResult.details.length > 0 && (
+              <div className="max-h-72 overflow-y-auto space-y-2">
+                {autoAssignResult.details.map((d) => {
+                  const dt = new Date(d.scheduled_at);
+                  const timeStr = dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) + " at " + dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+                  return (
+                    <div key={d.consultation_id} className={`flex items-start gap-2 p-2 rounded-md text-sm ${d.assigned ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"}`}>
+                      {d.assigned
+                        ? <Check className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
+                        : <X className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />}
+                      <div>
+                        <p className="font-medium leading-tight">{d.patient_name || `Consultation #${d.consultation_id}`}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {timeStr} {d.assigned ? `→ ${d.rd_name}` : `— ${d.reason}`}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <DialogFooter>
+              <Button onClick={() => setAutoAssignResult(null)}>Done</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

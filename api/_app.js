@@ -3,6 +3,9 @@ import cors from "cors";
 import pg from "pg";
 import twilio from "twilio";
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
+
+const BCRYPT_ROUNDS = 10;
 
 const { Pool } = pg;
 
@@ -140,6 +143,31 @@ const sendWelcomeWhatsApp = async (phone, name, patientId = null) => {
       status: 'failed',
       metadata: { error: err.message }
     });
+  }
+};
+
+// Send approval notification to a newly approved doctor/RD (best-effort, never throws)
+const sendJoinApprovalNotification = async (phone, name, role) => {
+  const roleLabel = role === "doctor" ? "Doctor" : "Dietician (RD)";
+  const messageBody = `Hi ${name}! 🎉\n\nYour application to join DietByRD as a ${roleLabel} has been approved!\n\nYou can now log in using your registered phone number and the password you set during sign-up.\n\nWelcome to the team!\n\n- Team DietByRD`;
+
+  try {
+    if (!twilioClient) {
+      console.log(`[JoinApproval] Twilio not configured — skipping notification for ${phone}`);
+      return;
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '').replace(/^91/, '');
+    const toWhatsApp = `whatsapp:+91${cleanPhone}`;
+
+    await twilioClient.messages.create({
+      from: TWILIO_WHATSAPP_FROM,
+      to: toWhatsApp,
+      body: messageBody,
+    });
+    console.log(`[JoinApproval] WhatsApp notification sent to ${toWhatsApp}`);
+  } catch (err) {
+    console.log(`[JoinApproval] Notification failed for ${phone}: ${err.message}`);
   }
 };
 
@@ -734,14 +762,38 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(401).json({ success: false, error: "Account is deactivated" });
     }
 
-    // For demo purposes, accept "helloworld" as password for accounts without password set
-    // In production, use bcrypt.compare()
-    const isValidPassword = user.password 
-      ? user.password === password 
-      : password === "helloworld";
+    // Compare password — supports both bcrypt hashes and legacy plain-text
+    // (plain-text passwords are re-hashed on successful login for seamless migration)
+    let isValidPassword = false;
+    if (!user.password) {
+      isValidPassword = password === "helloworld";
+    } else if (user.password.startsWith("$2b$") || user.password.startsWith("$2a$")) {
+      isValidPassword = await bcrypt.compare(password, user.password);
+    } else {
+      // Legacy plain-text — compare and re-hash immediately
+      isValidPassword = user.password === password;
+      if (isValidPassword) {
+        const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
+        await query("UPDATE dietbyrd_users SET password = $1 WHERE id = $2", [hashed, user.id]);
+      }
+    }
 
     if (!isValidPassword) {
       return res.status(401).json({ success: false, error: "Invalid phone number or password" });
+    }
+
+    // Check if user is verified (doctors/RDs pending approval)
+    if (!user.is_verified) {
+      const jrResult = await query(
+        "SELECT admin_message FROM dietbyrd_join_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1",
+        [user.id]
+      );
+      const adminMessage = jrResult.rows[0]?.admin_message || null;
+      return res.status(403).json({
+        success: false,
+        error: "Your account is pending approval",
+        data: { pending: true, admin_message: adminMessage },
+      });
     }
 
     // Get profile ID based on role (for role-specific data)
@@ -830,11 +882,12 @@ app.post("/api/auth/signup", async (req, res) => {
     }
 
     // Create user as patient
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const userResult = await query(
       `INSERT INTO dietbyrd_users (phone, password, role, name, is_active)
        VALUES ($1, $2, 'patient', $3, true)
        RETURNING id, phone, role, name`,
-      [phone, password, name || null]
+      [phone, hashedPassword, name || null]
     );
     const user = userResult.rows[0];
 
@@ -932,13 +985,40 @@ app.post("/api/auth/check-phone", async (req, res) => {
 });
 
 // ─── OTP Authentication ───────────────────────────────────────────────────────
+
+// In-memory OTP rate limiter: max 3 sends per phone per 10 minutes
+const OTP_RATE_LIMIT = 3;
+const OTP_WINDOW_MS = 10 * 60 * 1000;
+const otpRateLimitMap = new Map(); // phone -> [timestamp, ...]
+
+function checkOtpRateLimit(phone) {
+  const now = Date.now();
+  const windowStart = now - OTP_WINDOW_MS;
+  const timestamps = (otpRateLimitMap.get(phone) || []).filter(t => t > windowStart);
+  if (timestamps.length >= OTP_RATE_LIMIT) {
+    const retryAfterSec = Math.ceil((timestamps[0] + OTP_WINDOW_MS - now) / 1000);
+    return { allowed: false, retryAfterSec };
+  }
+  timestamps.push(now);
+  otpRateLimitMap.set(phone, timestamps);
+  return { allowed: true };
+}
+
 // Send OTP via Twilio Verify (for login)
 app.post("/api/auth/send-otp", async (req, res) => {
   try {
     const { phone, channel = "sms" } = req.body; // channel: "sms" or "whatsapp"
-    
+
     if (!phone) {
       return res.status(400).json({ success: false, error: "Phone number is required" });
+    }
+
+    const rateCheck = checkOtpRateLimit(phone);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: `Too many OTP requests. Please wait ${rateCheck.retryAfterSec} seconds before trying again.`,
+      });
     }
 
     // Check if user exists
@@ -999,7 +1079,7 @@ app.post("/api/auth/send-otp", async (req, res) => {
         success: true, 
         message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
         to: toNumber,
-        expiresIn: 600 // Twilio Verify OTPs expire in 10 minutes
+        expiresIn: 300 // OTPs expire in 5 minutes
       });
     } catch (twilioErr) {
       console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
@@ -1014,9 +1094,17 @@ app.post("/api/auth/send-otp", async (req, res) => {
 app.post("/api/auth/send-otp-registration", async (req, res) => {
   try {
     const { phone, channel = "sms" } = req.body;
-    
+
     if (!phone) {
       return res.status(400).json({ success: false, error: "Phone number is required" });
+    }
+
+    const rateCheck = checkOtpRateLimit(phone);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: `Too many OTP requests. Please wait ${rateCheck.retryAfterSec} seconds before trying again.`,
+      });
     }
 
     // Check if user already exists
@@ -1046,7 +1134,7 @@ app.post("/api/auth/send-otp-registration", async (req, res) => {
         success: true, 
         message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
         to: toNumber,
-        expiresIn: 600
+        expiresIn: 300
       });
     } catch (twilioErr) {
       console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
@@ -1132,16 +1220,16 @@ app.post("/api/auth/verify-otp", async (req, res) => {
       
       const patientProfile = patientResult.rows[0];
       
-      // Check if essential fields are missing
-      if (!patientProfile.name || !patientProfile.age || !patientProfile.gender) {
-        return res.json({ 
-          success: true, 
-          data: { 
-            isNewPatient: true, 
+      // Only prompt welcome form if patient has no name at all (truly first time)
+      if (!patientProfile.name) {
+        return res.json({
+          success: true,
+          data: {
+            isNewPatient: true,
             phone: phone,
             requiresWelcomeForm: true,
             userId: user.id
-          } 
+          }
         });
       }
     }
@@ -1455,9 +1543,10 @@ app.post("/api/auth/set-password-after-otp", async (req, res) => {
       return res.status(401).json({ success: false, error: "Account is deactivated" });
     }
 
+    const hashedPw = await bcrypt.hash(password, BCRYPT_ROUNDS);
     await query(
       "UPDATE dietbyrd_users SET password = $1, last_login_at = CURRENT_TIMESTAMP WHERE id = $2",
-      [password, user.id]
+      [hashedPw, user.id]
     );
 
     let profileId = null;
@@ -1502,13 +1591,21 @@ app.post("/api/auth/set-password-after-otp", async (req, res) => {
 app.post("/api/auth/signup/send-otp", async (req, res) => {
   try {
     const { phone, password, name, channel = "sms" } = req.body;
-    
+
     if (!phone || !password) {
       return res.status(400).json({ success: false, error: "Phone and password are required" });
     }
-    
+
     if (password.length < 6) {
       return res.status(400).json({ success: false, error: "Password must be at least 6 characters" });
+    }
+
+    const rateCheck = checkOtpRateLimit(phone);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: `Too many OTP requests. Please wait ${rateCheck.retryAfterSec} seconds before trying again.`,
+      });
     }
 
     // Check if user already exists
@@ -1528,8 +1625,9 @@ app.post("/api/auth/signup/send-otp", async (req, res) => {
       const result = await sendOtpViaTwilio(phone, channel);
       const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
       
-      // Store pending signup data (needed for verification step)
-      const pendingData = { phone, password, name };
+      // Hash password before storing in pending data
+      const hashedSignupPw = await bcrypt.hash(password, BCRYPT_ROUNDS);
+      const pendingData = { phone, password: hashedSignupPw, name };
       // In dev mode, store the actual OTP; in production, Twilio handles it
       await storeOtp(phone, devOtp || "", 'signup', pendingData);
       
@@ -1538,7 +1636,7 @@ app.post("/api/auth/signup/send-otp", async (req, res) => {
         success: true, 
         message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
         to: toNumber,
-        expiresIn: 600
+        expiresIn: 300
       });
     } catch (twilioErr) {
       console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
@@ -1608,7 +1706,7 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
       return res.status(409).json({ success: false, error: "Phone number already registered" });
     }
 
-    // Create user as patient
+    // Create user as patient (password in pendingData is already bcrypt-hashed)
     const userResult = await query(
       `INSERT INTO dietbyrd_users (phone, password, role, name, is_active)
        VALUES ($1, $2, 'patient', $3, true)
@@ -1649,8 +1747,8 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
 // Create a join request
 app.post("/api/join-requests", async (req, res) => {
   try {
-    const { phone, password, name, role, qualification, clinic_name, clinic_address, specializations } = req.body;
-    
+    const { phone, password, name, email, role, qualification, clinic_name, clinic_address, specializations } = req.body;
+
     if (!phone || !password || !name || !role) {
       return res.status(400).json({ 
         success: false, 
@@ -1703,22 +1801,25 @@ app.post("/api/join-requests", async (req, res) => {
       return res.status(409).json({ success: false, error: "A pending request already exists for this phone number" });
     }
 
+    // Hash password before storing
+    const hashedJoinPw = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
     // Create user immediately with is_verified = false
     const userResult = await query(
-      `INSERT INTO dietbyrd_users (phone, password, role, name, is_active, is_verified)
-       VALUES ($1, $2, $3, $4, true, false)
+      `INSERT INTO dietbyrd_users (phone, password, role, name, email, is_active, is_verified)
+       VALUES ($1, $2, $3, $4, $5, true, false)
        RETURNING id`,
-      [phone, password, role, name]
+      [phone, hashedJoinPw, role, name, email || null]
     );
     const userId = userResult.rows[0].id;
 
-    // Create join request and link to user
+    // Create join request and link to user (store hashed password)
     const result = await query(
-      `INSERT INTO dietbyrd_join_requests 
+      `INSERT INTO dietbyrd_join_requests
         (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, status, user_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9)
        RETURNING id, phone, name, requested_role, status, created_at`,
-      [phone, password, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, userId]
+      [phone, hashedJoinPw, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, userId]
     );
 
     res.status(201).json({ 
@@ -1752,22 +1853,23 @@ app.post("/api/join-requests", async (req, res) => {
         `);
         // Retry with original request body
         const { phone, password, name, role, qualification, clinic_name, clinic_address, specializations } = req.body;
-        
+        const hashedFallbackPw = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
         // Create user
         const userResult = await query(
           `INSERT INTO dietbyrd_users (phone, password, role, name, is_active, is_verified)
            VALUES ($1, $2, $3, $4, true, false)
            RETURNING id`,
-          [phone, password, role, name]
+          [phone, hashedFallbackPw, role, name]
         );
         const userId = userResult.rows[0].id;
 
         const result = await query(
-          `INSERT INTO dietbyrd_join_requests 
+          `INSERT INTO dietbyrd_join_requests
             (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, status, user_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9)
            RETURNING id, phone, name, requested_role, status, created_at`,
-          [phone, password, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, userId]
+          [phone, hashedFallbackPw, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, userId]
         );
         return res.status(201).json({ success: true, data: result.rows[0] });
       } catch (createErr) {
@@ -1811,7 +1913,7 @@ app.get("/api/join-requests", async (req, res) => {
 app.patch("/api/join-requests/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { action, reviewed_by, rejection_reason } = req.body;
+    const { action, reviewed_by, rejection_reason, admin_message } = req.body;
     
     if (!action || !["approve", "reject"].includes(action)) {
       return res.status(400).json({ success: false, error: "Action must be 'approve' or 'reject'" });
@@ -1839,10 +1941,10 @@ app.patch("/api/join-requests/:id", async (req, res) => {
         await query("DELETE FROM dietbyrd_users WHERE id = $1 AND is_verified = false", [joinRequest.user_id]);
       }
       await query(
-        `UPDATE dietbyrd_join_requests 
-         SET status = 'rejected', reviewed_by = $1, reviewed_at = CURRENT_TIMESTAMP, rejection_reason = $2, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $3`,
-        [reviewed_by || null, rejection_reason || null, id]
+        `UPDATE dietbyrd_join_requests
+         SET status = 'rejected', reviewed_by = $1, reviewed_at = CURRENT_TIMESTAMP, rejection_reason = $2, admin_message = $3, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $4`,
+        [reviewed_by || null, rejection_reason || null, admin_message || null, id]
       );
       return res.json({ success: true, message: "Request rejected" });
     }
@@ -1912,11 +2014,14 @@ app.patch("/api/join-requests/:id", async (req, res) => {
 
     // Update the join request
     await query(
-      `UPDATE dietbyrd_join_requests 
-       SET status = 'approved', reviewed_by = $1, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [reviewed_by || null, id]
+      `UPDATE dietbyrd_join_requests
+       SET status = 'approved', reviewed_by = $1, reviewed_at = CURRENT_TIMESTAMP, admin_message = $2, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [reviewed_by || null, admin_message || null, id]
     );
+
+    // Notify the applicant — best effort, never blocks the response
+    sendJoinApprovalNotification(joinRequest.phone, joinRequest.name, joinRequest.requested_role).catch(() => {});
 
     res.json({ success: true, message: `${joinRequest.requested_role === "doctor" ? "Doctor" : "Dietician"} account verified successfully` });
   } catch (err) {
@@ -2138,34 +2243,43 @@ app.post("/api/patients", async (req, res) => {
 app.patch("/api/patients/:id(\\d+)", async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, age, gender, diagnosis, diagnosis_description, height, weight, allergies, workout_frequency } = req.body;
-    
+    const { name, email, age, gender, diagnosis, diagnosis_description, height, weight, allergies, workout_frequency } = req.body;
+
     // Prepare allergies for JSONB column
     let allergiesValue = null;
     if (allergies !== undefined && allergies !== null && allergies !== '') {
-      // If it's already a string or array, stringify it for JSONB
-      allergiesValue = typeof allergies === 'string' 
-        ? JSON.stringify([allergies]) // Wrap plain string in array
-        : JSON.stringify(allergies);   // Stringify array
+      allergiesValue = typeof allergies === 'string'
+        ? JSON.stringify([allergies])
+        : JSON.stringify(allergies);
     }
-    
+
     const result = await query(
       `UPDATE dietbyrd_patients
        SET name = COALESCE($1, name),
-           age = COALESCE($2, age),
-           gender = COALESCE($3, gender),
-           diagnosis = COALESCE($4, diagnosis),
-           diagnosis_description = COALESCE($5, diagnosis_description),
-           height = COALESCE($6, height),
-           weight = COALESCE($7, weight),
-           allergies = COALESCE($8::jsonb, allergies),
-           workout_frequency = COALESCE($9, workout_frequency),
+           email = COALESCE($2, email),
+           age = COALESCE($3, age),
+           gender = COALESCE($4, gender),
+           diagnosis = COALESCE($5, diagnosis),
+           diagnosis_description = COALESCE($6, diagnosis_description),
+           height = COALESCE($7, height),
+           weight = COALESCE($8, weight),
+           allergies = COALESCE($9::jsonb, allergies),
+           workout_frequency = COALESCE($10, workout_frequency),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $10
+       WHERE id = $11
        RETURNING *`,
-      [name, age, gender, diagnosis, diagnosis_description, height, weight, allergiesValue, workout_frequency, id]
+      [name, email || null, age, gender, diagnosis, diagnosis_description, height, weight, allergiesValue, workout_frequency, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: "Patient not found" });
+
+    // Keep dietbyrd_users.email in sync when email is provided
+    if (email && result.rows[0].user_id) {
+      await query(
+        "UPDATE dietbyrd_users SET email = $1 WHERE id = $2",
+        [email, result.rows[0].user_id]
+      );
+    }
+
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2290,6 +2404,22 @@ app.post("/api/doctors", async (req, res) => {
   }
 });
 
+app.patch("/api/doctors/:id/verify", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      `UPDATE dietbyrd_doctors SET is_verified = true WHERE id = $1 RETURNING id, name, is_verified`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Doctor not found" });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.delete("/api/doctors/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -2327,6 +2457,132 @@ app.get("/api/dieticians", async (req, res) => {
       ORDER BY rd.created_at DESC`
     );
     res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get available slots across ALL active dieticians (for unassigned patients)
+// MUST be registered before /api/dieticians/:id to avoid being caught by the parameterized route
+app.get("/api/dieticians/all-available-slots", async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query;
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        error: "start_date and end_date are required (YYYY-MM-DD format)",
+      });
+    }
+
+    const dieticiansResult = await query(
+      "SELECT id, name FROM dietbyrd_registered_dietitians WHERE is_active = true ORDER BY name"
+    );
+
+    const getISTNow = () => new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const formatDateStr = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+    const formatLocalDatetime = (date, time) => {
+      const [hour, min] = time.split(":").map(Number);
+      return `${date}T${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}:00`;
+    };
+
+    const istNow = getISTNow();
+    const minBookingTime = new Date(istNow.getTime() + 2 * 60 * 60 * 1000);
+    const allSlots = [];
+
+    for (const dietician of dieticiansResult.rows) {
+      const rdId = dietician.id;
+
+      const availabilityResult = await query(
+        "SELECT * FROM dietbyrd_dietician_availability WHERE rd_id = $1 AND is_active = true",
+        [rdId]
+      );
+      if (availabilityResult.rows.length === 0) continue;
+
+      const bookedResult = await query(
+        `SELECT TO_CHAR(scheduled_at, 'YYYY-MM-DD"T"HH24:MI:SS') as scheduled_at_str
+         FROM dietbyrd_consultations
+         WHERE rd_id = $1
+           AND scheduled_at >= $2::timestamp
+           AND scheduled_at < ($3::date + interval '1 day')::timestamp
+           AND status NOT IN ('cancelled', 'no_show')`,
+        [rdId, start_date, end_date]
+      );
+      const bookedSlots = new Set(bookedResult.rows.map((r) => r.scheduled_at_str));
+
+      const blockedResult = await query(
+        `SELECT *, TO_CHAR(blocked_date, 'YYYY-MM-DD') as blocked_date_str
+         FROM dietbyrd_dietician_blocked_slots
+         WHERE rd_id = $1 AND blocked_date >= $2::date AND blocked_date <= $3::date`,
+        [rdId, start_date, end_date]
+      );
+
+      const startDateParts = start_date.split("-").map(Number);
+      const endDateParts = end_date.split("-").map(Number);
+      let currentDate = new Date(startDateParts[0], startDateParts[1] - 1, startDateParts[2]);
+      const endDate_ = new Date(endDateParts[0], endDateParts[1] - 1, endDateParts[2]);
+
+      while (currentDate <= endDate_) {
+        const dayOfWeek = currentDate.getDay();
+        const dateStr = formatDateStr(currentDate);
+
+        const dayBlocked = blockedResult.rows.find((b) => b.blocked_date_str === dateStr && !b.start_time);
+        if (dayBlocked) { currentDate.setDate(currentDate.getDate() + 1); continue; }
+
+        const dayAvailability = availabilityResult.rows.filter((a) => a.day_of_week === dayOfWeek);
+
+        for (const avail of dayAvailability) {
+          const slotDuration = avail.slot_duration_minutes || 60;
+          const [startHour, startMin] = avail.start_time.split(":").map(Number);
+          const [endHour, endMin] = avail.end_time.split(":").map(Number);
+          let slotMinutes = startHour * 60 + startMin;
+          const endMinutes = endHour * 60 + endMin;
+
+          while (slotMinutes + slotDuration <= endMinutes) {
+            const slotHour = Math.floor(slotMinutes / 60);
+            const slotMin = slotMinutes % 60;
+            const slotTimeStr = `${String(slotHour).padStart(2, "0")}:${String(slotMin).padStart(2, "0")}`;
+            const slotDatetime = formatLocalDatetime(dateStr, slotTimeStr);
+
+            const slotDate = new Date(currentDate);
+            slotDate.setHours(slotHour, slotMin, 0, 0);
+
+            if (slotDate < minBookingTime) { slotMinutes += slotDuration; continue; }
+            if (bookedSlots.has(slotDatetime)) { slotMinutes += slotDuration; continue; }
+
+            const timeBlocked = blockedResult.rows.find((b) => {
+              if (b.blocked_date_str !== dateStr || !b.start_time) return false;
+              const blockStart = b.start_time.split(":").map(Number);
+              const blockEnd = b.end_time.split(":").map(Number);
+              const slotTimeNum = slotHour * 60 + slotMin;
+              return slotTimeNum >= blockStart[0] * 60 + blockStart[1] && slotTimeNum < blockEnd[0] * 60 + blockEnd[1];
+            });
+            if (timeBlocked) { slotMinutes += slotDuration; continue; }
+
+            allSlots.push({
+              date: dateStr,
+              start_time: slotTimeStr,
+              datetime: slotDatetime,
+              duration_minutes: slotDuration,
+              is_booked: false,
+              rd_id: rdId,
+              dietician_name: dietician.name,
+            });
+
+            slotMinutes += slotDuration;
+          }
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+    }
+
+    allSlots.sort((a, b) => a.datetime.localeCompare(b.datetime));
+    res.json({ success: true, data: allSlots });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -2925,11 +3181,12 @@ app.post("/api/assistants", async (req, res) => {
     }
     
     // Create user
+    const hashedAssistantPw = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const userResult = await query(
       `INSERT INTO dietbyrd_users (phone, name, password, role, is_active)
        VALUES ($1, $2, $3, 'assistant', true)
        RETURNING id`,
-      [phone, name, password]
+      [phone, name, hashedAssistantPw]
     );
     
     const userId = userResult.rows[0].id;
@@ -3299,8 +3556,8 @@ app.delete("/api/food-library/:id", async (req, res) => {
 
 // ─── Coupon Codes ─────────────────────────────────────────────────────────────
 
-// Get all coupons
-app.get("/api/coupons", async (req, res) => {
+// Get all coupons (admin only)
+app.get("/api/admin/coupons", async (req, res) => {
   try {
     const { active_only } = req.query;
     
@@ -3319,8 +3576,8 @@ app.get("/api/coupons", async (req, res) => {
   }
 });
 
-// Get single coupon
-app.get("/api/coupons/:id", async (req, res) => {
+// Get single coupon (admin only)
+app.get("/api/admin/coupons/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -3407,8 +3664,8 @@ app.post("/api/coupons/validate", async (req, res) => {
   }
 });
 
-// Create coupon
-app.post("/api/coupons", async (req, res) => {
+// Create coupon (admin only)
+app.post("/api/admin/coupons", async (req, res) => {
   try {
     const {
       code, discount_type, discount_value, max_discount_amount, min_purchase_amount,
@@ -3447,8 +3704,8 @@ app.post("/api/coupons", async (req, res) => {
   }
 });
 
-// Update coupon
-app.put("/api/coupons/:id", async (req, res) => {
+// Update coupon (admin only)
+app.put("/api/admin/coupons/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -3528,8 +3785,8 @@ app.put("/api/coupons/:id", async (req, res) => {
   }
 });
 
-// Delete coupon
-app.delete("/api/coupons/:id", async (req, res) => {
+// Delete coupon (admin only)
+app.delete("/api/admin/coupons/:id", async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -3882,6 +4139,19 @@ app.post("/api/appointments/book", async (req, res) => {
       registeredPatientId = newRegPatient.rows[0].id;
     } else {
       registeredPatientId = regPatientResult.rows[0].id;
+      // If booking with a specific dietician and patient had none assigned, assign now
+      if (rdId) {
+        const currentAssignment = await query(
+          "SELECT assigned_rd_id FROM dietbyrd_registered_patients WHERE id = $1",
+          [registeredPatientId]
+        );
+        if (!currentAssignment.rows[0]?.assigned_rd_id) {
+          await query(
+            "UPDATE dietbyrd_registered_patients SET assigned_rd_id = $1 WHERE id = $2",
+            [rdId, registeredPatientId]
+          );
+        }
+      }
     }
 
     // Only check slot availability when a specific dietitian is requested
@@ -4085,6 +4355,64 @@ app.put("/api/appointments/:id/reschedule", async (req, res) => {
   }
 });
 
+// Update appointment status (complete / no_show / cancel) — RD action
+app.patch("/api/appointments/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, rd_notes } = req.body;
+
+    const ALLOWED = ["completed", "no_show", "cancelled"];
+    if (!ALLOWED.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: `status must be one of: ${ALLOWED.join(", ")}`,
+      });
+    }
+
+    // Fetch the appointment first
+    const apptResult = await query(
+      `SELECT id, status, rd_id FROM dietbyrd_consultations WHERE id = $1`,
+      [id]
+    );
+    if (apptResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Appointment not found" });
+    }
+    const appt = apptResult.rows[0];
+    if (appt.status !== "scheduled") {
+      return res.status(409).json({
+        success: false,
+        error: `Cannot update status — appointment is already '${appt.status}'`,
+      });
+    }
+
+    let extraSet = "";
+    if (status === "completed") extraSet = ", completed_at = CURRENT_TIMESTAMP";
+    if (status === "cancelled") extraSet = ", cancelled_at = CURRENT_TIMESTAMP, cancelled_by = 'rd'";
+
+    const result = await query(
+      `UPDATE dietbyrd_consultations
+       SET status = $1, updated_at = CURRENT_TIMESTAMP${extraSet}
+       WHERE id = $2
+       RETURNING *`,
+      [status, id]
+    );
+
+    // Save consultation notes if provided
+    if (rd_notes && rd_notes.trim() && status === "completed") {
+      await query(
+        `INSERT INTO dietbyrd_consultation_notes (consultation_id, rd_id, notes_content)
+         VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING`,
+        [id, appt.rd_id, rd_notes.trim()]
+      );
+    }
+
+    res.json({ success: true, data: result.rows[0], message: `Appointment marked as ${status}` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Block time slots for a dietician (for leave, holidays, etc.)
 app.post("/api/dieticians/:id/blocked-slots", async (req, res) => {
   try {
@@ -4232,12 +4560,12 @@ app.get("/api/consultation-packages", async (req, res) => {
 // Create Razorpay payment order
 app.post("/api/payments/create-order", async (req, res) => {
   try {
-    const { patient_id, package_id, amount } = req.body;
-    
+    const { patient_id, package_id, amount, discounted_amount } = req.body;
+
     if (!patient_id || !package_id || !amount) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "patient_id, package_id, and amount are required" 
+      return res.status(400).json({
+        success: false,
+        error: "patient_id, package_id, and amount are required"
       });
     }
 
@@ -4246,16 +4574,21 @@ app.post("/api/payments/create-order", async (req, res) => {
       `SELECT * FROM dietbyrd_consultation_packages WHERE id = $1 AND is_active = true`,
       [package_id]
     );
-    
+
     if (pkgResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Package not found" });
     }
-    
+
     const pkg = pkgResult.rows[0];
-    
+
+    // Use discounted amount if provided (must be >= 1 rupee = 100 paise)
+    const chargeAmount = discounted_amount && discounted_amount >= 100
+      ? Math.round(discounted_amount)
+      : pkg.price;
+
     // Create or get Razorpay order
     let razorpayOrderId;
-    
+
     if (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET) {
       // Real Razorpay integration
       const Razorpay = (await import("razorpay")).default;
@@ -4263,9 +4596,9 @@ app.post("/api/payments/create-order", async (req, res) => {
         key_id: RAZORPAY_KEY_ID,
         key_secret: RAZORPAY_KEY_SECRET,
       });
-      
+
       const order = await razorpay.orders.create({
-        amount: pkg.price, // Amount in paise
+        amount: chargeAmount,
         currency: "INR",
         receipt: `order_${patient_id}_${Date.now()}`,
         notes: {
@@ -4273,27 +4606,27 @@ app.post("/api/payments/create-order", async (req, res) => {
           package_id: package_id.toString(),
         },
       });
-      
+
       razorpayOrderId = order.id;
     } else {
       // Demo/test mode - generate fake order ID
       razorpayOrderId = `demo_order_${Date.now()}`;
     }
-    
+
     // Store payment record
     const paymentResult = await query(
-      `INSERT INTO dietbyrd_razorpay_payments 
+      `INSERT INTO dietbyrd_razorpay_payments
        (patient_id, razorpay_order_id, amount, currency, consultations_purchased, status)
        VALUES ($1, $2, $3, 'INR', $4, 'created')
        RETURNING *`,
-      [patient_id, razorpayOrderId, pkg.price, pkg.num_consultations]
+      [patient_id, razorpayOrderId, chargeAmount, pkg.num_consultations]
     );
-    
+
     res.json({
       success: true,
       data: {
         razorpay_order_id: razorpayOrderId,
-        amount: pkg.price,
+        amount: chargeAmount,
         currency: "INR",
         patient_id,
         package_id,
@@ -4401,9 +4734,9 @@ app.get("/api/admin/staff/:role", async (req, res) => {
     }
 
     const result = await query(
-      `SELECT id, phone, name, role, is_active, created_at, last_login_at 
-       FROM dietbyrd_users 
-       WHERE role = $1 
+      `SELECT id, phone, name, role, password, is_active, created_at, last_login_at
+       FROM dietbyrd_users
+       WHERE role = $1
        ORDER BY created_at DESC`,
       [role]
     );
@@ -4440,14 +4773,15 @@ app.post("/api/admin/staff/create", async (req, res) => {
     }
 
     // Generate random 8-digit password
-    const password = Math.floor(10000000 + Math.random() * 90000000).toString();
+    const plainPassword = Math.floor(10000000 + Math.random() * 90000000).toString();
+    const hashedStaffPw = await bcrypt.hash(plainPassword, BCRYPT_ROUNDS);
 
-    // Create user account
+    // Create user account (store hashed, return plain once for admin handoff)
     const userResult = await query(
-      `INSERT INTO dietbyrd_users (phone, role, password, name, is_active, is_verified) 
-       VALUES ($1, $2, $3, $4, true, true) 
+      `INSERT INTO dietbyrd_users (phone, role, password, name, is_active, is_verified)
+       VALUES ($1, $2, $3, $4, true, true)
        RETURNING id, phone, role, name`,
-      [phone, role, password, name]
+      [phone, role, hashedStaffPw, name]
     );
 
     const newUser = userResult.rows[0];
@@ -4459,7 +4793,7 @@ app.post("/api/admin/staff/create", async (req, res) => {
         phone: newUser.phone,
         role: newUser.role,
         name: newUser.name,
-        password: password, // Return password only once at creation
+        password: plainPassword, // Returned once for admin to hand off; not stored plain
       },
     });
   } catch (err) {
@@ -4773,8 +5107,11 @@ async function runAutoAssign() {
     `SELECT
       c.id AS consultation_id,
       c.scheduled_at,
-      c.registered_patient_id
+      c.registered_patient_id,
+      p.name AS patient_name
      FROM dietbyrd_consultations c
+     LEFT JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
+     LEFT JOIN dietbyrd_patients p ON rp.patient_id = p.id
      WHERE c.rd_id IS NULL
        AND c.status = 'scheduled'
        AND c.scheduled_at > NOW()
@@ -4790,7 +5127,7 @@ async function runAutoAssign() {
   const details = [];
 
   for (const consultation of pending.rows) {
-    const { consultation_id, scheduled_at } = consultation;
+    const { consultation_id, scheduled_at, patient_name } = consultation;
 
     const bestRd = await query(
       `SELECT
@@ -4835,7 +5172,7 @@ async function runAutoAssign() {
     );
 
     if (bestRd.rows.length === 0) {
-      details.push({ consultation_id, scheduled_at, assigned: false, reason: "No available dietitian found" });
+      details.push({ consultation_id, scheduled_at, patient_name, assigned: false, reason: "No available dietitian found" });
       continue;
     }
 
@@ -4849,7 +5186,7 @@ async function runAutoAssign() {
     );
 
     assignedCount++;
-    details.push({ consultation_id, scheduled_at, assigned: true, rd_id: rd.id, rd_name: rd.name });
+    details.push({ consultation_id, scheduled_at, patient_name, assigned: true, rd_id: rd.id, rd_name: rd.name });
   }
 
   return { assigned: assignedCount, total_pending: pending.rows.length, details };

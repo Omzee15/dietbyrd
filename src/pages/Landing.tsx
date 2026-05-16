@@ -139,7 +139,7 @@ const Landing = () => {
 
   const goToLogin = () => {
     setIsTransitioning(true);
-    setTimeout(() => navigate('/login'), 600);
+    setTimeout(() => navigate('/login'), 200);
   };
 
   const scrollTo = (id: string) => (e: React.MouseEvent) => {
@@ -176,12 +176,11 @@ const Landing = () => {
         }
         .landing-page * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        .landing-page.transitioning {
-          animation: slideUpOut 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        .landing-page {
+          transition: opacity 0.2s ease;
         }
-        @keyframes slideUpOut {
-          0% { transform: translateY(0); opacity: 1; }
-          100% { transform: translateY(-100%); opacity: 0; }
+        .landing-page.transitioning {
+          opacity: 0;
         }
 
         /* Navigation */

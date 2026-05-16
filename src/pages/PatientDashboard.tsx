@@ -98,6 +98,14 @@ const parseHeightToCm = (raw: string): string => {
   return trimmed;
 };
 
+const cmToFtIn = (cm: number): string => {
+  if (!cm || cm <= 0) return "";
+  const totalInches = cm / 2.54;
+  const feet = Math.floor(totalInches / 12);
+  const inches = Math.round(totalInches % 12);
+  return inches === 12 ? `${feet + 1}'0"` : `${feet}'${inches}"`;
+};
+
 // ─── BMI/TDEE Calculation Helpers ──────────────────────────────────────────────
 const calculateBMI = (weight: number, heightCm: number): number | null => {
   if (!weight || !heightCm || heightCm <= 0) return null;
@@ -160,6 +168,7 @@ const PatientDashboard = () => {
   const [isEditingBody, setIsEditingBody] = useState(false);
   const [bodyAge, setBodyAge] = useState<string>("");
   const [bodyHeight, setBodyHeight] = useState<string>("");
+  const [bodyHeightUnit, setBodyHeightUnit] = useState<"cm" | "ft">("cm");
   const [bodyWeight, setBodyWeight] = useState<string>("");
   const [bodyAllergies, setBodyAllergies] = useState<string>("");
   const [bodyWorkoutFrequency, setBodyWorkoutFrequency] = useState<string>("");
@@ -171,6 +180,7 @@ const PatientDashboard = () => {
   const [profileGender, setProfileGender] = useState("");
   const [profileDiagnosis, setProfileDiagnosis] = useState("");
   const [profileHeight, setProfileHeight] = useState("");
+  const [profileHeightUnit, setProfileHeightUnit] = useState<"cm" | "ft">("cm");
   const [profileWeight, setProfileWeight] = useState("");
   const [profileAllergies, setProfileAllergies] = useState("");
   const [profileWorkout, setProfileWorkout] = useState("");
@@ -408,6 +418,7 @@ const PatientDashboard = () => {
   const handleEditBodyDetails = () => {
     setBodyAge(patient?.age?.toString() || "");
     setBodyHeight(patient?.height?.toString() || "");
+    setBodyHeightUnit("cm");
     setBodyWeight(patient?.weight?.toString() || "");
     setBodyAllergies(
       Array.isArray(patient?.allergies) 
@@ -419,9 +430,12 @@ const PatientDashboard = () => {
   };
 
   const handleSaveBodyDetails = () => {
+    const bodyHeightCm = bodyHeight
+      ? parseFloat(bodyHeightUnit === "ft" ? parseHeightToCm(bodyHeight) : bodyHeight)
+      : undefined;
     updatePatientMutation.mutate({
       age: bodyAge ? parseInt(bodyAge) : undefined,
-      height: bodyHeight ? parseFloat(bodyHeight) : undefined,
+      height: bodyHeightCm && !isNaN(bodyHeightCm) ? bodyHeightCm : undefined,
       weight: bodyWeight ? parseFloat(bodyWeight) : undefined,
       allergies: bodyAllergies || undefined,
       workout_frequency: bodyWorkoutFrequency ? parseInt(bodyWorkoutFrequency) : undefined,
@@ -434,6 +448,7 @@ const PatientDashboard = () => {
     setProfileGender(patient?.gender || "");
     setProfileDiagnosis(patient?.diagnosis || "");
     setProfileHeight(patient?.height?.toString() || "");
+    setProfileHeightUnit("cm");
     setProfileWeight(patient?.weight?.toString() || "");
     setProfileAllergies(
       Array.isArray(patient?.allergies) ? patient.allergies.join(", ") : (patient?.allergies || "")
@@ -444,12 +459,15 @@ const PatientDashboard = () => {
   };
 
   const handleSaveProfile = () => {
+    const profileHeightCm = profileHeight
+      ? parseFloat(profileHeightUnit === "ft" ? parseHeightToCm(profileHeight) : profileHeight)
+      : undefined;
     updatePatientMutation.mutate({
       name: profileName.trim() || undefined,
       age: profileAge ? parseInt(profileAge) : undefined,
       gender: profileGender as any || undefined,
       diagnosis: profileDiagnosis || undefined,
-      height: profileHeight ? parseFloat(profileHeight) : undefined,
+      height: profileHeightCm && !isNaN(profileHeightCm) ? profileHeightCm : undefined,
       weight: profileWeight ? parseFloat(profileWeight) : undefined,
       allergies: profileAllergies || undefined,
       workout_frequency: profileWorkout ? parseInt(profileWorkout) : undefined,
@@ -1181,15 +1199,41 @@ const PatientDashboard = () => {
                     <div className="space-y-2">
                       <label className="text-sm font-medium flex items-center gap-2">
                         <Ruler className="w-4 h-4 text-muted-foreground" />
-                        Height (cm or 5'10")
+                        Height
+                        <div className="ml-auto flex text-xs border rounded-md overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (bodyHeightUnit === "ft") {
+                                setBodyHeight(parseHeightToCm(bodyHeight));
+                                setBodyHeightUnit("cm");
+                              }
+                            }}
+                            className={`px-2 py-0.5 transition-colors ${bodyHeightUnit === "cm" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                          >cm</button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (bodyHeightUnit === "cm") {
+                                const num = parseFloat(bodyHeight);
+                                setBodyHeight(num > 0 ? cmToFtIn(num) : "");
+                                setBodyHeightUnit("ft");
+                              }
+                            }}
+                            className={`px-2 py-0.5 transition-colors ${bodyHeightUnit === "ft" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                          >ft</button>
+                        </div>
                       </label>
                       <Input
                         type="text"
-                        placeholder={`e.g. 170 or 5'10"`}
+                        placeholder={bodyHeightUnit === "cm" ? "e.g. 170" : "e.g. 5'7\""}
                         value={bodyHeight}
-                        onChange={(e) => setBodyHeight(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9.'"]/g, "");
+                          setBodyHeight(val);
+                          if (val.includes("'") && bodyHeightUnit === "cm") setBodyHeightUnit("ft");
+                        }}
                         onKeyDown={filterHeightKey}
-                        onBlur={(e) => setBodyHeight(parseHeightToCm(e.target.value))}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1592,12 +1636,10 @@ const PatientDashboard = () => {
                     <CalendarDays className="w-5 h-5" />
                     Appointments
                   </span>
-                  {patient?.assigned_rd_id && (
-                    <Button size="sm" onClick={() => setIsBookingModalOpen(true)}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Schedule Appointment
-                    </Button>
-                  )}
+                  <Button size="sm" onClick={() => setIsBookingModalOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Schedule Appointment
+                  </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -1621,9 +1663,13 @@ const PatientDashboard = () => {
                             <p className="text-sm text-muted-foreground">
                               {formatDate(consultation.scheduled_at)} at {formatTime(consultation.scheduled_at)}
                             </p>
-                            {consultation.dietician_name && (
+                            {consultation.dietician_name ? (
                               <p className="text-xs text-muted-foreground">
                                 with {consultation.dietician_name}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-amber-600">
+                                Dietician will be assigned to you soon
                               </p>
                             )}
                           </div>
@@ -1659,20 +1705,14 @@ const PatientDashboard = () => {
                   <div className="text-center py-8">
                     <CalendarDays className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-30" />
                     <p className="text-muted-foreground">No upcoming appointments</p>
-                    {patient?.assigned_rd_id ? (
-                      <Button 
-                        variant="outline" 
-                        className="mt-4"
-                        onClick={() => setIsBookingModalOpen(true)}
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Schedule Your First Appointment
-                      </Button>
-                    ) : (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        A dietician will be assigned to you soon.
-                      </p>
-                    )}
+                    <Button
+                      variant="outline"
+                      className="mt-4"
+                      onClick={() => setIsBookingModalOpen(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Book Your First Appointment
+                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -1727,13 +1767,13 @@ const PatientDashboard = () => {
             <div className="space-y-3">
               <div>
                 <label className="text-sm font-medium">Full Name</label>
-                <Input value={profileName} onChange={e => setProfileName(e.target.value)} placeholder="Your name" className="mt-1" />
+                <Input value={profileName} onChange={e => setProfileName(e.target.value.replace(/[^a-zA-Z\s.\-']/g, ""))} placeholder="Your name" className="mt-1" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium">Age</label>
-                  <Input type="number" value={profileAge} onChange={e => setProfileAge(e.target.value)} placeholder="Years" min="1" max="120" className="mt-1" />
+                  <Input type="number" value={profileAge} onChange={e => setProfileAge(e.target.value)} placeholder="Years" min="1" max="120" className="mt-1" onKeyDown={(e) => ['e','E','+','-','.'].includes(e.key) && e.preventDefault()} />
                 </div>
                 <div>
                   <label className="text-sm font-medium">Gender</label>
@@ -1769,24 +1809,52 @@ const PatientDashboard = () => {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-sm font-medium">Height (cm or 5'10")</label>
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    Height
+                    <div className="ml-auto flex text-xs border rounded-md overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (profileHeightUnit === "ft") {
+                            setProfileHeight(parseHeightToCm(profileHeight));
+                            setProfileHeightUnit("cm");
+                          }
+                        }}
+                        className={`px-2 py-0.5 transition-colors ${profileHeightUnit === "cm" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                      >cm</button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (profileHeightUnit === "cm") {
+                            const num = parseFloat(profileHeight);
+                            setProfileHeight(num > 0 ? cmToFtIn(num) : "");
+                            setProfileHeightUnit("ft");
+                          }
+                        }}
+                        className={`px-2 py-0.5 transition-colors ${profileHeightUnit === "ft" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                      >ft</button>
+                    </div>
+                  </label>
                   <Input
                     type="text"
                     value={profileHeight}
-                    onChange={e => setProfileHeight(e.target.value)}
+                    onChange={e => {
+                      const val = e.target.value.replace(/[^0-9.'"]/g, "");
+                      setProfileHeight(val);
+                      if (val.includes("'") && profileHeightUnit === "cm") setProfileHeightUnit("ft");
+                    }}
                     onKeyDown={filterHeightKey}
-                    onBlur={e => setProfileHeight(parseHeightToCm(e.target.value))}
-                    placeholder={`170 or 5'10"`}
+                    placeholder={profileHeightUnit === "cm" ? "e.g. 170" : "e.g. 5'7\""}
                     className="mt-1"
                   />
                 </div>
                 <div>
                   <label className="text-sm font-medium">Weight (kg)</label>
-                  <Input type="number" value={profileWeight} onChange={e => setProfileWeight(e.target.value)} placeholder="70" className="mt-1" />
+                  <Input type="number" value={profileWeight} onChange={e => setProfileWeight(e.target.value)} placeholder="70" className="mt-1" onKeyDown={(e) => ['e','E','+','-'].includes(e.key) && e.preventDefault()} />
                 </div>
                 <div>
                   <label className="text-sm font-medium">Workouts/week</label>
-                  <Input type="number" value={profileWorkout} onChange={e => setProfileWorkout(e.target.value)} placeholder="0–7" min="0" max="7" className="mt-1" />
+                  <Input type="number" value={profileWorkout} onChange={e => setProfileWorkout(e.target.value)} placeholder="0–7" min="0" max="7" className="mt-1" onKeyDown={(e) => ['e','E','+','-','.'].includes(e.key) && e.preventDefault()} />
                 </div>
               </div>
 

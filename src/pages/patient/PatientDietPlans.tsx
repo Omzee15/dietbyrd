@@ -6,6 +6,7 @@ import autoTable from "jspdf-autotable";
 import {
   CalendarDays,
   ChevronDown,
+  Plus,
   ChevronUp,
   Download,
   FileText,
@@ -17,6 +18,7 @@ import {
   Target,
   User,
   UtensilsCrossed,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -298,6 +300,7 @@ const PatientDietPlans = () => {
         { label: "My Profile", href: "/patient/profile", icon: Heart },
         { label: "Diet Plans", href: "/patient/diet-plans", icon: UtensilsCrossed },
         { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
+        { label: "Support", href: "/patient/support", icon: MessageSquare },
       ],
     },
     {
@@ -632,8 +635,15 @@ const PatientDietPlans = () => {
                   <h3 className="text-lg font-semibold mb-2">No Diet Plans Yet</h3>
                   <p className="text-muted-foreground max-w-md mx-auto">
                     Your personalized diet plan will appear here once your dietician creates one for you.
-                    Please check back soon!
                   </p>
+                  <Button
+                    variant="outline"
+                    className="mt-5"
+                    onClick={() => navigate("/patient/appointments")}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Book Your First Appointment
+                  </Button>
                 </CardContent>
               </Card>
             )}

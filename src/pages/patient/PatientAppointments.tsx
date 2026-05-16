@@ -18,8 +18,11 @@ import {
   CreditCard,
   CheckCircle2,
   AlertCircle,
+  MessageSquare,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -41,15 +44,19 @@ import {
   getPatient,
   getPatientAppointments,
   getAvailableSlots,
+  getAllDieticianSlots,
   bookAppointment,
   cancelAppointment,
   rescheduleAppointment,
   getConsultationPackages,
   createPaymentOrder,
   verifyPayment,
+  validateCoupon,
+  applyCoupon,
   type Appointment,
   type AvailableSlot,
   type ConsultationPackage,
+  type CouponValidation,
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -74,6 +81,10 @@ const PatientAppointments = () => {
   const [selectedPackage, setSelectedPackage] = useState<ConsultationPackage | null>(null);
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponValidation | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
 
   // Get patient data
   const { data: patient, isLoading: patientLoading, refetch: refetchPatient } = useQuery({
@@ -104,11 +115,16 @@ const PatientAppointments = () => {
     };
   }, [weekOffset]);
 
-  // Get available slots
+  const hasAssignedRD = !!patient?.assigned_rd_id;
+
+  // Get available slots — assigned dietician or all dieticians if unassigned
   const { data: availableSlots, isLoading: slotsLoading, refetch: refetchSlots } = useQuery({
-    queryKey: ["available-slots", patient?.assigned_rd_id, weekDateRange.start, weekDateRange.end],
-    queryFn: () => getAvailableSlots(patient!.assigned_rd_id!, weekDateRange.start, weekDateRange.end),
-    enabled: !!patient?.assigned_rd_id && isBookingModalOpen,
+    queryKey: ["available-slots", patient?.assigned_rd_id ?? "all", weekDateRange.start, weekDateRange.end],
+    queryFn: () =>
+      hasAssignedRD
+        ? getAvailableSlots(patient!.assigned_rd_id!, weekDateRange.start, weekDateRange.end)
+        : getAllDieticianSlots(weekDateRange.start, weekDateRange.end),
+    enabled: !!patient && isBookingModalOpen,
   });
 
   // Get consultation packages
@@ -120,10 +136,10 @@ const PatientAppointments = () => {
 
   // Book appointment mutation
   const bookAppointmentMutation = useMutation({
-    mutationFn: (data: { scheduled_at: string; patient_notes?: string }) =>
+    mutationFn: (data: { scheduled_at: string; rd_id?: number | null; patient_notes?: string }) =>
       bookAppointment({
         patient_id: user!.profileId!,
-        rd_id: patient!.assigned_rd_id!,
+        rd_id: data.rd_id ?? null,
         scheduled_at: data.scheduled_at,
         patient_notes: data.patient_notes,
       }),
@@ -217,6 +233,7 @@ const PatientAppointments = () => {
 
     bookAppointmentMutation.mutate({
       scheduled_at: selectedSlot.datetime,
+      rd_id: selectedSlot.rd_id ?? patient?.assigned_rd_id ?? null,
       patient_notes: appointmentNotes || undefined,
     });
   };
@@ -227,6 +244,28 @@ const PatientAppointments = () => {
     setSelectedSlot(null);
     setAppointmentNotes("");
     setEditingAppointment(null);
+  };
+
+  const handleApplyCoupon = async (pkg: ConsultationPackage | null) => {
+    if (!couponCode.trim() || !pkg) return;
+    setCouponLoading(true);
+    setCouponError(null);
+    try {
+      const result = await validateCoupon(couponCode.trim(), pkg.price / 100);
+      setAppliedCoupon(result);
+      toast.success(`Coupon applied! ₹${result.discount_applied} off`);
+    } catch (err: any) {
+      setCouponError(err.message || "Invalid coupon code");
+      setAppliedCoupon(null);
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode("");
+    setCouponError(null);
   };
 
   // Load Razorpay script
@@ -253,12 +292,13 @@ const PatientAppointments = () => {
     const slotToBook = selectedSlot;
     const notesToSave = appointmentNotes;
     const patientId = user?.profileId;
-    const rdId = patient?.assigned_rd_id;
+    const couponSnapshot = appliedCoupon;
+    const rdId = slotToBook?.rd_id ?? patient?.assigned_rd_id ?? null;
     const patientName = patient?.name || "";
     const patientPhone = patient?.phone || user?.phone || "";
-    
+
     // Validate we have all required data for booking
-    if (!slotToBook || !patientId || !rdId) {
+    if (!slotToBook || !patientId) {
       toast.error("Missing required information. Please try again.");
       setIsPaymentProcessing(false);
       return;
@@ -277,11 +317,15 @@ const PatientAppointments = () => {
         return;
       }
 
-      // Create order on backend
+      // Create order on backend — pass discounted amount if coupon applied
+      const discountedPaise = appliedCoupon
+        ? Math.max(100, pkg.price - Math.round(appliedCoupon.discount_applied * 100))
+        : undefined;
       const order = await createPaymentOrder({
         patient_id: patientId,
         package_id: pkg.id,
         amount: pkg.price,
+        ...(discountedPaise ? { discounted_amount: discountedPaise } : {}),
       });
 
       const options = {
@@ -302,7 +346,17 @@ const PatientAppointments = () => {
 
             toast.success(`Payment successful! ${pkg.num_consultations} consultation(s) added.`);
             queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
-            
+
+            // Record coupon usage if one was applied
+            if (couponSnapshot) {
+              applyCoupon(couponSnapshot.id, {
+                patient_id: patientId,
+                discount_applied: couponSnapshot.discount_applied,
+                order_amount: pkg.price / 100,
+              }).catch(() => {});
+              handleRemoveCoupon();
+            }
+
             // Refetch patient data to get updated consultations_left
             await refetchPatient();
             
@@ -416,6 +470,7 @@ const PatientAppointments = () => {
         { label: "My Profile", href: "/patient/profile", icon: Heart },
         { label: "Diet Plans", href: "/patient/diet-plans", icon: UtensilsCrossed },
         { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
+        { label: "Support", href: "/patient/support", icon: MessageSquare },
       ],
     },
     {
@@ -498,21 +553,10 @@ const PatientAppointments = () => {
           <div className="p-6 space-y-6 max-w-4xl mx-auto">
             {/* Quick Actions */}
             <div className="flex gap-4">
-              {patient?.assigned_rd_id ? (
-                <Button onClick={() => setIsBookingModalOpen(true)} className="flex-1">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Schedule New Appointment
-                </Button>
-              ) : (
-                <div className="flex-1 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900">
-                  <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
-                    <AlertCircle className="w-5 h-5" />
-                    <span className="text-sm font-medium">
-                      A dietician will be assigned to you soon. You'll be able to book appointments once assigned.
-                    </span>
-                  </div>
-                </div>
-              )}
+              <Button onClick={() => setIsBookingModalOpen(true)} className="flex-1">
+                <Plus className="w-4 h-4 mr-2" />
+                Schedule New Appointment
+              </Button>
             </div>
 
             {/* Upcoming Appointments */}
@@ -545,9 +589,13 @@ const PatientAppointments = () => {
                               {formatDate(appointment.scheduled_at)} at{" "}
                               {formatTime(appointment.scheduled_at)}
                             </p>
-                            {appointment.dietician_name && (
+                            {appointment.dietician_name ? (
                               <p className="text-xs text-muted-foreground mt-1">
                                 with {appointment.dietician_name}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-amber-600 mt-1">
+                                Dietician will be assigned to you soon
                               </p>
                             )}
                           </div>
@@ -592,16 +640,14 @@ const PatientAppointments = () => {
                   <div className="text-center py-12">
                     <CalendarDays className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-30" />
                     <p className="text-muted-foreground">No upcoming appointments</p>
-                    {patient?.assigned_rd_id && (
-                      <Button
-                        variant="outline"
-                        className="mt-4"
-                        onClick={() => setIsBookingModalOpen(true)}
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Schedule Your First Appointment
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      className="mt-4"
+                      onClick={() => setIsBookingModalOpen(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Book Your First Appointment
+                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -752,7 +798,7 @@ const PatientAppointments = () => {
                 </div>
 
                 {/* Dietician Info */}
-                {patient?.assigned_dietician_name && (
+                {patient?.assigned_dietician_name ? (
                   <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 dark:bg-green-950/30">
                     <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
                       <UtensilsCrossed className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -761,6 +807,15 @@ const PatientAppointments = () => {
                       <p className="text-sm text-muted-foreground">Appointment with</p>
                       <p className="font-semibold">{patient.assigned_dietician_name}</p>
                     </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center shrink-0">
+                      <UtensilsCrossed className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      Choose any available slot — a dietician will be assigned to you automatically.
+                    </p>
                   </div>
                 )}
 
@@ -796,15 +851,19 @@ const PatientAppointments = () => {
                             <div className="flex flex-wrap gap-2">
                               {slots.map((slot) => (
                                 <Button
-                                  key={slot.datetime}
+                                  key={slot.datetime + (slot.rd_id ?? "")}
                                   variant="outline"
                                   size="sm"
                                   onClick={() => setSelectedSlot(slot)}
-                                  className="min-w-[80px]"
+                                  className="min-w-[80px] flex flex-col h-auto py-1.5 px-3"
                                   disabled={slot.is_booked}
                                 >
-                                  {slot.start_time}
-                                  {slot.is_booked && " (Booked)"}
+                                  <span>{slot.start_time}</span>
+                                  {!hasAssignedRD && slot.dietician_name && (
+                                    <span className="text-[10px] text-muted-foreground font-normal leading-tight">
+                                      {slot.dietician_name}
+                                    </span>
+                                  )}
                                 </Button>
                               ))}
                             </div>
@@ -834,14 +893,16 @@ const PatientAppointments = () => {
                 {/* Appointment Summary Card */}
                 <div className="border rounded-xl p-5 space-y-4 bg-gradient-to-br from-primary/5 to-primary/10">
                   {/* Dietician */}
-                  {patient?.assigned_dietician_name && (
+                  {(patient?.assigned_dietician_name || selectedSlot?.dietician_name) && (
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
                         <UtensilsCrossed className="w-7 h-7 text-green-600 dark:text-green-400" />
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Your Dietician</p>
-                        <p className="text-lg font-semibold">{patient.assigned_dietician_name}</p>
+                        <p className="text-lg font-semibold">
+                          {patient?.assigned_dietician_name || selectedSlot?.dietician_name}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -927,6 +988,44 @@ const PatientAppointments = () => {
                       ))}
                     </div>
 
+                    {/* Coupon code input */}
+                    {selectedPackage && (
+                      <div className="space-y-2">
+                        {appliedCoupon ? (
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+                            <div className="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm">
+                              <Tag className="w-4 h-4" />
+                              <span className="font-medium">{appliedCoupon.code}</span>
+                              <span>— ₹{appliedCoupon.discount_applied} off</span>
+                            </div>
+                            <button onClick={handleRemoveCoupon} className="text-green-600 hover:text-green-800">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Coupon code"
+                              value={couponCode}
+                              onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(null); }}
+                              onKeyDown={(e) => e.key === "Enter" && handleApplyCoupon(selectedPackage)}
+                              className="h-9 text-sm"
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-9 px-3 shrink-0"
+                              onClick={() => handleApplyCoupon(selectedPackage)}
+                              disabled={!couponCode.trim() || couponLoading}
+                            >
+                              {couponLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Apply"}
+                            </Button>
+                          </div>
+                        )}
+                        {couponError && <p className="text-xs text-red-500">{couponError}</p>}
+                      </div>
+                    )}
+
                     <Button
                       className="w-full h-12 text-base"
                       onClick={() => selectedPackage && handlePayment(selectedPackage)}
@@ -936,6 +1035,12 @@ const PatientAppointments = () => {
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                           Processing Payment...
+                        </>
+                      ) : selectedPackage && appliedCoupon ? (
+                        <>
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Pay ₹{Math.max(1, (selectedPackage.price / 100) - appliedCoupon.discount_applied).toFixed(0)} & Proceed
+                          <span className="ml-1 text-xs line-through opacity-70">₹{(selectedPackage.price / 100).toFixed(0)}</span>
                         </>
                       ) : (
                         <>
@@ -1010,6 +1115,44 @@ const PatientAppointments = () => {
               </div>
             ))}
 
+            {/* Coupon code input */}
+            {selectedPackage && (
+              <div className="space-y-2">
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm">
+                      <Tag className="w-4 h-4" />
+                      <span className="font-medium">{appliedCoupon.code}</span>
+                      <span>— ₹{appliedCoupon.discount_applied} off</span>
+                    </div>
+                    <button onClick={handleRemoveCoupon} className="text-green-600 hover:text-green-800">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Coupon code"
+                      value={couponCode}
+                      onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(null); }}
+                      onKeyDown={(e) => e.key === "Enter" && handleApplyCoupon(selectedPackage)}
+                      className="h-9 text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 px-3 shrink-0"
+                      onClick={() => handleApplyCoupon(selectedPackage)}
+                      disabled={!couponCode.trim() || couponLoading}
+                    >
+                      {couponLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Apply"}
+                    </Button>
+                  </div>
+                )}
+                {couponError && <p className="text-xs text-red-500">{couponError}</p>}
+              </div>
+            )}
+
             <Button
               className="w-full"
               onClick={() => selectedPackage && handlePayment(selectedPackage)}
@@ -1019,6 +1162,12 @@ const PatientAppointments = () => {
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Processing...
+                </>
+              ) : selectedPackage && appliedCoupon ? (
+                <>
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Pay ₹{Math.max(1, (selectedPackage.price / 100) - appliedCoupon.discount_applied).toFixed(0)}
+                  <span className="ml-1 text-xs line-through opacity-70">₹{(selectedPackage.price / 100).toFixed(0)}</span>
                 </>
               ) : (
                 <>

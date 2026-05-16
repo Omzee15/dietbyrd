@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { Users, Stethoscope, UtensilsCrossed, LogOut, Search, Apple, UserPlus, Plus, UserX, AlertTriangle, RefreshCw } from "lucide-react";
+import { Users, Stethoscope, UtensilsCrossed, LogOut, Search, Apple, UserPlus, Plus, UserX, AlertTriangle, RefreshCw, Check, X, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { assignDietician, getPatients, getDoctors, getDieticians, getReferrals, getUnregisteredReferrals, getJoinRequests, getUnassignedAppointments, triggerAutoAssign, Patient, Doctor, Dietician, Referral, UnregisteredReferral, JoinRequest } from "@/lib/api";
+import { assignDietician, getPatients, getDoctors, getDieticians, getReferrals, getUnregisteredReferrals, getJoinRequests, getUnassignedAppointments, triggerAutoAssign, approveJoinRequest, rejectJoinRequest, verifyDoctor, Patient, Doctor, Dietician, Referral, UnregisteredReferral, JoinRequest, AutoAssignResult } from "@/lib/api";
 import { foodService } from "@/lib/food-service";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Food } from "@/lib/diet-types";
@@ -59,6 +61,13 @@ const MLTInternDashboard = () => {
   const [patientPageSize, setPatientPageSize] = useState(10);
   const [isFoodAddDialogOpen, setIsFoodAddDialogOpen] = useState(false);
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
+  const [selectedJoinRequest, setSelectedJoinRequest] = useState<JoinRequest | null>(null);
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [adminMessage, setAdminMessage] = useState("");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [autoAssignResult, setAutoAssignResult] = useState<AutoAssignResult | null>(null);
+  const { user } = useAuth();
 
   const handleClearFilters = () => {
     setReferredByFilter("all");
@@ -88,6 +97,35 @@ const MLTInternDashboard = () => {
   useEffect(() => {
     setSearch("");
   }, [activeSection]);
+
+  // Approve join request mutation
+  const approveMutation = useMutation({
+    mutationFn: ({ id, message }: { id: number; message?: string }) =>
+      approveJoinRequest(id, user?.id, message),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["join-requests"] });
+      toast.success("Request approved! Account activated.");
+      setShowApproveDialog(false);
+      setSelectedJoinRequest(null);
+      setAdminMessage("");
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to approve request"),
+  });
+
+  // Reject join request mutation
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, reason, message }: { id: number; reason?: string; message?: string }) =>
+      rejectJoinRequest(id, user?.id, reason, message),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["join-requests"] });
+      toast.success("Request rejected.");
+      setShowRejectDialog(false);
+      setSelectedJoinRequest(null);
+      setRejectionReason("");
+      setAdminMessage("");
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to reject request"),
+  });
 
   // Fetch data
   const { data: patients = [], isLoading: patientsLoading } = useQuery({
@@ -135,10 +173,21 @@ const MLTInternDashboard = () => {
     mutationFn: triggerAutoAssign,
     onSuccess: (data) => {
       refetchUnassigned();
-      toast.success(`Auto-assigned ${data.assigned} of ${data.total_pending} appointments`);
+      setAutoAssignResult(data);
     },
     onError: (error: Error) => {
       toast.error(error.message || "Auto-assign failed");
+    },
+  });
+
+  const verifyDoctorMutation = useMutation({
+    mutationFn: (doctorId: number) => verifyDoctor(doctorId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["doctors"] });
+      toast.success(`${data.name} marked as verified`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to verify doctor");
     },
   });
 
@@ -644,13 +693,26 @@ const MLTInternDashboard = () => {
                             </Badge>
                           </td>
                           <td className="px-6 py-4" onClick={(event) => event.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/mlt-intern/doctor/${doctor.id}`)}
-                              className="text-sm font-medium text-primary hover:underline"
-                            >
-                              View Details
-                            </button>
+                            <div className="flex items-center gap-2">
+                              {!doctor.is_verified && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-green-700 border-green-300 hover:bg-green-50"
+                                  onClick={() => verifyDoctorMutation.mutate(doctor.id)}
+                                  disabled={verifyDoctorMutation.isPending}
+                                >
+                                  <Check className="w-3 h-3 mr-1" />Mark Verified
+                                </Button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/mlt-intern/doctor/${doctor.id}`)}
+                                className="text-sm font-medium text-primary hover:underline"
+                              >
+                                View Details
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -698,13 +760,34 @@ const MLTInternDashboard = () => {
                               <Badge variant="secondary" className="capitalize">{request.status}</Badge>
                             </td>
                             <td className="px-6 py-4" onClick={(event) => event.stopPropagation()}>
-                              <button
-                                type="button"
-                                onClick={() => navigate(`/mlt-intern/join-request/${request.id}`)}
-                                className="text-sm font-medium text-primary hover:underline"
-                              >
-                                View Details
-                              </button>
+                              <div className="flex items-center gap-2">
+                                {request.status === "pending" && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-destructive border-destructive/30 hover:bg-destructive/10 h-7 px-2"
+                                      onClick={() => { setSelectedJoinRequest(request); setAdminMessage(""); setShowRejectDialog(true); }}
+                                    >
+                                      <X className="w-3 h-3 mr-1" />Reject
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      className="h-7 px-2"
+                                      onClick={() => { setSelectedJoinRequest(request); setAdminMessage(""); setShowApproveDialog(true); }}
+                                    >
+                                      <Check className="w-3 h-3 mr-1" />Approve
+                                    </Button>
+                                  </>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`/mlt-intern/join-request/${request.id}`)}
+                                  className="text-sm font-medium text-primary hover:underline"
+                                >
+                                  View
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -900,6 +983,124 @@ const MLTInternDashboard = () => {
           queryClient.invalidateQueries({ queryKey: ["food-library"] });
         }}
       />
+
+      {/* Approve Dialog */}
+      <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approve Join Request</DialogTitle>
+            <DialogDescription>
+              Approve {selectedJoinRequest?.name}'s request to join as a{" "}
+              {selectedJoinRequest?.requested_role === "doctor" ? "doctor" : "dietician"}. Their account will be activated.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="text-sm font-medium text-slate-700 mb-2 block">Message to applicant (optional)</label>
+            <Textarea
+              placeholder="e.g. Welcome! Please complete your profile after logging in..."
+              value={adminMessage}
+              onChange={(e) => setAdminMessage(e.target.value)}
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground mt-1">This message will be shown when they log in.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowApproveDialog(false)}>Cancel</Button>
+            <Button
+              onClick={() => selectedJoinRequest && approveMutation.mutate({ id: selectedJoinRequest.id, message: adminMessage || undefined })}
+              disabled={approveMutation.isPending}
+            >
+              {approveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Approve
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Dialog */}
+      <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Join Request</DialogTitle>
+            <DialogDescription>
+              Reject {selectedJoinRequest?.name}'s request to join as a{" "}
+              {selectedJoinRequest?.requested_role === "doctor" ? "doctor" : "dietician"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-2 block">Reason for rejection (optional)</label>
+              <Textarea
+                placeholder="Enter reason..."
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={2}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-2 block">Message to applicant (optional)</label>
+              <Textarea
+                placeholder="e.g. Please reapply with your license number..."
+                value={adminMessage}
+                onChange={(e) => setAdminMessage(e.target.value)}
+                rows={2}
+              />
+              <p className="text-xs text-muted-foreground mt-1">This message will be shown when they try to log in.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRejectDialog(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => selectedJoinRequest && rejectMutation.mutate({ id: selectedJoinRequest.id, reason: rejectionReason || undefined, message: adminMessage || undefined })}
+              disabled={rejectMutation.isPending}
+            >
+              {rejectMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Reject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto-assign result dialog */}
+      <Dialog open={!!autoAssignResult} onOpenChange={(open) => !open && setAutoAssignResult(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Auto-Assign Results</DialogTitle>
+            <DialogDescription>
+              {autoAssignResult && autoAssignResult.total_pending === 0
+                ? "No unassigned appointments due within 48 hours."
+                : autoAssignResult
+                ? `Assigned ${autoAssignResult.assigned} of ${autoAssignResult.total_pending} pending appointment${autoAssignResult.total_pending !== 1 ? "s" : ""}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {autoAssignResult && autoAssignResult.details.length > 0 && (
+            <div className="max-h-72 overflow-y-auto space-y-2">
+              {autoAssignResult.details.map((d) => {
+                const dt = new Date(d.scheduled_at);
+                const timeStr = dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) + " at " + dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+                return (
+                  <div key={d.consultation_id} className={`flex items-start gap-2 p-2 rounded-md text-sm ${d.assigned ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"}`}>
+                    {d.assigned
+                      ? <Check className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
+                      : <X className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />}
+                    <div>
+                      <p className="font-medium leading-tight">{d.patient_name || `Consultation #${d.consultation_id}`}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {timeStr} {d.assigned ? `→ ${d.rd_name}` : `— ${d.reason}`}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setAutoAssignResult(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

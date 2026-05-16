@@ -6,6 +6,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, ArrowLeft, CheckCircle2, Stethoscope, UtensilsCrossed, Phone, MessageSquare, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
+const QUALIFICATION_OPTIONS = [
+  "MBBS","MD","MS","BDS","BAMS","BHMS","BUMS",
+  "BSc Nutrition","MSc Nutrition","BSc Dietetics","MSc Dietetics",
+  "PG Diploma in Dietetics","PG Diploma in Clinical Nutrition",
+  "PhD Nutrition","RD (Registered Dietitian)","Others",
+];
+
+const DOCTOR_SPECIALIZATIONS = [
+  "General Medicine","Endocrinology","Cardiology","Nephrology",
+  "Gastroenterology","Diabetology","Internal Medicine","Pulmonology",
+  "Neurology","Oncology","Others",
+];
+
+const RD_SPECIALIZATIONS = [
+  "Clinical Nutrition","Sports Nutrition","Pediatric Nutrition","Renal Nutrition",
+  "Oncology Nutrition","Bariatric Nutrition","Diabetes Nutrition","Gut Health & IBS",
+  "Weight Management","Women's Health & PCOS","Others",
+];
+
+const INDIAN_CITIES = [
+  "Mumbai","Delhi","Bengaluru","Hyderabad","Ahmedabad","Chennai","Kolkata","Pune",
+  "Jaipur","Lucknow","Kanpur","Nagpur","Indore","Thane","Bhopal","Visakhapatnam",
+  "Pimpri-Chinchwad","Patna","Vadodara","Ghaziabad","Ludhiana","Agra","Nashik",
+  "Faridabad","Meerut","Rajkot","Kalyan-Dombivali","Vasai-Virar","Varanasi","Srinagar",
+  "Aurangabad","Dhanbad","Amritsar","Navi Mumbai","Allahabad","Ranchi","Howrah","Coimbatore",
+  "Jabalpur","Gwalior","Vijayawada","Jodhpur","Madurai","Raipur","Kota","Chandigarh",
+  "Guwahati","Thiruvananthapuram","Kochi","Mysuru","Others",
+];
+
 interface JoinRequestFormProps {
   onComplete: () => void;
   onBack?: () => void;
@@ -251,7 +280,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
                 type="tel"
                 placeholder="Enter 10-digit phone number"
                 value={formData.phone}
-                onChange={(e) => handleChange("phone", e.target.value)}
+                onChange={(e) => handleChange("phone", e.target.value.replace(/\D/g, ""))}
                 className="pl-11 h-12"
                 maxLength={10}
                 required
@@ -436,7 +465,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
             type="text"
             placeholder="Dr. John Doe"
             value={formData.name}
-            onChange={(e) => handleChange("name", e.target.value)}
+            onChange={(e) => handleChange("name", e.target.value.replace(/[^a-zA-Z\s.\-']/g, ""))}
             required
           />
         </div>
@@ -456,13 +485,14 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
           <label className="text-sm font-medium">
             Qualification <span className="text-red-500">*</span>
           </label>
-          <Input
-            type="text"
-            placeholder="MBBS, MD, RD, MSc Nutrition, etc."
-            value={formData.qualification}
-            onChange={(e) => handleChange("qualification", e.target.value)}
-            required
-          />
+          <Select value={formData.qualification} onValueChange={(v) => handleChange("qualification", v)} required>
+            <SelectTrigger><SelectValue placeholder="Select qualification" /></SelectTrigger>
+            <SelectContent>
+              {QUALIFICATION_OPTIONS.map((q) => (
+                <SelectItem key={q} value={q}>{q}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {formData.role === "doctor" && (
@@ -472,13 +502,14 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
                 <label className="text-sm font-medium">
                   Specialization <span className="text-red-500">*</span>
                 </label>
-                <Input
-                  type="text"
-                  placeholder="Endocrinology, etc."
-                  value={formData.specialization}
-                  onChange={(e) => handleChange("specialization", e.target.value)}
-                  required
-                />
+                <Select value={formData.specialization} onValueChange={(v) => handleChange("specialization", v)} required>
+                  <SelectTrigger><SelectValue placeholder="Select specialization" /></SelectTrigger>
+                  <SelectContent>
+                    {DOCTOR_SPECIALIZATIONS.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -491,6 +522,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
                   min="0"
                   value={formData.experience_years}
                   onChange={(e) => handleChange("experience_years", e.target.value)}
+                  onKeyDown={(e) => ['e','E','+','-','.'].includes(e.key) && e.preventDefault()}
                   required
                 />
               </div>
@@ -512,12 +544,14 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <label className="text-sm font-medium">Specialization</label>
-              <Input
-                type="text"
-                placeholder="Clinical Nutrition, etc."
-                value={formData.specialization}
-                onChange={(e) => handleChange("specialization", e.target.value)}
-              />
+              <Select value={formData.specialization} onValueChange={(v) => handleChange("specialization", v)}>
+                <SelectTrigger><SelectValue placeholder="Select specialization" /></SelectTrigger>
+                <SelectContent>
+                  {RD_SPECIALIZATIONS.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -528,6 +562,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
                 min="0"
                 value={formData.experience_years}
                 onChange={(e) => handleChange("experience_years", e.target.value)}
+                onKeyDown={(e) => ['e','E','+','-','.'].includes(e.key) && e.preventDefault()}
               />
             </div>
           </div>
@@ -546,13 +581,15 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Location</label>
-            <Input
-              type="text"
-              placeholder="City, State"
-              value={formData.clinic_address}
-              onChange={(e) => handleChange("clinic_address", e.target.value)}
-            />
+            <label className="text-sm font-medium">Location (City)</label>
+            <Select value={formData.clinic_address} onValueChange={(v) => handleChange("clinic_address", v)}>
+              <SelectTrigger><SelectValue placeholder="Select city" /></SelectTrigger>
+              <SelectContent>
+                {INDIAN_CITIES.map((city) => (
+                  <SelectItem key={city} value={city}>{city}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

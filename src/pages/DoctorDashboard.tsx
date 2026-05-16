@@ -475,7 +475,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                         placeholder="e.g. Ananya Rao" 
                         className="mt-1.5" 
                         value={patientName}
-                        onChange={(e) => setPatientName(e.target.value)}
+                        onChange={(e) => setPatientName(e.target.value.replace(/[^a-zA-Z\s.\-']/g, ""))}
                       />
                     </div>
                     <div className="relative">

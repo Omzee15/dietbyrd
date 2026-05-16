@@ -1,9 +1,8 @@
 import { useNavigate } from "react-router-dom";
-import { Settings as SettingsIcon, User, Bell, Shield, ArrowLeft } from "lucide-react";
+import { Settings as SettingsIcon, User, Shield, ArrowLeft } from "lucide-react";
 import { getAdminSidebarSections } from "@/lib/admin-sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import AppSidebar from "@/components/AppSidebar";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -54,37 +53,6 @@ const AdminSettings = () => {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Role</label>
                 <Input defaultValue={user?.role || ""} disabled />
-              </div>
-            </div>
-          </div>
-
-          {/* System Notifications */}
-          <div className="bg-card rounded-xl border p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <Bell className="w-5 h-5 text-primary" />
-              <h2 className="font-semibold">System Notifications</h2>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-sm">New Registrations</div>
-                  <div className="text-xs text-muted-foreground">Notify when new users register</div>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-sm">Payment Alerts</div>
-                  <div className="text-xs text-muted-foreground">Alerts for payment issues</div>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-sm">Weekly Reports</div>
-                  <div className="text-xs text-muted-foreground">Receive weekly summary reports</div>
-                </div>
-                <Switch defaultChecked />
               </div>
             </div>
           </div>

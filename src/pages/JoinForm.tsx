@@ -236,7 +236,7 @@ const JoinForm = () => {
                     type="text"
                     placeholder="Dr. John Doe"
                     value={formData.name}
-                    onChange={(e) => handleChange("name", e.target.value)}
+                    onChange={(e) => handleChange("name", e.target.value.replace(/[^a-zA-Z\s.\-']/g, ""))}
                     required
                   />
                 </div>
@@ -249,7 +249,7 @@ const JoinForm = () => {
                     type="tel"
                     placeholder="10-digit number"
                     value={formData.phone}
-                    onChange={(e) => handleChange("phone", e.target.value)}
+                    onChange={(e) => handleChange("phone", e.target.value.replace(/\D/g, ""))}
                     maxLength={10}
                     required
                   />
@@ -330,6 +330,7 @@ const JoinForm = () => {
                         min="0"
                         value={formData.experience_years}
                         onChange={(e) => handleChange("experience_years", e.target.value)}
+                        onKeyDown={(e) => ['e','E','+','-','.'].includes(e.key) && e.preventDefault()}
                         required
                       />
                     </div>
@@ -379,6 +380,7 @@ const JoinForm = () => {
                       min="0"
                       value={formData.experience_years}
                       onChange={(e) => handleChange("experience_years", e.target.value)}
+                      onKeyDown={(e) => ['e','E','+','-','.'].includes(e.key) && e.preventDefault()}
                     />
                   </div>
                 </div>
@@ -397,13 +399,21 @@ const JoinForm = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Clinic Address</label>
-                  <Input
-                    type="text"
-                    placeholder="City, State"
-                    value={formData.clinic_address}
-                    onChange={(e) => handleChange("clinic_address", e.target.value)}
-                  />
+                  <label className="text-sm font-medium">Location (City)</label>
+                  <Select value={formData.clinic_address} onValueChange={(v) => handleChange("clinic_address", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select city" /></SelectTrigger>
+                    <SelectContent>
+                      {["Mumbai","Delhi","Bengaluru","Hyderabad","Ahmedabad","Chennai","Kolkata","Pune",
+                        "Jaipur","Lucknow","Kanpur","Nagpur","Indore","Thane","Bhopal","Visakhapatnam",
+                        "Pimpri-Chinchwad","Patna","Vadodara","Ghaziabad","Ludhiana","Agra","Nashik",
+                        "Faridabad","Meerut","Rajkot","Varanasi","Srinagar","Aurangabad","Dhanbad",
+                        "Amritsar","Navi Mumbai","Allahabad","Ranchi","Howrah","Coimbatore","Jabalpur",
+                        "Gwalior","Vijayawada","Jodhpur","Madurai","Raipur","Kota","Chandigarh",
+                        "Guwahati","Thiruvananthapuram","Kochi","Mysuru","Others"].map((city) => (
+                        <SelectItem key={city} value={city}>{city}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

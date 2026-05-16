@@ -80,6 +80,11 @@
 }
 
 /* Slow floating animations for decorative circles */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 @keyframes float-slow-1 {
   0%, 100% {
     transform: translate(0, 0);

@@ -132,39 +132,6 @@ const cloneMeals = (sourceMeals: MealSlot[]): MealSlot[] =>
     items: meal.items.map((item) => ({ ...item, id: crypto.randomUUID() })),
   }));
 
-// ─── Food Database ────────────────────────────────────────────────────────────
-const foodDatabase: FoodItem[] = [
-  { name: "Brown Rice", nameHindi: "भूरे चावल", caloriesPer100: 111, protein: 2.6, carbs: 23, fat: 0.9 },
-  { name: "Chicken Breast", nameHindi: "चिकन ब्रेस्ट", caloriesPer100: 165, protein: 31, carbs: 0, fat: 3.6 },
-  { name: "Egg (Whole)", nameHindi: "अंडा", caloriesPer100: 155, protein: 13, carbs: 1.1, fat: 11, unitName: "egg", unitWeight: 50 },
-  { name: "Oats", nameHindi: "जई", caloriesPer100: 389, protein: 16.9, carbs: 66, fat: 6.9 },
-  { name: "Banana", nameHindi: "केला", caloriesPer100: 89, protein: 1.1, carbs: 23, fat: 0.3, unitName: "piece", unitWeight: 120 },
-  { name: "Paneer (Cottage Cheese)", nameHindi: "पनीर", caloriesPer100: 265, protein: 18, carbs: 1.2, fat: 21 },
-  { name: "Moong Dal", nameHindi: "मूंग दाल", caloriesPer100: 105, protein: 7.5, carbs: 18, fat: 0.4 },
-  { name: "Roti (Wheat)", nameHindi: "रोटी", caloriesPer100: 264, protein: 8.7, carbs: 50, fat: 3.7, unitName: "piece", unitWeight: 40 },
-  { name: "Greek Yogurt", nameHindi: "ग्रीक दही", caloriesPer100: 59, protein: 10, carbs: 3.6, fat: 0.7, unitName: "cup", unitWeight: 170 },
-  { name: "Almonds", nameHindi: "बादाम", caloriesPer100: 579, protein: 21, carbs: 22, fat: 50, unitName: "piece", unitWeight: 1.2 },
-  { name: "Gulab Jamun", nameHindi: "गुलाब जामुन", caloriesPer100: 299, protein: 2.2, carbs: 40, fat: 14, treat: true, unitName: "piece", unitWeight: 30 },
-  { name: "Dark Chocolate", nameHindi: "डार्क चॉकलेट", caloriesPer100: 546, protein: 5, carbs: 60, fat: 31, treat: true, unitName: "square", unitWeight: 10 },
-  { name: "Apple", nameHindi: "सेब", caloriesPer100: 52, protein: 0.3, carbs: 14, fat: 0.2, unitName: "piece", unitWeight: 180 },
-  { name: "Spinach", nameHindi: "पालक", caloriesPer100: 23, protein: 2.9, carbs: 3.6, fat: 0.4, unitName: "cup", unitWeight: 30 },
-  { name: "Salmon", nameHindi: "सैल्मन मछली", caloriesPer100: 208, protein: 20, carbs: 0, fat: 13 },
-  { name: "Quinoa", nameHindi: "क्विनोआ", caloriesPer100: 120, protein: 4.4, carbs: 21, fat: 1.9, unitName: "cup", unitWeight: 185 },
-  { name: "Sweet Potato", nameHindi: "शकरकंद", caloriesPer100: 86, protein: 1.6, carbs: 20, fat: 0.1, unitName: "piece", unitWeight: 130 },
-  { name: "Tofu", nameHindi: "टोफू", caloriesPer100: 76, protein: 8, carbs: 1.9, fat: 4.8 },
-  { name: "Chickpeas", nameHindi: "छोले", caloriesPer100: 164, protein: 8.9, carbs: 27, fat: 2.6, unitName: "cup", unitWeight: 164 },
-  { name: "Broccoli", nameHindi: "ब्रोकोली", caloriesPer100: 34, protein: 2.8, carbs: 7, fat: 0.4, unitName: "cup", unitWeight: 91 },
-  { name: "Milk (Whole)", nameHindi: "दूध", caloriesPer100: 61, protein: 3.2, carbs: 4.8, fat: 3.3, unitName: "cup", unitWeight: 244 },
-  { name: "Curd/Yogurt", nameHindi: "दही", caloriesPer100: 98, protein: 11, carbs: 3.4, fat: 4.3, unitName: "cup", unitWeight: 245 },
-  { name: "Dal (Mixed)", nameHindi: "दाल", caloriesPer100: 116, protein: 9, carbs: 20, fat: 0.4, unitName: "cup", unitWeight: 200 },
-  { name: "Chapati", nameHindi: "चपाती", caloriesPer100: 120, protein: 3.1, carbs: 25, fat: 0.5, unitName: "piece", unitWeight: 35 },
-  { name: "White Rice", nameHindi: "सफेद चावल", caloriesPer100: 130, protein: 2.7, carbs: 28, fat: 0.3, unitName: "cup", unitWeight: 158 },
-  { name: "Idli", nameHindi: "इडली", caloriesPer100: 60, protein: 2, carbs: 12, fat: 0.2, unitName: "piece", unitWeight: 40 },
-  { name: "Dosa", nameHindi: "डोसा", caloriesPer100: 133, protein: 2.6, carbs: 18, fat: 5.2, unitName: "piece", unitWeight: 85 },
-  { name: "Poha", nameHindi: "पोहा", caloriesPer100: 110, protein: 2.5, carbs: 23, fat: 0.6, unitName: "cup", unitWeight: 200 },
-  { name: "Upma", nameHindi: "उपमा", caloriesPer100: 95, protein: 2.5, carbs: 17, fat: 2, unitName: "cup", unitWeight: 200 },
-];
-
 // ─── Component ────────────────────────────────────────────────────────────────
 const CreateDiet = () => {
   const { slug, planId } = useParams<{ slug: string; planId?: string }>();
@@ -218,6 +185,7 @@ const CreateDiet = () => {
   // UI State
   const [activeMeal, setActiveMeal] = useState("Breakfast");
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
   const [prototypes, setPrototypes] = useState<DietPrototype[]>([
     { id: crypto.randomUUID(), name: "Prototype 1", meals: createDefaultMealSlots() },
   ]);
@@ -1012,8 +980,12 @@ const CreateDiet = () => {
 
   const { data: searchedFoods = [] } = useQuery({
     queryKey: ["create-diet-food-search", trimmedSearchTerm],
-    queryFn: () => foodService.search(trimmedSearchTerm),
-    enabled: trimmedSearchTerm.length > 0,
+    queryFn: () =>
+      trimmedSearchTerm.length > 0
+        ? foodService.search(trimmedSearchTerm)
+        : foodService.getAll(),
+    enabled: true,
+    staleTime: 5 * 60 * 1000,
   });
 
   const searchResults: FoodItem[] = searchedFoods.map((food: FoodLibraryItem) => ({
@@ -1764,13 +1736,20 @@ const CreateDiet = () => {
                 <div className="relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
-                    placeholder="Search food items..."
+                    placeholder="Search or browse food library..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                    onFocus={() => setSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
                     className="pl-12 h-12 text-base rounded-xl border-2"
                   />
-                  {searchResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 bg-card border-2 border-t-0 rounded-b-xl shadow-lg z-10 max-h-64 overflow-y-auto">
+                  {searchFocused && searchResults.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 bg-card border-2 border-t-0 rounded-b-xl shadow-lg z-10 max-h-72 overflow-y-auto">
+                      {!trimmedSearchTerm && (
+                        <div className="px-3 py-2 text-xs text-muted-foreground font-medium border-b bg-muted/40">
+                          All foods — type to filter
+                        </div>
+                      )}
                       {searchResults.map((food, i) => (
                         <button
                           key={i}

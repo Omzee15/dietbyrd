@@ -26,7 +26,9 @@ const JoinRequests = () => {
   const [statusFilter, setStatusFilter] = useState<string>("pending");
   const [selectedRequest, setSelectedRequest] = useState<JoinRequest | null>(null);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [adminMessage, setAdminMessage] = useState("");
 
   // Fetch join requests
   const { data: requests = [], isLoading } = useQuery({
@@ -50,11 +52,14 @@ const JoinRequests = () => {
 
   // Approve mutation
   const approveMutation = useMutation({
-    mutationFn: (id: number) => approveJoinRequest(id, user?.id),
+    mutationFn: ({ id, message }: { id: number; message?: string }) =>
+      approveJoinRequest(id, user?.id, message),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["join-requests"] });
       toast.success("Request approved! Account created successfully.");
+      setShowApproveDialog(false);
       setSelectedRequest(null);
+      setAdminMessage("");
     },
     onError: (err: Error) => {
       toast.error(err.message || "Failed to approve request");
@@ -63,32 +68,42 @@ const JoinRequests = () => {
 
   // Reject mutation
   const rejectMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason?: string }) => 
-      rejectJoinRequest(id, user?.id, reason),
+    mutationFn: ({ id, reason, message }: { id: number; reason?: string; message?: string }) =>
+      rejectJoinRequest(id, user?.id, reason, message),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["join-requests"] });
       toast.success("Request rejected");
       setShowRejectDialog(false);
       setSelectedRequest(null);
       setRejectionReason("");
+      setAdminMessage("");
     },
     onError: (err: Error) => {
       toast.error(err.message || "Failed to reject request");
     },
   });
 
-  const handleApprove = (request: JoinRequest) => {
-    approveMutation.mutate(request.id);
+  const handleApprove = () => {
+    if (selectedRequest) {
+      approveMutation.mutate({ id: selectedRequest.id, message: adminMessage || undefined });
+    }
   };
 
   const handleReject = () => {
     if (selectedRequest) {
-      rejectMutation.mutate({ id: selectedRequest.id, reason: rejectionReason || undefined });
+      rejectMutation.mutate({ id: selectedRequest.id, reason: rejectionReason || undefined, message: adminMessage || undefined });
     }
+  };
+
+  const openApproveDialog = (request: JoinRequest) => {
+    setSelectedRequest(request);
+    setAdminMessage("");
+    setShowApproveDialog(true);
   };
 
   const openRejectDialog = (request: JoinRequest) => {
     setSelectedRequest(request);
+    setAdminMessage("");
     setShowRejectDialog(true);
   };
 
@@ -296,17 +311,11 @@ const JoinRequests = () => {
                           <Button
                             size="sm"
                             className="bg-primary hover:bg-primary/90"
-                            onClick={() => handleApprove(request)}
+                            onClick={() => openApproveDialog(request)}
                             disabled={approveMutation.isPending}
                           >
-                            {approveMutation.isPending ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <>
-                                <Check className="w-4 h-4 mr-1" />
-                                Approve
-                              </>
-                            )}
+                            <Check className="w-4 h-4 mr-1" />
+                            Approve
                           </Button>
                         </div>
                       )}
@@ -319,6 +328,42 @@ const JoinRequests = () => {
         </div>
       </main>
 
+      {/* Approve Dialog */}
+      <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approve Request</DialogTitle>
+            <DialogDescription>
+              Approve {selectedRequest?.name}'s request to join as a{" "}
+              {selectedRequest?.requested_role === "doctor" ? "doctor" : "dietician"}. Their account will be activated.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-2 block">
+                Message to applicant (optional)
+              </label>
+              <Textarea
+                placeholder="e.g. Welcome! Please complete your profile after logging in..."
+                value={adminMessage}
+                onChange={(e) => setAdminMessage(e.target.value)}
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground mt-1">This message will be shown to the applicant when they log in.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowApproveDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleApprove} disabled={approveMutation.isPending}>
+              {approveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Approve Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Reject Dialog */}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent>
@@ -329,29 +374,37 @@ const JoinRequests = () => {
               {selectedRequest?.requested_role === "doctor" ? "doctor" : "dietician"}?
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <label className="text-sm font-medium text-slate-700 mb-2 block">
-              Reason for rejection (optional)
-            </label>
-            <Textarea
-              placeholder="Enter reason..."
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              rows={3}
-            />
+          <div className="py-4 space-y-4">
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-2 block">
+                Reason for rejection (optional)
+              </label>
+              <Textarea
+                placeholder="Enter reason..."
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={2}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-2 block">
+                Message to applicant (optional)
+              </label>
+              <Textarea
+                placeholder="e.g. Your application is missing required documents. Please reapply with..."
+                value={adminMessage}
+                onChange={(e) => setAdminMessage(e.target.value)}
+                rows={2}
+              />
+              <p className="text-xs text-muted-foreground mt-1">This message will be shown to the applicant when they try to log in.</p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowRejectDialog(false)}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleReject}
-              disabled={rejectMutation.isPending}
-            >
-              {rejectMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : null}
+            <Button variant="destructive" onClick={handleReject} disabled={rejectMutation.isPending}>
+              {rejectMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Reject Request
             </Button>
           </DialogFooter>

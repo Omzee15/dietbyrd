@@ -169,6 +169,10 @@ const PatientSupport = () => {
         { label: "Support", href: "/patient/support", icon: MessageSquare },
       ],
     },
+    {
+      title: "Settings",
+      items: [{ label: "Preferences", href: "/patient/settings", icon: Settings }],
+    },
   ];
 
   const bottomContent = (

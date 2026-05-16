@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Phone, MessageSquare, LogOut, Plus, Search, Filter, Eye, ChevronDown } from "lucide-react";
+import { Users, MessageSquare, LogOut, Plus, Search, Eye, X, Send, UserCheck } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 interface Doctor {
@@ -28,11 +29,8 @@ interface Patient {
   name: string;
   phone: string;
   email: string;
-  date_of_birth: string;
   gender: string;
-  address: string;
   state: string;
-  pincode: string;
   is_active: boolean;
   created_at: string;
   appointment_count: number;
@@ -42,11 +40,8 @@ interface Dietician {
   id: number;
   name: string;
   phone: string;
-  email: string;
   specialization: string;
   qualification: string;
-  experience_years: number;
-  consultation_fee: number;
   is_active: boolean;
   created_at: string;
   appointment_count: number;
@@ -74,14 +69,54 @@ interface Ticket {
   comment_count: number;
 }
 
+interface TicketComment {
+  id: number;
+  ticket_id: number;
+  user_id: number;
+  user_name: string;
+  user_role: string;
+  comment: string;
+  is_internal: boolean;
+  created_at: string;
+}
+
+interface TicketDetail {
+  ticket: Ticket;
+  comments: TicketComment[];
+}
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case "open": return "bg-blue-100 text-blue-800";
+    case "in_progress": return "bg-yellow-100 text-yellow-800";
+    case "resolved": return "bg-green-100 text-green-800";
+    case "closed": return "bg-gray-100 text-gray-800";
+    default: return "bg-gray-100 text-gray-800";
+  }
+};
+
+const getPriorityColor = (priority: string) => {
+  switch (priority) {
+    case "urgent": return "bg-red-100 text-red-800";
+    case "high": return "bg-orange-100 text-orange-800";
+    case "medium": return "bg-yellow-100 text-yellow-800";
+    case "low": return "bg-green-100 text-green-800";
+    default: return "bg-gray-100 text-gray-800";
+  }
+};
+
 const SupportDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
-  
-  const [activeTab, setActiveTab] = useState("overview");
+
+  const [activeTab, setActiveTab] = useState("tickets");
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [showCreateTicket, setShowCreateTicket] = useState(false);
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [newComment, setNewComment] = useState("");
+  const [resolutionNotes, setResolutionNotes] = useState("");
   const [ticketForm, setTicketForm] = useState({
     patient_id: "",
     title: "",
@@ -90,7 +125,7 @@ const SupportDashboard = () => {
     priority: "medium",
   });
 
-  // Fetch doctors
+  // Fetch list data
   const { data: doctorsData } = useQuery({
     queryKey: ["support-doctors"],
     queryFn: async () => {
@@ -101,7 +136,6 @@ const SupportDashboard = () => {
     },
   });
 
-  // Fetch patients
   const { data: patientsData } = useQuery({
     queryKey: ["support-patients"],
     queryFn: async () => {
@@ -112,7 +146,6 @@ const SupportDashboard = () => {
     },
   });
 
-  // Fetch dieticians
   const { data: dieticiansData } = useQuery({
     queryKey: ["support-dieticians"],
     queryFn: async () => {
@@ -123,7 +156,6 @@ const SupportDashboard = () => {
     },
   });
 
-  // Fetch tickets
   const { data: ticketsData } = useQuery({
     queryKey: ["support-tickets"],
     queryFn: async () => {
@@ -134,7 +166,19 @@ const SupportDashboard = () => {
     },
   });
 
-  // Create ticket mutation
+  // Fetch selected ticket detail
+  const { data: ticketDetail, isLoading: detailLoading } = useQuery({
+    queryKey: ["support-ticket-detail", selectedTicketId],
+    queryFn: async () => {
+      const res = await fetch(`/api/support/tickets/${selectedTicketId}`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      return data.data as TicketDetail;
+    },
+    enabled: !!selectedTicketId,
+  });
+
+  // Create ticket
   const createTicketMutation = useMutation({
     mutationFn: async (ticketData: any) => {
       const res = await fetch("/api/support/tickets", {
@@ -149,18 +193,51 @@ const SupportDashboard = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["support-tickets"] });
       setShowCreateTicket(false);
-      setTicketForm({
-        patient_id: "",
-        title: "",
-        description: "",
-        category: "general",
-        priority: "medium",
-      });
+      setTicketForm({ patient_id: "", title: "", description: "", category: "general", priority: "medium" });
       toast.success("Ticket created successfully!");
     },
-    onError: (error: Error) => {
-      toast.error(error.message);
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  // Update ticket status/assignment
+  const updateTicketMutation = useMutation({
+    mutationFn: async (update: { status?: string; assigned_to?: number | null; resolution_notes?: string }) => {
+      const res = await fetch(`/api/support/tickets/${selectedTicketId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(update),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      return data.data;
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["support-tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["support-ticket-detail", selectedTicketId] });
+      toast.success("Ticket updated");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  // Add comment
+  const addCommentMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/support/tickets/${selectedTicketId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user?.id, comment: newComment.trim() }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["support-ticket-detail", selectedTicketId] });
+      queryClient.invalidateQueries({ queryKey: ["support-tickets"] });
+      setNewComment("");
+      toast.success("Comment added");
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const handleLogout = () => {
@@ -176,32 +253,27 @@ const SupportDashboard = () => {
     });
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "open": return "bg-blue-100 text-blue-800";
-      case "in_progress": return "bg-yellow-100 text-yellow-800";
-      case "resolved": return "bg-green-100 text-green-800";
-      case "closed": return "bg-gray-100 text-gray-800";
-      default: return "bg-gray-100 text-gray-800";
-    }
-  };
+  const openTickets = ticketsData?.filter(t => t.status === "open").length || 0;
+  const inProgressTickets = ticketsData?.filter(t => t.status === "in_progress").length || 0;
+  const resolvedToday = ticketsData?.filter(t =>
+    t.resolved_at && new Date(t.resolved_at).toDateString() === new Date().toDateString()
+  ).length || 0;
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "urgent": return "bg-red-100 text-red-800";
-      case "high": return "bg-orange-100 text-orange-800";
-      case "medium": return "bg-yellow-100 text-yellow-800";
-      case "low": return "bg-green-100 text-green-800";
-      default: return "bg-gray-100 text-gray-800";
-    }
-  };
+  const filteredTickets = (ticketsData || []).filter(t => {
+    const matchesSearch = !searchQuery ||
+      t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.ticket_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (t.patient_name || "").toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || t.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const sidebarSections = [
     {
       title: "Support",
       items: [
-        { label: "Overview", href: "/support", icon: Users },
         { label: "Tickets", href: "/support", icon: MessageSquare },
+        { label: "Patients", href: "/support", icon: Users },
       ],
     },
   ];
@@ -216,86 +288,65 @@ const SupportDashboard = () => {
     </button>
   );
 
-  const openTickets = ticketsData?.filter(t => t.status === "open").length || 0;
-  const inProgressTickets = ticketsData?.filter(t => t.status === "in_progress").length || 0;
+  const selectedTicket = ticketDetail?.ticket;
+  const isAssignedToMe = selectedTicket?.assigned_to === user?.id;
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar 
-        title="DietByRD" 
-        subtitle="Support Team" 
-        sections={sidebarSections} 
-        bottomContent={bottomContent} 
+      <AppSidebar
+        title="DietByRD"
+        subtitle="Support Team"
+        sections={sidebarSections}
+        bottomContent={bottomContent}
       />
 
-      <main className="flex-1 bg-background">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h1 className="text-2xl font-bold">Support Dashboard</h1>
+      <main className="flex-1 bg-background overflow-hidden flex flex-col">
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+          <h1 className="text-xl font-semibold">Support Dashboard</h1>
           <div className="flex items-center gap-3">
             <Dialog open={showCreateTicket} onOpenChange={setShowCreateTicket}>
               <DialogTrigger asChild>
-                <Button>
+                <Button size="sm">
                   <Plus className="w-4 h-4 mr-2" />
-                  Create Ticket
+                  New Ticket
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-lg">
                 <DialogHeader>
-                  <DialogTitle>Create New Ticket</DialogTitle>
+                  <DialogTitle>Create Support Ticket</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleCreateTicket} className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Patient (Optional)</label>
+                    <Label>Patient (Optional)</Label>
                     <Select
                       value={ticketForm.patient_id}
-                      onValueChange={(value) => setTicketForm({ ...ticketForm, patient_id: value })}
+                      onValueChange={(v) => setTicketForm({ ...ticketForm, patient_id: v })}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select patient" />
-                      </SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">None</SelectItem>
-                        {patientsData?.map((patient) => (
-                          <SelectItem key={patient.id} value={patient.id.toString()}>
-                            {patient.name} - {patient.phone}
-                          </SelectItem>
+                        {patientsData?.map(p => (
+                          <SelectItem key={p.id} value={p.id.toString()}>{p.name} — {p.phone}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Title *</label>
-                    <Input
-                      type="text"
-                      placeholder="Brief description of the issue"
-                      value={ticketForm.title}
-                      onChange={(e) => setTicketForm({ ...ticketForm, title: e.target.value })}
-                      required
-                    />
+                    <Label>Title *</Label>
+                    <Input placeholder="Brief description of the issue" value={ticketForm.title}
+                      onChange={(e) => setTicketForm({ ...ticketForm, title: e.target.value })} required />
                   </div>
-
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Description *</label>
-                    <Textarea
-                      placeholder="Detailed description of the issue"
-                      value={ticketForm.description}
-                      onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })}
-                      rows={4}
-                      required
-                    />
+                    <Label>Description *</Label>
+                    <Textarea placeholder="Detailed description" value={ticketForm.description} rows={4}
+                      onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })} required />
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Category</label>
-                      <Select
-                        value={ticketForm.category}
-                        onValueChange={(value) => setTicketForm({ ...ticketForm, category: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
+                      <Label>Category</Label>
+                      <Select value={ticketForm.category} onValueChange={(v) => setTicketForm({ ...ticketForm, category: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="general">General</SelectItem>
                           <SelectItem value="technical">Technical</SelectItem>
@@ -306,16 +357,10 @@ const SupportDashboard = () => {
                         </SelectContent>
                       </Select>
                     </div>
-
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Priority</label>
-                      <Select
-                        value={ticketForm.priority}
-                        onValueChange={(value) => setTicketForm({ ...ticketForm, priority: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
+                      <Label>Priority</Label>
+                      <Select value={ticketForm.priority} onValueChange={(v) => setTicketForm({ ...ticketForm, priority: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="low">Low</SelectItem>
                           <SelectItem value="medium">Medium</SelectItem>
@@ -325,357 +370,349 @@ const SupportDashboard = () => {
                       </Select>
                     </div>
                   </div>
-
-                  <div className="flex justify-end gap-3 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setShowCreateTicket(false)}
-                    >
-                      Cancel
-                    </Button>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button type="button" variant="outline" onClick={() => setShowCreateTicket(false)}>Cancel</Button>
                     <Button type="submit" disabled={createTicketMutation.isPending}>
-                      {createTicketMutation.isPending ? "Creating..." : "Create Ticket"}
+                      {createTicketMutation.isPending ? "Creating…" : "Create Ticket"}
                     </Button>
                   </div>
                 </form>
               </DialogContent>
             </Dialog>
-
-            <div className="w-8 h-8 rounded-full bg-sidebar text-sidebar-primary-foreground flex items-center justify-center text-xs font-semibold">
-              {user?.name?.split(" ").map(n => n[0]).join("") || "SP"}
-            </div>
           </div>
         </div>
 
-        <div className="p-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-6">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="doctors">Doctors</TabsTrigger>
-              <TabsTrigger value="patients">Patients</TabsTrigger>
-              <TabsTrigger value="dieticians">Dieticians</TabsTrigger>
-              <TabsTrigger value="tickets">Tickets</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview">
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Open Tickets</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{openTickets}</p>
-                    <p className="text-sm text-gray-500 mt-2">Awaiting attention</p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">In Progress</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{inProgressTickets}</p>
-                    <p className="text-sm text-gray-500 mt-2">Being handled</p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Total Patients</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{patientsData?.length || 0}</p>
-                    <p className="text-sm text-gray-500 mt-2">Registered patients</p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Active Doctors</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">
-                      {doctorsData?.filter(d => d.is_active).length || 0}
-                    </p>
-                    <p className="text-sm text-gray-500 mt-2">Available doctors</p>
-                  </CardContent>
-                </Card>
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left: ticket list + tabs */}
+          <div className={`flex flex-col overflow-hidden transition-all duration-200 ${selectedTicketId ? "w-[45%] border-r" : "w-full"}`}>
+            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedTicketId(null); }} className="flex flex-col flex-1 overflow-hidden">
+              <div className="px-6 pt-4 shrink-0">
+                <TabsList>
+                  <TabsTrigger value="tickets">Tickets</TabsTrigger>
+                  <TabsTrigger value="patients">Patients</TabsTrigger>
+                  <TabsTrigger value="doctors">Doctors</TabsTrigger>
+                  <TabsTrigger value="dieticians">Dieticians</TabsTrigger>
+                </TabsList>
               </div>
 
-              <Card className="mt-6">
-                <CardHeader>
-                  <CardTitle>Recent Tickets</CardTitle>
-                  <CardDescription>Latest support tickets</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {ticketsData?.slice(0, 5).map((ticket) => (
-                      <div
-                        key={ticket.id}
-                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{ticket.ticket_number}</span>
-                            <Badge className={getStatusColor(ticket.status)}>
+              {/* Stats row (always visible in ticket tab) */}
+              {activeTab === "tickets" && (
+                <div className="grid grid-cols-3 gap-3 px-6 py-3 shrink-0">
+                  {[
+                    { label: "Open", value: openTickets, color: "text-blue-600" },
+                    { label: "In Progress", value: inProgressTickets, color: "text-yellow-600" },
+                    { label: "Resolved Today", value: resolvedToday, color: "text-green-600" },
+                  ].map(stat => (
+                    <Card key={stat.label} className="py-3">
+                      <CardContent className="px-4 py-0">
+                        <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+                        <p className="text-xs text-muted-foreground">{stat.label}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              <TabsContent value="tickets" className="flex-1 overflow-hidden flex flex-col mt-0 px-6 pb-4">
+                {/* Filters */}
+                <div className="flex gap-2 mb-3 shrink-0">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input placeholder="Search tickets…" className="pl-9" value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)} />
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All statuses</SelectItem>
+                      <SelectItem value="open">Open</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                      <SelectItem value="closed">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Ticket list */}
+                <div className="flex-1 overflow-y-auto space-y-2">
+                  {filteredTickets.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                      <p className="text-sm">No tickets found</p>
+                    </div>
+                  ) : filteredTickets.map(ticket => (
+                    <div
+                      key={ticket.id}
+                      onClick={() => setSelectedTicketId(ticket.id === selectedTicketId ? null : ticket.id)}
+                      className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                        selectedTicketId === ticket.id
+                          ? "border-primary bg-primary/5"
+                          : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className="text-xs font-mono text-muted-foreground">{ticket.ticket_number}</span>
+                            <Badge className={`text-[10px] ${getStatusColor(ticket.status)}`}>
                               {ticket.status.replace("_", " ")}
                             </Badge>
-                            <Badge className={getPriorityColor(ticket.priority)}>
+                            <Badge className={`text-[10px] ${getPriorityColor(ticket.priority)}`}>
                               {ticket.priority}
                             </Badge>
                           </div>
-                          <p className="text-sm text-gray-600 mt-1">{ticket.title}</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {ticket.patient_name} • {new Date(ticket.created_at).toLocaleDateString()}
+                          <p className="font-medium text-sm truncate">{ticket.title}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {ticket.patient_name || "No patient"} · {new Date(ticket.created_at).toLocaleDateString()}
+                            {ticket.comment_count > 0 && ` · ${ticket.comment_count} comments`}
                           </p>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setActiveTab("tickets")}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
+                        <Eye className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="patients" className="flex-1 overflow-y-auto px-6 pb-4 mt-0">
+                <div className="mb-3">
+                  <Input placeholder="Search patients…" value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  {(patientsData || [])
+                    .filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.phone.includes(searchQuery))
+                    .map(patient => (
+                      <div key={patient.id} className="p-3 border rounded-lg flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-sm">{patient.name}</p>
+                          <p className="text-xs text-muted-foreground">{patient.phone} · {patient.state}</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge variant={patient.is_active ? "default" : "secondary"} className="text-[10px]">
+                            {patient.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                          <p className="text-xs text-muted-foreground mt-1">{patient.appointment_count} appts</p>
+                        </div>
                       </div>
                     ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                </div>
+              </TabsContent>
 
-            <TabsContent value="doctors">
-              <Card>
-                <CardHeader>
-                  <CardTitle>All Doctors</CardTitle>
-                  <CardDescription>List of all registered doctors</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="mb-4">
-                    <Input
-                      placeholder="Search doctors..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="max-w-md"
-                    />
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left p-2 font-medium">Name</th>
-                          <th className="text-left p-2 font-medium">Phone</th>
-                          <th className="text-left p-2 font-medium">Email</th>
-                          <th className="text-left p-2 font-medium">Status</th>
-                          <th className="text-left p-2 font-medium">Registered</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {doctorsData
-                          ?.filter((d) =>
-                            searchQuery
-                              ? d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                d.phone.includes(searchQuery)
-                              : true
-                          )
-                          .map((doctor) => (
-                            <tr key={doctor.id} className="border-b hover:bg-gray-50">
-                              <td className="p-2">{doctor.name}</td>
-                              <td className="p-2">{doctor.phone}</td>
-                              <td className="p-2">{doctor.email || "-"}</td>
-                              <td className="p-2">
-                                <Badge variant={doctor.is_active ? "default" : "secondary"}>
-                                  {doctor.is_active ? "Active" : "Inactive"}
-                                </Badge>
-                              </td>
-                              <td className="p-2">
-                                {new Date(doctor.created_at).toLocaleDateString()}
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+              <TabsContent value="doctors" className="flex-1 overflow-y-auto px-6 pb-4 mt-0">
+                <div className="mb-3">
+                  <Input placeholder="Search doctors…" value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  {(doctorsData || [])
+                    .filter(d => !searchQuery || d.name.toLowerCase().includes(searchQuery.toLowerCase()) || d.phone.includes(searchQuery))
+                    .map(doctor => (
+                      <div key={doctor.id} className="p-3 border rounded-lg flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-sm">{doctor.name}</p>
+                          <p className="text-xs text-muted-foreground">{doctor.phone}</p>
+                        </div>
+                        <Badge variant={doctor.is_active ? "default" : "secondary"} className="text-[10px]">
+                          {doctor.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    ))}
+                </div>
+              </TabsContent>
 
-            <TabsContent value="patients">
-              <Card>
-                <CardHeader>
-                  <CardTitle>All Patients</CardTitle>
-                  <CardDescription>List of all registered patients</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="mb-4">
-                    <Input
-                      placeholder="Search patients..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="max-w-md"
-                    />
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left p-2 font-medium">Name</th>
-                          <th className="text-left p-2 font-medium">Phone</th>
-                          <th className="text-left p-2 font-medium">Email</th>
-                          <th className="text-left p-2 font-medium">Gender</th>
-                          <th className="text-left p-2 font-medium">Location</th>
-                          <th className="text-left p-2 font-medium">Appointments</th>
-                          <th className="text-left p-2 font-medium">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {patientsData
-                          ?.filter((p) =>
-                            searchQuery
-                              ? p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                p.phone.includes(searchQuery)
-                              : true
-                          )
-                          .map((patient) => (
-                            <tr key={patient.id} className="border-b hover:bg-gray-50">
-                              <td className="p-2">{patient.name}</td>
-                              <td className="p-2">{patient.phone}</td>
-                              <td className="p-2">{patient.email || "-"}</td>
-                              <td className="p-2">{patient.gender}</td>
-                              <td className="p-2">{patient.state}</td>
-                              <td className="p-2">{patient.appointment_count}</td>
-                              <td className="p-2">
-                                <Badge variant={patient.is_active ? "default" : "secondary"}>
-                                  {patient.is_active ? "Active" : "Inactive"}
-                                </Badge>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+              <TabsContent value="dieticians" className="flex-1 overflow-y-auto px-6 pb-4 mt-0">
+                <div className="mb-3">
+                  <Input placeholder="Search dieticians…" value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  {(dieticiansData || [])
+                    .filter(d => !searchQuery || d.name.toLowerCase().includes(searchQuery.toLowerCase()) || d.phone.includes(searchQuery))
+                    .map(dietician => (
+                      <div key={dietician.id} className="p-3 border rounded-lg flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-sm">{dietician.name}</p>
+                          <p className="text-xs text-muted-foreground">{dietician.qualification} · {dietician.appointment_count} appts</p>
+                        </div>
+                        <Badge variant={dietician.is_active ? "default" : "secondary"} className="text-[10px]">
+                          {dietician.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    ))}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
 
-            <TabsContent value="dieticians">
-              <Card>
-                <CardHeader>
-                  <CardTitle>All Dieticians</CardTitle>
-                  <CardDescription>List of all registered dieticians</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="mb-4">
-                    <Input
-                      placeholder="Search dieticians..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="max-w-md"
-                    />
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left p-2 font-medium">Name</th>
-                          <th className="text-left p-2 font-medium">Phone</th>
-                          <th className="text-left p-2 font-medium">Specialization</th>
-                          <th className="text-left p-2 font-medium">Experience</th>
-                          <th className="text-left p-2 font-medium">Fee</th>
-                          <th className="text-left p-2 font-medium">Appointments</th>
-                          <th className="text-left p-2 font-medium">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dieticiansData
-                          ?.filter((d) =>
-                            searchQuery
-                              ? d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                d.phone.includes(searchQuery)
-                              : true
-                          )
-                          .map((dietician) => (
-                            <tr key={dietician.id} className="border-b hover:bg-gray-50">
-                              <td className="p-2">{dietician.name}</td>
-                              <td className="p-2">{dietician.phone}</td>
-                              <td className="p-2">{dietician.specialization || "-"}</td>
-                              <td className="p-2">{dietician.experience_years} years</td>
-                              <td className="p-2">₹{dietician.consultation_fee}</td>
-                              <td className="p-2">{dietician.appointment_count}</td>
-                              <td className="p-2">
-                                <Badge variant={dietician.is_active ? "default" : "secondary"}>
-                                  {dietician.is_active ? "Active" : "Inactive"}
-                                </Badge>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+          {/* Right: ticket detail panel */}
+          {selectedTicketId && (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {detailLoading ? (
+                <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+                  Loading ticket…
+                </div>
+              ) : selectedTicket ? (
+                <>
+                  {/* Detail header */}
+                  <div className="px-6 py-4 border-b shrink-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="text-xs font-mono text-muted-foreground">{selectedTicket.ticket_number}</span>
+                          <Badge className={`text-[10px] ${getPriorityColor(selectedTicket.priority)}`}>
+                            {selectedTicket.priority}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px]">{selectedTicket.category}</Badge>
+                        </div>
+                        <h2 className="font-semibold text-base">{selectedTicket.title}</h2>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {selectedTicket.patient_name
+                            ? `Patient: ${selectedTicket.patient_name}`
+                            : "No patient linked"}{" "}
+                          · Opened {new Date(selectedTicket.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button onClick={() => setSelectedTicketId(null)} className="text-muted-foreground hover:text-foreground">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
 
-            <TabsContent value="tickets">
-              <Card>
-                <CardHeader>
-                  <CardTitle>All Tickets</CardTitle>
-                  <CardDescription>Support tickets and their status</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="mb-4">
-                    <Input
-                      placeholder="Search tickets..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="max-w-md"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    {ticketsData
-                      ?.filter((t) =>
-                        searchQuery
-                          ? t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            t.ticket_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            t.patient_name?.toLowerCase().includes(searchQuery.toLowerCase())
-                          : true
-                      )
-                      .map((ticket) => (
-                        <div
-                          key={ticket.id}
-                          className="p-4 border rounded-lg hover:bg-gray-50"
+                    {/* Actions row */}
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                      <Select
+                        value={selectedTicket.status}
+                        onValueChange={(status) => updateTicketMutation.mutate({ status })}
+                        disabled={updateTicketMutation.isPending}
+                      >
+                        <SelectTrigger className="h-8 w-36 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="open">Open</SelectItem>
+                          <SelectItem value="in_progress">In Progress</SelectItem>
+                          <SelectItem value="resolved">Resolved</SelectItem>
+                          <SelectItem value="closed">Closed</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {!isAssignedToMe ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          disabled={updateTicketMutation.isPending}
+                          onClick={() => updateTicketMutation.mutate({ assigned_to: user?.id })}
                         >
-                          <div className="flex items-start justify-between">
+                          <UserCheck className="w-3.5 h-3.5 mr-1" />
+                          Assign to me
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                          <UserCheck className="w-3.5 h-3.5" />
+                          Assigned to you
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Scrollable body: description + comments */}
+                  <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                    {/* Description */}
+                    <div className="bg-muted/40 rounded-lg p-4">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Description</p>
+                      <p className="text-sm whitespace-pre-wrap">{selectedTicket.description}</p>
+                    </div>
+
+                    {/* Resolution notes (if resolved) */}
+                    {selectedTicket.status === "resolved" && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <p className="text-xs font-medium text-green-700 mb-1">Resolution Notes</p>
+                        {selectedTicket.resolution_notes ? (
+                          <p className="text-sm text-green-800">{selectedTicket.resolution_notes}</p>
+                        ) : (
+                          <div className="space-y-2">
+                            <Textarea
+                              placeholder="Add resolution notes…"
+                              rows={2}
+                              value={resolutionNotes}
+                              onChange={(e) => setResolutionNotes(e.target.value)}
+                              className="text-sm"
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!resolutionNotes.trim() || updateTicketMutation.isPending}
+                              onClick={() => {
+                                updateTicketMutation.mutate({ resolution_notes: resolutionNotes });
+                                setResolutionNotes("");
+                              }}
+                            >
+                              Save Resolution
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Comments */}
+                    {ticketDetail!.comments.length > 0 && (
+                      <div className="space-y-3">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          {ticketDetail!.comments.length} {ticketDetail!.comments.length === 1 ? "comment" : "comments"}
+                        </p>
+                        {ticketDetail!.comments.map(comment => (
+                          <div key={comment.id} className="flex gap-3">
+                            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
+                              {comment.user_name?.[0]?.toUpperCase() || "?"}
+                            </div>
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="font-semibold">{ticket.ticket_number}</span>
-                                <Badge className={getStatusColor(ticket.status)}>
-                                  {ticket.status.replace("_", " ")}
-                                </Badge>
-                                <Badge className={getPriorityColor(ticket.priority)}>
-                                  {ticket.priority}
-                                </Badge>
-                                <Badge variant="outline">{ticket.category}</Badge>
-                              </div>
-                              <h3 className="font-medium text-lg mb-1">{ticket.title}</h3>
-                              <p className="text-sm text-gray-600 mb-2">{ticket.description}</p>
-                              <div className="flex items-center gap-4 text-xs text-gray-500">
-                                <span>Patient: {ticket.patient_name || "General"}</span>
-                                <span>Created by: {ticket.created_by_name}</span>
-                                <span>
-                                  {new Date(ticket.created_at).toLocaleString()}
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-xs font-medium">{comment.user_name}</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {new Date(comment.created_at).toLocaleString()}
                                 </span>
-                                <span>{ticket.comment_count} comments</span>
                               </div>
+                              <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+
+                  {/* Comment input (pinned at bottom) */}
+                  {selectedTicket.status !== "closed" && (
+                    <div className="px-6 py-3 border-t shrink-0">
+                      <div className="flex gap-2 items-end">
+                        <Textarea
+                          placeholder="Add a comment…"
+                          rows={2}
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          className="flex-1 resize-none text-sm"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && newComment.trim()) {
+                              e.preventDefault();
+                              addCommentMutation.mutate();
+                            }
+                          }}
+                        />
+                        <Button
+                          size="sm"
+                          disabled={!newComment.trim() || addCommentMutation.isPending}
+                          onClick={() => addCommentMutation.mutate()}
+                        >
+                          <Send className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">Cmd+Enter to send</p>
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </div>
+          )}
         </div>
       </main>
     </div>

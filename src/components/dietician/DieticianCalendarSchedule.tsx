@@ -1,10 +1,14 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, Users, Video } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, Users, Video, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { getDieticianAppointments, type DieticianAppointment } from "@/lib/api";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { getDieticianAppointments, updateAppointmentStatus, type DieticianAppointment } from "@/lib/api";
+import { toast } from "sonner";
 
 type ScheduleFilter = "today" | "tomorrow" | "this_week" | "all";
 type CalendarView = "week" | "list";
@@ -34,6 +38,34 @@ const DieticianCalendarSchedule = ({
   const [calendarView, setCalendarView] = useState<CalendarView>("week");
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [statusDialog, setStatusDialog] = useState<{
+    open: boolean;
+    appointment: DieticianAppointment | null;
+    action: "completed" | "no_show" | "cancelled" | null;
+    notes: string;
+  }>({ open: false, appointment: null, action: null, notes: "" });
+  const queryClient = useQueryClient();
+
+  const statusMutation = useMutation({
+    mutationFn: () =>
+      updateAppointmentStatus(
+        statusDialog.appointment!.id,
+        statusDialog.action!,
+        statusDialog.action === "completed" ? statusDialog.notes : undefined
+      ),
+    onSuccess: (_, __, ___) => {
+      queryClient.invalidateQueries({ queryKey: ["dietician-appointments"] });
+      toast.success(`Appointment marked as ${statusDialog.action!.replace("_", " ")}`);
+      setStatusDialog({ open: false, appointment: null, action: null, notes: "" });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+
+  const openStatusDialog = (apt: DieticianAppointment, action: "completed" | "no_show" | "cancelled") => {
+    setStatusDialog({ open: true, appointment: apt, action, notes: "" });
+  };
 
   // Calculate week dates
   const weekDates = useMemo(() => {
@@ -278,26 +310,45 @@ const DieticianCalendarSchedule = ({
                         isToday(date) ? "bg-primary/5" : ""
                       }`}
                     >
-                      {appointments.map((apt) => (
-                        <div
-                          key={apt.id}
-                          className={`p-2 rounded-lg text-xs cursor-pointer transition-all hover:ring-2 ring-primary/30 ${
-                            apt.status === "scheduled"
-                              ? "bg-primary/20 text-primary-foreground border border-primary/30"
-                              : apt.status === "completed"
-                              ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-700"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          <p className="font-medium truncate">{apt.patient_name || "Patient"}</p>
-                          <p className="text-[10px] opacity-75">
-                            {new Date(apt.scheduled_at).toLocaleTimeString("en-US", {
-                              hour: "numeric",
-                              minute: "2-digit",
-                            })}
-                          </p>
-                        </div>
-                      ))}
+                      {appointments.map((apt) => {
+                        const isPast = new Date(apt.scheduled_at) < new Date();
+                        return (
+                          <div
+                            key={apt.id}
+                            className={`p-2 rounded-lg text-xs transition-all ${
+                              apt.status === "scheduled"
+                                ? "bg-primary/20 text-primary-foreground border border-primary/30"
+                                : apt.status === "completed"
+                                ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-700"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            <p className="font-medium truncate">{apt.patient_name || "Patient"}</p>
+                            <p className="text-[10px] opacity-75">
+                              {new Date(apt.scheduled_at).toLocaleTimeString("en-US", {
+                                hour: "numeric",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                            {apt.status === "scheduled" && isPast && (
+                              <div className="flex gap-1 mt-1">
+                                <button
+                                  onClick={() => openStatusDialog(apt, "completed")}
+                                  className="flex-1 bg-green-500 hover:bg-green-600 text-white rounded text-[9px] py-0.5 font-medium"
+                                >
+                                  Done
+                                </button>
+                                <button
+                                  onClick={() => openStatusDialog(apt, "no_show")}
+                                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-[9px] py-0.5 font-medium"
+                                >
+                                  No-show
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })}
@@ -329,42 +380,98 @@ const DieticianCalendarSchedule = ({
             ))}
           </div>
           <div className="grid gap-3">
-            {filteredConsultations.map((c) => (
-              <div key={c.id} className="bg-card border rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                    {getInitials(c.patient)}
-                  </div>
-                  <div>
-                    <div className="font-medium">{c.patient}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {c.type} · {c.date}
+            {(calendarAppointments || [])
+              .filter((apt) => {
+                if (scheduleFilter === "all") return true;
+                const d = new Date(apt.scheduled_at);
+                const today = new Date();
+                const tomorrow = new Date(today);
+                tomorrow.setDate(today.getDate() + 1);
+                const weekEnd = new Date(today);
+                weekEnd.setDate(today.getDate() + 7);
+                if (scheduleFilter === "today") return d.toDateString() === today.toDateString();
+                if (scheduleFilter === "tomorrow") return d.toDateString() === tomorrow.toDateString();
+                if (scheduleFilter === "this_week") return d >= today && d <= weekEnd;
+                return true;
+              })
+              .map((apt) => {
+                const isPast = new Date(apt.scheduled_at) < new Date();
+                return (
+                  <div key={apt.id} className="bg-card border rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                        {getInitials(apt.patient_name || "")}
+                      </div>
+                      <div>
+                        <div className="font-medium">{apt.patient_name || "Patient"}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {apt.consultation_type} ·{" "}
+                          {new Date(apt.scheduled_at).toLocaleDateString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right flex items-center gap-3">
+                      <div>
+                        <div className="text-sm font-medium">
+                          {new Date(apt.scheduled_at).toLocaleTimeString("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </div>
+                        <Badge
+                          className={
+                            apt.status === "scheduled"
+                              ? "bg-blue-100 text-blue-800"
+                              : apt.status === "completed"
+                              ? "bg-green-100 text-green-800"
+                              : apt.status === "no_show"
+                              ? "bg-orange-100 text-orange-800"
+                              : "bg-gray-100 text-gray-800"
+                          }
+                        >
+                          {apt.status.replace("_", " ")}
+                        </Badge>
+                      </div>
+                      {apt.status === "scheduled" && isPast && (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-green-600 border-green-300 hover:bg-green-50"
+                            onClick={() => openStatusDialog(apt, "completed")}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Complete
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                            onClick={() => openStatusDialog(apt, "no_show")}
+                          >
+                            <AlertCircle className="w-4 h-4 mr-1" />
+                            No-show
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-600 border-red-300 hover:bg-red-50"
+                            onClick={() => openStatusDialog(apt, "cancelled")}
+                          >
+                            <XCircle className="w-4 h-4 mr-1" />
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
-                <div className="text-right flex items-center gap-3">
-                  <div>
-                    <div className="text-sm font-medium">{c.time}</div>
-                    <Badge
-                      variant="outline"
-                      className={
-                        c.status === "today"
-                          ? "text-primary border-primary/30"
-                          : c.status === "tomorrow"
-                          ? "text-blue-500 border-blue-500/30"
-                          : "text-muted-foreground border-border"
-                      }
-                    >
-                      {c.status.replace("_", " ")}
-                    </Badge>
-                  </div>
-                  <Button size="sm" variant="outline">
-                    Join
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {filteredConsultations.length === 0 && (
+                );
+              })}
+            {(calendarAppointments || []).length === 0 && (
               <div className="text-center py-12 text-muted-foreground">
                 <CalendarDays className="w-10 h-10 mx-auto mb-3 opacity-30" />
                 <p className="text-sm">No consultations scheduled</p>
@@ -373,6 +480,97 @@ const DieticianCalendarSchedule = ({
           </div>
         </>
       )}
+
+      {/* Status update dialog */}
+      <Dialog
+        open={statusDialog.open}
+        onOpenChange={(open) => !open && setStatusDialog({ open: false, appointment: null, action: null, notes: "" })}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {statusDialog.action === "completed"
+                ? "Mark as Completed"
+                : statusDialog.action === "no_show"
+                ? "Mark as No-Show"
+                : "Cancel Appointment"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {statusDialog.appointment && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  {statusDialog.appointment.patient_name}
+                </span>{" "}
+                —{" "}
+                {new Date(statusDialog.appointment.scheduled_at).toLocaleString("en-US", {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </p>
+
+              {statusDialog.action === "completed" && (
+                <div className="space-y-2">
+                  <Label>Session Notes (optional)</Label>
+                  <Textarea
+                    placeholder="Add notes about this consultation..."
+                    rows={4}
+                    value={statusDialog.notes}
+                    onChange={(e) =>
+                      setStatusDialog((prev) => ({ ...prev, notes: e.target.value }))
+                    }
+                  />
+                </div>
+              )}
+
+              {statusDialog.action === "no_show" && (
+                <p className="text-sm text-orange-600 bg-orange-50 rounded-lg p-3">
+                  This will mark the patient as a no-show. The consultation slot will be freed.
+                </p>
+              )}
+
+              {statusDialog.action === "cancelled" && (
+                <p className="text-sm text-red-600 bg-red-50 rounded-lg p-3">
+                  This will cancel the appointment. The patient's consultation count will not be affected.
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setStatusDialog({ open: false, appointment: null, action: null, notes: "" })}
+            >
+              Close
+            </Button>
+            <Button
+              disabled={statusMutation.isPending}
+              className={
+                statusDialog.action === "completed"
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : statusDialog.action === "no_show"
+                  ? "bg-orange-600 hover:bg-orange-700 text-white"
+                  : "bg-red-600 hover:bg-red-700 text-white"
+              }
+              onClick={() => statusMutation.mutate()}
+            >
+              {statusMutation.isPending
+                ? "Saving..."
+                : statusDialog.action === "completed"
+                ? "Mark Complete"
+                : statusDialog.action === "no_show"
+                ? "Mark No-Show"
+                : "Cancel Appointment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };

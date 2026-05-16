@@ -30,6 +30,7 @@ export interface Patient {
   id: number;
   name: string | null;
   phone: string;
+  email?: string | null;
   age: number | null;
   gender: "male" | "female" | "other" | null;
   diagnosis: string | null;
@@ -119,6 +120,9 @@ export const getDoctor = (id: number) => request<Doctor>(`/doctors/${id}`);
 export const getDoctorStats = (id: number) => request<DoctorStats>(`/doctors/${id}/stats`);
 export const createDoctor = (data: Partial<Doctor> & { phone: string }) =>
   request<Doctor>("/doctors", { method: "POST", body: JSON.stringify(data) });
+
+export const verifyDoctor = (id: number) =>
+  request<Pick<Doctor, "id" | "name" | "is_verified">>(`/doctors/${id}/verify`, { method: "PATCH" });
 
 // ─── Assistants ───────────────────────────────────────────────────────────────
 export interface Assistant {
@@ -321,6 +325,7 @@ export interface JoinRequest {
   specializations?: string[] | null;
   status: "pending" | "approved" | "rejected";
   rejection_reason?: string | null;
+  admin_message?: string | null;
   reviewed_by?: number | null;
   reviewed_by_name?: string | null;
   reviewed_at?: string | null;
@@ -343,16 +348,16 @@ export const createJoinRequest = (data: {
   specializations?: string[];
 }) => request<JoinRequest>("/join-requests", { method: "POST", body: JSON.stringify(data) });
 
-export const approveJoinRequest = (id: number, reviewedBy?: number) =>
+export const approveJoinRequest = (id: number, reviewedBy?: number, adminMessage?: string) =>
   request<{ message: string }>(`/join-requests/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ action: "approve", reviewed_by: reviewedBy }),
+    body: JSON.stringify({ action: "approve", reviewed_by: reviewedBy, admin_message: adminMessage }),
   });
 
-export const rejectJoinRequest = (id: number, reviewedBy?: number, reason?: string) =>
+export const rejectJoinRequest = (id: number, reviewedBy?: number, reason?: string, adminMessage?: string) =>
   request<{ message: string }>(`/join-requests/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ action: "reject", reviewed_by: reviewedBy, rejection_reason: reason }),
+    body: JSON.stringify({ action: "reject", reviewed_by: reviewedBy, rejection_reason: reason, admin_message: adminMessage }),
   });
 
 // ─── Appointment Booking ──────────────────────────────────────────────────────
@@ -372,6 +377,8 @@ export interface AvailableSlot {
   datetime: string;
   duration_minutes: number;
   is_booked?: boolean;
+  rd_id?: number;
+  dietician_name?: string;
 }
 
 export interface Appointment {
@@ -405,6 +412,9 @@ export const setDieticianAvailability = (
 export const getAvailableSlots = (dieticianId: number, startDate: string, endDate: string) =>
   request<AvailableSlot[]>(`/dieticians/${dieticianId}/available-slots?start_date=${startDate}&end_date=${endDate}`);
 
+export const getAllDieticianSlots = (startDate: string, endDate: string) =>
+  request<AvailableSlot[]>(`/dieticians/all-available-slots?start_date=${startDate}&end_date=${endDate}`);
+
 export const bookAppointment = (data: {
   patient_id: number;
   rd_id?: number | null;
@@ -435,7 +445,7 @@ export const getUnassignedAppointments = () =>
 export interface AutoAssignResult {
   assigned: number;
   total_pending: number;
-  details: { consultation_id: number; scheduled_at: string; assigned: boolean; rd_name?: string; reason?: string }[];
+  details: { consultation_id: number; scheduled_at: string; patient_name?: string; assigned: boolean; rd_name?: string; reason?: string }[];
 }
 
 export const triggerAutoAssign = () =>
@@ -459,6 +469,17 @@ export const rescheduleAppointment = (appointmentId: number, newScheduledAt: str
     method: "PUT",
     body: JSON.stringify({ new_scheduled_at: newScheduledAt, patient_notes: patientNotes }),
   });
+
+export const updateAppointmentStatus = (
+  appointmentId: number,
+  status: "completed" | "no_show" | "cancelled",
+  rdNotes?: string
+) =>
+  request<Appointment>(`/appointments/${appointmentId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status, rd_notes: rdNotes }),
+  });
+
 
 export interface BlockedSlot {
   id: number;
@@ -516,8 +537,34 @@ export const createPaymentOrder = (data: {
   patient_id: number;
   package_id: number;
   amount: number;
+  discounted_amount?: number;
 }) =>
   request<PaymentOrder>("/payments/create-order", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export interface CouponValidation {
+  id: number;
+  code: string;
+  discount_type: "percentage" | "flat";
+  discount_value: number;
+  discount_applied: number; // in rupees
+  max_discount_amount?: number | null;
+  min_purchase_amount: number;
+}
+
+export const validateCoupon = (code: string, orderAmountRupees: number) =>
+  request<CouponValidation>("/coupons/validate", {
+    method: "POST",
+    body: JSON.stringify({ code, order_amount: orderAmountRupees }),
+  });
+
+export const applyCoupon = (
+  couponId: number,
+  data: { user_id?: number; patient_id?: number; discount_applied: number; order_amount: number }
+) =>
+  request<{ id: number }>(`/coupons/${couponId}/apply`, {
     method: "POST",
     body: JSON.stringify(data),
   });

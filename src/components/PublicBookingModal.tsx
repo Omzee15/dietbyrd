@@ -46,7 +46,7 @@ interface PublicBookingModalProps {
 }
 
 export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalProps) {
-  const { sendOtp, verifyOtp } = useAuth();
+  const { sendOtp, verifyOtp, loginWithData } = useAuth();
   const navigate = useNavigate();
 
   const [step, setStep] = useState<BookingStep>("slots");
@@ -66,6 +66,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
   const [packages, setPackages] = useState<ConsultationPackage[]>([]);
   const [selectedPackage, setSelectedPackage] = useState<ConsultationPackage | null>(null);
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
+  const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
 
   const weekDateRange = useMemo(() => {
     const today = new Date();
@@ -208,7 +209,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
           return;
         }
         pid = data.data?.profileId ?? null;
-        localStorage.setItem("dietbyrd_user", JSON.stringify(data.data));
+        loginWithData(data.data);
       } catch {
         setError("Network error. Please try again.");
         setIsLoading(false);
@@ -280,18 +281,26 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
             toast.error(err.message || "Booking failed after payment");
           } finally {
             setIsPaymentProcessing(false);
+            setIsRazorpayOpen(false);
           }
         },
         prefill: { name, contact: phone.replace(/\D/g, "").slice(-10) },
         theme: { color: "#10b981" },
-        modal: { ondismiss: () => setIsPaymentProcessing(false) },
+        modal: {
+          ondismiss: () => {
+            setIsPaymentProcessing(false);
+            setIsRazorpayOpen(false);
+          },
+        },
       };
 
       const rzp = new (window as any).Razorpay(options);
       rzp.on("payment.failed", (r: any) => {
         toast.error(r.error.description || "Payment failed");
         setIsPaymentProcessing(false);
+        setIsRazorpayOpen(false);
       });
+      setIsRazorpayOpen(true);
       rzp.open();
     } catch (err: any) {
       toast.error(err.message || "Failed to initiate payment");
@@ -323,135 +332,147 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
   const currentStepIdx = stepKeys.indexOf(step);
 
   return (
-    <Dialog open={open} onOpenChange={resetAndClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarDays className="w-5 h-5 text-emerald-600" />
-            Book a Consultation
-          </DialogTitle>
-        </DialogHeader>
+    <Dialog open={open} onOpenChange={resetAndClose} modal={!isRazorpayOpen}>
+      <DialogContent className="sm:max-w-2xl h-[70vh] flex flex-col gap-0 p-0 overflow-hidden">
+        <div className="flex-shrink-0 px-6 pt-6 pb-3">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-emerald-600" />
+              Book a Consultation
+            </DialogTitle>
+          </DialogHeader>
 
-        {/* Step progress */}
-        <div className="flex items-center gap-1 text-xs mb-4">
-          {stepLabels.map((label, i) => (
-            <span key={i} className="flex items-center gap-1">
-              {i > 0 && <span className="text-muted-foreground mx-0.5">›</span>}
-              <span
-                className={
-                  i === currentStepIdx
-                    ? "text-emerald-600 font-semibold"
-                    : i < currentStepIdx
-                    ? "text-emerald-500"
-                    : "text-muted-foreground"
-                }
-              >
-                {label}
+          {/* Step progress */}
+          <div className="flex items-center gap-1 text-xs mt-3">
+            {stepLabels.map((label, i) => (
+              <span key={i} className="flex items-center gap-1">
+                {i > 0 && <span className="text-muted-foreground mx-0.5">›</span>}
+                <span
+                  className={
+                    i === currentStepIdx
+                      ? "text-emerald-600 font-semibold"
+                      : i < currentStepIdx
+                      ? "text-emerald-500"
+                      : "text-muted-foreground"
+                  }
+                >
+                  {label}
+                </span>
               </span>
-            </span>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* ── Step 1: Slot Selection ── */}
         {step === "slots" && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Select a time that works for you — we'll match you with an available dietitian.
-            </p>
-
-            <div className="flex items-center justify-between">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setWeekOffset(Math.max(0, weekOffset - 1))}
-                disabled={weekOffset === 0}
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" /> Prev Week
-              </Button>
-              <span className="text-sm font-medium">
-                {weekDateRange.startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                {" – "}
-                {weekDateRange.endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setWeekOffset(weekOffset + 1)}
-                disabled={weekOffset >= 4}
-              >
-                Next Week <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
+          <div className="flex flex-col flex-1 min-h-0 px-6 pb-6 gap-3">
+            <div className="flex-shrink-0 space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Select a time that works for you — we'll match you with an available dietitian.
+              </p>
+              <div className="flex items-center justify-between">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWeekOffset(Math.max(0, weekOffset - 1))}
+                  disabled={weekOffset === 0}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" /> Prev Week
+                </Button>
+                <span className="text-sm font-medium">
+                  {weekDateRange.startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  {" – "}
+                  {weekDateRange.endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWeekOffset(weekOffset + 1)}
+                  disabled={weekOffset >= 4}
+                >
+                  Next Week <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
             </div>
 
-            {isLoadingSlots ? (
-              <div className="flex items-center justify-center py-14">
-                <Loader2 className="w-6 h-6 animate-spin text-emerald-600 mr-2" />
-                <span className="text-muted-foreground text-sm">Loading available times…</span>
-              </div>
-            ) : Object.keys(slotsByDate).length === 0 ? (
-              <div className="text-center py-12">
-                <CalendarDays className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-30" />
-                <p className="text-muted-foreground font-medium">No slots available this week</p>
-                <p className="text-sm text-muted-foreground mt-1">Try the next week →</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {Object.entries(slotsByDate).map(([date, slots]) => {
-                  const d = new Date(date + "T00:00:00");
-                  return (
-                    <div key={date} className="border rounded-lg p-4">
-                      <p className="text-sm font-semibold mb-3">
-                        {d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {slots.map((slot) => (
-                          <Button
-                            key={slot.datetime}
-                            variant={selectedSlot?.datetime === slot.datetime ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setSelectedSlot(slot)}
-                            className={
-                              selectedSlot?.datetime === slot.datetime
-                                ? "bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
-                                : "hover:border-emerald-400"
-                            }
-                          >
-                            {slot.start_time}
-                          </Button>
-                        ))}
+            {/* Scrollable slot list */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {isLoadingSlots ? (
+                <div className="flex items-center justify-center py-14">
+                  <Loader2 className="w-6 h-6 animate-spin text-emerald-600 mr-2" />
+                  <span className="text-muted-foreground text-sm">Loading available times…</span>
+                </div>
+              ) : Object.keys(slotsByDate).length === 0 ? (
+                <div className="text-center py-12">
+                  <CalendarDays className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-30" />
+                  <p className="text-muted-foreground font-medium">No slots available this week</p>
+                  <p className="text-sm text-muted-foreground mt-1">Try the next week →</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(slotsByDate).map(([date, slots]) => {
+                    const d = new Date(date + "T00:00:00");
+                    return (
+                      <div key={date} className="border rounded-lg p-4">
+                        <p className="text-sm font-semibold mb-3">
+                          {d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {slots.map((slot) => (
+                            <Button
+                              key={slot.datetime}
+                              variant={selectedSlot?.datetime === slot.datetime ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setSelectedSlot(slot)}
+                              className={
+                                selectedSlot?.datetime === slot.datetime
+                                  ? "bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
+                                  : "hover:border-emerald-400"
+                              }
+                            >
+                              {slot.start_time}
+                            </Button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
-            {selectedSlot && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 text-sm">
-                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>
-                  Selected:{" "}
-                  <strong>
-                    {new Date(selectedSlot.date + "T00:00:00").toLocaleDateString("en-US", {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                    })}{" "}
-                    at {selectedSlot.start_time}
-                  </strong>
-                </span>
-              </div>
-            )}
-
-            <Button
-              className="w-full bg-emerald-600 hover:bg-emerald-700"
-              disabled={!selectedSlot}
-              onClick={() => setStep("contact")}
-            >
-              Continue →
-            </Button>
+            {/* Sticky footer: selection indicator + continue button */}
+            <div className="flex-shrink-0 space-y-3 pt-2 border-t">
+              {selectedSlot && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 text-sm">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    Selected:{" "}
+                    <strong>
+                      {new Date(selectedSlot.date + "T00:00:00").toLocaleDateString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })}{" "}
+                      at {selectedSlot.start_time}
+                    </strong>
+                  </span>
+                </div>
+              )}
+              <Button
+                className="w-full bg-emerald-600 hover:bg-emerald-700"
+                disabled={!selectedSlot}
+                onClick={() => setStep("contact")}
+              >
+                Continue →
+              </Button>
+            </div>
           </div>
         )}
+
+        {/* Steps 2–5: scrollable content */}
+        {step !== "slots" && (
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
 
         {/* ── Step 2: Contact Details ── */}
         {step === "contact" && (
@@ -488,7 +509,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                   <Input
                     placeholder="Your full name"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z\s.\-']/g, ""))}
                     className="pl-9"
                   />
                 </div>
@@ -501,8 +522,9 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                     type="tel"
                     placeholder="10-digit mobile number"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                     className="pl-9"
+                    maxLength={10}
                   />
                 </div>
               </div>
@@ -691,6 +713,9 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
             </div>
           </div>
         )}
+
+        </div>
+        )} {/* end steps 2-5 scrollable wrapper */}
       </DialogContent>
     </Dialog>
   );

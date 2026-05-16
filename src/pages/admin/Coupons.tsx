@@ -51,7 +51,7 @@ const AdminCoupons = () => {
   const { data: coupons = [], isLoading } = useQuery({
     queryKey: ["coupons"],
     queryFn: async () => {
-      const res = await fetch("/api/coupons");
+      const res = await fetch("/api/admin/coupons");
       if (!res.ok) throw new Error("Failed to fetch coupons");
       const data = await res.json();
       return data.data || [];
@@ -61,7 +61,7 @@ const AdminCoupons = () => {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/coupons/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/coupons/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete coupon");
       return res.json();
     },
@@ -77,7 +77,7 @@ const AdminCoupons = () => {
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: async (coupon: Partial<Coupon>) => {
-      const url = coupon.id ? `/api/coupons/${coupon.id}` : "/api/coupons";
+      const url = coupon.id ? `/api/admin/coupons/${coupon.id}` : "/api/admin/coupons";
       const method = coupon.id ? "PUT" : "POST";
       const res = await fetch(url, {
         method,

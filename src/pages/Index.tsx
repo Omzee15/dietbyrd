@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { getDashboardPath, useAuth } from "@/contexts/AuthContext";
 import { JoinRequestForm } from "@/components/JoinRequestForm";
 
-type AuthStep = "phone" | "password" | "otp-send" | "otp-verify" | "welcome-form" | "join-form";
+type AuthStep = "phone" | "password" | "otp-send" | "otp-verify" | "welcome-form" | "join-form" | "pending";
 
 type CheckPhoneResponse = {
   success?: boolean;
@@ -62,6 +62,7 @@ const Index = () => {
   const [checkingPhone, setCheckingPhone] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [adminMessage, setAdminMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && isAuthenticated && user) {
@@ -85,6 +86,7 @@ const Index = () => {
     setSuccess("");
     setShowPassword(false);
     setNameInput("");
+    setAdminMessage(null);
   };
 
   const handleChangePhone = () => {
@@ -157,7 +159,12 @@ const Index = () => {
 
     const result = await login(phone, password);
     if (!result.success) {
-      setError(result.error || "Invalid credentials");
+      if (result.pending) {
+        setAdminMessage(result.admin_message ?? null);
+        setStep("pending");
+      } else {
+        setError(result.error || "Invalid credentials");
+      }
     }
 
     setIsLoading(false);
@@ -267,7 +274,7 @@ const Index = () => {
                 type="text"
                 placeholder="Enter your full name"
                 value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
+                onChange={(e) => setNameInput(e.target.value.replace(/[^a-zA-Z\s.\-']/g, ""))}
                 className="h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base"
                 required
               />
@@ -288,6 +295,40 @@ const Index = () => {
             </p>
           </form>
         </>
+      );
+    }
+
+    // Show pending approval screen
+    if (step === "pending") {
+      return (
+        <div className="flex flex-col items-center text-center gap-6">
+          <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center">
+            <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900">Application Under Review</h2>
+            <p className="text-slate-500 mt-2 text-base">
+              Your account is pending approval by the DietByRD team. We'll notify you once it's approved.
+            </p>
+          </div>
+          {adminMessage && (
+            <div className="w-full p-4 rounded-xl bg-blue-50 border border-blue-200 text-left">
+              <p className="text-sm font-semibold text-blue-800 mb-1">Message from the DietByRD team:</p>
+              <p className="text-sm text-blue-700">{adminMessage}</p>
+            </div>
+          )}
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              resetStepState();
+              setStep("phone");
+            }}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Login
+          </Button>
+        </div>
       );
     }
 
@@ -342,8 +383,9 @@ const Index = () => {
                   type="tel"
                   placeholder="Enter your phone number"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                   className="pl-12 h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base"
+                  maxLength={10}
                   required
                 />
               </div>
@@ -537,12 +579,12 @@ const Index = () => {
   }
 
   return (
-    <div className="h-screen bg-slate-200 p-4 lg:p-6 xl:p-8 flex">
+    <div className="h-screen bg-slate-200 p-4 lg:p-6 xl:p-8 flex animate-[fadeIn_0.25s_ease]" style={{ animationFillMode: 'both' }}>
       <div className="w-full h-full flex flex-col lg:flex-row gap-4 lg:gap-5">
         <div className="flex-1 lg:w-[30%] flex flex-col items-center justify-center bg-white rounded-3xl shadow-xl p-8 lg:p-10 overflow-y-auto">
-          {step !== "join-form" && step !== "welcome-form" && (
-            <Link 
-              to="/" 
+          {step !== "join-form" && step !== "welcome-form" && step !== "pending" && (
+            <Link
+              to="/"
               className="self-start mb-6 -mt-4 flex items-center gap-2 text-sm text-slate-500 hover:text-emerald-600 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -564,7 +606,7 @@ const Index = () => {
             {renderStepContent()}
 
             {/* Join as Professional Link */}
-            {step !== "welcome-form" && step !== "join-form" && (
+            {step !== "welcome-form" && step !== "join-form" && step !== "pending" && (
               <div className="mt-8 mb-6 text-center">
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
@@ -584,9 +626,11 @@ const Index = () => {
               </div>
             )}
 
-            <p className="text-center text-sm text-slate-400 mt-8">
-              By using DietByRD, you agree to our <a href="#" className="text-emerald-600 hover:underline">Terms</a> and <a href="#" className="text-emerald-600 hover:underline">Privacy Policy</a>
-            </p>
+            {step !== "pending" && (
+              <p className="text-center text-sm text-slate-400 mt-8">
+                By using DietByRD, you agree to our <a href="#" className="text-emerald-600 hover:underline">Terms</a> and <a href="#" className="text-emerald-600 hover:underline">Privacy Policy</a>
+              </p>
+            )}
           </div>
         </div>
 
