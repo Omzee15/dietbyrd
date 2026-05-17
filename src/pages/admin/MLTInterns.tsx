@@ -16,7 +16,7 @@ interface StaffMember {
   phone: string;
   name: string | null;
   role: string;
-  password: string | null;
+  plain_password: string | null;
   is_active: boolean;
   created_at: string;
   last_login_at: string | null;
@@ -188,11 +188,14 @@ const MLTInternsPage = () => {
                         <div>
                           <p className="font-medium">{intern.name || "Not Set"}</p>
                           <p className="text-sm text-gray-500">{intern.phone}</p>
-                          {intern.password && (
-                            <div className="flex items-center gap-1 mt-1">
-                              <p className="text-xs text-gray-400 font-mono">
-                                Password: {listPasswordVisible[intern.id] ? intern.password : "••••••••"}
-                              </p>
+                          <div className="flex items-center gap-1 mt-1">
+                            <p className="text-xs text-gray-400 font-mono">
+                              Password:{" "}
+                              {intern.plain_password
+                                ? listPasswordVisible[intern.id] ? intern.plain_password : "••••••••"
+                                : "—"}
+                            </p>
+                            {intern.plain_password && (
                               <button
                                 type="button"
                                 onClick={() => toggleListPassword(intern.id)}
@@ -200,8 +203,8 @@ const MLTInternsPage = () => {
                               >
                                 {listPasswordVisible[intern.id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                               </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                           {intern.last_login_at && (
                             <p className="text-xs text-gray-400 mt-1">
                               Last login: {new Date(intern.last_login_at).toLocaleString()}

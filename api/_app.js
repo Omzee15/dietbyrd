@@ -4746,7 +4746,7 @@ app.get("/api/admin/staff/:role", async (req, res) => {
     }
 
     const result = await query(
-      `SELECT id, phone, name, role, password, is_active, created_at, last_login_at
+      `SELECT id, phone, name, role, plain_password, is_active, created_at, last_login_at
        FROM dietbyrd_users
        WHERE role = $1
        ORDER BY created_at DESC`,
@@ -4788,12 +4788,12 @@ app.post("/api/admin/staff/create", async (req, res) => {
     const plainPassword = Math.floor(10000000 + Math.random() * 90000000).toString();
     const hashedStaffPw = await bcrypt.hash(plainPassword, BCRYPT_ROUNDS);
 
-    // Create user account (store hashed, return plain once for admin handoff)
+    // Create user account — store hash for auth, plain_password for admin visibility
     const userResult = await query(
-      `INSERT INTO dietbyrd_users (phone, role, password, name, is_active, is_verified)
-       VALUES ($1, $2, $3, $4, true, true)
+      `INSERT INTO dietbyrd_users (phone, role, password, plain_password, name, is_active, is_verified)
+       VALUES ($1, $2, $3, $4, $5, true, true)
        RETURNING id, phone, role, name`,
-      [phone, role, hashedStaffPw, name]
+      [phone, role, hashedStaffPw, plainPassword, name]
     );
 
     const newUser = userResult.rows[0];
@@ -4805,7 +4805,7 @@ app.post("/api/admin/staff/create", async (req, res) => {
         phone: newUser.phone,
         role: newUser.role,
         name: newUser.name,
-        password: plainPassword, // Returned once for admin to hand off; not stored plain
+        password: plainPassword,
       },
     });
   } catch (err) {
@@ -5203,6 +5203,16 @@ async function runAutoAssign() {
 
   return { assigned: assignedCount, total_pending: pending.rows.length, details };
 }
+
+// ─── Staff plain_password column migration ────────────────────────────────────
+(async () => {
+  try {
+    await query(`ALTER TABLE dietbyrd_users ADD COLUMN IF NOT EXISTS plain_password TEXT`);
+    console.log('[migration] plain_password column ready');
+  } catch (err) {
+    console.error('[migration] plain_password column error:', err.message);
+  }
+})();
 
 // ─── Food library modulator columns migration ─────────────────────────────────
 (async () => {

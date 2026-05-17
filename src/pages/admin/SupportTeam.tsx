@@ -16,7 +16,7 @@ interface StaffMember {
   phone: string;
   name: string | null;
   role: string;
-  password: string | null;
+  plain_password: string | null;
   is_active: boolean;
   created_at: string;
   last_login_at: string | null;
@@ -188,11 +188,14 @@ const SupportTeamPage = () => {
                         <div>
                           <p className="font-medium">{member.name || "Not Set"}</p>
                           <p className="text-sm text-gray-500">{member.phone}</p>
-                          {member.password && (
-                            <div className="flex items-center gap-1 mt-1">
-                              <p className="text-xs text-gray-400 font-mono">
-                                Password: {listPasswordVisible[member.id] ? member.password : "••••••••"}
-                              </p>
+                          <div className="flex items-center gap-1 mt-1">
+                            <p className="text-xs text-gray-400 font-mono">
+                              Password:{" "}
+                              {member.plain_password
+                                ? listPasswordVisible[member.id] ? member.plain_password : "••••••••"
+                                : "—"}
+                            </p>
+                            {member.plain_password && (
                               <button
                                 type="button"
                                 onClick={() => toggleListPassword(member.id)}
@@ -200,8 +203,8 @@ const SupportTeamPage = () => {
                               >
                                 {listPasswordVisible[member.id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                               </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                           {member.last_login_at && (
                             <p className="text-xs text-gray-400 mt-1">
                               Last login: {new Date(member.last_login_at).toLocaleString()}
