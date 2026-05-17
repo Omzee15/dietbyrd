@@ -263,7 +263,8 @@ const PHYTATE_EEE_MAP: Record<string, number> = {
   'Seitan (wheat gluten)': 40
 };
 
-export const getModulatorEEE = (foodName: string, type: 'oxalate' | 'phytate'): number => {
+export const getModulatorEEE = (foodName: string, type: 'oxalate' | 'phytate', dbValue?: number): number => {
+  if (dbValue && dbValue > 0) return dbValue;
   if (type === 'oxalate') return OXALATE_EEE_MAP[foodName] || 0;
   return PHYTATE_EEE_MAP[foodName] || 0;
 };
@@ -288,8 +289,8 @@ export const calculateModulators = (meals: Meal[]): { oxalate: ModulatorResult; 
       const name = item.food.name_en;
       const grams = item.raw_grams_computed;
       
-      const oxEEE = getModulatorEEE(name, 'oxalate');
-      const phEEE = getModulatorEEE(name, 'phytate');
+      const oxEEE = getModulatorEEE(name, 'oxalate', item.food.oxalate_eee);
+      const phEEE = getModulatorEEE(name, 'phytate', item.food.phytate_eee);
       
       const oxVal = (grams * oxEEE) / 100;
       const phVal = (grams * phEEE) / 100;

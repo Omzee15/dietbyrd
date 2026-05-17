@@ -61,6 +61,7 @@ import {
   getConsultations,
   updatePatient,
   getAvailableSlots,
+  getAllDieticianSlots,
   bookAppointment,
   cancelAppointment,
   getConsultationPackages,
@@ -233,11 +234,16 @@ const PatientDashboard = () => {
     };
   }, [weekOffset]);
 
-  // Get available slots for booking
+  const hasAssignedRD = !!patient?.assigned_rd_id;
+
+  // Get available slots — assigned RD's slots, or all dieticians if unassigned
   const { data: availableSlots, isLoading: slotsLoading, refetch: refetchSlots } = useQuery({
-    queryKey: ["available-slots", patient?.assigned_rd_id, weekDateRange.start, weekDateRange.end],
-    queryFn: () => getAvailableSlots(patient!.assigned_rd_id!, weekDateRange.start, weekDateRange.end),
-    enabled: !!patient?.assigned_rd_id && isBookingModalOpen,
+    queryKey: ["available-slots", patient?.assigned_rd_id ?? "all", weekDateRange.start, weekDateRange.end],
+    queryFn: () =>
+      hasAssignedRD
+        ? getAvailableSlots(patient!.assigned_rd_id!, weekDateRange.start, weekDateRange.end)
+        : getAllDieticianSlots(weekDateRange.start, weekDateRange.end),
+    enabled: !!patient && isBookingModalOpen,
   });
 
   // Get consultation packages
@@ -249,10 +255,10 @@ const PatientDashboard = () => {
 
   // Book appointment mutation
   const bookAppointmentMutation = useMutation({
-    mutationFn: (data: { scheduled_at: string; patient_notes?: string }) =>
+    mutationFn: (data: { scheduled_at: string; rd_id?: number | null; patient_notes?: string }) =>
       bookAppointment({
         patient_id: user!.profileId!,
-        rd_id: patient!.assigned_rd_id!,
+        rd_id: data.rd_id ?? patient?.assigned_rd_id ?? null,
         scheduled_at: data.scheduled_at,
         patient_notes: data.patient_notes,
       }),
@@ -315,6 +321,7 @@ const PatientDashboard = () => {
     
     bookAppointmentMutation.mutate({
       scheduled_at: selectedSlot.datetime,
+      rd_id: selectedSlot.rd_id ?? undefined,
       patient_notes: appointmentNotes || undefined,
     });
   };
@@ -915,6 +922,33 @@ const PatientDashboard = () => {
                       onClick={openProfileCompletion}
                     >
                       Complete Now
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {!hasScheduledAppointment && (
+              <Card className="border-primary/30 bg-primary/5 dark:bg-primary/10">
+                <CardContent className="pt-5 pb-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <CalendarDays className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground">Book your next appointment</p>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          Schedule a session with your dietitian and stay on track with your health goals.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => { setWeekOffset(0); setSelectedSlot(null); setAppointmentNotes(""); setIsBookingModalOpen(true); }}
+                    >
+                      Book Now
                     </Button>
                   </div>
                 </CardContent>
@@ -1881,131 +1915,181 @@ const PatientDashboard = () => {
       </Dialog>
 
       {/* Appointment Booking Modal */}
-      <Dialog open={isBookingModalOpen} onOpenChange={setIsBookingModalOpen}>
+      <Dialog open={isBookingModalOpen} onOpenChange={(open) => { setIsBookingModalOpen(open); if (!open) setSelectedSlot(null); }}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarDays className="w-5 h-5" />
-              Schedule Appointment
+              {selectedSlot ? "Confirm Appointment" : "Schedule Appointment"}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Week Navigation */}
-            <div className="flex items-center justify-between">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setWeekOffset(Math.max(0, weekOffset - 1))}
-                disabled={weekOffset === 0}
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                Previous Week
-              </Button>
-              <span className="text-sm font-medium">
-                {weekDateRange.startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                {" - "}
-                {weekDateRange.endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setWeekOffset(weekOffset + 1)}
-                disabled={weekOffset >= 4} // Limit to 4 weeks ahead
-              >
-                Next Week
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            </div>
-
-            {/* Dietician Info */}
-            {patient?.assigned_dietician_name && (
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 dark:bg-green-950/30">
-                <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                  <UtensilsCrossed className="w-5 h-5 text-green-600 dark:text-green-400" />
+            {/* View 1: Slot Selection */}
+            {!selectedSlot && (
+              <>
+                {/* Week Navigation */}
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setWeekOffset(Math.max(0, weekOffset - 1))}
+                    disabled={weekOffset === 0}
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    Previous Week
+                  </Button>
+                  <span className="text-sm font-medium">
+                    {weekDateRange.startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {" - "}
+                    {weekDateRange.endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setWeekOffset(weekOffset + 1)}
+                    disabled={weekOffset >= 4}
+                  >
+                    Next Week
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Appointment with</p>
-                  <p className="font-semibold">{patient.assigned_dietician_name}</p>
-                </div>
-              </div>
-            )}
 
-            {/* Loading State */}
-            {slotsLoading && (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                <span className="ml-2 text-muted-foreground">Loading available slots...</span>
-              </div>
-            )}
-
-            {/* Available Slots */}
-            {!slotsLoading && availableSlots && (
-              <div className="space-y-4">
-                {Object.keys(slotsByDate).length === 0 ? (
-                  <div className="text-center py-8">
-                    <CalendarDays className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-30" />
-                    <p className="text-muted-foreground">No available slots this week</p>
-                    <p className="text-sm text-muted-foreground">Try selecting a different week</p>
+                {/* Dietician info or auto-assign notice */}
+                {patient?.assigned_dietician_name ? (
+                  <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 dark:bg-green-950/30">
+                    <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                      <UtensilsCrossed className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Appointment with</p>
+                      <p className="font-semibold">{patient.assigned_dietician_name}</p>
+                    </div>
                   </div>
                 ) : (
-                  Object.entries(slotsByDate).map(([date, slots]) => {
-                    const dateObj = new Date(date + "T00:00:00");
-                    return (
-                      <div key={date} className="border rounded-lg p-4">
-                        <p className="font-medium mb-3">
-                          {dateObj.toLocaleDateString("en-US", {
-                            weekday: "long",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {slots.map((slot) => (
-                            <Button
-                              key={slot.datetime}
-                              variant={selectedSlot?.datetime === slot.datetime ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setSelectedSlot(slot)}
-                              className="min-w-[80px]"
-                              disabled={slot.is_booked}
-                            >
-                              {slot.start_time}
-                              {slot.is_booked && " (Booked)"}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center shrink-0">
+                      <UtensilsCrossed className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      Choose any available slot — a dietician will be assigned to you automatically.
+                    </p>
+                  </div>
                 )}
-              </div>
+
+                {/* Loading */}
+                {slotsLoading && (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    <span className="ml-2 text-muted-foreground">Loading available slots...</span>
+                  </div>
+                )}
+
+                {/* Available Slots */}
+                {!slotsLoading && availableSlots && (
+                  <div className="space-y-4">
+                    {Object.keys(slotsByDate).length === 0 ? (
+                      <div className="text-center py-8">
+                        <CalendarDays className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-30" />
+                        <p className="text-muted-foreground">No available slots this week</p>
+                        <p className="text-sm text-muted-foreground">Try selecting a different week</p>
+                      </div>
+                    ) : (
+                      Object.entries(slotsByDate).map(([date, slots]) => {
+                        const dateObj = new Date(date + "T00:00:00");
+                        return (
+                          <div key={date} className="border rounded-lg p-4">
+                            <p className="font-medium mb-3">
+                              {dateObj.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {slots.map((slot) => (
+                                <Button
+                                  key={slot.datetime + (slot.rd_id ?? "")}
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setSelectedSlot(slot)}
+                                  className="min-w-[80px] flex flex-col h-auto py-1.5 px-3"
+                                  disabled={slot.is_booked}
+                                >
+                                  <span>{slot.start_time}</span>
+                                  {!hasAssignedRD && slot.dietician_name && (
+                                    <span className="text-[10px] text-muted-foreground font-normal leading-tight">
+                                      {slot.dietician_name}
+                                    </span>
+                                  )}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </>
             )}
 
-            {/* Selected Slot & Notes */}
+            {/* View 2: Confirmation */}
             {selectedSlot && (
-              <div className="space-y-4 p-4 border rounded-lg bg-primary/5">
-                <div className="flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-primary" />
-                  <div>
-                    <p className="font-medium">Selected Time</p>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(selectedSlot.datetime).toLocaleDateString("en-US", {
-                        weekday: "long",
-                        month: "long",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                      {" at "}
-                      {selectedSlot.start_time}
-                    </p>
+              <div className="space-y-5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedSlot(null)}
+                  className="gap-1 -ml-2"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Change Time
+                </Button>
+
+                {/* Appointment Summary */}
+                <div className="border rounded-xl p-5 space-y-4 bg-gradient-to-br from-primary/5 to-primary/10">
+                  {(patient?.assigned_dietician_name || selectedSlot?.dietician_name) && (
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                        <UtensilsCrossed className="w-7 h-7 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Your Dietician</p>
+                        <p className="text-lg font-semibold">
+                          {patient?.assigned_dietician_name || selectedSlot?.dietician_name}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="h-px bg-border" />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+                        <CalendarDays className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Date</p>
+                        <p className="font-medium">
+                          {new Date(selectedSlot.datetime).toLocaleDateString("en-US", {
+                            weekday: "short", month: "short", day: "numeric",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+                        <Clock className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Time</p>
+                        <p className="font-medium">{selectedSlot.start_time}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
+                {/* Notes */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
-                    Notes for your dietician (optional)
-                  </label>
+                  <label className="text-sm font-medium">Notes for your dietician (optional)</label>
                   <Textarea
                     placeholder="Any specific concerns or topics you'd like to discuss..."
                     value={appointmentNotes}
@@ -2015,7 +2099,7 @@ const PatientDashboard = () => {
                 </div>
 
                 <Button
-                  className="w-full"
+                  className="w-full h-12 text-base"
                   onClick={handleBookAppointment}
                   disabled={bookAppointmentMutation.isPending}
                 >

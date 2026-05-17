@@ -93,6 +93,8 @@ interface FoodItem {
   treat?: boolean;
   unitName?: string;
   unitWeight?: number;
+  oxalate_eee?: number;
+  phytate_eee?: number;
 }
 
 interface MealItem extends FoodItem {
@@ -429,8 +431,8 @@ const CreateDiet = () => {
       prototype.meals.forEach((meal) => {
         meal.items.forEach((item) => {
           const grams = item.quantity;
-          const oxEEE = getModulatorEEE(item.name, "oxalate");
-          const phEEE = getModulatorEEE(item.name, "phytate");
+          const oxEEE = getModulatorEEE(item.name, "oxalate", item.oxalate_eee);
+          const phEEE = getModulatorEEE(item.name, "phytate", item.phytate_eee);
 
           const oxVal = (grams * oxEEE) / 100;
           const phVal = (grams * phEEE) / 100;
@@ -1016,6 +1018,8 @@ const CreateDiet = () => {
     treat: food.food_type === "TREAT",
     unitName: food.unit_name,
     unitWeight: food.unit_weight_g,
+    oxalate_eee: food.oxalate_eee,
+    phytate_eee: food.phytate_eee,
   }));
 
   // Open Add Food Modal

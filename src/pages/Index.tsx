@@ -128,17 +128,18 @@ const Index = () => {
 
       setResolvedRole(userRole);
 
-      // If phone doesn't exist, default to patient OTP login
-      if (!exists || authFlow === "phone-signin") {
-        setResolvedRole("patient");
-        setStep("otp-send");
-        setSuccess("New patient? We'll send you an OTP to verify your phone number.");
-        return;
-      }
-
-      if (authFlow === "otp" || userRole === "patient") {
-        setStep("otp-send");
-        setSuccess(userName ? `Welcome Back "${userName}"` : "Welcome Back");
+      // Patient or new user — send OTP immediately, skip the intermediate screen
+      if (!exists || authFlow === "phone-signin" || authFlow === "otp" || userRole === "patient") {
+        setResolvedRole(exists ? userRole : "patient");
+        const otpResult = await sendOtp(digits.slice(-10));
+        if (!otpResult.success) {
+          setError(otpResult.error || "Failed to send OTP");
+          return;
+        }
+        setStep("otp-verify");
+        setOtp("");
+        setOtpTimer(otpResult.expiresIn || 300);
+        setSuccess(userName ? `Welcome back, ${userName}! OTP sent to your phone.` : "OTP sent to your phone.");
         return;
       }
 
@@ -551,13 +552,9 @@ const Index = () => {
             {step === "otp-verify" && otpTimer === 0 && (
               <button
                 type="button"
-                onClick={() => {
-                  setOtp("");
-                  setStep("otp-send");
-                  setError("");
-                  setSuccess("");
-                }}
-                className="w-full text-center text-emerald-600 hover:text-emerald-700 font-medium text-sm"
+                onClick={() => { setOtp(""); handleSendOtp(); }}
+                disabled={isLoading}
+                className="w-full text-center text-emerald-600 hover:text-emerald-700 font-medium text-sm disabled:opacity-50"
               >
                 Resend OTP
               </button>

@@ -371,6 +371,35 @@ export const FoodLibraryAddDialog = ({
               </div>
             </div>
 
+            <div className="bg-purple-50 p-4 rounded-2xl border border-purple-200">
+              <Label className="mb-1 text-purple-800 font-medium">Micronutrient Modulators Index (Optional)</Label>
+              <p className="text-xs text-purple-600 mb-3">EEE values per 100g — used for oxalate &amp; phytate load calculations in diet plans.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Oxalate EEE</Label>
+                  <Input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={foodForm.oxalate_eee || ''}
+                    onChange={(e) => setFoodForm((prev) => ({ ...prev, oxalate_eee: parseFloat(e.target.value) || 0 }))}
+                    placeholder="e.g. 230"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Phytate EEE</Label>
+                  <Input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={foodForm.phytate_eee || ''}
+                    onChange={(e) => setFoodForm((prev) => ({ ...prev, phytate_eee: parseFloat(e.target.value) || 0 }))}
+                    placeholder="e.g. 520"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Unit Name (optional)</Label>

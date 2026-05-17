@@ -40,6 +40,10 @@ export interface Food {
   vitamin_e?: number; // mg
   vitamin_k?: number; // ug
   
+  // Micronutrient Modulators (EEE values per 100g)
+  oxalate_eee?: number; // mg equivalent
+  phytate_eee?: number; // mg equivalent
+
   yield_factor: number;
   image_url: string;
   tags: string[]; 
