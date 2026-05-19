@@ -74,6 +74,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { formatTime12, formatDateTime12 } from "@/lib/utils";
 
 // ─── Height Input Helpers ───────────────────────────────────────────────────────
 const heightAllowedKeys = new Set([
@@ -528,13 +529,7 @@ const PatientDashboard = () => {
     });
   };
 
-  const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
+  const formatTime = (dateStr: string) => formatDateTime12(dateStr);
 
   const getInitials = (name: string) =>
     name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?";
@@ -2012,7 +2007,7 @@ const PatientDashboard = () => {
                                   className="min-w-[80px] flex flex-col h-auto py-1.5 px-3"
                                   disabled={slot.is_booked}
                                 >
-                                  <span>{slot.start_time}</span>
+                                  <span>{formatTime12(slot.start_time)}</span>
                                   {!hasAssignedRD && slot.dietician_name && (
                                     <span className="text-[10px] text-muted-foreground font-normal leading-tight">
                                       {slot.dietician_name}
@@ -2081,7 +2076,7 @@ const PatientDashboard = () => {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Time</p>
-                        <p className="font-medium">{selectedSlot.start_time}</p>
+                        <p className="font-medium">{formatTime12(selectedSlot.start_time)}</p>
                       </div>
                     </div>
                   </div>

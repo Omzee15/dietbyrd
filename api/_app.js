@@ -2171,6 +2171,7 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
 app.delete("/api/patients/:id(\\d+)", async (req, res) => {
   try {
     const { id } = req.params;
+
     const patient = await query(
       "SELECT user_id FROM dietbyrd_patients WHERE id = $1",
       [id]
@@ -2179,17 +2180,71 @@ app.delete("/api/patients/:id(\\d+)", async (req, res) => {
       return res.status(404).json({ success: false, error: "Patient not found" });
     }
     const userId = patient.rows[0].user_id;
-    // Cancel any scheduled consultations
-    await query(
-      "UPDATE dietbyrd_consultations SET status = 'cancelled' WHERE patient_id = $1 AND status = 'scheduled'",
+
+    // Get registered_patient row (may not exist)
+    const regResult = await query(
+      "SELECT id FROM dietbyrd_registered_patients WHERE patient_id = $1",
       [id]
     );
+    const regId = regResult.rows[0]?.id ?? null;
+
+    if (regId) {
+      // Delete consultation notes first (deepest child)
+      await query(
+        `DELETE FROM dietbyrd_consultation_notes
+         WHERE consultation_id IN (
+           SELECT id FROM dietbyrd_consultations WHERE registered_patient_id = $1
+         )`,
+        [regId]
+      );
+      // Delete consultations
+      await query(
+        "DELETE FROM dietbyrd_consultations WHERE registered_patient_id = $1",
+        [regId]
+      );
+      // Delete diet plans
+      await query(
+        "DELETE FROM dietbyrd_diet_plans WHERE registered_patient_id = $1",
+        [regId]
+      );
+      // Delete subscriptions if table exists
+      await query(
+        "DELETE FROM dietbyrd_subscriptions WHERE registered_patient_id = $1",
+        [regId]
+      ).catch(() => {}); // ignore if table doesn't exist
+    }
+
+    // Delete ticket comments → tickets
+    await query(
+      `DELETE FROM dietbyrd_ticket_comments
+       WHERE ticket_id IN (SELECT id FROM dietbyrd_tickets WHERE patient_id = $1)`,
+      [id]
+    );
+    await query("DELETE FROM dietbyrd_tickets WHERE patient_id = $1", [id]);
+
+    // Delete referrals
+    await query("DELETE FROM dietbyrd_referrals WHERE patient_id = $1", [id]);
+
+    // Delete coupon usage (payments table itself is kept — it has ON DELETE SET NULL)
+    await query("DELETE FROM dietbyrd_coupon_usage WHERE patient_id = $1", [id]).catch(() => {});
+
+    // Delete registered_patient row (payments FK already SET NULL)
+    if (regId) {
+      await query("DELETE FROM dietbyrd_registered_patients WHERE id = $1", [regId]);
+    }
+
+    // Delete patient (payments FK already SET NULL)
     await query("DELETE FROM dietbyrd_patients WHERE id = $1", [id]);
+
+    // Delete OTPs and user account
     if (userId) {
+      await query("DELETE FROM dietbyrd_otps WHERE user_id = $1", [userId]);
       await query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
     }
+
     res.json({ success: true, message: "Patient deleted successfully" });
   } catch (err) {
+    console.error("[delete patient] Error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });

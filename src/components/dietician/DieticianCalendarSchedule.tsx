@@ -328,6 +328,7 @@ const DieticianCalendarSchedule = ({
                               {new Date(apt.scheduled_at).toLocaleTimeString("en-US", {
                                 hour: "numeric",
                                 minute: "2-digit",
+                                hour12: true,
                               })}
                             </p>
                             {apt.status === "scheduled" && isPast && (
@@ -420,6 +421,7 @@ const DieticianCalendarSchedule = ({
                           {new Date(apt.scheduled_at).toLocaleTimeString("en-US", {
                             hour: "numeric",
                             minute: "2-digit",
+                            hour12: true,
                           })}
                         </div>
                         <Badge
@@ -510,6 +512,7 @@ const DieticianCalendarSchedule = ({
                   day: "numeric",
                   hour: "numeric",
                   minute: "2-digit",
+                  hour12: true,
                 })}
               </p>
 

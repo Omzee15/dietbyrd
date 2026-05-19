@@ -29,6 +29,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { formatTime12 } from "@/lib/utils";
 
 interface MergedSlot {
   date: string;
@@ -430,7 +431,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                                   : "hover:border-emerald-400"
                               }
                             >
-                              {slot.start_time}
+                              {formatTime12(slot.start_time)}
                             </Button>
                           ))}
                         </div>
@@ -454,7 +455,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                         month: "short",
                         day: "numeric",
                       })}{" "}
-                      at {selectedSlot.start_time}
+                      at {formatTime12(selectedSlot.start_time)}
                     </strong>
                   </span>
                 </div>
@@ -486,7 +487,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                     month: "short",
                     day: "numeric",
                   })}{" "}
-                  at {selectedSlot.start_time}
+                  at {formatTime12(selectedSlot.start_time)}
                 </span>
               </div>
             )}
@@ -618,7 +619,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                     month: "short",
                     day: "numeric",
                   })}{" "}
-                  at {selectedSlot.start_time}
+                  at {formatTime12(selectedSlot.start_time)}
                 </span>
               </div>
             )}
@@ -694,7 +695,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                       month: "long",
                       day: "numeric",
                     })}{" "}
-                    at {selectedSlot.start_time}
+                    at {formatTime12(selectedSlot.start_time)}
                   </strong>
                   .
                 </p>

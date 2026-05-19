@@ -381,7 +381,7 @@ const MLTInternDashboard = () => {
                   <p className="text-sm text-amber-700 mt-0.5">
                     {unassignedAppointments.slice(0, 3).map((a) => {
                       const dt = new Date(a.scheduled_at);
-                      return `${a.patient_name} (${dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })})`;
+                      return `${a.patient_name} (${dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })})`;
                     }).join(" · ")}
                     {unassignedAppointments.length > 3 && ` +${unassignedAppointments.length - 3} more`}
                   </p>
@@ -1079,7 +1079,7 @@ const MLTInternDashboard = () => {
             <div className="max-h-72 overflow-y-auto space-y-2">
               {autoAssignResult.details.map((d) => {
                 const dt = new Date(d.scheduled_at);
-                const timeStr = dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) + " at " + dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+                const timeStr = dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) + " at " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
                 return (
                   <div key={d.consultation_id} className={`flex items-start gap-2 p-2 rounded-md text-sm ${d.assigned ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"}`}>
                     {d.assigned
