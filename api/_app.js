@@ -1747,7 +1747,7 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
 // Create a join request
 app.post("/api/join-requests", async (req, res) => {
   try {
-    const { phone, password, name, email, role, qualification, clinic_name, clinic_address, specializations } = req.body;
+    const { phone, password, name, email, role, qualification, clinic_name, clinic_address, specializations, about_yourself } = req.body;
 
     if (!phone || !password || !name || !role) {
       return res.status(400).json({ 
@@ -1816,10 +1816,10 @@ app.post("/api/join-requests", async (req, res) => {
     // Create join request and link to user (store hashed password)
     const result = await query(
       `INSERT INTO dietbyrd_join_requests
-        (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, status, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9)
+        (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, about_yourself, status, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10)
        RETURNING id, phone, name, requested_role, status, created_at`,
-      [phone, hashedJoinPw, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, userId]
+      [phone, hashedJoinPw, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, about_yourself || null, userId]
     );
 
     res.status(201).json({ 
@@ -1909,11 +1909,52 @@ app.get("/api/join-requests", async (req, res) => {
   }
 });
 
+// Schedule interview for a join request (admin sends WhatsApp/SMS to applicant)
+app.post("/api/join-requests/:id/schedule-interview", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { message } = req.body;
+
+    const result = await query(
+      "SELECT phone, name FROM dietbyrd_join_requests WHERE id = $1",
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Join request not found" });
+    }
+    const { phone, name } = result.rows[0];
+    const customMessage = message?.trim();
+    const body = customMessage
+      ? `Hi ${name}! 👋\n\nWe'd like to schedule an interview with you regarding your DietByRD application.\n\n${customMessage}\n\n- Team DietByRD`
+      : `Hi ${name}! 👋\n\nWe'd like to schedule an interview with you regarding your DietByRD application. Our team will contact you shortly to confirm the details.\n\n- Team DietByRD`;
+
+    if (twilioClient) {
+      const cleanPhone = phone.replace(/\D/g, "").replace(/^91/, "");
+      try {
+        await twilioClient.messages.create({
+          from: TWILIO_WHATSAPP_FROM,
+          to: `whatsapp:+91${cleanPhone}`,
+          body,
+        });
+        console.log(`[Interview] WhatsApp sent to +91${cleanPhone}`);
+      } catch (smsErr) {
+        console.log(`[Interview] WhatsApp failed: ${smsErr.message}`);
+      }
+    } else {
+      console.log(`[Interview][dev] Would send to ${phone}: ${body}`);
+    }
+
+    res.json({ success: true, data: { sent: true } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Approve/Reject a join request (admin only)
 app.patch("/api/join-requests/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { action, reviewed_by, rejection_reason, admin_message } = req.body;
+    const { action, reviewed_by, rejection_reason, admin_message, commission_rate } = req.body;
     
     if (!action || !["approve", "reject"].includes(action)) {
       return res.status(400).json({ success: false, error: "Action must be 'approve' or 'reject'" });
@@ -1973,10 +2014,11 @@ app.patch("/api/join-requests/:id", async (req, res) => {
     }
 
     if (joinRequest.requested_role === "doctor") {
+      const commissionValue = commission_rate != null ? parseFloat(commission_rate) : 0;
       await query(
-        `INSERT INTO dietbyrd_doctors (user_id, name, qualification, clinic_name, clinic_address, is_verified)
-         VALUES ($1, $2, $3, $4, $5, true)`,
-        [userId, joinRequest.name, joinRequest.qualification, joinRequest.clinic_name, joinRequest.clinic_address]
+        `INSERT INTO dietbyrd_doctors (user_id, name, qualification, clinic_name, clinic_address, is_verified, commission_rate)
+         VALUES ($1, $2, $3, $4, $5, true, $6)`,
+        [userId, joinRequest.name, joinRequest.qualification, joinRequest.clinic_name, joinRequest.clinic_address, commissionValue]
       );
     } else if (joinRequest.requested_role === "rd") {
       // Prepare specializations for JSONB column
@@ -1987,10 +2029,10 @@ app.patch("/api/join-requests/:id", async (req, res) => {
         : null;
       
       const rdResult = await query(
-        `INSERT INTO dietbyrd_registered_dietitians (user_id, name, qualification, specializations, is_active)
-         VALUES ($1, $2, $3, $4::jsonb, true)
+        `INSERT INTO dietbyrd_registered_dietitians (user_id, name, qualification, specializations, clinic_name, clinic_address, is_active)
+         VALUES ($1, $2, $3, $4::jsonb, $5, $6, true)
          RETURNING id`,
-        [userId, joinRequest.name, joinRequest.qualification, specializationsValue]
+        [userId, joinRequest.name, joinRequest.qualification, specializationsValue, joinRequest.clinic_name || null, joinRequest.clinic_address || null]
       );
       
       const rdId = rdResult.rows[0].id;
@@ -2298,7 +2340,7 @@ app.post("/api/patients", async (req, res) => {
 app.patch("/api/patients/:id(\\d+)", async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, age, gender, diagnosis, diagnosis_description, height, weight, allergies, workout_frequency } = req.body;
+    const { name, email, age, gender, diagnosis, diagnosis_description, height, weight, allergies, workout_frequency, diagnoses } = req.body;
 
     // Prepare allergies for JSONB column
     let allergiesValue = null;
@@ -2306,6 +2348,16 @@ app.patch("/api/patients/:id(\\d+)", async (req, res) => {
       allergiesValue = typeof allergies === 'string'
         ? JSON.stringify([allergies])
         : JSON.stringify(allergies);
+    }
+
+    // Prepare diagnoses: prefer array form; derive single diagnosis from first element
+    let diagnosesValue = null;
+    let primaryDiagnosis = diagnosis || null;
+    if (Array.isArray(diagnoses) && diagnoses.length > 0) {
+      diagnosesValue = JSON.stringify(diagnoses);
+      primaryDiagnosis = diagnoses[0] || diagnosis || null;
+    } else if (diagnosis) {
+      diagnosesValue = JSON.stringify([diagnosis]);
     }
 
     const result = await query(
@@ -2320,10 +2372,11 @@ app.patch("/api/patients/:id(\\d+)", async (req, res) => {
            weight = COALESCE($8, weight),
            allergies = COALESCE($9::jsonb, allergies),
            workout_frequency = COALESCE($10, workout_frequency),
+           diagnoses = COALESCE($12::jsonb, diagnoses),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $11
        RETURNING *`,
-      [name, email || null, age, gender, diagnosis, diagnosis_description, height, weight, allergiesValue, workout_frequency, id]
+      [name, email || null, age, gender, primaryDiagnosis, diagnosis_description, height, weight, allergiesValue, workout_frequency, id, diagnosesValue]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: "Patient not found" });
 
@@ -2355,6 +2408,15 @@ app.post("/api/patients/:id(\\d+)/assign-dietician", async (req, res) => {
     const patientCheck = await query("SELECT id FROM dietbyrd_patients WHERE id = $1", [id]);
     if (patientCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Patient not found" });
+    }
+
+    // Block assignment if patient has not paid
+    const paymentCheck = await query(
+      `SELECT COUNT(*) AS cnt FROM dietbyrd_payments WHERE patient_id = $1 AND status = 'success'`,
+      [id]
+    );
+    if (parseInt(paymentCheck.rows[0]?.cnt || "0") === 0) {
+      return res.status(403).json({ success: false, error: "Cannot assign a dietician to an unpaid patient. Please ensure the patient has completed payment first." });
     }
 
     // Check if registered_patient record exists
@@ -2735,15 +2797,17 @@ app.get("/api/referrals/doctor/:doctorId", async (req, res) => {
   try {
     const { doctorId } = req.params;
     const result = await query(
-      `SELECT 
+      `SELECT
         r.*,
         p.name AS patient_name,
         p.phone AS patient_phone,
         p.diagnosis,
         p.age,
-        p.gender
+        p.gender,
+        CASE WHEN u.id IS NOT NULL THEN true ELSE false END AS is_registered
       FROM dietbyrd_referrals r
       LEFT JOIN dietbyrd_patients p ON r.patient_id = p.id
+      LEFT JOIN dietbyrd_users u ON u.phone = p.phone AND u.is_verified = true
       WHERE r.doctor_id = $1
       ORDER BY r.referred_at DESC`,
       [doctorId]
@@ -4869,6 +4933,45 @@ app.post("/api/admin/staff/create", async (req, res) => {
   }
 });
 
+// Reset password for a staff member (admin only)
+app.post("/api/admin/staff/:userId/reset-password", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { new_password } = req.body;
+    if (!new_password || new_password.trim().length < 6) {
+      return res.status(400).json({ success: false, error: "Password must be at least 6 characters" });
+    }
+    const hashed = await bcrypt.hash(new_password.trim(), BCRYPT_ROUNDS);
+    const result = await query(
+      `UPDATE dietbyrd_users SET password = $1, plain_password = $2 WHERE id = $3 RETURNING id`,
+      [hashed, new_password.trim(), userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+    res.json({ success: true, data: { message: "Password updated" } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Delete a staff member (admin only)
+app.delete("/api/admin/staff/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const result = await query(
+      `DELETE FROM dietbyrd_users WHERE id = $1 AND role IN ('mlt_intern','support') RETURNING id`,
+      [userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Staff member not found" });
+    }
+    res.json({ success: true, data: { message: "Staff member deleted" } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ==========================================
 // SUPPORT TEAM ENDPOINTS
 // ==========================================
@@ -5269,6 +5372,54 @@ async function runAutoAssign() {
   }
 })();
 
+// ─── Join request about_yourself column migration ─────────────────────────────
+(async () => {
+  try {
+    await query(`ALTER TABLE dietbyrd_join_requests ADD COLUMN IF NOT EXISTS about_yourself TEXT`);
+    console.log('[migration] about_yourself column ready');
+  } catch (err) {
+    console.error('[migration] about_yourself column error:', err.message);
+  }
+})();
+
+// ─── Doctor commission_rate column migration ──────────────────────────────────
+(async () => {
+  try {
+    await query(`ALTER TABLE dietbyrd_doctors ADD COLUMN IF NOT EXISTS commission_rate NUMERIC(5,2) DEFAULT 0`);
+    console.log('[migration] commission_rate column ready');
+  } catch (err) {
+    console.error('[migration] commission_rate column error:', err.message);
+  }
+})();
+
+// ─── Dietician clinic_address / clinic_name column migration ──────────────────
+(async () => {
+  try {
+    await query(`ALTER TABLE dietbyrd_registered_dietitians ADD COLUMN IF NOT EXISTS clinic_address TEXT`);
+    await query(`ALTER TABLE dietbyrd_registered_dietitians ADD COLUMN IF NOT EXISTS clinic_name TEXT`);
+    console.log('[migration] dietician clinic columns ready');
+  } catch (err) {
+    console.error('[migration] dietician clinic columns error:', err.message);
+  }
+})();
+
+// ─── Patient diagnoses array column migration ─────────────────────────────────
+(async () => {
+  try {
+    await query(`ALTER TABLE dietbyrd_patients ADD COLUMN IF NOT EXISTS diagnoses JSONB DEFAULT '[]'`);
+    // Back-fill from existing diagnosis column
+    await query(`
+      UPDATE dietbyrd_patients
+      SET diagnoses = jsonb_build_array(diagnosis)
+      WHERE diagnosis IS NOT NULL
+        AND (diagnoses IS NULL OR diagnoses = '[]'::jsonb)
+    `);
+    console.log('[migration] diagnoses column ready');
+  } catch (err) {
+    console.error('[migration] diagnoses column error:', err.message);
+  }
+})();
+
 // ─── Food library modulator columns migration ─────────────────────────────────
 (async () => {
   try {
@@ -5317,7 +5468,7 @@ async function runAutoAssign() {
       await query(`
         UPDATE dietbyrd_food_library AS t
         SET oxalate_eee = v.ox, phytate_eee = v.ph
-        FROM (VALUES ${valuesList}) AS v(id TEXT, ox NUMERIC, ph NUMERIC)
+        FROM (VALUES ${valuesList}) AS v(id, ox, ph)
         WHERE t.id = v.id
       `);
     }
@@ -5600,7 +5751,7 @@ async function runAutoAssign() {
         calories:598, protein:7.8, carbs:45.9, fat:42.6, fiber:10.9,
         iron:11.9, calcium:73, magnesium:228, zinc:3.3, potassium:715, sodium:20, phosphorus:308, iodine:0, selenium:6.8, copper:1.8,
         vitamin_a:2, vitamin_b1:0.03, vitamin_b2:0.07, vitamin_b3:1.1, vitamin_b6:0.04, vitamin_b9:6, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:0.6, vitamin_k:7.3,
-        oxalate_eee:150, phytate_eee:0, yield_factor:1.0, food_type:'TREAT', caution_level:'MODERATE',
+        oxalate_eee:150, phytate_eee:0, yield_factor:1.0, food_type:'TREAT', caution_level:'MEDIUM',
         tags:['treat','antioxidant','magnesium','iron','oxalate'] },
 
       { id:'HONEY', name_en:'Honey (Shahad)', name_hi:'शहद', category:'Treats',

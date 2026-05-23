@@ -1,13 +1,14 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, Users, Video, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, Users, Video, CheckCircle, XCircle, AlertCircle, BanIcon, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { getDieticianAppointments, updateAppointmentStatus, type DieticianAppointment } from "@/lib/api";
+import { Input } from "@/components/ui/input";
+import { getDieticianAppointments, updateAppointmentStatus, getDieticianBlockedSlots, addBlockedSlot, removeBlockedSlot, type DieticianAppointment } from "@/lib/api";
 import { toast } from "sonner";
 
 type ScheduleFilter = "today" | "tomorrow" | "this_week" | "all";
@@ -44,6 +45,10 @@ const DieticianCalendarSchedule = ({
     action: "completed" | "no_show" | "cancelled" | null;
     notes: string;
   }>({ open: false, appointment: null, action: null, notes: "" });
+  const [leaveDialog, setLeaveDialog] = useState(false);
+  const [leaveDate, setLeaveDate] = useState("");
+  const [leaveReason, setLeaveReason] = useState("");
+  const [showLeaveList, setShowLeaveList] = useState(false);
   const queryClient = useQueryClient();
 
   const statusMutation = useMutation({
@@ -66,6 +71,50 @@ const DieticianCalendarSchedule = ({
   const openStatusDialog = (apt: DieticianAppointment, action: "completed" | "no_show" | "cancelled") => {
     setStatusDialog({ open: true, appointment: apt, action, notes: "" });
   };
+
+  // Fetch blocked slots for the next 60 days
+  const today60 = new Date(); today60.setDate(today60.getDate() + 60);
+  const { data: blockedSlots = [] } = useQuery({
+    queryKey: ["dietician-blocked-slots", dieticianId],
+    queryFn: () => getDieticianBlockedSlots(
+      dieticianId!,
+      new Date().toISOString().split("T")[0],
+      today60.toISOString().split("T")[0]
+    ),
+    enabled: !!dieticianId,
+  });
+
+  const blockedDateSet = useMemo(() => {
+    const s = new Set<string>();
+    blockedSlots.forEach((b) => {
+      const d = b.blocked_date_str || b.blocked_date;
+      s.add(typeof d === "string" ? d.split("T")[0] : "");
+    });
+    return s;
+  }, [blockedSlots]);
+
+  const addLeaveMutation = useMutation({
+    mutationFn: () => addBlockedSlot(dieticianId!, { blocked_date: leaveDate, reason: leaveReason || undefined }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dietician-blocked-slots", dieticianId] });
+      toast.success("Leave marked successfully");
+      setLeaveDialog(false);
+      setLeaveDate("");
+      setLeaveReason("");
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to mark leave"),
+  });
+
+  const removeLeaveMutation = useMutation({
+    mutationFn: (slotId: number) => removeBlockedSlot(dieticianId!, slotId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dietician-blocked-slots", dieticianId] });
+      toast.success("Leave removed");
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to remove leave"),
+  });
+
+  const isBlocked = (date: Date) => blockedDateSet.has(date.toISOString().split("T")[0]);
 
   // Calculate week dates
   const weekDates = useMemo(() => {
@@ -177,6 +226,25 @@ const DieticianCalendarSchedule = ({
             Calendar
           </Button>
           <Button
+            variant="outline"
+            size="sm"
+            className="text-orange-600 border-orange-200 hover:bg-orange-50"
+            onClick={() => { setLeaveDate(""); setLeaveReason(""); setLeaveDialog(true); }}
+          >
+            <BanIcon className="w-4 h-4 mr-2" />
+            Mark Leave
+          </Button>
+          {blockedSlots.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => setShowLeaveList(true)}
+            >
+              {blockedSlots.length} leave{blockedSlots.length !== 1 ? "s" : ""}
+            </Button>
+          )}
+          <Button
             variant={calendarView === "list" ? "default" : "outline"}
             size="sm"
             onClick={() => setCalendarView("list")}
@@ -278,18 +346,21 @@ const DieticianCalendarSchedule = ({
               <div
                 key={date.toISOString()}
                 className={`p-3 text-center border-r last:border-r-0 cursor-pointer transition-colors ${
-                  isToday(date) ? "bg-primary/10" : isSelected(date) ? "bg-muted" : "hover:bg-muted/50"
+                  isBlocked(date)
+                    ? "bg-orange-50 border-orange-200"
+                    : isToday(date) ? "bg-primary/10" : isSelected(date) ? "bg-muted" : "hover:bg-muted/50"
                 }`}
                 onClick={() => setSelectedDate(date)}
               >
                 <p className="text-xs text-muted-foreground">{formatDate(date).split(" ")[0]}</p>
                 <p
                   className={`text-lg font-semibold ${
-                    isToday(date) ? "text-primary" : ""
+                    isBlocked(date) ? "text-orange-500" : isToday(date) ? "text-primary" : ""
                   }`}
                 >
                   {date.getDate()}
                 </p>
+                {isBlocked(date) && <p className="text-[9px] text-orange-400 font-medium">Leave</p>}
               </div>
             ))}
           </div>
@@ -303,13 +374,15 @@ const DieticianCalendarSchedule = ({
                 </div>
                 {weekDates.map((date) => {
                   const appointments = getAppointmentsForSlot(date, hour);
+                  const blocked = isBlocked(date);
                   return (
                     <div
                       key={`${date.toISOString()}-${hour}`}
-                      className={`p-1 border-r last:border-r-0 ${
-                        isToday(date) ? "bg-primary/5" : ""
+                      className={`p-1 border-r last:border-r-0 relative ${
+                        blocked ? "bg-orange-50/60" : isToday(date) ? "bg-primary/5" : ""
                       }`}
                     >
+                      {blocked && <div className="absolute inset-0 bg-orange-100/40 pointer-events-none" />}
                       {appointments.map((apt) => {
                         const isPast = new Date(apt.scheduled_at) < new Date();
                         return (
@@ -570,6 +643,84 @@ const DieticianCalendarSchedule = ({
                 ? "Mark No-Show"
                 : "Cancel Appointment"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark Leave Dialog */}
+      <Dialog open={leaveDialog} onOpenChange={setLeaveDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Mark Leave</DialogTitle>
+            <DialogDescription>Block a day so patients cannot book appointments.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Date <span className="text-red-500">*</span></Label>
+              <Input
+                type="date"
+                value={leaveDate}
+                min={new Date().toISOString().split("T")[0]}
+                onChange={(e) => setLeaveDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Reason (optional)</Label>
+              <Input
+                placeholder="e.g. Personal, Travel, Sick leave"
+                value={leaveReason}
+                onChange={(e) => setLeaveReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLeaveDialog(false)}>Cancel</Button>
+            <Button
+              disabled={!leaveDate || addLeaveMutation.isPending}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+              onClick={() => addLeaveMutation.mutate()}
+            >
+              {addLeaveMutation.isPending ? "Saving..." : "Mark Leave"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Leave List Dialog */}
+      <Dialog open={showLeaveList} onOpenChange={setShowLeaveList}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Upcoming Leaves</DialogTitle>
+            <DialogDescription>Manage your blocked / leave days.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2 max-h-72 overflow-y-auto">
+            {blockedSlots.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No leaves marked.</p>
+            )}
+            {blockedSlots.map((slot) => {
+              const d = slot.blocked_date_str || slot.blocked_date;
+              const dateLabel = new Date(d + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+              return (
+                <div key={slot.id} className="flex items-center justify-between p-3 bg-orange-50 border border-orange-100 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium">{dateLabel}</p>
+                    {slot.reason && <p className="text-xs text-muted-foreground">{slot.reason}</p>}
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-destructive hover:bg-destructive/10 h-8 w-8"
+                    onClick={() => removeLeaveMutation.mutate(slot.id)}
+                    disabled={removeLeaveMutation.isPending}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLeaveList(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

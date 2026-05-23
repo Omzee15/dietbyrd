@@ -206,13 +206,14 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           phone: phoneDigits,
-          password: formData.password, // Use the password set by user
+          password: formData.password,
           name: formData.name,
           role: formData.role,
           qualification: formData.qualification,
           clinic_name: formData.clinic_name || null,
           clinic_address: formData.clinic_address || null,
           specializations: specializations.length > 0 ? specializations : null,
+          about_yourself: formData.about || null,
         }),
       });
 
@@ -591,6 +592,18 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
               </SelectContent>
             </Select>
           </div>
+        </div>
+
+        {/* About Yourself */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Tell us about yourself</label>
+          <Textarea
+            placeholder="Share your background, experience, and why you'd like to join DietByRD..."
+            value={formData.about}
+            onChange={(e) => handleChange("about", e.target.value)}
+            rows={4}
+            className="resize-none"
+          />
         </div>
 
         {/* Submit Button */}

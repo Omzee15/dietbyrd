@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { 
-  Search, UserPlus, Stethoscope, UtensilsCrossed, 
-  Check, X, Loader2, Clock, CheckCircle, XCircle, Filter, LogOut
+import {
+  Search, UserPlus, Stethoscope, UtensilsCrossed,
+  Check, X, Loader2, Clock, CheckCircle, XCircle, Filter, LogOut, Eye,
+  MapPin, Award, Building2, Phone, Calendar, FileText, MessageSquare
 } from "lucide-react";
 import { getAdminSidebarSections } from "@/lib/admin-sidebar";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import AppSidebar from "@/components/AppSidebar";
-import { getJoinRequests, approveJoinRequest, rejectJoinRequest, getPatients, getDoctors, getDieticians, JoinRequest } from "@/lib/api";
+import { getJoinRequests, approveJoinRequest, rejectJoinRequest, scheduleInterview, getPatients, getDoctors, getDieticians, JoinRequest } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 const JoinRequests = () => {
@@ -24,11 +25,18 @@ const JoinRequests = () => {
   
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("pending");
+  const [locationFilter, setLocationFilter] = useState<string>("all");
   const [selectedRequest, setSelectedRequest] = useState<JoinRequest | null>(null);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [detailsRequest, setDetailsRequest] = useState<JoinRequest | null>(null);
+  const [showInterviewDialog, setShowInterviewDialog] = useState(false);
+  const [interviewRequest, setInterviewRequest] = useState<JoinRequest | null>(null);
+  const [interviewMessage, setInterviewMessage] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
   const [adminMessage, setAdminMessage] = useState("");
+  const [commissionRate, setCommissionRate] = useState("");
 
   // Fetch join requests
   const { data: requests = [], isLoading } = useQuery({
@@ -52,8 +60,8 @@ const JoinRequests = () => {
 
   // Approve mutation
   const approveMutation = useMutation({
-    mutationFn: ({ id, message }: { id: number; message?: string }) =>
-      approveJoinRequest(id, user?.id, message),
+    mutationFn: ({ id, message, commissionRate }: { id: number; message?: string; commissionRate?: number }) =>
+      approveJoinRequest(id, user?.id, message, commissionRate),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["join-requests"] });
       toast.success("Request approved! Account created successfully.");
@@ -83,9 +91,25 @@ const JoinRequests = () => {
     },
   });
 
+  // Schedule interview mutation
+  const interviewMutation = useMutation({
+    mutationFn: ({ id, message }: { id: number; message?: string }) =>
+      scheduleInterview(id, message),
+    onSuccess: () => {
+      toast.success("Interview invitation sent via WhatsApp!");
+      setShowInterviewDialog(false);
+      setInterviewRequest(null);
+      setInterviewMessage("");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Failed to send interview invitation");
+    },
+  });
+
   const handleApprove = () => {
     if (selectedRequest) {
-      approveMutation.mutate({ id: selectedRequest.id, message: adminMessage || undefined });
+      const rate = commissionRate ? parseFloat(commissionRate) : undefined;
+      approveMutation.mutate({ id: selectedRequest.id, message: adminMessage || undefined, commissionRate: rate });
     }
   };
 
@@ -98,6 +122,7 @@ const JoinRequests = () => {
   const openApproveDialog = (request: JoinRequest) => {
     setSelectedRequest(request);
     setAdminMessage("");
+    setCommissionRate("");
     setShowApproveDialog(true);
   };
 
@@ -107,14 +132,38 @@ const JoinRequests = () => {
     setShowRejectDialog(true);
   };
 
+  const openDetailsDialog = (request: JoinRequest) => {
+    setDetailsRequest(request);
+    setShowDetailsDialog(true);
+  };
+
+  const openInterviewDialog = (request: JoinRequest) => {
+    setInterviewRequest(request);
+    setInterviewMessage("");
+    setShowInterviewDialog(true);
+  };
+
+  const handleScheduleInterview = () => {
+    if (interviewRequest) {
+      interviewMutation.mutate({ id: interviewRequest.id, message: interviewMessage || undefined });
+    }
+  };
+
+  const uniqueLocations = Array.from(new Set(requests.map(r => r.clinic_address).filter(Boolean))) as string[];
+
   const filteredRequests = requests.filter(r => {
-    if (!search) return true;
-    const searchLower = search.toLowerCase();
-    return (
-      r.name.toLowerCase().includes(searchLower) ||
-      r.phone.includes(search) ||
-      r.qualification.toLowerCase().includes(searchLower)
-    );
+    const matchesSearch = !search || (() => {
+      const s = search.toLowerCase();
+      return (
+        r.name.toLowerCase().includes(s) ||
+        r.phone.includes(search) ||
+        r.qualification.toLowerCase().includes(s) ||
+        (r.clinic_address || "").toLowerCase().includes(s) ||
+        (r.clinic_name || "").toLowerCase().includes(s)
+      );
+    })();
+    const matchesLocation = locationFilter === "all" || r.clinic_address === locationFilter;
+    return matchesSearch && matchesLocation;
   });
 
   const getStatusBadge = (status: string) => {
@@ -186,11 +235,25 @@ const JoinRequests = () => {
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name, phone, or qualification..."
+                placeholder="Search by name, phone, qualification, or city..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
               />
+            </div>
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-muted-foreground" />
+              <Select value={locationFilter} onValueChange={setLocationFilter}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="All locations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Locations</SelectItem>
+                  {uniqueLocations.map((loc) => (
+                    <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-muted-foreground" />
@@ -264,17 +327,27 @@ const JoinRequests = () => {
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">{request.phone}</p>
                         <div className="flex flex-wrap gap-2 text-sm">
-                          <span className="px-2 py-1 bg-muted rounded text-muted-foreground">
-                            {request.qualification}
+                          <span className="px-2 py-1 bg-muted rounded text-muted-foreground flex items-center gap-1">
+                            <Award className="w-3 h-3" />{request.qualification}
                           </span>
                           {request.clinic_name && (
-                            <span className="px-2 py-1 bg-muted rounded text-muted-foreground">
-                              {request.clinic_name}
+                            <span className="px-2 py-1 bg-muted rounded text-muted-foreground flex items-center gap-1">
+                              <Building2 className="w-3 h-3" />{request.clinic_name}
+                            </span>
+                          )}
+                          {request.clinic_address && (
+                            <span className="px-2 py-1 bg-muted rounded text-muted-foreground flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />{request.clinic_address}
                             </span>
                           )}
                           {request.specializations && request.specializations.length > 0 && (
                             <span className="px-2 py-1 bg-muted rounded text-muted-foreground">
                               {request.specializations.join(", ")}
+                            </span>
+                          )}
+                          {request.experience_years != null && (
+                            <span className="px-2 py-1 bg-muted rounded text-muted-foreground">
+                              {request.experience_years} yr{request.experience_years !== 1 ? "s" : ""} exp.
                             </span>
                           )}
                         </div>
@@ -296,29 +369,49 @@ const JoinRequests = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       {getStatusBadge(request.status)}
-                      {request.status === "pending" && (
-                        <div className="flex items-center gap-2 ml-4">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                            onClick={() => openRejectDialog(request)}
-                            disabled={rejectMutation.isPending}
-                          >
-                            <X className="w-4 h-4 mr-1" />
-                            Reject
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="bg-primary hover:bg-primary/90"
-                            onClick={() => openApproveDialog(request)}
-                            disabled={approveMutation.isPending}
-                          >
-                            <Check className="w-4 h-4 mr-1" />
-                            Approve
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 ml-4">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openDetailsDialog(request)}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          Details
+                        </Button>
+                        {request.status === "pending" && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                              onClick={() => openInterviewDialog(request)}
+                              disabled={interviewMutation.isPending}
+                            >
+                              <MessageSquare className="w-4 h-4 mr-1" />
+                              Interview
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                              onClick={() => openRejectDialog(request)}
+                              disabled={rejectMutation.isPending}
+                            >
+                              <X className="w-4 h-4 mr-1" />
+                              Reject
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="bg-primary hover:bg-primary/90"
+                              onClick={() => openApproveDialog(request)}
+                              disabled={approveMutation.isPending}
+                            >
+                              <Check className="w-4 h-4 mr-1" />
+                              Approve
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -327,6 +420,155 @@ const JoinRequests = () => {
           )}
         </div>
       </main>
+
+      {/* Details Dialog */}
+      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {detailsRequest && getRoleIcon(detailsRequest.requested_role)}
+              {detailsRequest?.name}
+            </DialogTitle>
+            <DialogDescription>
+              {detailsRequest?.requested_role === "doctor" ? "Doctor" : "Registered Dietician"} · {detailsRequest && getStatusBadge(detailsRequest.status)}
+            </DialogDescription>
+          </DialogHeader>
+          {detailsRequest && (
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="flex items-start gap-2">
+                  <Phone className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Phone</p>
+                    <p className="font-medium">{detailsRequest.phone}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Award className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Qualification</p>
+                    <p className="font-medium">{detailsRequest.qualification}</p>
+                  </div>
+                </div>
+                {detailsRequest.experience_years != null && (
+                  <div className="flex items-start gap-2">
+                    <Calendar className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Experience</p>
+                      <p className="font-medium">{detailsRequest.experience_years} year{detailsRequest.experience_years !== 1 ? "s" : ""}</p>
+                    </div>
+                  </div>
+                )}
+                {detailsRequest.medical_license_number && (
+                  <div className="flex items-start gap-2">
+                    <FileText className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">License No.</p>
+                      <p className="font-medium">{detailsRequest.medical_license_number}</p>
+                    </div>
+                  </div>
+                )}
+                {detailsRequest.clinic_name && (
+                  <div className="flex items-start gap-2">
+                    <Building2 className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Clinic / Hospital</p>
+                      <p className="font-medium">{detailsRequest.clinic_name}</p>
+                    </div>
+                  </div>
+                )}
+                {detailsRequest.clinic_address && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Location</p>
+                      <p className="font-medium">{detailsRequest.clinic_address}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {detailsRequest.specializations && detailsRequest.specializations.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Specializations</p>
+                  <div className="flex flex-wrap gap-2">
+                    {detailsRequest.specializations.map((s) => (
+                      <span key={s} className="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {detailsRequest.about_yourself && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">About</p>
+                  <p className="text-sm bg-muted rounded-lg p-3 leading-relaxed">{detailsRequest.about_yourself}</p>
+                </div>
+              )}
+              {detailsRequest.rejection_reason && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Rejection Reason</p>
+                  <p className="text-sm bg-destructive/10 text-destructive rounded-lg p-3">{detailsRequest.rejection_reason}</p>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Submitted {new Date(detailsRequest.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+          )}
+          <DialogFooter className="flex flex-wrap gap-2">
+            {detailsRequest?.status === "pending" && (
+              <>
+                <Button variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => { setShowDetailsDialog(false); openInterviewDialog(detailsRequest!); }}>
+                  <MessageSquare className="w-4 h-4 mr-1" /> Interview
+                </Button>
+                <Button variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => { setShowDetailsDialog(false); openRejectDialog(detailsRequest!); }}>
+                  <X className="w-4 h-4 mr-1" /> Reject
+                </Button>
+                <Button onClick={() => { setShowDetailsDialog(false); openApproveDialog(detailsRequest!); }}>
+                  <Check className="w-4 h-4 mr-1" /> Approve
+                </Button>
+              </>
+            )}
+            {detailsRequest?.status !== "pending" && (
+              <Button variant="outline" onClick={() => setShowDetailsDialog(false)}>Close</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Schedule Interview Dialog */}
+      <Dialog open={showInterviewDialog} onOpenChange={setShowInterviewDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Schedule Interview</DialogTitle>
+            <DialogDescription>
+              Send a WhatsApp message to {interviewRequest?.name} ({interviewRequest?.phone}) to schedule an interview.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="text-sm font-medium text-slate-700 mb-2 block">
+              Message (optional)
+            </label>
+            <Textarea
+              placeholder="e.g. We'd love to interview you on Thursday at 3 PM IST. Please confirm your availability."
+              value={interviewMessage}
+              onChange={(e) => setInterviewMessage(e.target.value)}
+              rows={4}
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              A greeting and DietByRD sign-off are added automatically. Leave blank to send a generic invitation.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowInterviewDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleScheduleInterview} disabled={interviewMutation.isPending} className="bg-blue-600 hover:bg-blue-700">
+              {interviewMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <MessageSquare className="w-4 h-4 mr-2" />}
+              Send Invitation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Approve Dialog */}
       <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
@@ -339,6 +581,24 @@ const JoinRequests = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
+            {selectedRequest?.requested_role === "doctor" && (
+              <div>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">
+                  Commission Rate (%) <span className="text-muted-foreground font-normal">— optional</span>
+                </label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 10"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={commissionRate}
+                  onChange={(e) => setCommissionRate(e.target.value)}
+                  className="w-32"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Percentage of revenue shared with this doctor. Defaults to 0 if not set.</p>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium text-slate-700 mb-2 block">
                 Message to applicant (optional)

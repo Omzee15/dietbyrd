@@ -601,8 +601,16 @@ const MLTInternDashboard = () => {
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-900">{patient.referredBy || 'Direct'}</td>
                           <td className="px-6 py-4" onClick={(event) => event.stopPropagation()}>
+                            {(() => {
+                              const hasPaid =
+                                patient.payment_status === "paid" ||
+                                patient.payment_history?.some((p) => p.status === "success") ||
+                                !!patient.dietary_preference;
+                              return (
+                            <div title={!hasPaid ? "Patient must pay before a dietician can be assigned" : undefined}>
                             <Select
                               value={patient.assigned_rd_id?.toString() || "unassigned"}
+                              disabled={!hasPaid}
                               onValueChange={(value) => {
                                 if (value !== "unassigned") {
                                   assignDieticianMutation.mutate({
@@ -612,8 +620,8 @@ const MLTInternDashboard = () => {
                                 }
                               }}
                             >
-                              <SelectTrigger className="w-56">
-                                <SelectValue placeholder="Select a dietician" />
+                              <SelectTrigger className={`w-56 ${!hasPaid ? "opacity-50 cursor-not-allowed" : ""}`}>
+                                <SelectValue placeholder={hasPaid ? "Select a dietician" : "Unpaid — cannot assign"} />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="unassigned">Not assigned</SelectItem>
@@ -624,6 +632,9 @@ const MLTInternDashboard = () => {
                                 ))}
                               </SelectContent>
                             </Select>
+                            </div>
+                              );
+                            })()}
                           </td>
                         </tr>
                       ))

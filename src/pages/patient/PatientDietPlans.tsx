@@ -19,6 +19,7 @@ import {
   User,
   UtensilsCrossed,
   MessageSquare,
+  ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,8 +35,10 @@ import AppSidebar from "@/components/AppSidebar";
 import {
   getPatient,
   getPatientDietPlans,
+  getPatientAppointments,
   type DietPlan,
 } from "@/lib/api";
+import { formatDateTime12 } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
 const PatientDietPlans = () => {
@@ -56,6 +59,15 @@ const PatientDietPlans = () => {
     queryFn: () => getPatientDietPlans(user!.profileId!),
     enabled: !!user?.profileId,
   });
+
+  // Get upcoming appointments to show schedule-next prompt
+  const { data: upcomingAppointments = [] } = useQuery({
+    queryKey: ["patient-appointments-upcoming", user?.profileId],
+    queryFn: () => getPatientAppointments(user!.profileId!, { upcoming_only: true }),
+    enabled: !!user?.profileId,
+  });
+
+  const nextAppointment = upcomingAppointments[0] ?? null;
 
   const handleLogout = () => {
     logout();
@@ -371,6 +383,48 @@ const PatientDietPlans = () => {
         {/* Content */}
         {!isLoading && (
           <div className="p-6 space-y-6">
+            {/* Appointment banner */}
+            {dietPlans && dietPlans.length > 0 && (
+              <div className={`flex items-center justify-between p-4 rounded-xl border ${nextAppointment ? "bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800" : "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800"}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center ${nextAppointment ? "bg-blue-100 dark:bg-blue-900" : "bg-amber-100 dark:bg-amber-900"}`}>
+                    <CalendarDays className={`w-4 h-4 ${nextAppointment ? "text-blue-600" : "text-amber-600"}`} />
+                  </div>
+                  <div>
+                    {nextAppointment ? (
+                      <>
+                        <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                          Next appointment booked
+                        </p>
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                          {new Date(nextAppointment.scheduled_at).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })} at {formatDateTime12(nextAppointment.scheduled_at)}
+                          {nextAppointment.rd_name && ` · ${nextAppointment.rd_name}`}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                          No upcoming appointment
+                        </p>
+                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                          Book a follow-up to stay on track with your diet
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant={nextAppointment ? "outline" : "default"}
+                  className={nextAppointment ? "border-blue-300 text-blue-700 hover:bg-blue-100" : "bg-amber-500 hover:bg-amber-600 text-white border-0"}
+                  onClick={() => navigate("/patient/appointments")}
+                >
+                  {nextAppointment ? "Schedule Another" : "Book Now"}
+                  <ArrowRight className="w-3 h-3 ml-1" />
+                </Button>
+              </div>
+            )}
+
             {/* Current Active Diet Plan */}
             {activeDietPlan && (
               <Card>

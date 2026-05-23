@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { Users, UserCheck, UserPlus, Stethoscope, UtensilsCrossed, BarChart3, Search, ArrowLeft, X, TrendingUp, Loader2, LogOut, Settings, Tag, Trash2, AlertTriangle } from "lucide-react";
+import { Users, UserCheck, UserPlus, Stethoscope, UtensilsCrossed, BarChart3, Search, ArrowLeft, X, TrendingUp, Loader2, LogOut, Settings, Tag, Trash2, AlertTriangle, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,9 @@ const AdminDashboard = () => {
   const [deleteTarget, setDeleteTarget] = useState<{ type: "patient" | "doctor" | "dietician"; id: number; name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   
+  const [doctorSearch, setDoctorSearch] = useState("");
+  const [dieticianSearch, setDieticianSearch] = useState("");
+
   // Patient list filter state
   const [referredByFilter, setReferredByFilter] = useState<string>("all");
   const [dieticianFilter, setDieticianFilter] = useState<string>("all");
@@ -610,9 +613,29 @@ const AdminDashboard = () => {
                 {/* Doctors Tab */}
                 {activeTab === "doctors" && (
                   <div className="p-6 space-y-6">
-                    <h2 className="text-lg font-semibold">Doctors ({doctors.length})</h2>
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-lg font-semibold">Doctors ({doctors.length})</h2>
+                      <div className="relative w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search by name, city, clinic..."
+                          value={doctorSearch}
+                          onChange={(e) => setDoctorSearch(e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {doctors.map((d) => (
+                      {doctors.filter((d) => {
+                        if (!doctorSearch) return true;
+                        const s = doctorSearch.toLowerCase();
+                        return (
+                          d.name.toLowerCase().includes(s) ||
+                          (d.clinic_name || "").toLowerCase().includes(s) ||
+                          (d.clinic_address || "").toLowerCase().includes(s) ||
+                          d.qualification.toLowerCase().includes(s)
+                        );
+                      }).map((d) => (
                         <div key={d.id} className="bg-card border rounded-2xl p-5">
                           <div className="flex items-start gap-3">
                             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
@@ -622,6 +645,7 @@ const AdminDashboard = () => {
                               <div className="font-semibold">{d.name}</div>
                               <div className="text-xs text-muted-foreground">{d.qualification}</div>
                               <div className="text-xs text-muted-foreground">{d.clinic_name || "Independent"}</div>
+                              {d.clinic_address && <div className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{d.clinic_address}</div>}
                             </div>
                             <Badge variant="outline" className={d.is_verified ? "text-success border-success/30" : "text-warning border-warning/30"}>
                               {d.is_verified ? "Verified" : "Pending"}
@@ -640,7 +664,11 @@ const AdminDashboard = () => {
                           </div>
                         </div>
                       ))}
-                      {doctors.length === 0 && (
+                      {doctors.filter((d) => {
+                        if (!doctorSearch) return true;
+                        const s = doctorSearch.toLowerCase();
+                        return d.name.toLowerCase().includes(s) || (d.clinic_name||"").toLowerCase().includes(s) || (d.clinic_address||"").toLowerCase().includes(s);
+                      }).length === 0 && (
                         <div className="col-span-3 text-center text-muted-foreground py-8">No doctors found</div>
                       )}
                     </div>
@@ -650,9 +678,28 @@ const AdminDashboard = () => {
                 {/* Dieticians Tab */}
                 {activeTab === "dieticians" && (
                   <div className="p-6 space-y-6">
-                    <h2 className="text-lg font-semibold">Dieticians ({dieticians.length})</h2>
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-lg font-semibold">Dieticians ({dieticians.length})</h2>
+                      <div className="relative w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search by name, specialization..."
+                          value={dieticianSearch}
+                          onChange={(e) => setDieticianSearch(e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {dieticians.map((d) => (
+                      {dieticians.filter((d) => {
+                        if (!dieticianSearch) return true;
+                        const s = dieticianSearch.toLowerCase();
+                        return (
+                          d.name.toLowerCase().includes(s) ||
+                          d.qualification.toLowerCase().includes(s) ||
+                          (d.specializations || []).some((sp) => sp.toLowerCase().includes(s))
+                        );
+                      }).map((d) => (
                         <div key={d.id} className="bg-card border rounded-2xl p-5">
                           <div className="flex items-start gap-3">
                             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
@@ -661,6 +708,7 @@ const AdminDashboard = () => {
                             <div className="flex-1">
                               <div className="font-semibold">{d.name}</div>
                               <div className="text-xs text-muted-foreground">{d.qualification}</div>
+                              {d.clinic_address && <div className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{d.clinic_address}</div>}
                               <div className="text-xs text-muted-foreground">{d.phone || "—"}</div>
                             </div>
                             <Badge variant="outline" className={d.is_active ? "text-success border-success/30" : "text-muted-foreground"}>
@@ -680,7 +728,11 @@ const AdminDashboard = () => {
                           </div>
                         </div>
                       ))}
-                      {dieticians.length === 0 && (
+                      {dieticians.filter((d) => {
+                        if (!dieticianSearch) return true;
+                        const s = dieticianSearch.toLowerCase();
+                        return d.name.toLowerCase().includes(s) || d.qualification.toLowerCase().includes(s) || (d.specializations||[]).some(sp=>sp.toLowerCase().includes(s));
+                      }).length === 0 && (
                         <div className="col-span-3 text-center text-muted-foreground py-8">No dieticians found</div>
                       )}
                     </div>

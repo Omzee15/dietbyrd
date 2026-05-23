@@ -181,6 +181,7 @@ const PatientDashboard = () => {
   const [profileAge, setProfileAge] = useState("");
   const [profileGender, setProfileGender] = useState("");
   const [profileDiagnosis, setProfileDiagnosis] = useState("");
+  const [profileDiagnoses, setProfileDiagnoses] = useState<string[]>([]);
   const [profileHeight, setProfileHeight] = useState("");
   const [profileHeightUnit, setProfileHeightUnit] = useState<"cm" | "ft">("cm");
   const [profileWeight, setProfileWeight] = useState("");
@@ -455,6 +456,11 @@ const PatientDashboard = () => {
     setProfileAge(patient?.age?.toString() || "");
     setProfileGender(patient?.gender || "");
     setProfileDiagnosis(patient?.diagnosis || "");
+    setProfileDiagnoses(
+      Array.isArray(patient?.diagnoses) && patient.diagnoses.length > 0
+        ? patient.diagnoses
+        : patient?.diagnosis ? [patient.diagnosis] : []
+    );
     setProfileHeight(patient?.height?.toString() || "");
     setProfileHeightUnit("cm");
     setProfileWeight(patient?.weight?.toString() || "");
@@ -474,7 +480,8 @@ const PatientDashboard = () => {
       name: profileName.trim() || undefined,
       age: profileAge ? parseInt(profileAge) : undefined,
       gender: profileGender as any || undefined,
-      diagnosis: profileDiagnosis || undefined,
+      diagnosis: profileDiagnoses[0] || profileDiagnosis || undefined,
+      diagnoses: profileDiagnoses.length > 0 ? profileDiagnoses : undefined,
       height: profileHeightCm && !isNaN(profileHeightCm) ? profileHeightCm : undefined,
       weight: profileWeight ? parseFloat(profileWeight) : undefined,
       allergies: profileAllergies || undefined,
@@ -886,9 +893,13 @@ const PatientDashboard = () => {
                   <div>
                     <h2 className="text-2xl font-bold">Welcome, {patient.name?.split(" ")[0] || "Patient"}!</h2>
                     <p className="text-muted-foreground">
-                      {patient.diagnosis && patient.diagnosis !== "other" 
-                        ? `Managing ${patient.diagnosis}` 
-                        : "Your health journey dashboard"}
+                      {(() => {
+                        const all = Array.isArray(patient.diagnoses) && patient.diagnoses.length > 0
+                          ? patient.diagnoses
+                          : patient.diagnosis ? [patient.diagnosis] : [];
+                        const visible = all.filter(d => d && d !== "other");
+                        return visible.length > 0 ? `Managing ${visible.join(", ")}` : "Your health journey dashboard";
+                      })()}
                     </p>
                   </div>
                 </div>
@@ -1820,20 +1831,32 @@ const PatientDashboard = () => {
               </div>
 
               <div>
-                <label className="text-sm font-medium">Primary Health Concern</label>
-                <select
-                  value={profileDiagnosis}
-                  onChange={e => setProfileDiagnosis(e.target.value)}
-                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                >
-                  <option value="">Select if applicable</option>
-                  <option value="diabetes">Diabetes</option>
-                  <option value="pcos">PCOS</option>
-                  <option value="thyroid">Thyroid</option>
-                  <option value="hypertension">Hypertension</option>
-                  <option value="obesity">Obesity</option>
-                  <option value="other">Other</option>
-                </select>
+                <label className="text-sm font-medium">Health Conditions</label>
+                <div className="mt-1 space-y-2">
+                  {profileDiagnoses.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {profileDiagnoses.map((d) => (
+                        <span key={d} className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs rounded-full">
+                          {d}
+                          <button type="button" onClick={() => setProfileDiagnoses(prev => prev.filter(x => x !== d))} className="ml-0.5 hover:text-destructive">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <select
+                    value=""
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (val && !profileDiagnoses.includes(val)) setProfileDiagnoses(prev => [...prev, val]);
+                    }}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <option value="">+ Add condition</option>
+                    {["Diabetes","PCOS","Thyroid","Hypertension","Obesity","CKD (Kidney Disease)","Liver Disease","Heart Disease","Cancer","IBS / Gut Issues","Other"].filter(o => !profileDiagnoses.includes(o)).map(o => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">

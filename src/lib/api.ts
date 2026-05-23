@@ -34,6 +34,7 @@ export interface Patient {
   age: number | null;
   gender: "male" | "female" | "other" | null;
   diagnosis: string | null;
+  diagnoses?: string[] | null;
   diagnosis_description: string | null;
   referral_source: string;
   created_at: string;
@@ -150,6 +151,8 @@ export interface Dietician {
   is_active: boolean;
   phone?: string;
   active_patients?: number;
+  clinic_name?: string | null;
+  clinic_address?: string | null;
 }
 
 export const getDieticians = () => request<Dietician[]>("/dieticians");
@@ -171,6 +174,7 @@ export interface Referral {
   doctor_name?: string;
   age?: number;
   gender?: string;
+  is_registered?: boolean;
 }
 
 export interface UnregisteredReferral {
@@ -323,6 +327,9 @@ export interface JoinRequest {
   clinic_name?: string | null;
   clinic_address?: string | null;
   specializations?: string[] | null;
+  about_yourself?: string | null;
+  experience_years?: number | null;
+  medical_license_number?: string | null;
   status: "pending" | "approved" | "rejected";
   rejection_reason?: string | null;
   admin_message?: string | null;
@@ -348,16 +355,22 @@ export const createJoinRequest = (data: {
   specializations?: string[];
 }) => request<JoinRequest>("/join-requests", { method: "POST", body: JSON.stringify(data) });
 
-export const approveJoinRequest = (id: number, reviewedBy?: number, adminMessage?: string) =>
+export const approveJoinRequest = (id: number, reviewedBy?: number, adminMessage?: string, commissionRate?: number) =>
   request<{ message: string }>(`/join-requests/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ action: "approve", reviewed_by: reviewedBy, admin_message: adminMessage }),
+    body: JSON.stringify({ action: "approve", reviewed_by: reviewedBy, admin_message: adminMessage, commission_rate: commissionRate }),
   });
 
 export const rejectJoinRequest = (id: number, reviewedBy?: number, reason?: string, adminMessage?: string) =>
   request<{ message: string }>(`/join-requests/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ action: "reject", reviewed_by: reviewedBy, rejection_reason: reason, admin_message: adminMessage }),
+  });
+
+export const scheduleInterview = (id: number, message?: string) =>
+  request<{ sent: boolean }>(`/join-requests/${id}/schedule-interview`, {
+    method: "POST",
+    body: JSON.stringify({ message }),
   });
 
 // ─── Appointment Booking ──────────────────────────────────────────────────────
@@ -485,6 +498,7 @@ export interface BlockedSlot {
   id: number;
   rd_id: number;
   blocked_date: string;
+  blocked_date_str?: string;
   start_time?: string;
   end_time?: string;
   reason?: string;

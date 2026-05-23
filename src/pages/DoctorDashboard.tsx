@@ -59,6 +59,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
   const [activeView, setActiveView] = useState<ActiveView>(defaultTab);
   const [selectedPatient, setSelectedPatient] = useState<Referral | null>(null);
   const [patientSearch, setPatientSearch] = useState("");
+  const [hideOnboarded, setHideOnboarded] = useState(true);
   
   // Check if current user is an assistant (not a doctor)
   const isAssistant = user?.role === "assistant";
@@ -176,10 +177,13 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
     });
   };
 
-  const filteredPatients = referrals.filter((p) =>
-    (p.patient_name?.toLowerCase() || "").includes(patientSearch.toLowerCase()) ||
-    (p.diagnosis?.toLowerCase() || "").includes(patientSearch.toLowerCase())
-  );
+  const filteredPatients = referrals.filter((p) => {
+    if (hideOnboarded && p.is_registered) return false;
+    return (
+      (p.patient_name?.toLowerCase() || "").includes(patientSearch.toLowerCase()) ||
+      (p.diagnosis?.toLowerCase() || "").includes(patientSearch.toLowerCase())
+    );
+  });
 
   // Create assistant mutation (only for doctors)
   const createAssistantMutation = useMutation({
@@ -422,7 +426,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                     </div>
                     <div>
                       <div className="text-2xl font-bold">{doctorStats?.total_referred || referrals.length}</div>
-                      <div className="text-sm text-muted-foreground">Patients Referred</div>
+                      <div className="text-sm text-muted-foreground">Patients Helped</div>
                     </div>
                   </div>
                   <div className="bg-card rounded-xl border p-5 flex items-center gap-4">
@@ -434,18 +438,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                       <div className="text-sm text-muted-foreground">Onboarded Patients</div>
                     </div>
                   </div>
-                  {/* Only show commission to doctors, not assistants */}
-                  {!isAssistant && (
-                    <div className="bg-card rounded-xl border p-5 flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-info">
-                        <IndianRupee className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold">₹{(doctorStats?.total_commission || 0).toLocaleString()}</div>
-                        <div className="text-sm text-muted-foreground">Commission Earned</div>
-                      </div>
-                    </div>
-                  )}
+                  {/* Commission card removed from main dashboard */}
                   {/* Show different card for assistants */}
                   {isAssistant && (
                     <div className="bg-card rounded-xl border p-5 flex items-center gap-4">
@@ -571,7 +564,16 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
               <div className="p-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold">My Patients</h2>
-                  <span className="text-sm text-muted-foreground">{referrals.length} patients</span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setHideOnboarded(!hideOnboarded)}
+                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${hideOnboarded ? "bg-primary/10 text-primary border-primary/30" : "border-muted-foreground/30 text-muted-foreground"}`}
+                    >
+                      {hideOnboarded ? "Pending only" : "All patients"}
+                    </button>
+                    <span className="text-sm text-muted-foreground">{filteredPatients.length} shown</span>
+                  </div>
                 </div>
                 <div className="relative max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

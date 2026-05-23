@@ -2,11 +2,11 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { Users, Stethoscope, UtensilsCrossed, BarChart3, UserPlus, UserCheck, Loader2, LogOut, Settings, Tag, Plus, Copy, Check, Eye, EyeOff } from "lucide-react";
+import { Users, Stethoscope, UtensilsCrossed, BarChart3, UserPlus, UserCheck, Loader2, LogOut, Settings, Tag, Plus, Copy, Check, Eye, EyeOff, KeyRound, Trash2, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAdminSidebarSections } from "@/lib/admin-sidebar";
@@ -46,6 +46,10 @@ const MLTInternsPage = () => {
   const [copiedPassword, setCopiedPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [listPasswordVisible, setListPasswordVisible] = useState<PasswordVisibility>({});
+  const [resetPasswordTarget, setResetPasswordTarget] = useState<StaffMember | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
 
   const handleLogout = () => {
     logout();
@@ -85,6 +89,42 @@ const MLTInternsPage = () => {
     onError: (error: Error) => {
       toast.error(error.message || "Failed to create account");
     },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ userId, password }: { userId: number; password: string }) => {
+      const res = await fetch(`/api/admin/staff/${userId}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_password: password }),
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    onSuccess: () => {
+      refetch();
+      toast.success("Password updated successfully");
+      setResetPasswordTarget(null);
+      setNewPassword("");
+      setShowNewPassword(false);
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to update password"),
+  });
+
+  const deleteInternMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await fetch(`/api/admin/staff/${userId}`, { method: "DELETE" });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    onSuccess: () => {
+      refetch();
+      toast.success("MLT Intern deleted");
+      setDeleteTarget(null);
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to delete intern"),
   });
 
   const handleCreateAccount = (e: React.FormEvent) => {
@@ -215,6 +255,23 @@ const MLTInternsPage = () => {
                           <span className={`px-2 py-1 text-xs rounded-full ${intern.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
                             {intern.is_active ? "Active" : "Inactive"}
                           </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => { setResetPasswordTarget(intern); setNewPassword(""); setShowNewPassword(false); }}
+                          >
+                            <KeyRound className="w-3 h-3 mr-1" />
+                            Reset PW
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                            onClick={() => setDeleteTarget(intern)}
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" />
+                            Delete
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -225,6 +282,70 @@ const MLTInternsPage = () => {
           )}
         </div>
       </main>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={!!resetPasswordTarget} onOpenChange={(open) => !open && setResetPasswordTarget(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for {resetPasswordTarget?.name || resetPasswordTarget?.phone}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">New Password</label>
+              <div className="relative">
+                <Input
+                  type={showNewPassword ? "text" : "password"}
+                  placeholder="Min. 6 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="pr-10"
+                />
+                <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetPasswordTarget(null)}>Cancel</Button>
+            <Button
+              disabled={newPassword.length < 6 || resetPasswordMutation.isPending}
+              onClick={() => resetPasswordTarget && resetPasswordMutation.mutate({ userId: resetPasswordTarget.id, password: newPassword })}
+            >
+              {resetPasswordMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <KeyRound className="w-4 h-4 mr-2" />}
+              Save Password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Intern Confirmation Dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="w-5 h-5" /> Delete MLT Intern
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{deleteTarget?.name || deleteTarget?.phone}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteInternMutation.isPending}
+              onClick={() => deleteTarget && deleteInternMutation.mutate(deleteTarget.id)}
+            >
+              {deleteInternMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Account Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
