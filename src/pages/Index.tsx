@@ -47,7 +47,7 @@ const formatRoleLabel = (role: string | null) => {
 
 const Index = () => {
   const navigate = useNavigate();
-  const { login, sendOtp, verifyOtp, isAuthenticated, user, isLoading: authLoading } = useAuth();
+  const { login, sendOtp, verifyOtp, isAuthenticated, user, isLoading: authLoading, sessionExpired } = useAuth();
 
   const [step, setStep] = useState<AuthStep>("phone");
   const [phone, setPhone] = useState("");
@@ -138,7 +138,7 @@ const Index = () => {
         }
         setStep("otp-verify");
         setOtp("");
-        setOtpTimer(otpResult.expiresIn || 300);
+        setOtpTimer(otpResult.expiresIn || 120);
         setSuccess(userName ? `Welcome back, ${userName}! OTP sent to your phone.` : "OTP sent to your phone.");
         return;
       }
@@ -182,7 +182,7 @@ const Index = () => {
     } else {
       setStep("otp-verify");
       setOtp("");
-      setOtpTimer(result.expiresIn || 300);
+      setOtpTimer(result.expiresIn || 120);
       setSuccess("OTP sent to your phone.");
     }
 
@@ -600,6 +600,13 @@ const Index = () => {
           </div>
 
           <div className="w-full max-w-md">
+            {/* Session expired banner */}
+            {sessionExpired && step === "phone" && (
+              <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
+                <p className="font-semibold text-sm">Your session has expired for security purposes.</p>
+                <p className="text-sm mt-0.5">Please log in again to continue.</p>
+              </div>
+            )}
             {renderStepContent()}
 
             {/* Join as Professional Link */}

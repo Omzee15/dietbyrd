@@ -81,7 +81,7 @@ const verifyOtpViaTwilio = async (phone, otp) => {
 };
 
 // OTP configuration
-const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+const OTP_EXPIRY_MS = 2 * 60 * 1000; // 2 minutes
 
 // Template SIDs for WhatsApp messages (approved by Meta)
 const TWILIO_TEMPLATE_WELCOME_SID = process.env.TWILIO_TEMPLATE_WELCOME_SID || "HX328f4bea0c71b8a51ca4dc299ebec18c";
@@ -543,6 +543,30 @@ const formatPhoneE164 = (phone) => {
   
   // Fallback
   return `+91${cleaned}`;
+};
+
+// Short code generation for clean referral URLs
+const SHORT_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusable chars
+const generateShortCode = () => {
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += SHORT_CODE_CHARS[Math.floor(Math.random() * SHORT_CODE_CHARS.length)];
+  }
+  return code;
+};
+
+let referralShortCodeColumnEnsured = false;
+const ensureReferralShortCodeColumn = async () => {
+  if (referralShortCodeColumnEnsured) return;
+  try {
+    await query(`ALTER TABLE dietbyrd_referrals ADD COLUMN IF NOT EXISTS short_code VARCHAR(16) UNIQUE`);
+    await query(`ALTER TABLE dietbyrd_referrals ADD COLUMN IF NOT EXISTS registration_data JSONB`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_referrals_short_code ON dietbyrd_referrals(short_code)`);
+    referralShortCodeColumnEnsured = true;
+  } catch (err) {
+    console.log(`[ReferralShortCode] Column setup skipped: ${err.message}`);
+    referralShortCodeColumnEnsured = true;
+  }
 };
 
 // Registration token generation and verification
@@ -1079,7 +1103,7 @@ app.post("/api/auth/send-otp", async (req, res) => {
         success: true, 
         message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
         to: toNumber,
-        expiresIn: 300 // OTPs expire in 5 minutes
+        expiresIn: 120 // OTPs expire in 2 minutes
       });
     } catch (twilioErr) {
       console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
@@ -1134,7 +1158,7 @@ app.post("/api/auth/send-otp-registration", async (req, res) => {
         success: true, 
         message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
         to: toNumber,
-        expiresIn: 300
+        expiresIn: 120
       });
     } catch (twilioErr) {
       console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
@@ -1636,7 +1660,7 @@ app.post("/api/auth/signup/send-otp", async (req, res) => {
         success: true, 
         message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
         to: toNumber,
-        expiresIn: 300
+        expiresIn: 120
       });
     } catch (twilioErr) {
       console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
@@ -2914,27 +2938,40 @@ app.post("/api/referrals", async (req, res) => {
       patientId = newPatient.rows[0].id;
     }
 
+    // Ensure short_code column exists
+    await ensureReferralShortCodeColumn();
+
+    // Generate a unique short code for the clean URL
+    let shortCode = generateShortCode();
+    let shortCodeAttempts = 0;
+    while (shortCodeAttempts < 5) {
+      const existing = await query(`SELECT id FROM dietbyrd_referrals WHERE short_code = $1`, [shortCode]);
+      if (existing.rows.length === 0) break;
+      shortCode = generateShortCode();
+      shortCodeAttempts++;
+    }
+
+    const registrationData = {
+      patientPhone: phone,
+      patientName: patient_name,
+      doctorId: doctor_id,
+      doctorName: doctor.name,
+      diagnosis,
+      diagnosisDescription: diagnosis_description,
+      timestamp: Date.now()
+    };
+
     const referral = await query(
-      `INSERT INTO dietbyrd_referrals (patient_id, doctor_id, source)
-       VALUES ($1, $2, 'doctor_portal')
+      `INSERT INTO dietbyrd_referrals (patient_id, doctor_id, source, short_code, registration_data)
+       VALUES ($1, $2, 'doctor_portal', $3, $4)
        RETURNING *`,
-      [patientId, doctor_id]
+      [patientId, doctor_id, shortCode, JSON.stringify(registrationData)]
     );
 
-    // Generate registration token and send WhatsApp message
+    // Generate registration link using short code for a clean URL
     let referralMessageStatus = { sent: false, reason: "not_attempted" };
     try {
-      const tokenData = {
-        patient_name,
-        phone,
-        diagnosis,
-        diagnosis_description,
-        doctor_id,
-        doctor_name: doctor.name
-      };
-      
-      const registrationToken = generateRegistrationToken(tokenData);
-      const registrationLink = `${process.env.FRONTEND_URL || "http://localhost:5173"}/register?token=${registrationToken}`;
+      const registrationLink = `${process.env.FRONTEND_URL || "http://localhost:5173"}/register?ref=${shortCode}`;
 
       console.log(`[Referral SMS] Referral created. isNewPatient=${isNewPatient} phone=${phone}`);
       referralMessageStatus = await sendReferralRegistrationSms({
@@ -2966,7 +3003,7 @@ app.post("/api/referrals", async (req, res) => {
   }
 });
 
-// Verify registration token
+// Verify registration token (legacy — kept for backward compat)
 app.get("/api/referrals/verify-token", async (req, res) => {
   try {
     const { token } = req.query;
@@ -2976,6 +3013,49 @@ app.get("/api/referrals/verify-token", async (req, res) => {
 
     const tokenData = verifyRegistrationToken(token);
     res.json({ success: true, data: tokenData });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// Verify referral by short code (clean URL approach)
+app.get("/api/referrals/verify-ref", async (req, res) => {
+  try {
+    const { ref } = req.query;
+    if (!ref) {
+      return res.status(400).json({ success: false, error: "Referral code is required" });
+    }
+
+    await ensureReferralShortCodeColumn();
+
+    const result = await query(
+      `SELECT r.registration_data, r.id, r.patient_id,
+              p.name AS patient_name, p.phone, p.diagnosis, p.diagnosis_description,
+              d.name AS doctor_name, r.doctor_id
+       FROM dietbyrd_referrals r
+       LEFT JOIN dietbyrd_patients p ON p.id = r.patient_id
+       LEFT JOIN dietbyrd_doctors d ON d.id = r.doctor_id
+       WHERE r.short_code = $1`,
+      [String(ref).toUpperCase()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Invalid or expired referral link." });
+    }
+
+    const row = result.rows[0];
+    // Prefer stored registration_data (has all fields), fall back to joined columns
+    const data = row.registration_data || {
+      patientPhone: row.phone,
+      patientName: row.patient_name,
+      doctorId: row.doctor_id,
+      doctorName: row.doctor_name,
+      diagnosis: row.diagnosis,
+      diagnosisDescription: row.diagnosis_description,
+      timestamp: Date.now()
+    };
+
+    res.json({ success: true, data });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
   }

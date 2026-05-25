@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { Users, Stethoscope, UtensilsCrossed, LogOut, Search, Apple, UserPlus, Plus, UserX, AlertTriangle, RefreshCw, Check, X, Loader2 } from "lucide-react";
+import { Users, Stethoscope, UtensilsCrossed, LogOut, Search, Apple, UserPlus, Plus, UserX, AlertTriangle, RefreshCw, Check, X, Loader2, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -534,7 +534,36 @@ const MLTInternDashboard = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sr. No.</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Progress</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        <div className="flex items-center gap-1">
+                          Progress
+                          <div className="relative group">
+                            <Info className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 normal-case tracking-normal font-normal">
+                              <p className="font-semibold mb-2 text-gray-100">Patient Progress Bars</p>
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-2 rounded-full bg-primary shrink-0" />
+                                  <span className="text-gray-300"><span className="text-white font-medium">1st bar</span> — Registration (name &amp; phone on file)</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-2 rounded-full bg-primary shrink-0" />
+                                  <span className="text-gray-300"><span className="text-white font-medium">2nd bar</span> — Payment received</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-2 rounded-full bg-primary shrink-0" />
+                                  <span className="text-gray-300"><span className="text-white font-medium">3rd bar</span> — Dietician assigned</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-2 rounded-full bg-primary shrink-0" />
+                                  <span className="text-gray-300"><span className="text-white font-medium">4th bar</span> — Consultation completed</span>
+                                </div>
+                              </div>
+                              <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-gray-900" />
+                            </div>
+                          </div>
+                        </div>
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Referred By</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assign Dietician</th>
                     </tr>
@@ -542,8 +571,10 @@ const MLTInternDashboard = () => {
                   <tbody className="divide-y divide-gray-200">
                     {filteredPatients.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                          No patients found
+                        <td colSpan={6} className="px-6 py-16 text-center">
+                          <div className="text-4xl mb-3">🔍</div>
+                          <p className="font-medium text-gray-700">No patients found</p>
+                          <p className="text-sm text-gray-400 mt-1">Try adjusting your filters or search query.</p>
                         </td>
                       </tr>
                     ) : (

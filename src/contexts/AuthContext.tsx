@@ -17,6 +17,7 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
+  sessionExpired: boolean;
   login: (phone: string, password: string) => Promise<{ success: boolean; error?: string; pending?: boolean; admin_message?: string | null }>;
   loginWithData: (authUser: AuthUser) => void;
   signup: (phone: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>;
@@ -32,18 +33,36 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
-  // Check for existing session on mount
+  const saveSession = (authUser: AuthUser) => {
+    setUser(authUser);
+    localStorage.setItem("dietbyrd_user", JSON.stringify(authUser));
+    localStorage.setItem("dietbyrd_login_at", String(Date.now()));
+  };
+
+  // Check for existing session on mount — expire after 30 days
   useEffect(() => {
     const stored = localStorage.getItem("dietbyrd_user");
+    const loginAt = localStorage.getItem("dietbyrd_login_at");
     if (stored) {
       try {
-        setUser(JSON.parse(stored));
+        const age = loginAt ? Date.now() - parseInt(loginAt, 10) : SESSION_EXPIRY_MS + 1;
+        if (age > SESSION_EXPIRY_MS) {
+          localStorage.removeItem("dietbyrd_user");
+          localStorage.removeItem("dietbyrd_login_at");
+          setSessionExpired(true);
+        } else {
+          setUser(JSON.parse(stored));
+        }
       } catch {
         localStorage.removeItem("dietbyrd_user");
+        localStorage.removeItem("dietbyrd_login_at");
       }
     }
     setIsLoading(false);
@@ -67,8 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const authUser: AuthUser = data.data;
-      setUser(authUser);
-      localStorage.setItem("dietbyrd_user", JSON.stringify(authUser));
+      saveSession(authUser);
 
       return { success: true };
     } catch (err) {
@@ -83,16 +101,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, password, name }),
       });
-      
+
       const data = await res.json();
-      
+
       if (!res.ok || !data.success) {
         return { success: false, error: data.error || "Signup failed" };
       }
-      
+
       const authUser: AuthUser = data.data;
-      setUser(authUser);
-      localStorage.setItem("dietbyrd_user", JSON.stringify(authUser));
+      saveSession(authUser);
       
       return { success: true };
     } catch (err) {
@@ -142,9 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       // Existing user - log them in
-      setUser(authUser);
-      localStorage.setItem("dietbyrd_user", JSON.stringify(authUser));
-      
+      saveSession(authUser);
+
       return { success: true, data: authUser };
     } catch (err) {
       return { success: false, error: "Network error. Please try again." };
@@ -186,8 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const authUser: AuthUser = data.data;
-      setUser(authUser);
-      localStorage.setItem("dietbyrd_user", JSON.stringify(authUser));
+      saveSession(authUser);
 
       return { success: true };
     } catch (err) {
@@ -230,9 +245,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       const authUser: AuthUser = data.data;
-      setUser(authUser);
-      localStorage.setItem("dietbyrd_user", JSON.stringify(authUser));
-      
+      saveSession(authUser);
+
       return { success: true };
     } catch (err) {
       return { success: false, error: "Network error. Please try again." };
@@ -240,17 +254,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginWithData = (authUser: AuthUser) => {
-    setUser(authUser);
-    localStorage.setItem("dietbyrd_user", JSON.stringify(authUser));
+    saveSession(authUser);
   };
 
   const logout = () => {
     setUser(null);
+    setSessionExpired(false);
     localStorage.removeItem("dietbyrd_user");
+    localStorage.removeItem("dietbyrd_login_at");
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, loginWithData, signup, sendOtp, verifyOtp, verifyOtpOnly, setPasswordAfterOtp, sendSignupOtp, verifySignupOtp, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, isLoading, sessionExpired, login, loginWithData, signup, sendOtp, verifyOtp, verifyOtpOnly, setPasswordAfterOtp, sendSignupOtp, verifySignupOtp, logout, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );

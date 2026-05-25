@@ -44,7 +44,7 @@ const formatReferralDate = (referral: Referral): string => {
   return Number.isNaN(parsedDate.getTime()) ? "—" : parsedDate.toLocaleDateString();
 };
 
-type ActiveView = "refer" | "patients" | "admin";
+type ActiveView = "refer" | "patients" | "admin" | "assistants";
 
 interface DoctorDashboardProps {
   defaultTab?: ActiveView;
@@ -98,6 +98,8 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
       setActiveView("patients");
     } else if (location.pathname === "/doctor/admin" || location.pathname === "/doctor/analytics") {
       setActiveView("admin");
+    } else if (location.pathname === "/doctor/assistants") {
+      setActiveView("assistants");
     } else if (location.pathname === "/doctor") {
       setActiveView("refer");
     }
@@ -240,6 +242,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
       refer: "/doctor",
       patients: "/doctor/patients",
       admin: "/doctor/admin",
+      assistants: "/doctor/assistants",
     };
     navigate(paths[view]);
   };
@@ -256,17 +259,20 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
       items: [
         { label: "Refer Patient", href: "/doctor", icon: UserPlus },
         { label: "My Patients", href: "/doctor/patients", icon: Users, badge: referrals.length },
-        // Only show Admin for doctors, not assistants
-        ...(!isAssistant ? [{ label: "Admin", href: "/doctor/admin", icon: Shield }] : []),
+        // Only show for doctors, not assistants
+        ...(!isAssistant ? [
+          { label: "Assistants", href: "/doctor/assistants", icon: UserCheck },
+          { label: "Analytics", href: "/doctor/admin", icon: BarChart3 },
+        ] : []),
       ],
     },
   ];
 
   const bottomContent = (
     <div className="space-y-1">
-      <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-primary-foreground transition-all duration-150">
+      <a href="mailto:doctors@dietbyrd.com" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-primary-foreground transition-all duration-150">
         <MessageCircle className="w-[18px] h-[18px] shrink-0" />
-        <span>WhatsApp Us</span>
+        <span>Contact Support</span>
       </a>
       <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-primary-foreground transition-all duration-150">
         <FileText className="w-[18px] h-[18px] shrink-0" />
@@ -549,7 +555,11 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                         ))}
                         {referrals.length === 0 && (
                           <tr>
-                            <td colSpan={4} className="p-8 text-center text-muted-foreground">No referrals yet. Create your first referral above!</td>
+                            <td colSpan={4} className="p-12 text-center">
+                              <div className="text-3xl mb-2">🌱</div>
+                              <p className="font-medium text-foreground">No referrals yet</p>
+                              <p className="text-sm text-muted-foreground mt-1">Your first referral is one step away. Every patient journey starts here.</p>
+                            </td>
                           </tr>
                         )}
                       </tbody>
@@ -607,10 +617,121 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
               </div>
             )}
 
-            {/* Admin view - Only for doctors, not assistants */}
+            {/* Assistants view - Only for doctors, not assistants */}
+            {!selectedPatient && activeView === "assistants" && !isAssistant && (
+              <div className="p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold">My Assistants</h2>
+                    <p className="text-sm text-muted-foreground mt-1">Assistants can refer patients on your behalf but cannot view your commission or analytics.</p>
+                  </div>
+                  <Button size="sm" onClick={() => setShowAddAssistant(true)} className="gap-1">
+                    <Plus className="w-4 h-4" />
+                    Add Assistant
+                  </Button>
+                </div>
+
+                {/* Add Assistant Form */}
+                {showAddAssistant && (
+                  <div className="bg-card rounded-xl border p-6 space-y-4">
+                    <h3 className="text-sm font-semibold">Create Assistant Account</h3>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Name *</label>
+                        <Input
+                          placeholder="e.g. Priya Sharma"
+                          className="mt-1.5"
+                          value={newAssistantName}
+                          onChange={(e) => setNewAssistantName(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Phone *</label>
+                        <Input
+                          placeholder="9876543210"
+                          className="mt-1.5"
+                          value={newAssistantPhone}
+                          onChange={(e) => setNewAssistantPhone(formatPhoneForDisplay(e.target.value))}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Password *</label>
+                        <Input
+                          type="password"
+                          placeholder="Min 6 characters"
+                          className="mt-1.5"
+                          value={newAssistantPassword}
+                          onChange={(e) => setNewAssistantPassword(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={handleAddAssistant} disabled={createAssistantMutation.isPending}>
+                        {createAssistantMutation.isPending ? (
+                          <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating...</>
+                        ) : "Create Assistant Account"}
+                      </Button>
+                      <Button variant="outline" onClick={() => {
+                        setShowAddAssistant(false);
+                        setNewAssistantName("");
+                        setNewAssistantPhone("");
+                        setNewAssistantPassword("");
+                      }}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Assistants List */}
+                <div className="bg-card rounded-xl border overflow-hidden">
+                  <div className="divide-y">
+                    {assistants.length > 0 ? (
+                      assistants.map((assistant) => (
+                        <div key={assistant.id} className="flex items-center justify-between p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                              {assistant.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                            </div>
+                            <div>
+                              <div className="font-medium text-sm">{assistant.name}</div>
+                              <div className="text-xs text-muted-foreground">{assistant.phone}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">Assistant</Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => {
+                                if (confirm(`Remove ${assistant.name}?`)) {
+                                  deleteAssistantMutation.mutate(assistant.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center text-muted-foreground py-12">
+                        <Users className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                        <p className="text-sm font-medium">No assistants yet</p>
+                        <p className="text-xs mt-1">Add an assistant to help manage patient referrals</p>
+                        <Button size="sm" className="mt-4 gap-1" onClick={() => setShowAddAssistant(true)}>
+                          <Plus className="w-4 h-4" /> Add First Assistant
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Analytics view - Only for doctors, not assistants */}
             {!selectedPatient && activeView === "admin" && !isAssistant && (
               <div className="p-6 space-y-6">
-                <h2 className="text-lg font-semibold">Admin Dashboard</h2>
+                <h2 className="text-lg font-semibold">Analytics</h2>
 
                 {/* Income info banner */}
                 <div className="bg-sidebar text-sidebar-foreground rounded-xl p-6">
@@ -652,116 +773,6 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                   ))}
                 </div>
 
-                {/* Assistant Management Section */}
-                <div className="bg-card rounded-xl border p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold">Manage Assistants</h3>
-                    <Button size="sm" onClick={() => setShowAddAssistant(true)} className="gap-1">
-                      <Plus className="w-4 h-4" />
-                      Add Assistant
-                    </Button>
-                  </div>
-
-                  {/* Add Assistant Form */}
-                  {showAddAssistant && (
-                    <div className="mb-6 p-4 bg-muted/50 rounded-lg space-y-4">
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
-                          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Name *</label>
-                          <Input 
-                            placeholder="e.g. Priya Sharma" 
-                            className="mt-1.5"
-                            value={newAssistantName}
-                            onChange={(e) => setNewAssistantName(e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Phone *</label>
-                          <Input 
-                            placeholder="9876543210" 
-                            className="mt-1.5"
-                            value={newAssistantPhone}
-                            onChange={(e) => setNewAssistantPhone(formatPhoneForDisplay(e.target.value))}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Password *</label>
-                          <Input 
-                            type="password"
-                            placeholder="Min 6 characters" 
-                            className="mt-1.5"
-                            value={newAssistantPassword}
-                            onChange={(e) => setNewAssistantPassword(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button 
-                          onClick={handleAddAssistant}
-                          disabled={createAssistantMutation.isPending}
-                        >
-                          {createAssistantMutation.isPending ? (
-                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating...</>
-                          ) : (
-                            "Create Assistant Account"
-                          )}
-                        </Button>
-                        <Button variant="outline" onClick={() => {
-                          setShowAddAssistant(false);
-                          setNewAssistantName("");
-                          setNewAssistantPhone("");
-                          setNewAssistantPassword("");
-                        }}>
-                          Cancel
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Assistants can refer patients on your behalf but cannot see commission details.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Assistants List */}
-                  <div className="space-y-3">
-                    {assistants.length > 0 ? (
-                      assistants.map((assistant) => (
-                        <div key={assistant.id} className="flex items-center justify-between py-3 border-b last:border-0">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                              {assistant.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                            </div>
-                            <div>
-                              <div className="font-medium text-sm">{assistant.name}</div>
-                              <div className="text-xs text-muted-foreground">{assistant.phone}</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs">Assistant</Badge>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => {
-                                if (confirm(`Are you sure you want to remove ${assistant.name}?`)) {
-                                  deleteAssistantMutation.mutate(assistant.id);
-                                }
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center text-muted-foreground py-8">
-                        <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                        <p className="text-sm">No assistants added yet</p>
-                        <p className="text-xs mt-1">Add an assistant to help you manage patient referrals</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
                 {/* Recent referrals list */}
                 <div className="bg-card rounded-xl border p-6">
                   <h3 className="text-sm font-semibold mb-4">Recent Referrals</h3>
@@ -778,7 +789,10 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                       </div>
                     ))}
                     {referrals.length === 0 && (
-                      <div className="text-center text-muted-foreground py-4">No referrals yet</div>
+                      <div className="text-center py-8">
+                        <p className="text-sm font-medium text-foreground">No referrals yet</p>
+                        <p className="text-xs text-muted-foreground mt-1">Refer your first patient to get started.</p>
+                      </div>
                     )}
                   </div>
                 </div>

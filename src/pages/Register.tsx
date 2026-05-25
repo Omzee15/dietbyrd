@@ -40,18 +40,26 @@ const Register = () => {
   const [gender, setGender] = useState("");
   const [dietaryPreference, setDietaryPreference] = useState("");
 
-  // Verify token on mount
+  // Verify token or short ref code on mount
   useEffect(() => {
     const verifyToken = async () => {
       try {
+        const ref = searchParams.get("ref");
         const token = searchParams.get("token");
-        if (!token) {
-          setError("No registration token provided. Please use the link sent to your phone.");
+
+        if (!ref && !token) {
+          setError("No registration link provided. Please use the link sent to your phone.");
           setStep("error");
           return;
         }
 
-        const response = await fetch(`/api/referrals/verify-token?token=${encodeURIComponent(token)}`);
+        let response: Response;
+        if (ref) {
+          response = await fetch(`/api/referrals/verify-ref?ref=${encodeURIComponent(ref)}`);
+        } else {
+          response = await fetch(`/api/referrals/verify-token?token=${encodeURIComponent(token!)}`);
+        }
+
         const data = await response.json();
 
         if (!response.ok || !data.success) {
@@ -314,6 +322,13 @@ const Register = () => {
                 max="150"
                 required
               />
+              {age && parseInt(age) < 18 && parseInt(age) > 0 && (
+                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                  <p className="font-medium mb-1">Important notice for under-18 registration</p>
+                  <p>Nutrition guidance is equally important for younger individuals, and Diet By RD consultations are available for users under 18 as well.</p>
+                  <p className="mt-1">However, for individuals below 18 years of age, the booking must be completed by a parent or legal guardian to comply with applicable healthcare and data protection requirements.</p>
+                </div>
+              )}
             </div>
 
             {/* Gender */}

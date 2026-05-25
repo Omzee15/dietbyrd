@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { PageTransition } from "@/components/PageTransition";
 
 // Pages
 import Landing from "./pages/Landing";
@@ -68,6 +69,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <PageTransition />
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Landing />} />
@@ -82,6 +84,7 @@ const App = () => (
               <Route path="/doctor/referrals" element={<DoctorReferrals />} />
               <Route path="/doctor/admin" element={<DoctorAnalytics />} />
               <Route path="/doctor/analytics" element={<DoctorAnalytics />} />
+              <Route path="/doctor/assistants" element={<DoctorDashboard defaultTab="assistants" />} />
               <Route path="/doctor/settings" element={<DoctorSettings />} />
             </Route>
 

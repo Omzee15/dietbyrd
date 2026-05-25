@@ -112,7 +112,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
       }
 
       setStep("otp-verify");
-      setOtpTimer(data.expiresIn || 300);
+      setOtpTimer(data.expiresIn || 120);
       toast.success("OTP sent to your phone");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to send OTP");
