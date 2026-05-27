@@ -311,7 +311,7 @@ const MLTInternPatientDetail = () => {
                               </p>
                             )}
                             <p className="text-sm text-gray-700">
-                              <strong>Scheduled:</strong> {new Date(appointment.scheduled_at).toLocaleString()}
+                              <strong>Scheduled:</strong> {new Date(appointment.scheduled_at.replace(/Z$/, "").replace(/[+-]\d{2}:\d{2}$/, "")).toLocaleString()}
                             </p>
                             <p className="text-sm text-gray-700">
                               <strong>Type:</strong> {appointment.consultation_type || "General"}
@@ -324,7 +324,7 @@ const MLTInternPatientDetail = () => {
                             )}
                             {appointment.cancelled_at && (
                               <p className="text-xs text-red-500">
-                                Cancelled: {new Date(appointment.cancelled_at).toLocaleString()}
+                                Cancelled: {new Date(appointment.cancelled_at.replace(/Z$/, "").replace(/[+-]\d{2}:\d{2}$/, "")).toLocaleString()}
                                 {appointment.cancelled_by && ` by ${appointment.cancelled_by}`}
                               </p>
                             )}

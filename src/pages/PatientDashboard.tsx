@@ -74,7 +74,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { formatTime12, formatDateTime12 } from "@/lib/utils";
+import { formatTime12, formatDateTime12, parseIST } from "@/lib/utils";
 
 // ─── Height Input Helpers ───────────────────────────────────────────────────────
 const heightAllowedKeys = new Set([
@@ -528,7 +528,7 @@ const PatientDashboard = () => {
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = parseIST(dateStr);
     return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -543,8 +543,8 @@ const PatientDashboard = () => {
 
   // Get upcoming consultations
   const upcomingConsultations = (consultations || [])
-    .filter((c) => c.status === "scheduled" && new Date(c.scheduled_at) > new Date())
-    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+    .filter((c) => c.status === "scheduled" && parseIST(c.scheduled_at) > new Date())
+    .sort((a, b) => parseIST(a.scheduled_at).getTime() - parseIST(b.scheduled_at).getTime());
 
   // Check if patient has completed first consultation
   const hasCompletedConsultation = (consultations || []).some((c) => c.status === "completed");

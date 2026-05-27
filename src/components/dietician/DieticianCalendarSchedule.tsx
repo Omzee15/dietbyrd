@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { getDieticianAppointments, updateAppointmentStatus, getDieticianBlockedSlots, addBlockedSlot, removeBlockedSlot, type DieticianAppointment } from "@/lib/api";
+import { parseIST } from "@/lib/utils";
 import { toast } from "sonner";
 
 type ScheduleFilter = "today" | "tomorrow" | "this_week" | "all";
@@ -147,7 +148,7 @@ const DieticianCalendarSchedule = ({
   const appointmentsByDate = useMemo(() => {
     const grouped: Record<string, DieticianAppointment[]> = {};
     (calendarAppointments || []).forEach((apt) => {
-      const dateKey = new Date(apt.scheduled_at).toDateString();
+      const dateKey = parseIST(apt.scheduled_at).toDateString();
       if (!grouped[dateKey]) grouped[dateKey] = [];
       grouped[dateKey].push(apt);
     });
@@ -200,14 +201,14 @@ const DieticianCalendarSchedule = ({
     const dateKey = date.toDateString();
     if (!appointmentsByDate[dateKey]) return [];
     return appointmentsByDate[dateKey].filter((apt) => {
-      const aptHour = new Date(apt.scheduled_at).getHours();
+      const aptHour = parseIST(apt.scheduled_at).getHours();
       return aptHour === hour;
     });
   };
 
   // Calculate stats
   const todayCount = (calendarAppointments || []).filter(
-    (apt) => new Date(apt.scheduled_at).toDateString() === new Date().toDateString() && apt.status === "scheduled"
+    (apt) => parseIST(apt.scheduled_at).toDateString() === new Date().toDateString() && apt.status === "scheduled"
   ).length;
 
   const weekCount = (calendarAppointments || []).filter((apt) => apt.status === "scheduled").length;
@@ -384,7 +385,7 @@ const DieticianCalendarSchedule = ({
                     >
                       {blocked && <div className="absolute inset-0 bg-orange-100/40 pointer-events-none" />}
                       {appointments.map((apt) => {
-                        const isPast = new Date(apt.scheduled_at) < new Date();
+                        const isPast = parseIST(apt.scheduled_at) < new Date();
                         return (
                           <div
                             key={apt.id}
@@ -398,7 +399,7 @@ const DieticianCalendarSchedule = ({
                           >
                             <p className="font-medium truncate">{apt.patient_name || "Patient"}</p>
                             <p className="text-[10px] opacity-75">
-                              {new Date(apt.scheduled_at).toLocaleTimeString("en-US", {
+                              {parseIST(apt.scheduled_at).toLocaleTimeString("en-US", {
                                 hour: "numeric",
                                 minute: "2-digit",
                                 hour12: true,
@@ -457,7 +458,7 @@ const DieticianCalendarSchedule = ({
             {(calendarAppointments || [])
               .filter((apt) => {
                 if (scheduleFilter === "all") return true;
-                const d = new Date(apt.scheduled_at);
+                const d = parseIST(apt.scheduled_at);
                 const today = new Date();
                 const tomorrow = new Date(today);
                 tomorrow.setDate(today.getDate() + 1);
@@ -579,7 +580,7 @@ const DieticianCalendarSchedule = ({
                   {statusDialog.appointment.patient_name}
                 </span>{" "}
                 —{" "}
-                {new Date(statusDialog.appointment.scheduled_at).toLocaleString("en-US", {
+                {new Date(statusDialog.appointment.scheduled_at.replace(/Z$/, "").replace(/[+-]\d{2}:\d{2}$/, "")).toLocaleString("en-US", {
                   weekday: "short",
                   month: "short",
                   day: "numeric",

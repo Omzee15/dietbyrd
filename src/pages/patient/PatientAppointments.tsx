@@ -60,7 +60,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { formatTime12, formatDateTime12 } from "@/lib/utils";
+import { formatTime12, formatDateTime12, parseIST } from "@/lib/utils";
 
 declare global {
   interface Window {
@@ -434,7 +434,7 @@ const PatientAppointments = () => {
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = parseIST(dateStr);
     return date.toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
@@ -450,12 +450,12 @@ const PatientAppointments = () => {
 
   // Separate appointments
   const upcomingAppointments = (appointments || [])
-    .filter((a) => a.status === "scheduled" && new Date(a.scheduled_at) > new Date())
-    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+    .filter((a) => a.status === "scheduled" && parseIST(a.scheduled_at) > new Date())
+    .sort((a, b) => parseIST(a.scheduled_at).getTime() - parseIST(b.scheduled_at).getTime());
 
   const pastAppointments = (appointments || [])
-    .filter((a) => a.status === "completed" || new Date(a.scheduled_at) <= new Date())
-    .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime());
+    .filter((a) => a.status === "completed" || parseIST(a.scheduled_at) <= new Date())
+    .sort((a, b) => parseIST(b.scheduled_at).getTime() - parseIST(a.scheduled_at).getTime());
 
   const sidebarSections = [
     {
@@ -738,7 +738,7 @@ const PatientAppointments = () => {
               <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
                 <p className="text-sm text-amber-800 dark:text-amber-200">
                   <strong>Current appointment:</strong>{" "}
-                  {new Date(editingAppointment.scheduled_at).toLocaleDateString("en-US", {
+                  {new Date(editingAppointment.scheduled_at + "T00:00:00").toLocaleDateString("en-US", {
                     weekday: "short",
                     month: "short",
                     day: "numeric",
