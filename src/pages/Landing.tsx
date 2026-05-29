@@ -334,12 +334,6 @@ const Landing = () => {
           background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(11,110,79,.18) 0%, transparent 70%);
           pointer-events: none;
         }
-        .hero-grid {
-          position: absolute; inset: 0;
-          background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
-                            linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
-          background-size: 60px 60px; pointer-events: none;
-        }
         .hero-content {
           max-width: 1100px; margin: 0 auto; padding: 120px 5% 80px;
           position: relative; z-index: 2; text-align: center;
@@ -1455,7 +1449,6 @@ const Landing = () => {
       {/* Hero */}
       <section className="hero">
         <div className="hero-bg" />
-        <div className="hero-grid" />
         <div className="hero-content">
           <div ref={addToRefs} className="hero-badge reveal">YOUR HEALTH DESERVES BETTER</div>
           <h1 ref={addToRefs} className="hero-h1 reveal reveal-delay-1">
