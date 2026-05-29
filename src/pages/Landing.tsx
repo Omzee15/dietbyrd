@@ -4,13 +4,17 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth, getDashboardPath } from "@/contexts/AuthContext";
 import { PublicBookingModal } from "@/components/PublicBookingModal";
 import {
+  BadgeCheck,
   CalendarDays,
+  FileLock2,
   Heart,
   LogOut,
   MessageSquare,
   Quote,
+  ShieldCheck,
   UtensilsCrossed,
   User,
+  UserRoundCheck,
 } from "lucide-react";
 
 const testimonials = [
@@ -528,15 +532,14 @@ const Landing = () => {
           font-size: 14px; color: var(--text3); margin-bottom: 40px; font-weight: 400;
         }
         /* Marquee */
-        .privacy-marquee-wrap { overflow: hidden; position: relative; }
+        .privacy-marquee-wrap { overflow: visible; position: relative; }
         .privacy-marquee-wrap::before, .privacy-marquee-wrap::after {
-          content: ''; position: absolute; top: 0; bottom: 0; width: 100px; z-index: 2; pointer-events: none;
+          content: none;
         }
         .privacy-marquee-wrap::before { left: 0; background: linear-gradient(90deg, #fff, transparent); }
         .privacy-marquee-wrap::after { right: 0; background: linear-gradient(-90deg, #fff, transparent); }
         .privacy-marquee-track {
-          display: flex; gap: 16px; width: max-content;
-          animation: privacyMarquee 22s linear infinite;
+          display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; width: auto;
         }
         .privacy-marquee-track:hover { animation-play-state: paused; }
         @keyframes privacyMarquee {
@@ -544,13 +547,17 @@ const Landing = () => {
           100% { transform: translateX(-50%); }
         }
         .privacy-badge {
-          display: flex; align-items: center; gap: 12px; flex-shrink: 0;
-          background: #fff; border: 1px solid rgba(11,110,79,0.15);
-          border-radius: 14px; padding: 16px 28px; color: var(--navy);
-          font-size: 14px; font-weight: 600;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+          display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;
+          background: #FFFFFF; border: 1px solid var(--border);
+          border-radius: 100px; padding: 10px 18px; color: var(--text);
+          font-size: 14px; font-weight: 500;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+          transition: all 0.2s ease;
         }
-        .privacy-badge-icon { font-size: 22px; }
+        .privacy-badge:hover {
+          border-color: var(--teal);
+        }
+        .privacy-badge-icon { flex-shrink: 0; }
 
         /* Approach section — WHITE */
         .approach-section { background: #fff; }
@@ -1155,14 +1162,23 @@ const Landing = () => {
           </div>
           <div className="privacy-marquee-wrap" style={{ marginTop: '48px' }}>
             <div className="privacy-marquee-track">
-              {[...Array(2)].flatMap((_, ri) => [
-                <div key={`dpdpa-${ri}`} className="privacy-badge"><span className="privacy-badge-icon">🛡️</span><span>DPDPA Compliant</span></div>,
-                <div key={`gdpr-${ri}`} className="privacy-badge"><span className="privacy-badge-icon">🇪🇺</span><span>EU GDPR Aligned</span></div>,
-                <div key={`ssl-${ri}`} className="privacy-badge"><span className="privacy-badge-icon">🔒</span><span>256-bit SSL Secured</span></div>,
-                <div key={`ida-${ri}`} className="privacy-badge"><span className="privacy-badge-icon">✅</span><span>IDA Verified RDs</span></div>,
-                <div key={`nda-${ri}`} className="privacy-badge"><span className="privacy-badge-icon">📋</span><span>Strict NDA Policy</span></div>,
-                <div key={`anon-${ri}`} className="privacy-badge"><span className="privacy-badge-icon">🔐</span><span>Anonymous Consultations Available</span></div>,
-              ])}
+              {[
+                { key: 'ida', label: 'IDA Verified RDs', Icon: BadgeCheck },
+                { key: 'nda', label: 'Strict NDA Policy', Icon: FileLock2 },
+                { key: 'anon', label: 'Anonymous Consultations Available', Icon: UserRoundCheck },
+                { key: 'dpdpa', label: 'DPDPA Compliant', Icon: ShieldCheck },
+              ].map(({ key, label, Icon }) => (
+                <div key={key} className="privacy-badge">
+                  <Icon
+                    aria-hidden="true"
+                    className="privacy-badge-icon"
+                    size={18}
+                    strokeWidth={2.25}
+                    style={{ color: 'var(--teal)' }}
+                  />
+                  <span>{label}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
