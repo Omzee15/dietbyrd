@@ -641,7 +641,7 @@ const PatientAppointments = () => {
                       onClick={() => setIsBookingModalOpen(true)}
                     >
                       <Plus className="w-4 h-4 mr-2" />
-                      Book Your First Appointment
+                      Book New Appointment
                     </Button>
                   </div>
                 )}

@@ -4,6 +4,7 @@ import pg from "pg";
 import twilio from "twilio";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+import sgMail from "@sendgrid/mail";
 
 const BCRYPT_ROUNDS = 10;
 
@@ -21,6 +22,14 @@ const twilioClient = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN
   ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
   : null;
 const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM || "whatsapp:+919076150904"; // Your registered WhatsApp Business number
+
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || "";
+const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || "";
+const SENDGRID_FROM_NAME = process.env.SENDGRID_FROM_NAME || "DietByRD";
+
+if (SENDGRID_API_KEY) {
+  sgMail.setApiKey(SENDGRID_API_KEY);
+}
 
 const getTwilioVerifyService = () => {
   if (!twilioClient || !TWILIO_VERIFY_SERVICE_SID) {
@@ -473,6 +482,44 @@ const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doct
   }
 };
 
+const sendPasswordResetSms = async ({ phone, resetLink }) => {
+  const toNumber = formatPhoneE164(phone);
+  const body = `Reset your DietByRD password: ${resetLink}\nThis link expires in 15 minutes. If you did not request this, you can ignore this message.`;
+
+  if (IS_DEV) {
+    console.log("[Password Reset][DEV] SMS payload", { to: toNumber, body });
+    return { sent: false, reason: "dev_mode", toNumber };
+  }
+
+  if (!twilioClient) {
+    console.log("[Password Reset] Skipped: Twilio client not configured");
+    return { sent: false, reason: "twilio_not_configured", toNumber };
+  }
+
+  const sender = await resolveTwilioSmsSender();
+  if (!sender) {
+    console.log("[Password Reset] Skipped: missing SMS sender (env and account number not available)");
+    return { sent: false, reason: "missing_sms_sender", toNumber };
+  }
+
+  try {
+    const payload = {
+      to: toNumber,
+      body,
+      ...sender.payload,
+    };
+
+    const msg = await twilioClient.messages.create(payload);
+    console.log(`[Password Reset] Sent successfully to ${toNumber}. SID: ${msg.sid}. senderSource=${sender.source}`);
+    return { sent: true, sid: msg.sid, toNumber, senderSource: sender.source };
+  } catch (err) {
+    const code = err?.code || "unknown";
+    const message = err?.message || "unknown error";
+    console.log(`[Password Reset] Failed for ${toNumber}. code=${code} message=${message}`);
+    return { sent: false, reason: "twilio_send_failed", code, message, toNumber };
+  }
+};
+
 // Store message in patient_messages for history tracking (called after message is sent)
 const storePatientMessage = async ({ patientId, phone, messageType, channel, content, status, metadata = {} }) => {
   try {
@@ -641,6 +688,89 @@ const getPool = () => {
 const query = async (text, params) => {
   const res = await getPool().query(text, params);
   return res;
+};
+
+const ADMIN_JOIN_REQUEST_ROLES = ["ops_manager", "mlt_intern", "founder", "tech_lead"];
+const ADMIN_COMMISSION_ROLES = ["ops_manager", "founder", "tech_lead"];
+const JOIN_REQUEST_RECIPIENT_ROLES = ["doctor", "rd"];
+
+const getAuthContextFromHeaders = async (req) => {
+  const rawId = req.headers["x-user-id"];
+  const rawRole = req.headers["x-user-role"];
+  const idValue = Array.isArray(rawId) ? rawId[0] : rawId;
+  const roleValue = Array.isArray(rawRole) ? rawRole[0] : rawRole;
+
+  if (!idValue || !roleValue) {
+    return { error: "Missing auth headers" };
+  }
+
+  const userId = parseInt(String(idValue), 10);
+  if (!Number.isInteger(userId)) {
+    return { error: "Invalid user id" };
+  }
+
+  const userResult = await query(
+    "SELECT id, role, email, phone, name FROM dietbyrd_users WHERE id = $1",
+    [userId]
+  );
+
+  if (userResult.rows.length === 0) {
+    return { error: "User not found" };
+  }
+
+  const user = userResult.rows[0];
+  const role = String(roleValue).trim();
+
+  if (user.role !== role) {
+    return { error: "Role mismatch" };
+  }
+
+  return { userId, role, user };
+};
+
+const sendJoinRequestMessageEmail = async ({ recipientEmail, recipientName, senderName, message }) => {
+  if (!recipientEmail) {
+    return { sent: false, reason: "missing_email" };
+  }
+
+  if (!SENDGRID_API_KEY || !SENDGRID_FROM_EMAIL) {
+    console.log("[JoinRequestMessage][email] SendGrid not configured", {
+      to: recipientEmail,
+      missingApiKey: !SENDGRID_API_KEY,
+      missingFromEmail: !SENDGRID_FROM_EMAIL,
+    });
+    return { sent: false, reason: "sendgrid_not_configured" };
+  }
+
+  const subject = "Update on your DietByRD join request";
+  const safeRecipient = recipientName || "there";
+  const safeSender = senderName || "DietByRD team";
+  const text = `Hi ${safeRecipient},\n\n${message}\n\n- DietByRD Team (from ${safeSender})`;
+  const escapeHtml = (value) =>
+    String(value).replace(/[&<>\"]/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "\"": "&quot;",
+    }[char] || char));
+  const html = `<p>Hi ${escapeHtml(safeRecipient)},</p><p>${escapeHtml(message).replace(/\n/g, "<br/>")}</p><p>- DietByRD Team (from ${escapeHtml(safeSender)})</p>`;
+
+  try {
+    await sgMail.send({
+      to: recipientEmail,
+      from: { email: SENDGRID_FROM_EMAIL, name: SENDGRID_FROM_NAME },
+      subject,
+      text,
+      html,
+    });
+    return { sent: true };
+  } catch (err) {
+    console.log("[JoinRequestMessage][email] SendGrid error", {
+      to: recipientEmail,
+      error: err?.message || "unknown error",
+    });
+    return { sent: false, reason: "sendgrid_send_failed" };
+  }
 };
 
 let paymentsTableInitialized = false;
@@ -879,6 +1009,140 @@ app.post("/api/auth/login", async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+const PASSWORD_RESET_RATE_LIMIT = 5;
+const PASSWORD_RESET_WINDOW_MS = 60 * 60 * 1000;
+const passwordResetRateLimitMap = new Map();
+
+const getPasswordResetRequestIp = (req) => {
+  const forwardedFor = req.headers["x-forwarded-for"];
+  if (typeof forwardedFor === "string" && forwardedFor.trim()) {
+    return forwardedFor.split(",")[0].trim();
+  }
+  return req.ip || req.socket?.remoteAddress || "unknown";
+};
+
+const checkPasswordResetRateLimit = (ip) => {
+  const now = Date.now();
+  const windowStart = now - PASSWORD_RESET_WINDOW_MS;
+  const timestamps = (passwordResetRateLimitMap.get(ip) || []).filter((t) => t > windowStart);
+  if (timestamps.length >= PASSWORD_RESET_RATE_LIMIT) {
+    const retryAfterSec = Math.ceil((timestamps[0] + PASSWORD_RESET_WINDOW_MS - now) / 1000);
+    return { allowed: false, retryAfterSec };
+  }
+  timestamps.push(now);
+  passwordResetRateLimitMap.set(ip, timestamps);
+  return { allowed: true };
+};
+
+app.post("/api/auth/forgot-password", async (req, res) => {
+  try {
+    const { email_or_phone } = req.body || {};
+
+    const input = String(email_or_phone || "").trim();
+    if (!input) {
+      return res.status(400).json({ error: "Email or phone is required" });
+    }
+
+    const requestIp = getPasswordResetRequestIp(req);
+    const rateCheck = checkPasswordResetRateLimit(requestIp);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        error: `Too many requests. Please wait ${rateCheck.retryAfterSec} seconds before trying again.`,
+      });
+    }
+
+    const buildPhoneVariants = (value) => {
+      const digits = value.replace(/\D/g, "");
+      const lastTenDigits = digits.length >= 10 ? digits.slice(-10) : digits;
+
+      return [...new Set([
+        value,
+        digits,
+        lastTenDigits,
+        lastTenDigits ? `+91${lastTenDigits}` : "",
+        lastTenDigits ? `91${lastTenDigits}` : "",
+      ].filter(Boolean))];
+    };
+
+    let userResult;
+    if (input.includes("@")) {
+      userResult = await query(
+        "SELECT id, phone, email FROM dietbyrd_users WHERE LOWER(email) = LOWER($1) LIMIT 1",
+        [input]
+      );
+    } else {
+      const variants = buildPhoneVariants(input);
+      userResult = await query(
+        "SELECT id, phone, email FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+        [variants]
+      );
+    }
+
+    if (userResult.rows.length === 0) {
+      return res.json({ ok: true, message: "If an account exists, a reset link has been sent." });
+    }
+
+    const user = userResult.rows[0];
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+    await query(
+      "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, NOW() + INTERVAL '15 minutes')",
+      [user.id, tokenHash]
+    );
+
+    const resetLink = `https://dietbyrd.buildc3.tech/reset-password?token=${rawToken}`;
+
+    if (user.phone) {
+      await sendPasswordResetSms({ phone: user.phone, resetLink });
+    } else {
+      console.log("[Password Reset] User has no phone on file", { userId: user.id, email: user.email });
+    }
+
+    return res.json({ ok: true, message: "If an account exists, a reset link has been sent." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/auth/reset-password", async (req, res) => {
+  try {
+    const { token, new_password } = req.body || {};
+
+    if (!token || !new_password) {
+      return res.status(400).json({ error: "Token and new_password are required" });
+    }
+
+    if (String(new_password).length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters" });
+    }
+
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const tokenResult = await query(
+      "SELECT id, user_id FROM password_reset_tokens WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW()",
+      [tokenHash]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res.status(400).json({ error: "Invalid or expired reset link" });
+    }
+
+    const resetToken = tokenResult.rows[0];
+    const hashedPassword = await bcrypt.hash(new_password, BCRYPT_ROUNDS);
+
+    await query("UPDATE dietbyrd_users SET password = $1 WHERE id = $2", [
+      hashedPassword,
+      resetToken.user_id,
+    ]);
+
+    await query("UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1", [resetToken.id]);
+
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -1971,6 +2235,147 @@ app.post("/api/join-requests/:id/schedule-interview", async (req, res) => {
     res.json({ success: true, data: { sent: true } });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Send a message to a join request applicant (admin roles only)
+app.post("/api/join-requests/:id/messages", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { message, recipient_user_id } = req.body || {};
+
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ error: auth.error });
+    }
+
+    if (!ADMIN_JOIN_REQUEST_ROLES.includes(auth.role)) {
+      return res.status(403).json({ error: "Not authorized to send join request messages" });
+    }
+
+    const trimmedMessage = String(message || "").trim();
+    if (!trimmedMessage) {
+      return res.status(400).json({ error: "Message is required" });
+    }
+
+    const recipientId = parseInt(String(recipient_user_id), 10);
+    if (!Number.isInteger(recipientId)) {
+      return res.status(400).json({ error: "recipient_user_id is required" });
+    }
+
+    const joinRequestResult = await query(
+      "SELECT id, user_id FROM dietbyrd_join_requests WHERE id = $1",
+      [id]
+    );
+
+    if (joinRequestResult.rows.length === 0) {
+      return res.status(404).json({ error: "Join request not found" });
+    }
+
+    const joinRequest = joinRequestResult.rows[0];
+    if (joinRequest.user_id && joinRequest.user_id !== recipientId) {
+      return res.status(400).json({ error: "Recipient does not match join request applicant" });
+    }
+
+    const recipientResult = await query(
+      "SELECT id, role, email, name FROM dietbyrd_users WHERE id = $1",
+      [recipientId]
+    );
+
+    if (recipientResult.rows.length === 0) {
+      return res.status(404).json({ error: "Recipient not found" });
+    }
+
+    const recipient = recipientResult.rows[0];
+    if (!JOIN_REQUEST_RECIPIENT_ROLES.includes(recipient.role)) {
+      return res.status(400).json({ error: "Recipient must be a doctor or dietician" });
+    }
+
+    const insertResult = await query(
+      `INSERT INTO dietbyrd_join_request_messages
+        (join_request_id, sender_id, sender_role, recipient_user_id, message)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, created_at`,
+      [id, auth.userId, auth.role, recipientId, trimmedMessage]
+    );
+
+    await sendJoinRequestMessageEmail({
+      recipientEmail: recipient.email,
+      recipientName: recipient.name,
+      senderName: auth.user?.name,
+      message: trimmedMessage,
+    });
+
+    return res.status(201).json(insertResult.rows[0]);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Get join request messages for the current user (doctor/rd only)
+app.get("/api/me/join-request-messages", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ error: auth.error });
+    }
+
+    if (!JOIN_REQUEST_RECIPIENT_ROLES.includes(auth.role)) {
+      return res.status(403).json({ error: "Not authorized to view join request messages" });
+    }
+
+    const unreadOnly = String(req.query.unread || "").trim() === "1";
+    const conditions = ["recipient_user_id = $1"];
+    const params = [auth.userId];
+
+    if (unreadOnly) {
+      conditions.push("read_at IS NULL");
+    }
+
+    const result = await query(
+      `SELECT id, join_request_id, sender_id, sender_role, recipient_user_id, message, read_at, created_at
+       FROM dietbyrd_join_request_messages
+       WHERE ${conditions.join(" AND ")}
+       ORDER BY created_at DESC`,
+      params
+    );
+
+    return res.json(result.rows);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Mark a join request message as read
+app.patch("/api/join-request-messages/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { read_at } = req.body || {};
+
+    if (!read_at || String(read_at).toLowerCase() !== "now") {
+      return res.status(400).json({ error: "read_at must be 'now'" });
+    }
+
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ error: auth.error });
+    }
+
+    const updateResult = await query(
+      `UPDATE dietbyrd_join_request_messages
+       SET read_at = NOW()
+       WHERE id = $1 AND recipient_user_id = $2
+       RETURNING id, join_request_id, sender_id, sender_role, recipient_user_id, message, read_at, created_at`,
+      [id, auth.userId]
+    );
+
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    return res.json(updateResult.rows[0]);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -4755,6 +5160,120 @@ app.get("/api/dieticians/:id/appointments", async (req, res) => {
 // Razorpay configuration
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+const DEFAULT_DOCTOR_COMMISSION_PERCENT = 15;
+
+const createDoctorCommissionForPayment = async (payment, source = "unknown") => {
+  try {
+    if (!payment?.patient_id) {
+      console.log(`[doctor_commissions] Skipped (${source}): missing patient_id`);
+      return { inserted: false, reason: "missing_patient" };
+    }
+
+    const paymentId = payment.razorpay_payment_id || payment.razorpay_order_id;
+    if (!paymentId) {
+      console.log(`[doctor_commissions] Skipped (${source}): missing payment id`);
+      return { inserted: false, reason: "missing_payment_id" };
+    }
+
+    const patientResult = await query(
+      "SELECT user_id FROM dietbyrd_patients WHERE id = $1",
+      [payment.patient_id]
+    );
+    const patientUserId = patientResult.rows[0]?.user_id;
+    if (!patientUserId) {
+      console.log(`[doctor_commissions] Skipped (${source}): patient has no user_id`, {
+        patientId: payment.patient_id,
+      });
+      return { inserted: false, reason: "patient_user_missing" };
+    }
+
+    const referralResult = await query(
+      `SELECT doctor_id
+       FROM dietbyrd_referrals
+       WHERE patient_id = $1
+       ORDER BY referred_at DESC
+       LIMIT 1`,
+      [payment.patient_id]
+    );
+
+    if (referralResult.rows.length === 0) {
+      console.log(`[doctor_commissions] Skipped (${source}): no referral found`, {
+        patientId: payment.patient_id,
+      });
+      return { inserted: false, reason: "no_referral" };
+    }
+
+    const doctorId = referralResult.rows[0].doctor_id;
+    const doctorResult = await query(
+      `SELECT d.user_id, u.commission_percent
+       FROM dietbyrd_doctors d
+       JOIN dietbyrd_users u ON u.id = d.user_id
+       WHERE d.id = $1`,
+      [doctorId]
+    );
+
+    const doctorUserId = doctorResult.rows[0]?.user_id;
+    if (!doctorUserId) {
+      console.log(`[doctor_commissions] Skipped (${source}): doctor missing user_id`, {
+        doctorId,
+      });
+      return { inserted: false, reason: "doctor_user_missing" };
+    }
+
+    const rawPercent = doctorResult.rows[0]?.commission_percent;
+    const commissionPercent = Number.isFinite(Number(rawPercent))
+      ? Number(rawPercent)
+      : DEFAULT_DOCTOR_COMMISSION_PERCENT;
+
+    const existing = await query(
+      `SELECT id FROM dietbyrd_doctor_commissions
+       WHERE payment_id = $1 AND doctor_id = $2
+       LIMIT 1`,
+      [paymentId, doctorUserId]
+    );
+
+    if (existing.rows.length > 0) {
+      console.log(`[doctor_commissions] Skipped (${source}): already exists`, {
+        paymentId,
+        doctorUserId,
+      });
+      return { inserted: false, reason: "already_exists" };
+    }
+
+    const paymentAmount = Number(payment.amount || 0) / 100;
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      console.log(`[doctor_commissions] Skipped (${source}): invalid payment amount`, {
+        paymentId,
+        amount: payment.amount,
+      });
+      return { inserted: false, reason: "invalid_amount" };
+    }
+
+    const commissionAmount = Math.round(paymentAmount * commissionPercent) / 100;
+
+    const insertResult = await query(
+      `INSERT INTO dietbyrd_doctor_commissions
+       (doctor_id, patient_id, payment_id, payment_amount, commission_percent, commission_amount, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+       RETURNING id`,
+      [doctorUserId, patientUserId, paymentId, paymentAmount, commissionPercent, commissionAmount]
+    );
+
+    const insertedId = insertResult.rows[0]?.id;
+    console.log(`[doctor_commissions] Inserted ${insertedId} for payment ${paymentId}`, {
+      doctorUserId,
+      patientUserId,
+      commissionPercent,
+      commissionAmount,
+      source,
+    });
+
+    return { inserted: true, id: insertedId };
+  } catch (err) {
+    console.log(`[doctor_commissions] Failed (${source}): ${err.message}`);
+    return { inserted: false, reason: "error", error: err.message };
+  }
+};
 
 // Get all consultation packages
 app.get("/api/consultation-packages", async (req, res) => {
@@ -4919,6 +5438,11 @@ app.post("/api/payments/verify", async (req, res) => {
        WHERE id = $2`,
       [payment.consultations_purchased, payment.patient_id]
     );
+
+    await createDoctorCommissionForPayment(
+      { ...payment, razorpay_payment_id },
+      "verify"
+    );
     
     res.json({
       success: true,
@@ -4929,6 +5453,237 @@ app.post("/api/payments/verify", async (req, res) => {
     });
   } catch (err) {
     console.error("[payments/verify] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Razorpay webhook handler (payment.captured)
+app.post("/api/payments/webhook", async (req, res) => {
+  try {
+    const event = req.body?.event;
+    if (event !== "payment.captured") {
+      return res.json({ success: true, ignored: true });
+    }
+
+    const paymentEntity = req.body?.payload?.payment?.entity;
+    const razorpayPaymentId = paymentEntity?.id;
+    const razorpayOrderId = paymentEntity?.order_id;
+
+    if (!razorpayPaymentId && !razorpayOrderId) {
+      return res.status(400).json({ success: false, error: "Missing Razorpay payment identifiers" });
+    }
+
+    const paymentResult = await query(
+      `SELECT * FROM dietbyrd_razorpay_payments
+       WHERE razorpay_order_id = $1 OR razorpay_payment_id = $2
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [razorpayOrderId || "", razorpayPaymentId || ""]
+    );
+
+    if (paymentResult.rows.length === 0) {
+      console.log("[payments/webhook] Payment not found", {
+        razorpayOrderId,
+        razorpayPaymentId,
+      });
+      return res.status(404).json({ success: false, error: "Payment not found" });
+    }
+
+    const payment = paymentResult.rows[0];
+
+    if (payment.status !== "success") {
+      await query(
+        `UPDATE dietbyrd_razorpay_payments
+         SET razorpay_payment_id = COALESCE(razorpay_payment_id, $1),
+             status = 'success',
+             payment_method = 'razorpay',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [razorpayPaymentId || null, payment.id]
+      );
+    }
+
+    await createDoctorCommissionForPayment(
+      {
+        ...payment,
+        razorpay_payment_id: razorpayPaymentId || payment.razorpay_payment_id,
+        razorpay_order_id: razorpayOrderId || payment.razorpay_order_id,
+      },
+      "webhook"
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[payments/webhook] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Doctor Commissions ─────────────────────────────────────────────────────
+// Update doctor commission percent (admin only)
+app.patch("/api/admin/doctors/:id/commission", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    if (!ADMIN_COMMISSION_ROLES.includes(auth.role)) {
+      return res.status(403).json({ success: false, error: "Not authorized" });
+    }
+
+    const doctorUserId = parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(doctorUserId)) {
+      return res.status(400).json({ success: false, error: "Invalid doctor id" });
+    }
+
+    const percent = Number(req.body?.percent);
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      return res.status(400).json({ success: false, error: "percent must be between 0 and 100" });
+    }
+
+    const updateResult = await query(
+      `UPDATE dietbyrd_users
+       SET commission_percent = $1
+       WHERE id = $2 AND role = 'doctor'
+       RETURNING id, name, phone, commission_percent`,
+      [percent, doctorUserId]
+    );
+
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Doctor not found" });
+    }
+
+    res.json({ success: true, data: updateResult.rows[0] });
+  } catch (err) {
+    console.error("[admin/doctors/commission] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get commissions for current doctor
+app.get("/api/me/commissions", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    if (auth.role !== "doctor") {
+      return res.status(403).json({ success: false, error: "Not authorized" });
+    }
+
+    const status = String(req.query.status || "all").trim();
+    if (!"pending,paid,all".split(",").includes(status)) {
+      return res.status(400).json({ success: false, error: "Invalid status filter" });
+    }
+
+    const params = [auth.userId];
+    let whereSql = "doctor_id = $1";
+    if (status !== "all") {
+      params.push(status);
+      whereSql += ` AND status = $${params.length}`;
+    }
+
+    const commissionsResult = await query(
+      `SELECT * FROM dietbyrd_doctor_commissions
+       WHERE ${whereSql}
+       ORDER BY created_at DESC`,
+      params
+    );
+
+    const totalsResult = await query(
+      `SELECT
+         COALESCE(SUM(CASE WHEN status = 'pending' THEN commission_amount END), 0) AS total_pending,
+         COALESCE(SUM(CASE WHEN status = 'paid' THEN commission_amount END), 0) AS total_paid
+       FROM dietbyrd_doctor_commissions
+       WHERE doctor_id = $1`,
+      [auth.userId]
+    );
+
+    const totals = totalsResult.rows[0] || { total_pending: 0, total_paid: 0 };
+
+    res.json({ success: true, data: commissionsResult.rows, totals });
+  } catch (err) {
+    console.error("[me/commissions] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get patients referred by the current doctor
+app.get("/api/doctor/me/patients", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    if (!["doctor", "assistant"].includes(auth.role)) {
+      return res.status(403).json({ success: false, error: "Not authorized" });
+    }
+
+    let doctorId = null;
+    if (auth.role === "doctor") {
+      const doctorResult = await query(
+        "SELECT id FROM dietbyrd_doctors WHERE user_id = $1",
+        [auth.userId]
+      );
+      if (doctorResult.rows.length === 0) {
+        return res.status(404).json({ success: false, error: "Doctor not found" });
+      }
+      doctorId = doctorResult.rows[0].id;
+    } else {
+      const assistantResult = await query(
+        "SELECT doctor_id FROM dietbyrd_assistants WHERE user_id = $1",
+        [auth.userId]
+      );
+      if (assistantResult.rows.length === 0) {
+        return res.status(404).json({ success: false, error: "Assistant not found" });
+      }
+      doctorId = assistantResult.rows[0].doctor_id;
+    }
+
+    const patientsResult = await query(
+      `SELECT * FROM (
+        SELECT DISTINCT ON (p.id)
+          p.id,
+          p.name,
+          p.phone,
+          COALESCE(r.referred_at, r.created_at) AS referred_at,
+          COALESCE(payment_summary.payment_status, 'unpaid') AS payment_status,
+          COALESCE(consult_summary.consultation_status, 'not_yet') AS consultation_status
+        FROM dietbyrd_referrals r
+        JOIN dietbyrd_patients p ON r.patient_id = p.id
+        LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id
+        LEFT JOIN LATERAL (
+          SELECT
+            CASE
+              WHEN COUNT(*) FILTER (WHERE pay.status = 'success') > 0 OR rp.dietary_preference IS NOT NULL THEN 'paid'
+              ELSE 'unpaid'
+            END AS payment_status
+          FROM dietbyrd_razorpay_payments pay
+          WHERE pay.patient_id = p.id
+        ) AS payment_summary ON true
+        LEFT JOIN LATERAL (
+          SELECT
+            CASE
+              WHEN COUNT(*) FILTER (WHERE c.status = 'completed') > 0 THEN 'completed'
+              WHEN COUNT(*) FILTER (WHERE c.status IN ('scheduled', 'confirmed', 'documents_pending')) > 0 THEN 'booked'
+              ELSE 'not_yet'
+            END AS consultation_status
+          FROM dietbyrd_consultations c
+          WHERE rp.id IS NOT NULL AND c.registered_patient_id = rp.id
+        ) AS consult_summary ON true
+        WHERE r.doctor_id = $1
+        ORDER BY p.id, r.referred_at DESC NULLS LAST, r.created_at DESC
+      ) AS doctor_patients
+      ORDER BY referred_at DESC NULLS LAST`,
+      [doctorId]
+    );
+
+    res.json({ success: true, data: patientsResult.rows });
+  } catch (err) {
+    console.error("[doctor/me/patients] Error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -5076,16 +5831,68 @@ app.get("/api/support/doctors", async (req, res) => {
 // Get all patients for support team
 app.get("/api/support/patients", async (req, res) => {
   try {
+    const rawPage = parseInt(String(req.query.page || "1"), 10);
+    const rawPageSize = parseInt(String(req.query.page_size || "50"), 10);
+    const rawQuery = String(req.query.query || req.query.q || "").trim();
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+    const pageSize = Number.isFinite(rawPageSize) && rawPageSize > 0 ? Math.min(rawPageSize, 200) : 50;
+    const offset = (page - 1) * pageSize;
+    const params = [];
+    const whereClauses = [];
+
+    if (rawQuery) {
+      params.push(`%${rawQuery}%`);
+      whereClauses.push(
+        `(COALESCE(p.name, u.name) ILIKE $${params.length} OR u.phone ILIKE $${params.length} OR u.email ILIKE $${params.length})`
+      );
+    }
+
+    const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+    const countResult = await query(
+      `SELECT COUNT(*)::int AS total
+       FROM dietbyrd_patients p
+       JOIN dietbyrd_users u ON u.id = p.user_id
+       ${whereSql}`,
+      params
+    );
+    const total = countResult.rows[0]?.total || 0;
+
+    const listParams = [...params, pageSize, offset];
+    const limitParam = params.length + 1;
+    const offsetParam = params.length + 2;
+
     const result = await query(
-      `SELECT p.id, u.name, u.phone, u.email, p.date_of_birth, p.gender, 
-              p.address, p.state, p.pincode, p.is_active, p.created_at,
+      `SELECT p.id,
+              COALESCE(p.name, u.name) AS name,
+              u.phone,
+              u.email,
+              p.gender,
+              u.is_active,
+              p.created_at,
               (SELECT COUNT(*) FROM dietbyrd_appointments WHERE patient_id = p.id) as appointment_count
        FROM dietbyrd_patients p
        JOIN dietbyrd_users u ON u.id = p.user_id
-       ORDER BY p.created_at DESC`
+       ${whereSql}
+       ORDER BY p.created_at DESC
+       LIMIT $${limitParam} OFFSET $${offsetParam}`,
+      listParams
     );
 
-    res.json({ success: true, data: result.rows });
+    res.json({
+      success: true,
+      data: result.rows.map((row) => ({
+        ...row,
+        state: null,
+      })),
+      pagination: {
+        page,
+        page_size: pageSize,
+        total,
+        total_pages: Math.ceil(total / pageSize),
+        has_more: offset + pageSize < total,
+      },
+    });
   } catch (err) {
     console.error("[support/patients] Error:", err);
     res.status(500).json({ success: false, error: err.message });
@@ -5162,6 +5969,118 @@ app.get("/api/support/tickets", async (req, res) => {
   }
 });
 
+// Get tickets for current patient
+app.get("/api/patient/me/tickets", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    if (auth.role !== "patient") {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const patientResult = await query(
+      "SELECT id FROM dietbyrd_patients WHERE user_id = $1",
+      [auth.userId]
+    );
+
+    if (patientResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Patient not found" });
+    }
+
+    const patientId = patientResult.rows[0].id;
+
+    const result = await query(
+      `SELECT t.*,
+              u_patient.name as patient_name, u_patient.phone as patient_phone,
+              u_assigned.name as assigned_to_name,
+              u_created.name as created_by_name,
+              (SELECT COUNT(*)
+               FROM dietbyrd_ticket_comments c
+               WHERE c.ticket_id = t.id AND c.is_internal = false) as comment_count
+       FROM dietbyrd_tickets t
+       LEFT JOIN dietbyrd_patients p ON p.id = t.patient_id
+       LEFT JOIN dietbyrd_users u_patient ON u_patient.id = p.user_id
+       LEFT JOIN dietbyrd_users u_assigned ON u_assigned.id = t.assigned_to
+       JOIN dietbyrd_users u_created ON u_created.id = t.created_by
+       WHERE t.patient_id = $1
+       ORDER BY t.created_at DESC`,
+      [patientId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("[patient/me/tickets] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get single ticket for current patient with public comments
+app.get("/api/patient/me/tickets/:id", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    if (auth.role !== "patient") {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const patientResult = await query(
+      "SELECT id FROM dietbyrd_patients WHERE user_id = $1",
+      [auth.userId]
+    );
+
+    if (patientResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Patient not found" });
+    }
+
+    const patientId = patientResult.rows[0].id;
+    const { id } = req.params;
+
+    const ticketResult = await query(
+      `SELECT t.*,
+              u_patient.name as patient_name, u_patient.phone as patient_phone,
+              u_assigned.name as assigned_to_name,
+              u_created.name as created_by_name
+       FROM dietbyrd_tickets t
+       LEFT JOIN dietbyrd_patients p ON p.id = t.patient_id
+       LEFT JOIN dietbyrd_users u_patient ON u_patient.id = p.user_id
+       LEFT JOIN dietbyrd_users u_assigned ON u_assigned.id = t.assigned_to
+       JOIN dietbyrd_users u_created ON u_created.id = t.created_by
+       WHERE t.id = $1 AND t.patient_id = $2`,
+      [id, patientId]
+    );
+
+    if (ticketResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Ticket not found" });
+    }
+
+    const commentsResult = await query(
+      `SELECT c.*, u.name as user_name, u.role as user_role
+       FROM dietbyrd_ticket_comments c
+       JOIN dietbyrd_users u ON u.id = c.user_id
+       WHERE c.ticket_id = $1 AND c.is_internal = false
+       ORDER BY c.created_at ASC`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        ticket: ticketResult.rows[0],
+        comments: commentsResult.rows,
+      },
+    });
+  } catch (err) {
+    console.error("[patient/me/tickets/:id] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get single ticket with comments
 app.get("/api/support/tickets/:id", async (req, res) => {
   try {
@@ -5210,12 +6129,17 @@ app.get("/api/support/tickets/:id", async (req, res) => {
 // Create new ticket
 app.post("/api/support/tickets", async (req, res) => {
   try {
-    const { patient_id, title, description, category, priority, created_by } = req.body;
+    const { patient_id, subject, title, description, category, priority, created_by } = req.body;
+    const ticketTitle = String(subject || title || "").trim();
+    const ticketDescription = String(description || "").trim();
+    const rawPriority = String(priority || "medium").toLowerCase();
+    const ticketPriority = rawPriority === "normal" ? "medium" : rawPriority;
+    const ticketCategory = category || "general";
 
-    if (!title || !description || !created_by) {
+    if (!ticketTitle || !ticketDescription || !created_by) {
       return res.status(400).json({ 
         success: false, 
-        error: "Title, description, and created_by are required" 
+        error: "Subject, description, and created_by are required" 
       });
     }
 
@@ -5224,7 +6148,7 @@ app.post("/api/support/tickets", async (req, res) => {
         patient_id, title, description, category, priority, created_by
       ) VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *`,
-      [patient_id || null, title, description, category || 'general', priority || 'medium', created_by]
+      [patient_id || null, ticketTitle, ticketDescription, ticketCategory, ticketPriority || 'medium', created_by]
     );
 
     res.json({ success: true, data: result.rows[0] });

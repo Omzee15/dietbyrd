@@ -55,6 +55,8 @@ const AdminDashboard = () => {
   
   const [doctorSearch, setDoctorSearch] = useState("");
   const [dieticianSearch, setDieticianSearch] = useState("");
+  const [commissionDrafts, setCommissionDrafts] = useState<Record<number, string>>({});
+  const [savingCommissionId, setSavingCommissionId] = useState<number | null>(null);
 
   // Patient list filter state
   const [referredByFilter, setReferredByFilter] = useState<string>("all");
@@ -122,6 +124,49 @@ const AdminDashboard = () => {
     queryFn: getReferrals,
   });
 
+  const updateCommissionMutation = useMutation({
+    mutationFn: async ({ doctorUserId, percent }: { doctorUserId: number; percent: number; doctorName: string }) => {
+      if (!user) {
+        throw new Error("Not authenticated");
+      }
+      const response = await fetch(`/api/admin/doctors/${doctorUserId}/commission`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": String(user.id),
+          "x-user-role": String(user.role),
+        },
+        body: JSON.stringify({ percent }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || "Failed to update commission");
+      }
+
+      return data.data as { commission_percent?: number };
+    },
+    onMutate: ({ doctorUserId }) => {
+      setSavingCommissionId(doctorUserId);
+    },
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(["doctors"], (old = []) =>
+        (old as Array<Record<string, any>>).map((doc) =>
+          doc.user_id === variables.doctorUserId
+            ? { ...doc, commission_percent: data?.commission_percent ?? variables.percent }
+            : doc
+        )
+      );
+      toast.success(`Commission set to ${variables.percent}% for Dr. ${variables.doctorName}`);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Failed to update commission");
+    },
+    onSettled: () => {
+      setSavingCommissionId(null);
+    },
+  });
+
   // Mutation for assigning dietician
   const assignDieticianMutation = useMutation({
     mutationFn: ({ patientId, dieticianId }: { patientId: number; dieticianId: number }) =>
@@ -175,6 +220,35 @@ const AdminDashboard = () => {
 
   // Get unique referring doctors for filter dropdown
   const referringDoctors = [...new Set(enrichedPatients.map(p => p.referredBy).filter(Boolean))];
+
+  const getDoctorCommissionValue = (doctor: Doctor) => {
+    const draft = commissionDrafts[doctor.id];
+    if (draft !== undefined) {
+      return draft;
+    }
+    const current = (doctor as Doctor & { commission_percent?: number }).commission_percent;
+    if (current === null || current === undefined || Number.isNaN(Number(current))) {
+      return "15";
+    }
+    return String(current);
+  };
+
+  const handleSaveCommission = (doctor: Doctor) => {
+    const doctorUserId = (doctor as Doctor & { user_id?: number }).user_id;
+    if (!doctorUserId) {
+      toast.error("Doctor account is missing a linked user ID.");
+      return;
+    }
+
+    const rawValue = getDoctorCommissionValue(doctor);
+    const percent = Number(rawValue);
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      toast.error("Commission must be a number between 0 and 100.");
+      return;
+    }
+
+    updateCommissionMutation.mutate({ doctorUserId, percent, doctorName: doctor.name });
+  };
 
   const matchesTimeRange = (createdAt: string) => {
     if (timeRangeFilter === "all") return true;
@@ -651,16 +725,51 @@ const AdminDashboard = () => {
                               {d.is_verified ? "Verified" : "Pending"}
                             </Badge>
                           </div>
-                          <div className="mt-3 pt-3 border-t flex justify-between text-xs text-muted-foreground">
-                            <span>{d.total_referrals || 0} patients referred</span>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-xs h-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                              onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "doctor", id: d.id, name: d.name }); }}
-                            >
-                              <Trash2 className="w-3 h-3 mr-1" /> Delete
-                            </Button>
+                          <div className="mt-3 pt-3 border-t space-y-2 text-xs text-muted-foreground">
+                            <div className="flex items-center justify-between">
+                              <span>{d.total_referrals || 0} patients referred</span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-xs h-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "doctor", id: d.id, name: d.name }); }}
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" /> Delete
+                              </Button>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[11px]">Commission %</span>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="number"
+                                  inputMode="decimal"
+                                  step="0.5"
+                                  min={0}
+                                  max={100}
+                                  value={getDoctorCommissionValue(d)}
+                                  onChange={(e) =>
+                                    setCommissionDrafts((prev) => ({
+                                      ...prev,
+                                      [d.id]: e.target.value,
+                                    }))
+                                  }
+                                  className="h-7 w-20 text-xs"
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-[11px]"
+                                  disabled={savingCommissionId === (d as Doctor & { user_id?: number }).user_id}
+                                  onClick={() => handleSaveCommission(d)}
+                                >
+                                  {savingCommissionId === (d as Doctor & { user_id?: number }).user_id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    "Save"
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       ))}

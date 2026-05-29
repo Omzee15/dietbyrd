@@ -1,5 +1,21 @@
 const BASE_URL = "/api";
 
+const getStoredAuthHeaders = (): Record<string, string> => {
+  if (typeof window === "undefined") return {};
+  try {
+    const stored = localStorage.getItem("dietbyrd_user");
+    if (!stored) return {};
+    const user = JSON.parse(stored);
+    if (!user?.id || !user?.role) return {};
+    return {
+      "x-user-id": String(user.id),
+      "x-user-role": String(user.role),
+    };
+  } catch {
+    return {};
+  }
+};
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json", ...options?.headers },
@@ -77,6 +93,20 @@ export const assignDietician = (patientId: number, dieticianId: number) =>
   request<{ dietician_name: string }>(`/patients/${patientId}/assign-dietician`, {
     method: "POST",
     body: JSON.stringify({ dietician_id: dieticianId }),
+  });
+
+export interface DoctorPatientSummary {
+  id: number;
+  name: string | null;
+  phone: string;
+  referred_at: string | null;
+  payment_status: "paid" | "unpaid" | string;
+  consultation_status: "booked" | "completed" | "not_yet" | string;
+}
+
+export const getDoctorPatients = () =>
+  request<DoctorPatientSummary[]>("/doctor/me/patients", {
+    headers: getStoredAuthHeaders(),
   });
 
 // ─── Patient Messages ─────────────────────────────────────────────────────────
