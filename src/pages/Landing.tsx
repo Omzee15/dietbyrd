@@ -432,12 +432,6 @@ const Landing = () => {
           content: ''; position: absolute; inset: 0; pointer-events: none;
           background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(11,110,79,.18) 0%, transparent 70%);
         }
-        .cta-section::after {
-          content: ''; position: absolute; inset: 0; pointer-events: none;
-          background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
-                            linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
-          background-size: 60px 60px;
-        }
         .cta-inner { max-width: 700px; margin: 0 auto; position: relative; z-index: 1; }
         .cta-eyebrow {
           display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500;
