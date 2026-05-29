@@ -455,6 +455,12 @@ const Index = () => {
               </div>
             </div>
 
+            <div className="text-right">
+              <Link to="/forgot-password" style={{ fontSize: 13, color: "var(--teal)" }}>
+                Forgot password?
+              </Link>
+            </div>
+
             <Button
               type="submit"
               disabled={isLoading}
