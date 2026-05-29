@@ -11,7 +11,13 @@ import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Register from "./pages/Register";
 import JoinForm from "./pages/JoinForm";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import ResetPassword from "./pages/auth/ResetPassword";
 import NotFound from "./pages/NotFound";
+import Privacy from "./pages/legal/Privacy";
+import Terms from "./pages/legal/Terms";
+import Refund from "./pages/legal/Refund";
+import Cancellation from "./pages/legal/Cancellation";
 
 // Doctor Pages
 import DoctorDashboard from "./pages/DoctorDashboard";
@@ -72,8 +78,14 @@ const App = () => (
             {/* Public routes */}
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Index />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/register" element={<Register />} />
             <Route path="/join" element={<JoinForm />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/refund" element={<Refund />} />
+            <Route path="/cancellation" element={<Cancellation />} />
 
             {/* Doctor routes - doctors and their assistants */}
             <Route element={<ProtectedRoute allowedRoles={["doctor", "assistant"]} />}>
