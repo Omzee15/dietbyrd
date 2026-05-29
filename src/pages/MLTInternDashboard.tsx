@@ -16,6 +16,8 @@ import type { Food } from "@/lib/diet-types";
 import { Button } from "@/components/ui/button";
 import { FoodLibraryAddDialog } from "@/components/diet";
 
+type JoinRequestWithUserId = JoinRequest & { user_id?: number };
+
 type TimeRangeFilter = "all" | "last_week" | "last_month" | "last_6_months" | "last_year" | "custom";
 
 interface PatientWithReferral extends Patient {
@@ -66,6 +68,10 @@ const MLTInternDashboard = () => {
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [adminMessage, setAdminMessage] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
+  const [showMessageDialog, setShowMessageDialog] = useState(false);
+  const [messageRequest, setMessageRequest] = useState<JoinRequest | null>(null);
+  const [messageBody, setMessageBody] = useState("");
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [autoAssignResult, setAutoAssignResult] = useState<AutoAssignResult | null>(null);
   const { user } = useAuth();
 
@@ -207,6 +213,62 @@ const MLTInternDashboard = () => {
   const handleLogout = () => {
     logout();
     navigate("/");
+  };
+
+  const openMessageDialog = (request: JoinRequest) => {
+    const recipientUserId = (request as JoinRequestWithUserId).user_id;
+    if (!recipientUserId) {
+      toast.error("No user linked to this join request yet.");
+      return;
+    }
+    setMessageRequest(request);
+    setMessageBody("");
+    setShowMessageDialog(true);
+  };
+
+  const handleSendMessage = async () => {
+    if (!messageRequest || !user) return;
+    const recipientUserId = (messageRequest as JoinRequestWithUserId).user_id;
+    if (!recipientUserId) {
+      toast.error("No user linked to this join request yet.");
+      return;
+    }
+
+    const trimmedMessage = messageBody.trim();
+    if (trimmedMessage.length === 0) {
+      toast.error("Message cannot be empty.");
+      return;
+    }
+
+    setIsSendingMessage(true);
+    try {
+      const response = await fetch(`/api/join-requests/${messageRequest.id}/messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": String(user.id),
+          "x-user-role": String(user.role),
+        },
+        body: JSON.stringify({
+          message: trimmedMessage,
+          recipient_user_id: recipientUserId,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to send message");
+      }
+
+      toast.success(`Message sent to ${messageRequest.name}`);
+      setShowMessageDialog(false);
+      setMessageBody("");
+      setMessageRequest(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send message");
+    } finally {
+      setIsSendingMessage(false);
+    }
   };
 
   const enrichedPatients: PatientWithReferral[] = patients.map((patient) => {
@@ -803,6 +865,16 @@ const MLTInternDashboard = () => {
                             </td>
                             <td className="px-6 py-4" onClick={(event) => event.stopPropagation()}>
                               <div className="flex items-center gap-2">
+                                {user?.role === "mlt_intern" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2"
+                                    onClick={() => openMessageDialog(request)}
+                                  >
+                                    💬 Send message
+                                  </Button>
+                                )}
                                 {request.status === "pending" && (
                                   <>
                                     <Button
@@ -1101,6 +1173,48 @@ const MLTInternDashboard = () => {
               Reject
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Message Dialog */}
+      <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send message to {messageRequest?.name}</DialogTitle>
+            <DialogDescription>
+              This message will be delivered to the applicant via email.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleSendMessage();
+            }}
+            className="space-y-4"
+          >
+            <Textarea
+              value={messageBody}
+              onChange={(event) => setMessageBody(event.target.value.slice(0, 1000))}
+              rows={6}
+              maxLength={1000}
+              placeholder="Write your message..."
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  event.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowMessageDialog(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSendingMessage}>
+                {isSendingMessage ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Send
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

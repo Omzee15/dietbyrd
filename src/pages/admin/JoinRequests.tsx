@@ -18,6 +18,8 @@ import AppSidebar from "@/components/AppSidebar";
 import { getJoinRequests, approveJoinRequest, rejectJoinRequest, scheduleInterview, getPatients, getDoctors, getDieticians, JoinRequest } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
+type JoinRequestWithUserId = JoinRequest & { user_id?: number };
+
 const JoinRequests = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -37,6 +39,10 @@ const JoinRequests = () => {
   const [rejectionReason, setRejectionReason] = useState("");
   const [adminMessage, setAdminMessage] = useState("");
   const [commissionRate, setCommissionRate] = useState("");
+  const [showMessageDialog, setShowMessageDialog] = useState(false);
+  const [messageRequest, setMessageRequest] = useState<JoinRequest | null>(null);
+  const [messageBody, setMessageBody] = useState("");
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   // Fetch join requests
   const { data: requests = [], isLoading } = useQuery({
@@ -143,9 +149,65 @@ const JoinRequests = () => {
     setShowInterviewDialog(true);
   };
 
+  const openMessageDialog = (request: JoinRequest) => {
+    const recipientUserId = (request as JoinRequestWithUserId).user_id;
+    if (!recipientUserId) {
+      toast.error("No user linked to this join request yet.");
+      return;
+    }
+    setMessageRequest(request);
+    setMessageBody("");
+    setShowMessageDialog(true);
+  };
+
   const handleScheduleInterview = () => {
     if (interviewRequest) {
       interviewMutation.mutate({ id: interviewRequest.id, message: interviewMessage || undefined });
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!messageRequest || !user) return;
+    const recipientUserId = (messageRequest as JoinRequestWithUserId).user_id;
+    if (!recipientUserId) {
+      toast.error("No user linked to this join request yet.");
+      return;
+    }
+
+    const trimmedMessage = messageBody.trim();
+    if (trimmedMessage.length === 0) {
+      toast.error("Message cannot be empty.");
+      return;
+    }
+
+    setIsSendingMessage(true);
+    try {
+      const response = await fetch(`/api/join-requests/${messageRequest.id}/messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": String(user.id),
+          "x-user-role": String(user.role),
+        },
+        body: JSON.stringify({
+          message: trimmedMessage,
+          recipient_user_id: recipientUserId,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to send message");
+      }
+
+      toast.success(`Message sent to ${messageRequest.name}`);
+      setShowMessageDialog(false);
+      setMessageBody("");
+      setMessageRequest(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send message");
+    } finally {
+      setIsSendingMessage(false);
     }
   };
 
@@ -186,6 +248,8 @@ const JoinRequests = () => {
       <UtensilsCrossed className="w-4 h-4 text-emerald-600" />
     );
   };
+
+  const canSendMessage = user?.role === "ops_manager" || user?.role === "mlt_intern";
 
   const sidebarSections = getAdminSidebarSections({
     patients: patients.length,
@@ -378,6 +442,15 @@ const JoinRequests = () => {
                           <Eye className="w-4 h-4 mr-1" />
                           Details
                         </Button>
+                        {canSendMessage && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openMessageDialog(request)}
+                          >
+                            💬 Send message
+                          </Button>
+                        )}
                         {request.status === "pending" && (
                           <>
                             <Button
@@ -567,6 +640,48 @@ const JoinRequests = () => {
               Send Invitation
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Message Dialog */}
+      <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send message to {messageRequest?.name}</DialogTitle>
+            <DialogDescription>
+              This message will be delivered to the applicant via email.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleSendMessage();
+            }}
+            className="space-y-4"
+          >
+            <Textarea
+              value={messageBody}
+              onChange={(event) => setMessageBody(event.target.value.slice(0, 1000))}
+              rows={6}
+              maxLength={1000}
+              placeholder="Write your message..."
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  event.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowMessageDialog(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSendingMessage}>
+                {isSendingMessage ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Send
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

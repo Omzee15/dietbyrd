@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { getDoctorReferrals, getDoctor, getDoctorStats, getDoctorAssistants, createAssistant, deleteAssistant, createReferral, lookupPhoneNumber, Referral, Doctor, Assistant } from "@/lib/api";
+import { getDoctorReferrals, getDoctor, getDoctorStats, getDoctorAssistants, createAssistant, deleteAssistant, createReferral, lookupPhoneNumber, getDoctorPatients, Referral, DoctorPatientSummary } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 const diagnosisOptions = [
@@ -44,10 +44,38 @@ const formatReferralDate = (referral: Referral): string => {
   return Number.isNaN(parsedDate.getTime()) ? "—" : parsedDate.toLocaleDateString();
 };
 
+const formatDateValue = (value?: string | null): string => {
+  if (!value) return "—";
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime()) ? "—" : parsedDate.toLocaleDateString();
+};
+
+const formatCommissionDate = (value?: string | null): string => formatDateValue(value);
+
+const formatRupees = (value: number | string | null | undefined): string => {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) return "₹0.00";
+  return `₹${numeric.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
 type ActiveView = "refer" | "patients" | "admin" | "assistants";
 
 interface DoctorDashboardProps {
   defaultTab?: ActiveView;
+}
+
+interface DoctorCommission {
+  id: number;
+  doctor_id: number;
+  patient_id: number;
+  patient_name?: string | null;
+  payment_id: string;
+  payment_amount: number;
+  commission_percent: number;
+  commission_amount: number;
+  status: "pending" | "paid" | "void" | string;
+  created_at: string;
+  paid_at?: string | null;
 }
 
 const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
@@ -59,7 +87,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
   const [activeView, setActiveView] = useState<ActiveView>(defaultTab);
   const [selectedPatient, setSelectedPatient] = useState<Referral | null>(null);
   const [patientSearch, setPatientSearch] = useState("");
-  const [hideOnboarded, setHideOnboarded] = useState(true);
+  const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "unpaid">("all");
   
   // Check if current user is an assistant (not a doctor)
   const isAssistant = user?.role === "assistant";
@@ -133,6 +161,48 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
     enabled: !!currentDoctor?.id,
   });
 
+  const { data: doctorPatients = [], isLoading: doctorPatientsLoading } = useQuery({
+    queryKey: ["doctorPatients"],
+    queryFn: getDoctorPatients,
+    enabled: !!user,
+  });
+
+  const { data: commissions = [], isLoading: commissionsLoading } = useQuery({
+    queryKey: ["doctorCommissions"],
+    queryFn: async (): Promise<DoctorCommission[]> => {
+      const response = await fetch("/api/me/commissions?status=all", {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to load commissions");
+      }
+      const data = await response.json();
+      if (Array.isArray(data)) return data as DoctorCommission[];
+      if (Array.isArray(data?.commissions)) return data.commissions as DoctorCommission[];
+      return [];
+    },
+    enabled: !!user && !isAssistant,
+  });
+
+  const commissionTotals = useMemo(() => {
+    let pending = 0;
+    let paid = 0;
+    commissions.forEach((commission) => {
+      const amount = Number(commission.commission_amount || 0);
+      if (!Number.isFinite(amount)) return;
+      const status = (commission.status || "").toLowerCase();
+      if (status === "paid") {
+        paid += amount;
+      } else if (status === "pending") {
+        pending += amount;
+      }
+    });
+    return { pending, paid };
+  }, [commissions]);
+
+  const recentCommissions = useMemo(() => commissions.slice(0, 10), [commissions]);
+
   // Create referral mutation
   const createReferralMutation = useMutation({
     mutationFn: createReferral,
@@ -179,13 +249,18 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
     });
   };
 
-  const filteredPatients = referrals.filter((p) => {
-    if (hideOnboarded && p.is_registered) return false;
-    return (
-      (p.patient_name?.toLowerCase() || "").includes(patientSearch.toLowerCase()) ||
-      (p.diagnosis?.toLowerCase() || "").includes(patientSearch.toLowerCase())
-    );
-  });
+  const filteredDoctorPatients = useMemo(() => {
+    const query = patientSearch.trim().toLowerCase();
+    return doctorPatients.filter((patient: DoctorPatientSummary) => {
+      const paymentStatus = String(patient.payment_status || "unpaid").toLowerCase();
+      if (paymentFilter !== "all" && paymentStatus !== paymentFilter) return false;
+      if (!query) return true;
+      return (
+        (patient.name || "").toLowerCase().includes(query) ||
+        String(patient.phone || "").toLowerCase().includes(query)
+      );
+    });
+  }, [doctorPatients, patientSearch, paymentFilter]);
 
   // Create assistant mutation (only for doctors)
   const createAssistantMutation = useMutation({
@@ -464,6 +539,101 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                   )}
                 </div>
 
+                {!isAssistant && (
+                  <div className="bg-card rounded-xl border p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-lg font-semibold">Earnings</h2>
+                        <p className="text-sm text-muted-foreground mt-1">Last 10 commission entries</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-6 mt-4">
+                      <div
+                        className="text-[32px] font-bold tracking-tight"
+                        style={{ fontFamily: "'Playfair Display', serif" }}
+                      >
+                        Pending: {formatRupees(commissionTotals.pending)}
+                      </div>
+                      <div
+                        className="text-[32px] font-bold tracking-tight"
+                        style={{ fontFamily: "'Playfair Display', serif" }}
+                      >
+                        Paid: {formatRupees(commissionTotals.paid)}
+                      </div>
+                    </div>
+                    <div className="mt-6 border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
+                            <th className="text-left p-3 font-semibold">Patient</th>
+                            <th className="text-left p-3 font-semibold">Payment date</th>
+                            <th className="text-right p-3 font-semibold">Amount</th>
+                            <th className="text-right p-3 font-semibold">Commission %</th>
+                            <th className="text-right p-3 font-semibold">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {commissionsLoading && (
+                            <tr>
+                              <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                                Loading earnings...
+                              </td>
+                            </tr>
+                          )}
+                          {!commissionsLoading && recentCommissions.map((commission) => {
+                            const status = (commission.status || "pending").toLowerCase();
+                            const badgeLabel = status.charAt(0).toUpperCase() + status.slice(1);
+                            const badgeClass = status === "paid"
+                              ? "bg-teal-50 text-teal-700 border-teal-200"
+                              : status === "void"
+                                ? "bg-red-50 text-red-700 border-red-200"
+                                : "border-transparent";
+                            const badgeStyle = status === "pending"
+                              ? { backgroundColor: "var(--gold-l)", color: "var(--gold)" }
+                              : undefined;
+                            const paymentDate = commission.paid_at || commission.created_at;
+
+                            return (
+                              <tr key={commission.id} className="border-b last:border-0">
+                                <td className="p-3 font-medium">{commission.patient_name || "Unknown"}</td>
+                                <td className="p-3 text-muted-foreground">{formatCommissionDate(paymentDate)}</td>
+                                <td className="p-3 text-right">{formatRupees(commission.payment_amount)}</td>
+                                <td className="p-3 text-right">{commission.commission_percent || 0}%</td>
+                                <td className="p-3 text-right">
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs capitalize ${badgeClass}`}
+                                    style={badgeStyle}
+                                  >
+                                    {badgeLabel}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {!commissionsLoading && recentCommissions.length === 0 && (
+                            <tr>
+                              <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                                No earnings yet.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="px-0"
+                        onClick={() => navigate("/doctor/earnings")}
+                      >
+                        View all
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-card rounded-xl p-6 border">
                   <h2 className="text-lg font-semibold">Refer a Patient</h2>
                   <p className="text-sm text-muted-foreground mt-1">Enter patient details to create a referral. We'll handle the rest.</p>
@@ -575,44 +745,80 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold">My Patients</h2>
                   <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setHideOnboarded(!hideOnboarded)}
-                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${hideOnboarded ? "bg-primary/10 text-primary border-primary/30" : "border-muted-foreground/30 text-muted-foreground"}`}
+                    <select
+                      value={paymentFilter}
+                      onChange={(e) => setPaymentFilter(e.target.value as "all" | "paid" | "unpaid")}
+                      className="h-9 rounded-md border border-input bg-background px-3 text-xs font-medium"
                     >
-                      {hideOnboarded ? "Pending only" : "All patients"}
-                    </button>
-                    <span className="text-sm text-muted-foreground">{filteredPatients.length} shown</span>
+                      <option value="all">All payments</option>
+                      <option value="paid">Paid</option>
+                      <option value="unpaid">Unpaid</option>
+                    </select>
+                    <span className="text-sm text-muted-foreground">{filteredDoctorPatients.length} shown</span>
                   </div>
                 </div>
                 <div className="relative max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input placeholder="Search patients..." value={patientSearch} onChange={(e) => setPatientSearch(e.target.value)} className="pl-9" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredPatients.map((p) => (
-                    <div key={p.id} className="bg-card border rounded-2xl p-5 cursor-pointer transition-all hover:shadow-md hover:border-primary/50" onClick={() => setSelectedPatient(p)}>
-                      <div className="flex items-start gap-3">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                          {(p.patient_name || "?").split(" ").map((n) => n[0]).join("")}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold">{p.patient_name || "Unknown"}</div>
-                          <div className="text-xs text-muted-foreground capitalize">{p.diagnosis || "No diagnosis"} · {p.age || "?"} yrs</div>
-                        </div>
-                        <Badge variant="outline" className="text-xs bg-info/10 text-info border-info/20">
-                          Referred
-                        </Badge>
-                      </div>
-                      <div className="mt-3 pt-3 border-t flex justify-between text-xs text-muted-foreground">
-                        <span>{p.patient_phone}</span>
-                        <span>{formatReferralDate(p)}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {filteredPatients.length === 0 && (
-                    <div className="col-span-3 text-center text-muted-foreground py-8">No patients found</div>
-                  )}
+                <div className="bg-card rounded-xl border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
+                        <th className="text-left p-4 font-semibold">Patient</th>
+                        <th className="text-left p-4 font-semibold">Phone</th>
+                        <th className="text-left p-4 font-semibold">Referral date</th>
+                        <th className="text-left p-4 font-semibold">Payment status</th>
+                        <th className="text-left p-4 font-semibold">Consultation status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {doctorPatientsLoading && (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                            Loading patients...
+                          </td>
+                        </tr>
+                      )}
+                      {!doctorPatientsLoading && filteredDoctorPatients.map((patient) => {
+                        const paymentStatus = String(patient.payment_status || "unpaid").toLowerCase();
+                        const paymentLabel = paymentStatus === "paid" ? "Paid" : "Unpaid";
+                        const paymentBadgeClass = paymentStatus === "paid"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200";
+                        const consultationStatus = String(patient.consultation_status || "not_yet").toLowerCase();
+                        const consultationLabel = consultationStatus === "completed"
+                          ? "Completed"
+                          : consultationStatus === "booked"
+                            ? "Booked"
+                            : "Not yet";
+                        const consultationBadgeClass = consultationStatus === "completed"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : consultationStatus === "booked"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : "bg-muted text-muted-foreground border-muted";
+
+                        return (
+                          <tr key={patient.id} className="border-b last:border-0">
+                            <td className="p-4 font-medium">{patient.name || "Unknown"}</td>
+                            <td className="p-4 text-muted-foreground">{patient.phone}</td>
+                            <td className="p-4 text-muted-foreground">{formatDateValue(patient.referred_at)}</td>
+                            <td className="p-4">
+                              <Badge variant="outline" className={`text-xs ${paymentBadgeClass}`}>{paymentLabel}</Badge>
+                            </td>
+                            <td className="p-4">
+                              <Badge variant="outline" className={`text-xs ${consultationBadgeClass}`}>{consultationLabel}</Badge>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {!doctorPatientsLoading && filteredDoctorPatients.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-muted-foreground">No patients found</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
@@ -757,7 +963,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                 {/* Stats Summary */}
                 <div className="grid grid-cols-3 gap-4">
                   {[
-                    { label: "Total Referred", value: doctorStats?.total_referred || referrals.length, icon: Users, color: "text-primary" },
+                    { label: "Patients helped", value: doctorStats?.total_referred || referrals.length, icon: Users, color: "text-primary" },
                     { label: "Onboarded Patients", value: doctorStats?.total_onboarded || 0, icon: UserCheck, color: "text-success" },
                     { label: "Commission Earned", value: `₹${(doctorStats?.total_commission || 0).toLocaleString()}`, icon: IndianRupee, color: "text-info" },
                   ].map((s) => (

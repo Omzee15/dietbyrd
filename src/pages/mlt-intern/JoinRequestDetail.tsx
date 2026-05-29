@@ -1,17 +1,26 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, LogOut, UserPlus, Phone, Building2, MapPin, FileText, CalendarDays, UserCheck, CircleX, Users, Stethoscope, UtensilsCrossed, Apple } from "lucide-react";
+import { ArrowLeft, LogOut, UserPlus, Phone, Building2, MapPin, FileText, CalendarDays, UserCheck, CircleX, Users, Stethoscope, UtensilsCrossed, Apple, Loader2 } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getJoinRequests } from "@/lib/api";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { getJoinRequests, JoinRequest } from "@/lib/api";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+
+type JoinRequestWithUserId = JoinRequest & { user_id?: number };
 
 const MLTInternJoinRequestDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const [showMessageDialog, setShowMessageDialog] = useState(false);
+  const [messageBody, setMessageBody] = useState("");
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   const requestId = parseInt(id || "0", 10);
 
@@ -20,11 +29,58 @@ const MLTInternJoinRequestDetail = () => {
     queryFn: () => getJoinRequests(),
   });
 
-  const request = requests.find((item) => item.id === requestId);
+  const request = requests.find((item) => item.id === requestId) as JoinRequestWithUserId | undefined;
 
   const handleLogout = () => {
     logout();
     navigate("/");
+  };
+
+  const openMessageDialog = () => {
+    if (!request?.user_id) {
+      toast.error("No user linked to this join request yet.");
+      return;
+    }
+    setMessageBody("");
+    setShowMessageDialog(true);
+  };
+
+  const handleSendMessage = async () => {
+    if (!request?.user_id || !user) return;
+    const trimmedMessage = messageBody.trim();
+    if (!trimmedMessage) {
+      toast.error("Message cannot be empty.");
+      return;
+    }
+
+    setIsSendingMessage(true);
+    try {
+      const response = await fetch(`/api/join-requests/${request.id}/messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": String(user.id),
+          "x-user-role": String(user.role),
+        },
+        body: JSON.stringify({
+          message: trimmedMessage,
+          recipient_user_id: request.user_id,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to send message");
+      }
+
+      toast.success(`Message sent to ${request.name}`);
+      setShowMessageDialog(false);
+      setMessageBody("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send message");
+    } finally {
+      setIsSendingMessage(false);
+    }
   };
 
   const sidebarSections = [
@@ -104,6 +160,13 @@ const MLTInternJoinRequestDetail = () => {
                     <p className="font-medium flex items-center gap-2"><CalendarDays className="w-4 h-4" />{new Date(request.created_at).toLocaleString()}</p>
                   </div>
                 </CardContent>
+                {user?.role === "mlt_intern" && (
+                  <div className="px-6 pb-6">
+                    <Button variant="outline" onClick={openMessageDialog}>
+                      💬 Send message
+                    </Button>
+                  </div>
+                )}
               </Card>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -178,6 +241,47 @@ const MLTInternJoinRequestDetail = () => {
           )}
         </div>
       </main>
+
+      <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send message to {request?.name}</DialogTitle>
+            <DialogDescription>
+              This message will be delivered to the applicant via email.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleSendMessage();
+            }}
+            className="space-y-4"
+          >
+            <Textarea
+              value={messageBody}
+              onChange={(event) => setMessageBody(event.target.value.slice(0, 1000))}
+              rows={6}
+              maxLength={1000}
+              placeholder="Write your message..."
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  event.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowMessageDialog(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSendingMessage}>
+                {isSendingMessage ? <span className="mr-2"><Loader2 className="w-4 h-4 animate-spin" /></span> : null}
+                Send
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
