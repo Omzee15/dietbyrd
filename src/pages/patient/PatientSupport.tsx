@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Plus, LogOut, ChevronDown, Settings } from "lucide-react";
+import { MessageSquare, Plus, LogOut, ChevronDown, Settings, Eye, X, Send } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -38,12 +38,30 @@ interface Ticket {
   comment_count: number;
 }
 
+interface TicketComment {
+  id: number;
+  ticket_id: number;
+  user_id: number;
+  user_name: string;
+  user_role: string;
+  comment: string;
+  is_internal: boolean;
+  created_at: string;
+}
+
+interface TicketDetail {
+  ticket: Ticket;
+  comments: TicketComment[];
+}
+
 const PatientSupport = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
 
   const [showCreateTicket, setShowCreateTicket] = useState(false);
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [newComment, setNewComment] = useState("");
   const [ticketForm, setTicketForm] = useState({
     title: "",
     description: "",
@@ -60,15 +78,37 @@ const PatientSupport = () => {
 
   // Fetch patient's tickets
   const { data: ticketsData, refetch } = useQuery({
-    queryKey: ["patient-tickets", patient?.id],
+    queryKey: ["patient-tickets", user?.id],
     queryFn: async () => {
-      if (!patient?.id) return [];
-      const res = await fetch(`/api/support/tickets?patient_id=${patient.id}`);
+      if (!user?.id) return [];
+      const res = await fetch("/api/patient/me/tickets", {
+        headers: {
+          "x-user-id": String(user.id),
+          "x-user-role": String(user.role),
+        },
+      });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       return data.data as Ticket[];
     },
-    enabled: !!patient?.id,
+    enabled: !!user?.id,
+  });
+
+  const { data: ticketDetail, isLoading: detailLoading } = useQuery({
+    queryKey: ["patient-ticket-detail", selectedTicketId, user?.id],
+    queryFn: async () => {
+      if (!selectedTicketId || !user?.id) return null;
+      const res = await fetch(`/api/patient/me/tickets/${selectedTicketId}`, {
+        headers: {
+          "x-user-id": String(user.id),
+          "x-user-role": String(user.role),
+        },
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      return data.data as TicketDetail;
+    },
+    enabled: !!selectedTicketId && !!user?.id,
   });
 
   // Create ticket mutation
@@ -101,6 +141,51 @@ const PatientSupport = () => {
     onError: (error: Error) => {
       toast.error(error.message);
     },
+  });
+
+  const addCommentMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedTicketId || !user?.id) {
+        throw new Error("Missing ticket or user");
+      }
+      const res = await fetch(`/api/support/tickets/${selectedTicketId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user.id, comment: newComment.trim() }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient-ticket-detail", selectedTicketId, user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["patient-tickets", user?.id] });
+      setNewComment("");
+      toast.success("Comment added");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const reopenTicketMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedTicketId) {
+        throw new Error("Missing ticket");
+      }
+      const res = await fetch(`/api/support/tickets/${selectedTicketId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "open" }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient-ticket-detail", selectedTicketId, user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["patient-tickets", user?.id] });
+      toast.success("Ticket re-opened");
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const handleLogout = () => {
@@ -183,6 +268,12 @@ const PatientSupport = () => {
       <LogOut className="w-[18px] h-[18px] shrink-0" />
       <span>Sign Out</span>
     </button>
+  );
+
+  const selectedTicket = ticketDetail?.ticket;
+  const visibleComments = (ticketDetail?.comments || []).filter((comment) => !comment.is_internal);
+  const sortedTickets = [...(ticketsData || [])].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 
   return (
@@ -312,85 +403,188 @@ const PatientSupport = () => {
 
         {/* Main content */}
         <div className="p-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>My Support Tickets</CardTitle>
-              <CardDescription>
-                View and manage your support requests
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!ticketsData || ticketsData.length === 0 ? (
-                <div className="text-center py-12">
-                  <MessageSquare className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-500 mb-4">
-                    You haven't created any support tickets yet
-                  </p>
-                  <Button onClick={() => setShowCreateTicket(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Your First Ticket
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {ticketsData.map((ticket) => (
-                    <div
-                      key={ticket.id}
-                      className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-lg">
-                            {ticket.ticket_number}
-                          </span>
-                          <Badge className={getStatusColor(ticket.status)}>
-                            {ticket.status.replace("_", " ")}
-                          </Badge>
-                          <Badge className={getPriorityColor(ticket.priority)}>
-                            {ticket.priority}
-                          </Badge>
-                          <Badge variant="outline">{ticket.category}</Badge>
+          <div className="flex overflow-hidden rounded-lg border bg-card">
+            {/* Left: ticket list */}
+            <div className={`flex flex-col transition-all duration-200 ${selectedTicketId ? "w-[45%] border-r" : "w-full"}`}>
+              <div className="px-6 py-4 border-b">
+                <CardTitle>My Support Tickets</CardTitle>
+                <CardDescription>View and manage your support requests</CardDescription>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6">
+                {!sortedTickets || sortedTickets.length === 0 ? (
+                  <div className="text-center py-12">
+                    <MessageSquare className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                    <p className="text-gray-500 mb-4">
+                      You haven't created any support tickets yet
+                    </p>
+                    <Button onClick={() => setShowCreateTicket(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Your First Ticket
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {sortedTickets.map((ticket) => (
+                      <div
+                        key={ticket.id}
+                        onClick={() => setSelectedTicketId(ticket.id === selectedTicketId ? null : ticket.id)}
+                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                          selectedTicketId === ticket.id
+                            ? "border-primary bg-primary/5"
+                            : "hover:bg-muted/50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <span className="text-xs font-mono text-muted-foreground">
+                                {ticket.ticket_number}
+                              </span>
+                              <Badge className={`text-[10px] ${getStatusColor(ticket.status)}`}>
+                                {ticket.status.replace("_", " ")}
+                              </Badge>
+                              <Badge className={`text-[10px] ${getPriorityColor(ticket.priority)}`}>
+                                {ticket.priority}
+                              </Badge>
+                            </div>
+                            <p className="font-medium text-sm truncate">{ticket.title}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Last update {new Date(ticket.updated_at || ticket.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <Eye className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
                         </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
-                      <h3 className="font-medium text-lg mb-2">{ticket.title}</h3>
-                      <p className="text-sm text-gray-600 mb-3">
-                        {ticket.description}
-                      </p>
-
-                      <div className="flex items-center justify-between text-xs text-gray-500">
-                        <div className="flex items-center gap-4">
-                          <span>
-                            Created: {new Date(ticket.created_at).toLocaleString()}
-                          </span>
-                          <span>{ticket.comment_count} comments</span>
-                          {ticket.assigned_to_name && (
-                            <span>Assigned to: {ticket.assigned_to_name}</span>
-                          )}
+            {/* Right: ticket detail */}
+            {selectedTicketId && (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {detailLoading ? (
+                  <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+                    Loading ticket...
+                  </div>
+                ) : selectedTicket ? (
+                  <>
+                    <div className="px-6 py-4 border-b shrink-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className="text-xs font-mono text-muted-foreground">
+                              {selectedTicket.ticket_number}
+                            </span>
+                            <Badge className={`text-[10px] ${getStatusColor(selectedTicket.status)}`}>
+                              {selectedTicket.status.replace("_", " ")}
+                            </Badge>
+                            <Badge className={`text-[10px] ${getPriorityColor(selectedTicket.priority)}`}>
+                              {selectedTicket.priority}
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px]">
+                              {selectedTicket.category}
+                            </Badge>
+                          </div>
+                          <h2 className="font-semibold text-base">{selectedTicket.title}</h2>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Opened {new Date(selectedTicket.created_at).toLocaleDateString()}
+                          </p>
                         </div>
-                        {ticket.resolved_at && (
-                          <span className="text-green-600">
-                            Resolved: {new Date(ticket.resolved_at).toLocaleDateString()}
-                          </span>
-                        )}
+                        <button
+                          onClick={() => setSelectedTicketId(null)}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
                       </div>
 
-                      {ticket.resolution_notes && (
-                        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
-                          <p className="text-sm font-medium text-green-800 mb-1">
-                            Resolution:
-                          </p>
-                          <p className="text-sm text-green-700">
-                            {ticket.resolution_notes}
-                          </p>
+                      {selectedTicket.status === "closed" && (
+                        <div className="mt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={reopenTicketMutation.isPending}
+                            onClick={() => reopenTicketMutation.mutate()}
+                          >
+                            Re-open
+                          </Button>
                         </div>
                       )}
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+
+                    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                      <div className="bg-muted/40 rounded-lg p-4">
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Description</p>
+                        <p className="text-sm whitespace-pre-wrap">{selectedTicket.description}</p>
+                      </div>
+
+                      {selectedTicket.resolution_notes && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                          <p className="text-xs font-medium text-green-700 mb-1">Resolution Notes</p>
+                          <p className="text-sm text-green-800">{selectedTicket.resolution_notes}</p>
+                        </div>
+                      )}
+
+                      {visibleComments.length > 0 && (
+                        <div className="space-y-3">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {visibleComments.length} {visibleComments.length === 1 ? "comment" : "comments"}
+                          </p>
+                          {visibleComments.map((comment) => (
+                            <div key={comment.id} className="flex gap-3">
+                              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
+                                {comment.user_name?.[0]?.toUpperCase() || "?"}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  <span className="text-xs font-medium">{comment.user_name}</span>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {new Date(comment.created_at).toLocaleString()}
+                                  </span>
+                                </div>
+                                <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedTicket.status !== "closed" && (
+                      <div className="px-6 py-3 border-t shrink-0">
+                        <div className="flex gap-2 items-end">
+                          <Textarea
+                            placeholder="Add a comment..."
+                            rows={2}
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            className="flex-1 resize-none text-sm"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && newComment.trim()) {
+                                e.preventDefault();
+                                addCommentMutation.mutate();
+                              }
+                            }}
+                          />
+                          <Button
+                            size="sm"
+                            disabled={!newComment.trim() || addCommentMutation.isPending}
+                            onClick={() => addCommentMutation.mutate()}
+                          >
+                            <Send className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-1">Cmd+Enter to send</p>
+                      </div>
+                    )}
+                  </>
+                ) : null}
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>

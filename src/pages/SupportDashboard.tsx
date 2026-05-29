@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, MessageSquare, LogOut, Plus, Search, Eye, X, Send, UserCheck } from "lucide-react";
+import { Users, MessageSquare, LogOut, Plus, Search, Eye, X, Send, UserCheck, Check, ChevronsUpDown } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
@@ -113,16 +115,18 @@ const SupportDashboard = () => {
   const [activeTab, setActiveTab] = useState("tickets");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [patientPage, setPatientPage] = useState(1);
   const [showCreateTicket, setShowCreateTicket] = useState(false);
+  const [patientPickerOpen, setPatientPickerOpen] = useState(false);
+  const [patientSearch, setPatientSearch] = useState("");
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
   const [newComment, setNewComment] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [ticketForm, setTicketForm] = useState({
-    patient_id: "",
-    title: "",
+    patient_id: null as number | null,
+    subject: "",
     description: "",
-    category: "general",
-    priority: "medium",
+    priority: "normal",
   });
 
   // Fetch list data
@@ -136,15 +140,47 @@ const SupportDashboard = () => {
     },
   });
 
-  const { data: patientsData } = useQuery({
-    queryKey: ["support-patients"],
+  const { data: patientsResponse, isError: patientsError, error: patientsErrorObj } = useQuery({
+    queryKey: ["support-patients", patientPage],
     queryFn: async () => {
-      const res = await fetch("/api/support/patients");
+      const res = await fetch(`/api/support/patients?page=${patientPage}&page_size=50`);
       const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      return data.data as Patient[];
+      if (!data.success) {
+        throw new Error(data.error || "Failed to fetch patients");
+      }
+      return data as { data: Patient[]; pagination?: { page: number; page_size: number; total: number; total_pages: number; has_more: boolean } };
+    },
+    onError: (error) => {
+      if (import.meta.env.DEV) {
+        console.error("[support/patients]", error);
+      }
     },
   });
+
+  const patientsData = patientsResponse?.data || [];
+  const patientsPagination = patientsResponse?.pagination;
+
+  const { data: patientSearchResponse, isFetching: patientSearchLoading } = useQuery({
+    queryKey: ["support-patient-search", patientSearch],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: "1", page_size: "20" });
+      const trimmed = patientSearch.trim();
+      if (trimmed) params.set("query", trimmed);
+      const res = await fetch(`/api/support/patients?${params.toString()}`);
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || "Failed to search patients");
+      }
+      return data as { data: Patient[] };
+    },
+    enabled: patientPickerOpen,
+    staleTime: 30000,
+  });
+
+  const patientPickerResults = patientSearchResponse?.data || [];
+  const selectedPatient =
+    patientPickerResults.find((p) => p.id === ticketForm.patient_id) ||
+    patientsData.find((p) => p.id === ticketForm.patient_id);
 
   const { data: dieticiansData } = useQuery({
     queryKey: ["support-dieticians"],
@@ -190,11 +226,12 @@ const SupportDashboard = () => {
       if (!data.success) throw new Error(data.error);
       return data.data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["support-tickets"] });
       setShowCreateTicket(false);
-      setTicketForm({ patient_id: "", title: "", description: "", category: "general", priority: "medium" });
-      toast.success("Ticket created successfully!");
+      setTicketForm({ patient_id: null, subject: "", description: "", priority: "normal" });
+      const ticketNumber = data?.ticket_number ? ` (#${data.ticket_number})` : "";
+      toast.success(`Ticket created${ticketNumber}`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -249,7 +286,7 @@ const SupportDashboard = () => {
     e.preventDefault();
     createTicketMutation.mutate({
       ...ticketForm,
-      patient_id: ticketForm.patient_id ? parseInt(ticketForm.patient_id) : null,
+      patient_id: ticketForm.patient_id,
     });
   };
 
@@ -309,7 +346,7 @@ const SupportDashboard = () => {
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="w-4 h-4 mr-2" />
-                  New Ticket
+                  + New Ticket
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-lg">
@@ -318,57 +355,106 @@ const SupportDashboard = () => {
                 </DialogHeader>
                 <form onSubmit={handleCreateTicket} className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Patient (Optional)</Label>
-                    <Select
-                      value={ticketForm.patient_id}
-                      onValueChange={(v) => setTicketForm({ ...ticketForm, patient_id: v })}
+                    <Label>Patient</Label>
+                    <Popover
+                      open={patientPickerOpen}
+                      onOpenChange={(open) => {
+                        setPatientPickerOpen(open);
+                        if (!open) {
+                          setPatientSearch("");
+                        }
+                      }}
                     >
-                      <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">None</SelectItem>
-                        {patientsData?.map(p => (
-                          <SelectItem key={p.id} value={p.id.toString()}>{p.name} — {p.phone}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={patientPickerOpen}
+                          className="w-full justify-between"
+                        >
+                          {ticketForm.patient_id
+                            ? selectedPatient
+                              ? `${selectedPatient.name || "—"} — ${selectedPatient.phone}`
+                              : "Select patient"
+                            : "Select patient"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0" align="start">
+                        <Command>
+                          <CommandInput
+                            placeholder="Search patients..."
+                            value={patientSearch}
+                            onValueChange={setPatientSearch}
+                          />
+                          <CommandList>
+                            <CommandEmpty>No patients found.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                value="none"
+                                onSelect={() => {
+                                  setTicketForm({ ...ticketForm, patient_id: null });
+                                  setPatientPickerOpen(false);
+                                }}
+                              >
+                                <Check className={`mr-2 h-4 w-4 ${ticketForm.patient_id === null ? "opacity-100" : "opacity-0"}`} />
+                                No patient
+                              </CommandItem>
+                              {patientSearchLoading && (
+                                <CommandItem disabled value="searching">
+                                  Searching...
+                                </CommandItem>
+                              )}
+                              {patientPickerResults.map((patient) => (
+                                <CommandItem
+                                  key={patient.id}
+                                  value={`${patient.name || ""} ${patient.phone}`}
+                                  onSelect={() => {
+                                    setTicketForm({ ...ticketForm, patient_id: patient.id });
+                                    setPatientPickerOpen(false);
+                                  }}
+                                >
+                                  <Check className={`mr-2 h-4 w-4 ${ticketForm.patient_id === patient.id ? "opacity-100" : "opacity-0"}`} />
+                                  <span>{patient.name || "—"} — {patient.phone}</span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div className="space-y-2">
-                    <Label>Title *</Label>
-                    <Input placeholder="Brief description of the issue" value={ticketForm.title}
-                      onChange={(e) => setTicketForm({ ...ticketForm, title: e.target.value })} required />
+                    <Label>Subject *</Label>
+                    <Input
+                      placeholder="Brief description of the issue"
+                      value={ticketForm.subject}
+                      onChange={(e) => setTicketForm({ ...ticketForm, subject: e.target.value.slice(0, 120) })}
+                      maxLength={120}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Description *</Label>
-                    <Textarea placeholder="Detailed description" value={ticketForm.description} rows={4}
-                      onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })} required />
+                    <Textarea
+                      placeholder="Detailed description"
+                      value={ticketForm.description}
+                      rows={4}
+                      onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })}
+                      required
+                    />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>Category</Label>
-                      <Select value={ticketForm.category} onValueChange={(v) => setTicketForm({ ...ticketForm, category: v })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="general">General</SelectItem>
-                          <SelectItem value="technical">Technical</SelectItem>
-                          <SelectItem value="billing">Billing</SelectItem>
-                          <SelectItem value="appointment">Appointment</SelectItem>
-                          <SelectItem value="diet_plan">Diet Plan</SelectItem>
-                          <SelectItem value="complaint">Complaint</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Priority</Label>
-                      <Select value={ticketForm.priority} onValueChange={(v) => setTicketForm({ ...ticketForm, priority: v })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Low</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="urgent">Urgent</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="space-y-2">
+                    <Label>Priority</Label>
+                    <Select value={ticketForm.priority} onValueChange={(v) => setTicketForm({ ...ticketForm, priority: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="normal">Normal</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
                     <Button type="button" variant="outline" onClick={() => setShowCreateTicket(false)}>Cancel</Button>
@@ -479,24 +565,55 @@ const SupportDashboard = () => {
                   <Input placeholder="Search patients…" value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)} />
                 </div>
-                <div className="space-y-2">
-                  {(patientsData || [])
-                    .filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.phone.includes(searchQuery))
-                    .map(patient => (
-                      <div key={patient.id} className="p-3 border rounded-lg flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{patient.name}</p>
-                          <p className="text-xs text-muted-foreground">{patient.phone} · {patient.state}</p>
-                        </div>
-                        <div className="text-right">
-                          <Badge variant={patient.is_active ? "default" : "secondary"} className="text-[10px]">
-                            {patient.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                          <p className="text-xs text-muted-foreground mt-1">{patient.appointment_count} appts</p>
-                        </div>
+                {patientsError ? (
+                  <div className="p-4 border border-red-200 bg-red-50 rounded-lg text-sm text-red-600">
+                    Failed to load patients: {patientsErrorObj instanceof Error ? patientsErrorObj.message : "Unknown error"}
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      {(patientsData || [])
+                        .filter(p => !searchQuery || p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.phone.includes(searchQuery))
+                        .map(patient => (
+                          <div key={patient.id} className="p-3 border rounded-lg flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-sm">{patient.name || "—"}</p>
+                              <p className="text-xs text-muted-foreground">{patient.phone} · {patient.state || "—"}</p>
+                            </div>
+                            <div className="text-right">
+                              <Badge variant={patient.is_active ? "default" : "secondary"} className="text-[10px]">
+                                {patient.is_active ? "Active" : "Inactive"}
+                              </Badge>
+                              <p className="text-xs text-muted-foreground mt-1">{patient.appointment_count} appts</p>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                    {patientsPagination && patientsPagination.total_pages > 1 && (
+                      <div className="flex items-center justify-between mt-4">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPatientPage((prev) => Math.max(1, prev - 1))}
+                          disabled={patientPage <= 1}
+                        >
+                          Previous
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Page {patientsPagination.page} of {patientsPagination.total_pages}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPatientPage((prev) => prev + 1)}
+                          disabled={!patientsPagination.has_more}
+                        >
+                          Next
+                        </Button>
                       </div>
-                    ))}
-                </div>
+                    )}
+                  </>
+                )}
               </TabsContent>
 
               <TabsContent value="doctors" className="flex-1 overflow-y-auto px-6 pb-4 mt-0">
