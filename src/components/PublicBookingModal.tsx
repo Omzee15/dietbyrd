@@ -502,6 +502,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
               </p>
             )}
 
+            <form onSubmit={(e) => { e.preventDefault(); if (!isLoading) handleSendOtp(); }} className="space-y-4">
             <div className="space-y-3">
               <div>
                 <label className="text-sm font-medium">Full Name</label>
@@ -532,18 +533,19 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
             </div>
 
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => { setStep("slots"); setError(""); }}>
+              <Button type="button" variant="outline" onClick={() => { setStep("slots"); setError(""); }}>
                 ← Back
               </Button>
               <Button
+                type="submit"
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                onClick={handleSendOtp}
                 disabled={isLoading}
               >
                 {isLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                 Send OTP →
               </Button>
             </div>
+            </form>
           </div>
         )}
 
@@ -561,6 +563,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
               </p>
             )}
 
+            <form onSubmit={(e) => { e.preventDefault(); if (!isLoading) handleVerifyOtp(); }} className="space-y-4">
             <div>
               <label className="text-sm font-medium">OTP</label>
               <Input
@@ -590,20 +593,22 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
 
             <div className="flex gap-2">
               <Button
+                type="button"
                 variant="outline"
                 onClick={() => { setStep("contact"); setError(""); setOtp(""); }}
               >
                 ← Back
               </Button>
               <Button
+                type="submit"
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                onClick={handleVerifyOtp}
                 disabled={isLoading}
               >
                 {isLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                 Verify & Continue →
               </Button>
             </div>
+            </form>
           </div>
         )}
 
