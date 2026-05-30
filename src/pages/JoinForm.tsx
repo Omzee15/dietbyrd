@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, CheckCircle2, Heart, Stethoscope, UtensilsCrossed, Activity } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle2, Heart, Stethoscope, UtensilsCrossed } from "lucide-react";
 
 const QUALIFICATION_OPTIONS = [
   "MBBS",
@@ -220,12 +220,6 @@ const JoinForm = () => {
                       <div className="flex items-center gap-2">
                         <UtensilsCrossed className="w-4 h-4" />
                         <span>Registered Dietician (RD)</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="mlt_intern">
-                      <div className="flex items-center gap-2">
-                        <Activity className="w-4 h-4" />
-                        <span>MLT Intern</span>
                       </div>
                     </SelectItem>
                   </SelectContent>

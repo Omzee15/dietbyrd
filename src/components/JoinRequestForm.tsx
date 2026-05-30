@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ArrowLeft, CheckCircle2, Stethoscope, UtensilsCrossed, Phone, MessageSquare, Lock, Eye, EyeOff, Activity } from "lucide-react";
+import { Loader2, ArrowLeft, CheckCircle2, Stethoscope, UtensilsCrossed, Phone, MessageSquare, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 const QUALIFICATION_OPTIONS = [
@@ -451,12 +451,6 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
                 <div className="flex items-center gap-2">
                   <UtensilsCrossed className="w-4 h-4" />
                   <span>Registered Dietician (RD)</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="mlt_intern">
-                <div className="flex items-center gap-2">
-                  <Activity className="w-4 h-4" />
-                  <span>MLT Intern</span>
                 </div>
               </SelectItem>
             </SelectContent>
