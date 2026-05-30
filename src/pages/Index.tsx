@@ -1008,7 +1008,7 @@ const Index = () => {
                   className="w-full mt-4 border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 transition-all"
                   onClick={() => setStep("join-form")}
                 >
-                  Join as Doctor, Dietician, or MLT Intern
+                  Join as Dietician or MLT Intern
                 </Button>
               </div>
             )}

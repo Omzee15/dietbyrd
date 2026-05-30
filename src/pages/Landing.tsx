@@ -1432,7 +1432,7 @@ const Landing = () => {
             <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
               Book Your Consultation
             </button>
-            <button onClick={() => navigate('/login')} className="btn-outline">Join as Doctor / Dietitian / MLT</button>
+            <button onClick={() => navigate('/login')} className="btn-outline">Join as Dietitian / MLT</button>
             <a href="#trust" className="btn-ghost" onClick={scrollTo('trust')}>Contact / Support →</a>
           </div>
           <div ref={addToRefs} className="hero-stats reveal reveal-delay-3">
