@@ -48,24 +48,24 @@ const generateDevOtp = () => {
 const sendOtpViaTwilio = async (phone, channel = "sms") => {
   const toNumber = formatPhoneE164(phone);
   const normalizedChannel = channel === "whatsapp" ? "whatsapp" : "sms";
-  
+
   // Dev mode: generate mock OTP and log it
   if (IS_DEV) {
     const devOtp = generateDevOtp();
     const messageContent = `Your DietByRD verification code is: ${devOtp}. Valid for 5 minutes.`;
-    
+
     console.log(`\n========== DEV MODE OTP ==========`);
     console.log(`Message send to ${toNumber}, message sent : ${messageContent}`);
     console.log(`==================================\n`);
-    
-    return { 
-      verification: { sid: `dev_${Date.now()}`, status: "pending" }, 
-      toNumber, 
+
+    return {
+      verification: { sid: `dev_${Date.now()}`, status: "pending" },
+      toNumber,
       channel: normalizedChannel,
       devOtp // Return OTP for storage
     };
   }
-  
+
   // Production mode: use Twilio Verify
   const service = getTwilioVerifyService();
 
@@ -99,7 +99,7 @@ const TWILIO_TEMPLATE_REFERRAL_SID = process.env.TWILIO_TEMPLATE_REFERRAL_SID ||
 // Send WhatsApp welcome message using approved template (best effort - doesn't fail if message fails)
 const sendWelcomeWhatsApp = async (phone, name, patientId = null) => {
   const messageBody = `Hi ${name || 'there'}! 👋\n\nThank you for joining DietByRD! 🎉\n\nOur team will contact you shortly to guide you through the onboarding process and help you get started on your health journey.\n\nIf you have any questions, feel free to reach out!\n\n- Team DietByRD`;
-  
+
   try {
     if (!twilioClient) {
       console.log("[Welcome] Twilio client not configured, skipping welcome WhatsApp message");
@@ -118,7 +118,7 @@ const sendWelcomeWhatsApp = async (phone, name, patientId = null) => {
 
     const toNumber = `whatsapp:+91${phone.replace(/\D/g, '').replace(/^91/, '')}`;
     const userName = name || 'there';
-    
+
     // Use content template for sending (works outside 24-hour window)
     await twilioClient.messages.create({
       from: TWILIO_WHATSAPP_FROM,
@@ -127,7 +127,7 @@ const sendWelcomeWhatsApp = async (phone, name, patientId = null) => {
       contentVariables: JSON.stringify({ "1": userName })
     });
     console.log(`[Welcome] WhatsApp template message sent to ${toNumber}`);
-    
+
     // Store the sent message
     await storePatientMessage({
       patientId,
@@ -141,7 +141,7 @@ const sendWelcomeWhatsApp = async (phone, name, patientId = null) => {
   } catch (err) {
     // Log but don't fail - welcome message is best effort
     console.log(`[Welcome] WhatsApp send failed: ${err.message}`);
-    
+
     // Store the failed message attempt
     await storePatientMessage({
       patientId,
@@ -263,11 +263,11 @@ const resolveTwilioSmsSender = async () => {
 // Send referral message via WhatsApp using approved template
 const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName, registrationLink }) => {
   const messageBody = `Hello ${patientName || "there"}!\n\nYou have been referred to DietByRD by Dr. ${doctorName || "your doctor"}.\n\nComplete your registration here:\n${registrationLink}\n\n- Team DietByRD`;
-  
+
   // Format phone for WhatsApp
   const cleanPhone = phone.replace(/\D/g, '').replace(/^91/, '');
   const toNumber = `whatsapp:+91${cleanPhone}`;
-  
+
   if (REFERRAL_SMS_MODE !== "twilio") {
     console.log("[Referral WhatsApp][LOG-ONLY] Message flow executed", {
       mode: REFERRAL_SMS_MODE,
@@ -277,7 +277,7 @@ const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName,
       registrationLink,
       body: messageBody,
     });
-    
+
     // Store the message even in log-only mode
     await storePatientMessage({
       patientId,
@@ -288,7 +288,7 @@ const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName,
       status: 'sent',
       metadata: { to: toNumber, mode: 'log_only', doctorName, registrationLink }
     });
-    
+
     return {
       sent: true,
       mode: "log_only",
@@ -299,7 +299,7 @@ const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName,
 
   if (!twilioClient) {
     console.log("[Referral WhatsApp] Skipped: Twilio client not configured");
-    
+
     await storePatientMessage({
       patientId,
       phone,
@@ -309,7 +309,7 @@ const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName,
       status: 'not_sent',
       metadata: { reason: 'twilio_not_configured', doctorName }
     });
-    
+
     return { sent: false, reason: "twilio_not_configured" };
   }
 
@@ -318,7 +318,7 @@ const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName,
     // Template: Hello {{1}}! You have been referred to DietByRD by Dr. {{2}}. Complete your registration here: {{3}}
     // Strip "Dr." prefix from doctorName since template already includes it
     const cleanDoctorName = (doctorName || "your doctor").replace(/^Dr\.?\s*/i, '');
-    
+
     // Try using Messaging Service if available, otherwise fall back to direct from number
     const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
     const msgOptions = {
@@ -330,17 +330,17 @@ const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName,
         "3": registrationLink
       })
     };
-    
+
     if (messagingServiceSid) {
       msgOptions.messagingServiceSid = messagingServiceSid;
     } else {
       msgOptions.from = TWILIO_WHATSAPP_FROM;
     }
-    
+
     const msg = await twilioClient.messages.create(msgOptions);
-    
+
     console.log(`[Referral WhatsApp] Sent successfully to ${toNumber}. SID: ${msg.sid}`);
-    
+
     // Store successful message
     await storePatientMessage({
       patientId,
@@ -351,13 +351,13 @@ const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName,
       status: 'sent',
       metadata: { to: toNumber, sid: msg.sid, templateSid: TWILIO_TEMPLATE_REFERRAL_SID, doctorName }
     });
-    
+
     return { sent: true, sid: msg.sid, toNumber };
   } catch (err) {
     const code = err?.code || "unknown";
     const message = err?.message || "unknown error";
     console.log(`[Referral WhatsApp] Failed for ${toNumber}. code=${code} message=${message}`);
-    
+
     // Store failed message attempt
     await storePatientMessage({
       patientId,
@@ -368,7 +368,7 @@ const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName,
       status: 'failed',
       metadata: { to: toNumber, error: message, errorCode: code, doctorName }
     });
-    
+
     return { sent: false, reason: "twilio_send_failed", code, message };
   }
 };
@@ -387,7 +387,7 @@ const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doct
       registrationLink,
       body,
     });
-    
+
     // Store the message even in log-only mode
     await storePatientMessage({
       patientId,
@@ -398,7 +398,7 @@ const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doct
       status: 'sent',
       metadata: { to: toNumber, mode: 'log_only', doctorName, registrationLink }
     });
-    
+
     return {
       sent: true,
       mode: "log_only",
@@ -409,7 +409,7 @@ const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doct
 
   if (!twilioClient) {
     console.log("[Referral SMS] Skipped: Twilio client not configured");
-    
+
     await storePatientMessage({
       patientId,
       phone,
@@ -419,14 +419,14 @@ const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doct
       status: 'not_sent',
       metadata: { reason: 'twilio_not_configured', doctorName }
     });
-    
+
     return { sent: false, reason: "twilio_not_configured" };
   }
 
   const sender = await resolveTwilioSmsSender();
   if (!sender) {
     console.log("[Referral SMS] Skipped: missing SMS sender (env and account number not available)");
-    
+
     await storePatientMessage({
       patientId,
       phone,
@@ -436,7 +436,7 @@ const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doct
       status: 'not_sent',
       metadata: { reason: 'missing_sms_sender', doctorName }
     });
-    
+
     return { sent: false, reason: "missing_sms_sender" };
   }
 
@@ -449,7 +449,7 @@ const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doct
 
     const msg = await twilioClient.messages.create(payload);
     console.log(`[Referral SMS] Sent successfully to ${toNumber}. SID: ${msg.sid}. senderSource=${sender.source}`);
-    
+
     // Store successful message
     await storePatientMessage({
       patientId,
@@ -460,13 +460,13 @@ const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doct
       status: 'sent',
       metadata: { to: toNumber, sid: msg.sid, senderSource: sender.source, doctorName }
     });
-    
+
     return { sent: true, sid: msg.sid, toNumber, senderSource: sender.source };
   } catch (err) {
     const code = err?.code || "unknown";
     const message = err?.message || "unknown error";
     console.log(`[Referral SMS] Failed for ${toNumber}. code=${code} message=${message}`);
-    
+
     // Store failed message attempt
     await storePatientMessage({
       patientId,
@@ -477,7 +477,7 @@ const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doct
       status: 'failed',
       metadata: { to: toNumber, error: message, errorCode: code, doctorName }
     });
-    
+
     return { sent: false, reason: "twilio_send_failed", code, message };
   }
 };
@@ -536,12 +536,12 @@ const storePatientMessage = async ({ patientId, phone, messageType, channel, con
         patientId = result.rows[0].id;
       }
     }
-    
+
     if (!patientId) {
       console.log(`[Message Store] Skipped: Could not find patient for phone ${phone}`);
       return { stored: false, reason: "patient_not_found" };
     }
-    
+
     const message = {
       id: crypto.randomUUID(),
       type: messageType, // 'referral_sms', 'welcome_whatsapp', 'otp', etc.
@@ -552,14 +552,14 @@ const storePatientMessage = async ({ patientId, phone, messageType, channel, con
       sent_by: 'system',
       ...metadata
     };
-    
+
     await getPool().query(
       `UPDATE dietbyrd_patients
        SET patient_messages = COALESCE(patient_messages, '[]'::jsonb) || $2::jsonb
        WHERE id = $1`,
       [patientId, JSON.stringify([message])]
     );
-    
+
     console.log(`[Message Store] Stored ${messageType} message for patient ${patientId}`);
     return { stored: true, patientId, messageId: message.id };
   } catch (err) {
@@ -568,26 +568,48 @@ const storePatientMessage = async ({ patientId, phone, messageType, channel, con
   }
 };
 
+const normalizePhoneDigits = (value) => String(value || "").replace(/\D/g, "");
+
+const buildPhoneVariants = (value) => {
+  const input = String(value || "").trim();
+  const digits = normalizePhoneDigits(input);
+  const lastTenDigits = digits.length >= 10 ? digits.slice(-10) : digits;
+
+  return [...new Set([
+    input,
+    digits,
+    lastTenDigits,
+    lastTenDigits ? `+91${lastTenDigits}` : "",
+    lastTenDigits ? `91${lastTenDigits}` : "",
+  ].filter(Boolean))];
+};
+
+const normalizePhoneForStorage = (value) => {
+  const digits = normalizePhoneDigits(value);
+  if (!digits) return "";
+  return digits.length > 10 ? digits.slice(-10) : digits;
+};
+
 // Format phone number for E.164 (assumes Indian numbers if no country code)
 const formatPhoneE164 = (phone) => {
   // Remove all non-digit characters
-  let cleaned = phone.replace(/\D/g, '');
-  
+  let cleaned = normalizePhoneDigits(phone);
+
   // If starts with 0, remove it
   if (cleaned.startsWith('0')) {
     cleaned = cleaned.substring(1);
   }
-  
+
   // If 10 digits (Indian mobile), add +91
   if (cleaned.length === 10) {
     return `+91${cleaned}`;
   }
-  
+
   // If already has country code (11+ digits), just add +
   if (cleaned.length > 10) {
     return `+${cleaned}`;
   }
-  
+
   // Fallback
   return `+91${cleaned}`;
 };
@@ -630,37 +652,37 @@ const generateRegistrationToken = (patientData) => {
     diagnosisDescription: patientData.diagnosis_description,
     timestamp: Date.now()
   };
-  
+
   const payloadJson = JSON.stringify(payload);
   const payloadBase64 = Buffer.from(payloadJson).toString('base64');
-  
+
   const hmac = crypto.createHmac('sha256', TOKEN_SECRET);
   hmac.update(payloadBase64);
   const signature = hmac.digest('hex').substring(0, 32);
-  
+
   return `${payloadBase64}.${signature}`;
 };
 
 const verifyRegistrationToken = (token) => {
   try {
     const [payloadBase64, signature] = token.split('.');
-    
+
     const hmac = crypto.createHmac('sha256', TOKEN_SECRET);
     hmac.update(payloadBase64);
     const expectedSignature = hmac.digest('hex').substring(0, 32);
-    
+
     if (signature !== expectedSignature) {
       throw new Error('Invalid token signature');
     }
-    
+
     const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf-8');
     const payload = JSON.parse(payloadJson);
-    
+
     // Check if token is still valid (48 hours)
     if (Date.now() - payload.timestamp > TOKEN_EXPIRY) {
       throw new Error('Token expired');
     }
-    
+
     return payload;
   } catch (err) {
     throw new Error(`Invalid or expired registration token: ${err.message}`);
@@ -673,7 +695,7 @@ const getPool = () => {
   if (!pool) {
     const dbUrl = process.env.DATABASE_URL || '';
     const useSSL = dbUrl.includes('sslmode=require') || dbUrl.includes('.neon.tech');
-    
+
     pool = new Pool({
       connectionString: dbUrl,
       ssl: useSSL ? { rejectUnauthorized: false } : false,
@@ -863,10 +885,10 @@ const verifyOtpFromDb = async (phone, otp, purpose = 'login') => {
   if (stored.otp !== otp) {
     return { valid: false, error: "Invalid OTP" };
   }
-  
+
   // Mark as verified and return pending data
   await query(`UPDATE dietbyrd_otps SET verified = TRUE WHERE id = $1`, [stored.id]);
-  
+
   return { valid: true, pendingData: stored.pending_data };
 };
 
@@ -894,15 +916,16 @@ app.get("/api/health", async (_req, res) => {
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { phone, password } = req.body;
-    
+
     if (!phone || !password) {
       return res.status(400).json({ success: false, error: "Phone and password required" });
     }
 
     // Find user by phone (now includes name and is_verified)
+    const variants = buildPhoneVariants(phone);
     const userResult = await query(
-      "SELECT id, phone, role, name, password, is_active, is_verified FROM dietbyrd_users WHERE phone = $1",
-      [phone]
+      "SELECT id, phone, role, name, password, is_active, is_verified FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [variants]
     );
 
     if (userResult.rows.length === 0) {
@@ -920,7 +943,12 @@ app.post("/api/auth/login", async (req, res) => {
     // (plain-text passwords are re-hashed on successful login for seamless migration)
     let isValidPassword = false;
     if (!user.password) {
-      isValidPassword = password === "helloworld";
+      const legacyPasswords = new Set(["helloworld", "hello world"]);
+      isValidPassword = legacyPasswords.has(String(password));
+      if (isValidPassword) {
+        const hashed = await bcrypt.hash(String(password), BCRYPT_ROUNDS);
+        await query("UPDATE dietbyrd_users SET password = $1 WHERE id = $2", [hashed, user.id]);
+      }
     } else if (user.password.startsWith("$2b$") || user.password.startsWith("$2a$")) {
       isValidPassword = await bcrypt.compare(password, user.password);
     } else {
@@ -1054,19 +1082,6 @@ app.post("/api/auth/forgot-password", async (req, res) => {
       });
     }
 
-    const buildPhoneVariants = (value) => {
-      const digits = value.replace(/\D/g, "");
-      const lastTenDigits = digits.length >= 10 ? digits.slice(-10) : digits;
-
-      return [...new Set([
-        value,
-        digits,
-        lastTenDigits,
-        lastTenDigits ? `+91${lastTenDigits}` : "",
-        lastTenDigits ? `91${lastTenDigits}` : "",
-      ].filter(Boolean))];
-    };
-
     let userResult;
     if (input.includes("@")) {
       userResult = await query(
@@ -1150,19 +1165,25 @@ app.post("/api/auth/reset-password", async (req, res) => {
 app.post("/api/auth/signup", async (req, res) => {
   try {
     const { phone, password, name } = req.body;
-    
+
     if (!phone || !password) {
       return res.status(400).json({ success: false, error: "Phone and password are required" });
     }
-    
+
     if (password.length < 6) {
       return res.status(400).json({ success: false, error: "Password must be at least 6 characters" });
     }
 
+    const normalizedPhone = normalizePhoneForStorage(phone);
+    if (!normalizedPhone) {
+      return res.status(400).json({ success: false, error: "Phone and password are required" });
+    }
+
     // Check if user already exists
+    const variants = buildPhoneVariants(phone);
     const existingUser = await query(
-      "SELECT id FROM dietbyrd_users WHERE phone = $1",
-      [phone]
+      "SELECT id FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [variants]
     );
 
     if (existingUser.rows.length > 0) {
@@ -1175,7 +1196,7 @@ app.post("/api/auth/signup", async (req, res) => {
       `INSERT INTO dietbyrd_users (phone, password, role, name, is_active)
        VALUES ($1, $2, 'patient', $3, true)
        RETURNING id, phone, role, name`,
-      [phone, hashedPassword, name || null]
+      [normalizedPhone, hashedPassword, name || null]
     );
     const user = userResult.rows[0];
 
@@ -1184,7 +1205,7 @@ app.post("/api/auth/signup", async (req, res) => {
       `INSERT INTO dietbyrd_patients (user_id, phone, name, referral_source)
        VALUES ($1, $2, $3, 'content')
        RETURNING id`,
-      [user.id, phone, name || null]
+      [user.id, normalizedPhone, name || null]
     );
 
     res.status(201).json({
@@ -1209,17 +1230,7 @@ app.post("/api/auth/check-phone", async (req, res) => {
       return res.status(400).json({ success: false, error: "Phone is required" });
     }
 
-    const input = String(phone).trim();
-    const digits = input.replace(/\D/g, "");
-    const lastTenDigits = digits.length >= 10 ? digits.slice(-10) : digits;
-
-    const variants = [...new Set([
-      input,
-      digits,
-      lastTenDigits,
-      lastTenDigits ? `+91${lastTenDigits}` : "",
-      lastTenDigits ? `91${lastTenDigits}` : "",
-    ].filter(Boolean))];
+    const variants = buildPhoneVariants(phone);
 
     const existing = await query(
       "SELECT id, role, name FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
@@ -1243,18 +1254,22 @@ app.post("/api/auth/check-phone", async (req, res) => {
     const userRole = existing.rows[0].role;
     const userName = existing.rows[0].name || null;
 
-    const referralInfo = await query(
-      `SELECT d.name AS doctor_name
-       FROM dietbyrd_patients p
-       INNER JOIN dietbyrd_referrals r ON r.patient_id = p.id
-       INNER JOIN dietbyrd_doctors d ON d.id = r.doctor_id
-       WHERE p.user_id = $1 OR p.phone = ANY($2::text[])
-       ORDER BY r.referred_at DESC
-       LIMIT 1`,
-      [userId, variants]
-    );
-
-    const referredByDoctorName = referralInfo.rows[0]?.doctor_name || null;
+    let referredByDoctorName = null;
+    try {
+      const referralInfo = await query(
+        `SELECT d.name AS doctor_name
+         FROM dietbyrd_patients p
+         INNER JOIN dietbyrd_referrals r ON r.patient_id = p.id
+         INNER JOIN dietbyrd_doctors d ON d.id = r.doctor_id
+         WHERE p.user_id = $1 OR p.phone = ANY($2::text[])
+         ORDER BY r.referred_at DESC
+         LIMIT 1`,
+        [userId, variants]
+      );
+      referredByDoctorName = referralInfo.rows[0]?.doctor_name || null;
+    } catch (err) {
+      console.log(`[Auth] Referral lookup skipped: ${err?.message || "unknown error"}`);
+    }
 
     return res.json({
       success: true,
@@ -1310,33 +1325,39 @@ app.post("/api/auth/send-otp", async (req, res) => {
     }
 
     // Check if user exists
+    const variants = buildPhoneVariants(phone);
     let userResult = await query(
-      "SELECT id, phone, is_active FROM dietbyrd_users WHERE phone = $1",
-      [phone]
+      "SELECT id, phone, is_active FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [variants]
     );
 
     // If user doesn't exist, create a new patient account
     if (userResult.rows.length === 0) {
       console.log(`[OTP] New phone number detected: ${phone}. Creating patient account...`);
-      
+
       try {
+        const normalizedPhone = normalizePhoneForStorage(phone);
+        if (!normalizedPhone) {
+          return res.status(400).json({ success: false, error: "Phone number is required" });
+        }
+
         // Create user with patient role
         const newUserResult = await query(
           `INSERT INTO dietbyrd_users (phone, role, is_active)
            VALUES ($1, 'patient', true)
            RETURNING id, phone, is_active`,
-          [phone]
+          [normalizedPhone]
         );
-        
+
         const newUser = newUserResult.rows[0];
-        
+
         // Create patient record
         await query(
           `INSERT INTO dietbyrd_patients (user_id, phone, referral_source)
            VALUES ($1, $2, 'doctor')`,
-          [newUser.id, phone]
+          [newUser.id, normalizedPhone]
         );
-        
+
         console.log(`[OTP] Created new patient account for ${phone}, user_id: ${newUser.id}`);
         userResult = newUserResult; // Update userResult with the newly created user
       } catch (createErr) {
@@ -1352,19 +1373,19 @@ app.post("/api/auth/send-otp", async (req, res) => {
 
     // Send OTP using Twilio Verify (or mock in dev mode)
     console.log(`[OTP] Sending login OTP to ${phone} via ${channel}`);
-    
+
     try {
       const result = await sendOtpViaTwilio(phone, channel);
       const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
-      
+
       // In dev mode, store the OTP for verification
       if (IS_DEV && devOtp) {
         await storeOtp(phone, devOtp, 'login');
       }
-      
+
       console.log(`[OTP] Verification sent, SID: ${verification.sid}, Status: ${verification.status}`);
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
         to: toNumber,
         expiresIn: 120 // OTPs expire in 2 minutes
@@ -1396,48 +1417,38 @@ app.post("/api/auth/send-otp-registration", async (req, res) => {
     }
 
     // Check if user already exists
-    const userResult = await query(
-      "SELECT id FROM dietbyrd_users WHERE phone = $1",
-      [phone]
-    );
-
-    if (userResult.rows.length > 0) {
-      return res.status(409).json({ success: false, error: "Phone number already registered. Please login instead." });
-    }
-
-    // Just send OTP without creating any account
-    console.log(`[OTP] Sending registration OTP to ${phone} via ${channel}`);
-    
+    const variants = buildPhoneVariants(input);
     try {
       const result = await sendOtpViaTwilio(phone, channel);
       const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
-      
+
       // In dev mode, store the OTP for verification
       if (IS_DEV && devOtp) {
         await storeOtp(phone, devOtp, 'login');
       }
-      
-      console.log(`[OTP] Registration verification sent, SID: ${verification.sid}, Status: ${verification.status}`);
-      return res.json({ 
-        success: true, 
-        message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
+      const variants = buildPhoneVariants(input);
+      userResult = await query(
+        "SELECT id, phone, email FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+        [variants]
+      );
+      message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
         to: toNumber,
-        expiresIn: 120
-      });
+          expiresIn: 120
+    });
     } catch (twilioErr) {
-      console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
-      return res.status(500).json({ success: false, error: "Failed to send OTP. Please try again." });
-    }
+  console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
+  return res.status(500).json({ success: false, error: "Failed to send OTP. Please try again." });
+}
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+  res.status(500).json({ success: false, error: err.message });
+}
 });
 
 // Verify OTP and login
 app.post("/api/auth/verify-otp", async (req, res) => {
   try {
     const { phone, otp } = req.body;
-    
+
     if (!phone || !otp) {
       return res.status(400).json({ success: false, error: "Phone and OTP are required" });
     }
@@ -1452,7 +1463,7 @@ app.post("/api/auth/verify-otp", async (req, res) => {
     } else {
       try {
         const verificationCheck = await verifyOtpViaTwilio(phone, otp);
-        
+
         if (verificationCheck.status !== "approved") {
           return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
         }
@@ -1463,20 +1474,21 @@ app.post("/api/auth/verify-otp", async (req, res) => {
     }
 
     // Find user and login
+    const variants = buildPhoneVariants(phone);
     const userResult = await query(
-      "SELECT id, phone, role, name, is_active, is_verified FROM dietbyrd_users WHERE phone = $1",
-      [phone]
+      "SELECT id, phone, role, name, is_active, is_verified FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [variants]
     );
 
     // If user doesn't exist, this is a new patient - they need to complete welcome form
     if (userResult.rows.length === 0) {
-      return res.json({ 
-        success: true, 
-        data: { 
-          isNewPatient: true, 
+      return res.json({
+        success: true,
+        data: {
+          isNewPatient: true,
           phone: phone,
-          requiresWelcomeForm: true 
-        } 
+          requiresWelcomeForm: true
+        }
       });
     }
 
@@ -1489,25 +1501,25 @@ app.post("/api/auth/verify-otp", async (req, res) => {
     // For patients, check if they have completed their profile
     if (user.role === "patient") {
       const patientResult = await query(
-        "SELECT id, name, age, gender FROM dietbyrd_patients WHERE user_id = $1", 
+        "SELECT id, name, age, gender FROM dietbyrd_patients WHERE user_id = $1",
         [user.id]
       );
-      
+
       // If patient profile doesn't exist or is incomplete, show welcome form
       if (patientResult.rows.length === 0) {
-        return res.json({ 
-          success: true, 
-          data: { 
-            isNewPatient: true, 
+        return res.json({
+          success: true,
+          data: {
+            isNewPatient: true,
             phone: phone,
             requiresWelcomeForm: true,
             userId: user.id
-          } 
+          }
         });
       }
-      
+
       const patientProfile = patientResult.rows[0];
-      
+
       // Only prompt welcome form if patient has no name at all (truly first time)
       if (!patientProfile.name) {
         return res.json({
@@ -1567,13 +1579,13 @@ app.post("/api/auth/verify-otp", async (req, res) => {
 // Complete patient welcome form for new patients
 app.post("/api/auth/complete-welcome", async (req, res) => {
   try {
-    const { 
-      phone, 
+    const {
+      phone,
       name,
       email,
-      age, 
-      gender, 
-      diagnosis, 
+      age,
+      gender,
+      diagnosis,
       diagnosisDescription,
       allergies,
       height,
@@ -1581,15 +1593,21 @@ app.post("/api/auth/complete-welcome", async (req, res) => {
       workoutFrequency,
       dietaryPreference
     } = req.body;
-    
+
     if (!phone || !name) {
+      return res.status(400).json({ success: false, error: "Phone and name are required" });
+    }
+
+    const variants = buildPhoneVariants(phone);
+    const normalizedPhone = normalizePhoneForStorage(phone);
+    if (!normalizedPhone) {
       return res.status(400).json({ success: false, error: "Phone and name are required" });
     }
 
     // Check if user already exists
     const existingUser = await query(
-      "SELECT id, phone, role, name, is_active, is_verified FROM dietbyrd_users WHERE phone = $1",
-      [phone]
+      "SELECT id, phone, role, name, is_active, is_verified FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [variants]
     );
 
     let userId, userPhone, userRole, userName;
@@ -1601,7 +1619,7 @@ app.post("/api/auth/complete-welcome", async (req, res) => {
       userPhone = user.phone;
       userRole = user.role;
       userName = name; // Use the provided name from the form
-      
+
       // Update user name and email if they weren't set
       if (!user.name || email) {
         await query(
@@ -1615,7 +1633,7 @@ app.post("/api/auth/complete-welcome", async (req, res) => {
         `INSERT INTO dietbyrd_users (phone, role, name, email, is_active, is_verified) 
          VALUES ($1, 'patient', $2, $3, true, true) 
          RETURNING id, phone, role, name, is_active, is_verified`,
-        [phone, name, email]
+        [normalizedPhone, name, email]
       );
 
       const newUser = userResult.rows[0];
@@ -1735,9 +1753,10 @@ app.post("/api/auth/verify-otp-only", async (req, res) => {
       }
     }
 
+    const variants = buildPhoneVariants(phone);
     const userResult = await query(
-      "SELECT id, is_active FROM dietbyrd_users WHERE phone = $1",
-      [phone]
+      "SELECT id, is_active FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [variants]
     );
 
     if (userResult.rows.length === 0) {
@@ -1773,7 +1792,7 @@ app.post("/api/auth/verify-otp-registration", async (req, res) => {
     } else {
       try {
         const verificationCheck = await verifyOtpViaTwilio(phone, otp);
-        
+
         if (verificationCheck.status !== "approved") {
           return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
         }
@@ -1816,9 +1835,10 @@ app.post("/api/auth/set-password-after-otp", async (req, res) => {
       }
     }
 
+    const variants = buildPhoneVariants(phone);
     const userResult = await query(
-      "SELECT id, phone, role, name, is_active, is_verified FROM dietbyrd_users WHERE phone = $1",
-      [phone]
+      "SELECT id, phone, role, name, is_active, is_verified FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [variants]
     );
 
     if (userResult.rows.length === 0) {
@@ -1888,7 +1908,12 @@ app.post("/api/auth/signup/send-otp", async (req, res) => {
       return res.status(400).json({ success: false, error: "Password must be at least 6 characters" });
     }
 
-    const rateCheck = checkOtpRateLimit(phone);
+    const normalizedPhone = normalizePhoneForStorage(phone);
+    if (!normalizedPhone) {
+      return res.status(400).json({ success: false, error: "Phone and password are required" });
+    }
+
+    const rateCheck = checkOtpRateLimit(normalizedPhone);
     if (!rateCheck.allowed) {
       return res.status(429).json({
         success: false,
@@ -1897,9 +1922,10 @@ app.post("/api/auth/signup/send-otp", async (req, res) => {
     }
 
     // Check if user already exists
+    const variants = buildPhoneVariants(phone);
     const existingUser = await query(
-      "SELECT id FROM dietbyrd_users WHERE phone = $1",
-      [phone]
+      "SELECT id FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [variants]
     );
 
     if (existingUser.rows.length > 0) {
@@ -1907,28 +1933,28 @@ app.post("/api/auth/signup/send-otp", async (req, res) => {
     }
 
     // Send OTP using Twilio Verify (or mock in dev mode)
-    console.log(`[OTP] Sending signup OTP to ${phone} via ${channel}`);
-    
+    console.log(`[OTP] Sending signup OTP to ${normalizedPhone} via ${channel}`);
+
     try {
-      const result = await sendOtpViaTwilio(phone, channel);
+      const result = await sendOtpViaTwilio(normalizedPhone, channel);
       const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
-      
+
       // Hash password before storing in pending data
       const hashedSignupPw = await bcrypt.hash(password, BCRYPT_ROUNDS);
-      const pendingData = { phone, password: hashedSignupPw, name };
+      const pendingData = { phone: normalizedPhone, password: hashedSignupPw, name };
       // In dev mode, store the actual OTP; in production, Twilio handles it
-      await storeOtp(phone, devOtp || "", 'signup', pendingData);
-      
+      await storeOtp(normalizedPhone, devOtp || "", 'signup', pendingData);
+
       console.log(`[OTP] Verification sent, SID: ${verification.sid}, Status: ${verification.status}`);
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
         to: toNumber,
         expiresIn: 120
       });
     } catch (twilioErr) {
       console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
-      await clearOtp(phone, 'signup');
+      await clearOtp(normalizedPhone, 'signup');
       return res.status(500).json({ success: false, error: "Failed to send OTP. Please try again." });
     }
   } catch (err) {
@@ -1940,21 +1966,26 @@ app.post("/api/auth/signup/send-otp", async (req, res) => {
 app.post("/api/auth/signup/verify-otp", async (req, res) => {
   try {
     const { phone, otp } = req.body;
-    
+
     if (!phone || !otp) {
+      return res.status(400).json({ success: false, error: "Phone and OTP are required" });
+    }
+
+    const normalizedPhone = normalizePhoneForStorage(phone);
+    if (!normalizedPhone) {
       return res.status(400).json({ success: false, error: "Phone and OTP are required" });
     }
 
     // Verify OTP - use local DB in dev mode, Twilio in production
     if (IS_DEV) {
-      const verifyResult = await verifyOtpFromDb(phone, otp, 'signup');
+      const verifyResult = await verifyOtpFromDb(normalizedPhone, otp, 'signup');
       if (!verifyResult.valid) {
         return res.status(400).json({ success: false, error: verifyResult.error || "Invalid OTP." });
       }
     } else {
       try {
-        const verificationCheck = await verifyOtpViaTwilio(phone, otp);
-        
+        const verificationCheck = await verifyOtpViaTwilio(normalizedPhone, otp);
+
         if (verificationCheck.status !== "approved") {
           return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
         }
@@ -1968,26 +1999,27 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
     await ensureOtpTable();
     const pendingResult = await query(
       "SELECT pending_data FROM dietbyrd_otps WHERE phone = $1 AND purpose = 'signup'",
-      [phone]
+      [normalizedPhone]
     );
-    
+
     if (pendingResult.rows.length === 0 || !pendingResult.rows[0].pending_data) {
       return res.status(400).json({ success: false, error: "Signup session expired. Please try again." });
     }
-    
+
     const pendingData = pendingResult.rows[0].pending_data;
     if (!pendingData.phone || !pendingData.password) {
-      await clearOtp(phone, 'signup');
+      await clearOtp(normalizedPhone, 'signup');
       return res.status(400).json({ success: false, error: "Signup data not found. Please try again." });
     }
 
     // Clear pending data
-    await clearOtp(phone, 'signup');
+    await clearOtp(normalizedPhone, 'signup');
 
     // Double-check user doesn't exist (race condition protection)
+    const variants = buildPhoneVariants(normalizedPhone);
     const existingUser = await query(
-      "SELECT id FROM dietbyrd_users WHERE phone = $1",
-      [phone]
+      "SELECT id FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [variants]
     );
 
     if (existingUser.rows.length > 0) {
@@ -2010,7 +2042,7 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
        RETURNING id`,
       [user.id, pendingData.phone, pendingData.name || null]
     );
-    
+
     const patientId = patientResult.rows[0].id;
 
     // Send welcome WhatsApp message (best effort - async, don't wait)
@@ -2038,30 +2070,30 @@ app.post("/api/join-requests", async (req, res) => {
     const { phone, password, name, email, role, qualification, clinic_name, clinic_address, specializations, about_yourself } = req.body;
 
     if (!phone || !password || !name || !role) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Phone, password, name, and role are required" 
+      return res.status(400).json({
+        success: false,
+        error: "Phone, password, name, and role are required"
       });
     }
-    
+
     if (!["doctor", "rd"].includes(role)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Role must be 'doctor' or 'rd'" 
+      return res.status(400).json({
+        success: false,
+        error: "Role must be 'doctor' or 'rd'"
       });
     }
-    
+
     if (role === "doctor" && !qualification) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Qualification is required for doctors" 
+      return res.status(400).json({
+        success: false,
+        error: "Qualification is required for doctors"
       });
     }
-    
+
     if (role === "rd" && !qualification) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Qualification is required for dieticians" 
+      return res.status(400).json({
+        success: false,
+        error: "Qualification is required for dieticians"
       });
     }
 
@@ -2110,8 +2142,8 @@ app.post("/api/join-requests", async (req, res) => {
       [phone, hashedJoinPw, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, about_yourself || null, userId]
     );
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       data: result.rows[0],
       message: "Your request has been submitted. You can now login to check your verification status."
     });
@@ -2187,7 +2219,7 @@ app.get("/api/join-requests", async (req, res) => {
       sql += ` WHERE jr.status = $${params.length}`;
     }
     sql += ` ORDER BY jr.created_at DESC`;
-    
+
     const result = await query(sql, params);
     res.json({ success: true, data: result.rows });
   } catch (err) {
@@ -2431,7 +2463,7 @@ app.patch("/api/join-requests/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const { action, reviewed_by, rejection_reason, admin_message, commission_rate } = req.body;
-    
+
     if (!action || !["approve", "reject"].includes(action)) {
       return res.status(400).json({ success: false, error: "Action must be 'approve' or 'reject'" });
     }
@@ -2468,7 +2500,7 @@ app.patch("/api/join-requests/:id", async (req, res) => {
 
     // Approve: Verify the user and create the profile
     let userId = joinRequest.user_id;
-    
+
     if (userId) {
       // User was created at join request time - just verify them
       await query(
@@ -2484,7 +2516,7 @@ app.patch("/api/join-requests/:id", async (req, res) => {
         [joinRequest.phone, joinRequest.password, joinRequest.requested_role, joinRequest.name]
       );
       userId = userResult.rows[0].id;
-      
+
       // Link user to join request
       await query("UPDATE dietbyrd_join_requests SET user_id = $1 WHERE id = $2", [userId, id]);
     }
@@ -2498,21 +2530,21 @@ app.patch("/api/join-requests/:id", async (req, res) => {
       );
     } else if (joinRequest.requested_role === "rd") {
       // Prepare specializations for JSONB column
-      const specializationsValue = joinRequest.specializations 
-        ? (typeof joinRequest.specializations === 'string' 
-            ? joinRequest.specializations  // Already a JSON string
-            : JSON.stringify(joinRequest.specializations))  // Object from DB, needs stringify
+      const specializationsValue = joinRequest.specializations
+        ? (typeof joinRequest.specializations === 'string'
+          ? joinRequest.specializations  // Already a JSON string
+          : JSON.stringify(joinRequest.specializations))  // Object from DB, needs stringify
         : null;
-      
+
       const rdResult = await query(
         `INSERT INTO dietbyrd_registered_dietitians (user_id, name, qualification, specializations, clinic_name, clinic_address, is_active)
          VALUES ($1, $2, $3, $4::jsonb, $5, $6, true)
          RETURNING id`,
         [userId, joinRequest.name, joinRequest.qualification, specializationsValue, joinRequest.clinic_name || null, joinRequest.clinic_address || null]
       );
-      
+
       const rdId = rdResult.rows[0].id;
-      
+
       // Create default availability: Monday-Friday, 9 AM - 5 PM
       const defaultAvailability = [];
       for (let day = 1; day <= 5; day++) { // 1=Monday, 5=Friday
@@ -2524,7 +2556,7 @@ app.patch("/api/join-requests/:id", async (req, res) => {
           )
         );
       }
-      
+
       // Execute all availability inserts
       await Promise.all(defaultAvailability);
       console.log(`[Dietician] Created default availability (Mon-Fri, 9-5) for RD ID: ${rdId}`);
@@ -2539,7 +2571,7 @@ app.patch("/api/join-requests/:id", async (req, res) => {
     );
 
     // Notify the applicant — best effort, never blocks the response
-    sendJoinApprovalNotification(joinRequest.phone, joinRequest.name, joinRequest.requested_role).catch(() => {});
+    sendJoinApprovalNotification(joinRequest.phone, joinRequest.name, joinRequest.requested_role).catch(() => { });
 
     res.json({ success: true, message: `${joinRequest.requested_role === "doctor" ? "Doctor" : "Dietician"} account verified successfully` });
   } catch (err) {
@@ -2729,7 +2761,7 @@ app.delete("/api/patients/:id(\\d+)", async (req, res) => {
       await query(
         "DELETE FROM dietbyrd_subscriptions WHERE registered_patient_id = $1",
         [regId]
-      ).catch(() => {}); // ignore if table doesn't exist
+      ).catch(() => { }); // ignore if table doesn't exist
     }
 
     // Delete ticket comments → tickets
@@ -2744,7 +2776,7 @@ app.delete("/api/patients/:id(\\d+)", async (req, res) => {
     await query("DELETE FROM dietbyrd_referrals WHERE patient_id = $1", [id]);
 
     // Delete coupon usage (payments table itself is kept — it has ON DELETE SET NULL)
-    await query("DELETE FROM dietbyrd_coupon_usage WHERE patient_id = $1", [id]).catch(() => {});
+    await query("DELETE FROM dietbyrd_coupon_usage WHERE patient_id = $1", [id]).catch(() => { });
 
     // Delete registered_patient row (payments FK already SET NULL)
     if (regId) {
@@ -2771,24 +2803,24 @@ app.delete("/api/patients/:id(\\d+)", async (req, res) => {
 app.get("/api/patients/:id(\\d+)/messages", async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const result = await query(
       `SELECT COALESCE(patient_messages, '[]'::jsonb) AS messages
        FROM dietbyrd_patients
        WHERE id = $1`,
       [id]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Patient not found" });
     }
-    
+
     // Return messages sorted by sent_at descending (newest first)
     const messages = result.rows[0].messages || [];
-    const sortedMessages = Array.isArray(messages) 
+    const sortedMessages = Array.isArray(messages)
       ? messages.sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at))
       : [];
-    
+
     res.json({ success: true, data: sortedMessages });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2875,7 +2907,7 @@ app.post("/api/patients/:id(\\d+)/assign-dietician", async (req, res) => {
   try {
     const { id } = req.params;
     const { dietician_id } = req.body;
-    
+
     if (!dietician_id) {
       return res.status(400).json({ success: false, error: "dietician_id is required" });
     }
@@ -2897,7 +2929,7 @@ app.post("/api/patients/:id(\\d+)/assign-dietician", async (req, res) => {
 
     // Check if registered_patient record exists
     const regPatient = await query("SELECT id FROM dietbyrd_registered_patients WHERE patient_id = $1", [id]);
-    
+
     let result;
     if (regPatient.rows.length === 0) {
       // Create registered_patient record with dietician assignment
@@ -2924,8 +2956,8 @@ app.post("/api/patients/:id(\\d+)/assign-dietician", async (req, res) => {
       [dietician_id]
     );
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: {
         ...result.rows[0],
         dietician_name: dieticianInfo.rows[0]?.name
@@ -3378,7 +3410,7 @@ app.post("/api/referrals", async (req, res) => {
 
     let patientId;
     let isNewPatient = false;
-    
+
     // Check if patient already exists
     const existingPatient = await query(`SELECT id FROM dietbyrd_patients WHERE phone = $1`, [phone]);
 
@@ -3386,11 +3418,11 @@ app.post("/api/referrals", async (req, res) => {
       patientId = existingPatient.rows[0].id;
     } else {
       isNewPatient = true;
-      
+
       // First, create (or get existing) user entry
       let userId;
       const existingUser = await query(`SELECT id FROM dietbyrd_users WHERE phone = $1`, [phone]);
-      
+
       if (existingUser.rows.length > 0) {
         userId = existingUser.rows[0].id;
       } else {
@@ -3403,7 +3435,7 @@ app.post("/api/referrals", async (req, res) => {
         );
         userId = newUser.rows[0].id;
       }
-      
+
       // Now create the patient entry with user_id
       const newPatient = await query(
         `INSERT INTO dietbyrd_patients (user_id, name, phone, diagnosis, diagnosis_description, referral_source)
@@ -3462,14 +3494,14 @@ app.post("/api/referrals", async (req, res) => {
       referralMessageStatus = { sent: false, reason: "token_generation_failed", message: tokenErr.message };
     }
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       data: {
         ...referral.rows[0],
         patient_id: patientId,
         is_new_patient: isNewPatient,
         referral_message: referralMessageStatus,
-        message: isNewPatient 
+        message: isNewPatient
           ? "New patient created and referred successfully. Registration WhatsApp has been sent."
           : "Existing patient referred successfully."
       }
@@ -3561,7 +3593,7 @@ app.get("/api/patients/lookup-phone", async (req, res) => {
        LIMIT 10`,
       [`${phone}%`, `91${phone}%`]
     );
-    
+
     res.json({ success: true, data: result.rows });
   } catch (err) {
     const error = err || {};
@@ -3650,11 +3682,11 @@ app.get("/api/patients/:id(\\d+)/diet-plans", async (req, res) => {
 app.post("/api/diet-plans", async (req, res) => {
   try {
     const { patient_id, rd_id, plan_json, consultation_id } = req.body;
-    
+
     if (!patient_id || !rd_id || !plan_json) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "patient_id, rd_id, and plan_json are required" 
+      return res.status(400).json({
+        success: false,
+        error: "patient_id, rd_id, and plan_json are required"
       });
     }
 
@@ -3663,7 +3695,7 @@ app.post("/api/diet-plans", async (req, res) => {
       "SELECT id FROM dietbyrd_registered_patients WHERE patient_id = $1",
       [patient_id]
     );
-    
+
     let registeredPatientId;
     if (regPatientResult.rows.length === 0) {
       // Create registered_patient record
@@ -3720,13 +3752,13 @@ app.get("/api/diet-plans/:id", async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Diet plan not found" });
     }
-    
+
     // Increment view count
     await query(
       "UPDATE dietbyrd_diet_plans SET view_count = view_count + 1 WHERE id = $1",
       [id]
     );
-    
+
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -3767,7 +3799,7 @@ app.patch("/api/diet-plans/:id", async (req, res) => {
 app.get("/api/doctors/:id/stats", async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Get total referred patients (either by doctor or their assistants)
     const referredResult = await query(
       `SELECT COUNT(DISTINCT r.id) as total_referred
@@ -3777,7 +3809,7 @@ app.get("/api/doctors/:id/stats", async (req, res) => {
        )`,
       [id]
     );
-    
+
     // Get onboarded patients (those with active subscriptions)
     const onboardedResult = await query(
       `SELECT COUNT(DISTINCT s.registered_patient_id) as total_onboarded
@@ -3790,7 +3822,7 @@ app.get("/api/doctors/:id/stats", async (req, res) => {
        AND s.status IN ('active', 'paused')`,
       [id]
     );
-    
+
     // Get commission earned (from doctor_earnings table)
     const commissionResult = await query(
       `SELECT COALESCE(SUM(amount), 0) as total_commission
@@ -3798,7 +3830,7 @@ app.get("/api/doctors/:id/stats", async (req, res) => {
        WHERE doctor_id = $1`,
       [id]
     );
-    
+
     res.json({
       success: true,
       data: {
@@ -3834,27 +3866,27 @@ app.get("/api/doctors/:id/assistants", async (req, res) => {
 app.post("/api/assistants", async (req, res) => {
   try {
     const { name, phone, password, doctor_id } = req.body;
-    
+
     if (!name || !phone || !password || !doctor_id) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "name, phone, password, and doctor_id are required" 
+      return res.status(400).json({
+        success: false,
+        error: "name, phone, password, and doctor_id are required"
       });
     }
-    
+
     // Check if phone already exists
     const existingUser = await query(
       "SELECT id FROM dietbyrd_users WHERE phone = $1",
       [phone]
     );
-    
+
     if (existingUser.rows.length > 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Phone number already registered" 
+      return res.status(400).json({
+        success: false,
+        error: "Phone number already registered"
       });
     }
-    
+
     // Create user
     const hashedAssistantPw = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const userResult = await query(
@@ -3863,9 +3895,9 @@ app.post("/api/assistants", async (req, res) => {
        RETURNING id`,
       [phone, name, hashedAssistantPw]
     );
-    
+
     const userId = userResult.rows[0].id;
-    
+
     // Create assistant record
     const assistantResult = await query(
       `INSERT INTO dietbyrd_assistants (user_id, doctor_id, name)
@@ -3873,10 +3905,10 @@ app.post("/api/assistants", async (req, res) => {
        RETURNING *`,
       [userId, doctor_id, name]
     );
-    
-    res.status(201).json({ 
-      success: true, 
-      data: { ...assistantResult.rows[0], phone } 
+
+    res.status(201).json({
+      success: true,
+      data: { ...assistantResult.rows[0], phone }
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -3887,27 +3919,27 @@ app.post("/api/assistants", async (req, res) => {
 app.delete("/api/assistants/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Get user_id before deleting assistant
     const assistant = await query(
       "SELECT user_id FROM dietbyrd_assistants WHERE id = $1",
       [id]
     );
-    
+
     if (assistant.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Assistant not found" });
     }
-    
+
     const userId = assistant.rows[0].user_id;
-    
+
     // Delete assistant record
     await query("DELETE FROM dietbyrd_assistants WHERE id = $1", [id]);
-    
+
     // Delete user account
     if (userId) {
       await query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
     }
-    
+
     res.json({ success: true, message: "Assistant deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -3920,31 +3952,31 @@ app.delete("/api/assistants/:id", async (req, res) => {
 app.get("/api/food-library", async (req, res) => {
   try {
     const { search, category, food_type } = req.query;
-    
+
     let queryText = "SELECT * FROM dietbyrd_food_library WHERE 1=1";
     const params = [];
     let paramIndex = 1;
-    
+
     if (search) {
       queryText += ` AND (LOWER(name_en) LIKE $${paramIndex} OR LOWER(name_hi) LIKE $${paramIndex})`;
       params.push(`%${search.toLowerCase()}%`);
       paramIndex++;
     }
-    
+
     if (category && category !== 'all') {
       queryText += ` AND category = $${paramIndex}`;
       params.push(category);
       paramIndex++;
     }
-    
+
     if (food_type && food_type !== 'all') {
       queryText += ` AND food_type = $${paramIndex}`;
       params.push(food_type);
       paramIndex++;
     }
-    
+
     queryText += " ORDER BY name_en";
-    
+
     const result = await query(queryText, params);
     res.json({ success: true, data: result.rows });
   } catch (err) {
@@ -3960,11 +3992,11 @@ app.get("/api/food-library/:id", async (req, res) => {
       "SELECT * FROM dietbyrd_food_library WHERE id = $1",
       [id]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Food item not found" });
     }
-    
+
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -3983,14 +4015,14 @@ app.post("/api/food-library", async (req, res) => {
       yield_factor, image_url, tags, food_type, dietitian_visibility, caution_level, notes,
       created_by_user_id
     } = req.body;
-    
+
     if (!id || !name_en || !category) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "id, name_en, and category are required" 
+      return res.status(400).json({
+        success: false,
+        error: "id, name_en, and category are required"
       });
     }
-    
+
     const result = await query(
       `INSERT INTO dietbyrd_food_library (
         id, name_en, name_hi, category,
@@ -4019,7 +4051,7 @@ app.post("/api/food-library", async (req, res) => {
         caution_level || 'NONE', notes, created_by_user_id
       ]
     );
-    
+
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) {
     if (err.code === '23505') { // Unique violation
@@ -4042,12 +4074,12 @@ app.put("/api/food-library/:id", async (req, res) => {
       oxalate_eee, phytate_eee,
       yield_factor, image_url, tags, food_type, dietitian_visibility, caution_level, notes
     } = req.body;
-    
+
     // Build dynamic update query based on provided fields
     const updates = [];
     const params = [];
     let paramIndex = 1;
-    
+
     if (name_en !== undefined) {
       updates.push(`name_en = $${paramIndex++}`);
       params.push(name_en);
@@ -4200,21 +4232,21 @@ app.put("/api/food-library/:id", async (req, res) => {
       updates.push(`notes = $${paramIndex++}`);
       params.push(notes);
     }
-    
+
     if (updates.length === 0) {
       return res.status(400).json({ success: false, error: "No fields to update" });
     }
-    
+
     params.push(id);
     const result = await query(
       `UPDATE dietbyrd_food_library SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
       params
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Food item not found" });
     }
-    
+
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -4225,16 +4257,16 @@ app.put("/api/food-library/:id", async (req, res) => {
 app.delete("/api/food-library/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const result = await query(
       "DELETE FROM dietbyrd_food_library WHERE id = $1 RETURNING id",
       [id]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Food item not found" });
     }
-    
+
     res.json({ success: true, message: "Food item deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -4247,15 +4279,15 @@ app.delete("/api/food-library/:id", async (req, res) => {
 app.get("/api/admin/coupons", async (req, res) => {
   try {
     const { active_only } = req.query;
-    
+
     let queryText = "SELECT * FROM dietbyrd_coupon_codes WHERE 1=1";
-    
+
     if (active_only === 'true') {
       queryText += " AND is_active = true AND valid_until > NOW()";
     }
-    
+
     queryText += " ORDER BY created_at DESC";
-    
+
     const result = await query(queryText);
     res.json({ success: true, data: result.rows });
   } catch (err) {
@@ -4271,11 +4303,11 @@ app.get("/api/admin/coupons/:id", async (req, res) => {
       "SELECT * FROM dietbyrd_coupon_codes WHERE id = $1",
       [id]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Coupon not found" });
     }
-    
+
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -4286,11 +4318,11 @@ app.get("/api/admin/coupons/:id", async (req, res) => {
 app.post("/api/coupons/validate", async (req, res) => {
   try {
     const { code, order_amount, user_id } = req.body;
-    
+
     if (!code) {
       return res.status(400).json({ success: false, error: "Coupon code is required" });
     }
-    
+
     // Get coupon
     const couponResult = await query(
       `SELECT * FROM dietbyrd_coupon_codes 
@@ -4300,34 +4332,34 @@ app.post("/api/coupons/validate", async (req, res) => {
        AND valid_until > NOW()`,
       [code]
     );
-    
+
     if (couponResult.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: "Invalid or expired coupon code" 
+      return res.status(404).json({
+        success: false,
+        error: "Invalid or expired coupon code"
       });
     }
-    
+
     const coupon = couponResult.rows[0];
-    
+
     // Check usage limit
     if (coupon.usage_limit && coupon.usage_count >= coupon.usage_limit) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Coupon usage limit reached" 
+      return res.status(400).json({
+        success: false,
+        error: "Coupon usage limit reached"
       });
     }
-    
+
     // Check minimum purchase amount
     if (order_amount && coupon.min_purchase_amount > 0) {
       if (order_amount < coupon.min_purchase_amount) {
-        return res.status(400).json({ 
-          success: false, 
-          error: `Minimum purchase amount of ₹${coupon.min_purchase_amount} required` 
+        return res.status(400).json({
+          success: false,
+          error: `Minimum purchase amount of ₹${coupon.min_purchase_amount} required`
         });
       }
     }
-    
+
     // Calculate discount
     let discount = 0;
     if (coupon.discount_type === 'percentage') {
@@ -4338,9 +4370,9 @@ app.post("/api/coupons/validate", async (req, res) => {
     } else {
       discount = coupon.discount_value;
     }
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       data: {
         ...coupon,
         discount_applied: discount
@@ -4359,14 +4391,14 @@ app.post("/api/admin/coupons", async (req, res) => {
       usage_limit, valid_from, valid_until, is_active, applicable_plans, notes,
       created_by_user_id
     } = req.body;
-    
+
     if (!code || !discount_type || discount_value === undefined || !valid_until) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "code, discount_type, discount_value, and valid_until are required" 
+      return res.status(400).json({
+        success: false,
+        error: "code, discount_type, discount_value, and valid_until are required"
       });
     }
-    
+
     const result = await query(
       `INSERT INTO dietbyrd_coupon_codes (
         code, discount_type, discount_value, max_discount_amount, min_purchase_amount,
@@ -4381,7 +4413,7 @@ app.post("/api/admin/coupons", async (req, res) => {
         notes, created_by_user_id
       ]
     );
-    
+
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) {
     if (err.code === '23505') { // Unique violation
@@ -4399,11 +4431,11 @@ app.put("/api/admin/coupons/:id", async (req, res) => {
       code, discount_type, discount_value, max_discount_amount, min_purchase_amount,
       usage_limit, valid_from, valid_until, is_active, applicable_plans, notes
     } = req.body;
-    
+
     const updates = [];
     const params = [];
     let paramIndex = 1;
-    
+
     if (code !== undefined) {
       updates.push(`code = $${paramIndex++}`);
       params.push(code.toUpperCase());
@@ -4448,21 +4480,21 @@ app.put("/api/admin/coupons/:id", async (req, res) => {
       updates.push(`notes = $${paramIndex++}`);
       params.push(notes);
     }
-    
+
     if (updates.length === 0) {
       return res.status(400).json({ success: false, error: "No fields to update" });
     }
-    
+
     params.push(id);
     const result = await query(
       `UPDATE dietbyrd_coupon_codes SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
       params
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Coupon not found" });
     }
-    
+
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     if (err.code === '23505') {
@@ -4476,16 +4508,16 @@ app.put("/api/admin/coupons/:id", async (req, res) => {
 app.delete("/api/admin/coupons/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const result = await query(
       "DELETE FROM dietbyrd_coupon_codes WHERE id = $1 RETURNING id",
       [id]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Coupon not found" });
     }
-    
+
     res.json({ success: true, message: "Coupon deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -4497,7 +4529,7 @@ app.post("/api/coupons/:id/apply", async (req, res) => {
   try {
     const { id } = req.params;
     const { user_id, patient_id, subscription_id, discount_applied, order_amount } = req.body;
-    
+
     // Increment usage count
     const couponResult = await query(
       `UPDATE dietbyrd_coupon_codes 
@@ -4506,11 +4538,11 @@ app.post("/api/coupons/:id/apply", async (req, res) => {
        RETURNING *`,
       [id]
     );
-    
+
     if (couponResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Coupon not found" });
     }
-    
+
     // Record usage
     await query(
       `INSERT INTO dietbyrd_coupon_usage 
@@ -4518,9 +4550,9 @@ app.post("/api/coupons/:id/apply", async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [id, user_id, patient_id, subscription_id, discount_applied, order_amount]
     );
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: "Coupon applied successfully",
       data: couponResult.rows[0]
     });
@@ -4535,14 +4567,14 @@ app.post("/api/coupons/:id/apply", async (req, res) => {
 app.get("/api/dieticians/:id/availability", async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const result = await query(
       `SELECT * FROM dietbyrd_dietician_availability 
        WHERE rd_id = $1 AND is_active = true 
        ORDER BY day_of_week, start_time`,
       [id]
     );
-    
+
     res.json({ success: true, data: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -4554,17 +4586,17 @@ app.post("/api/dieticians/:id/availability", async (req, res) => {
   try {
     const { id } = req.params;
     const { schedules } = req.body; // Array of { day_of_week, start_time, end_time, slot_duration_minutes }
-    
+
     if (!schedules || !Array.isArray(schedules)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "schedules array is required" 
+      return res.status(400).json({
+        success: false,
+        error: "schedules array is required"
       });
     }
 
     // Start transaction
     await query("BEGIN");
-    
+
     try {
       // Deactivate all existing schedules for this dietician
       await query(
@@ -4573,7 +4605,7 @@ app.post("/api/dieticians/:id/availability", async (req, res) => {
          WHERE rd_id = $1`,
         [id]
       );
-      
+
       // Insert new schedules
       for (const schedule of schedules) {
         await query(
@@ -4589,9 +4621,9 @@ app.post("/api/dieticians/:id/availability", async (req, res) => {
           [id, schedule.day_of_week, schedule.start_time, schedule.end_time, schedule.slot_duration_minutes || 60]
         );
       }
-      
+
       await query("COMMIT");
-      
+
       // Return updated schedules
       const result = await query(
         `SELECT * FROM dietbyrd_dietician_availability 
@@ -4599,7 +4631,7 @@ app.post("/api/dieticians/:id/availability", async (req, res) => {
          ORDER BY day_of_week, start_time`,
         [id]
       );
-      
+
       res.json({ success: true, data: result.rows });
     } catch (err) {
       await query("ROLLBACK");
@@ -4615,11 +4647,11 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
   try {
     const { id } = req.params;
     const { start_date, end_date } = req.query;
-    
+
     if (!start_date || !end_date) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "start_date and end_date are required (YYYY-MM-DD format)" 
+      return res.status(400).json({
+        success: false,
+        error: "start_date and end_date are required (YYYY-MM-DD format)"
       });
     }
 
@@ -4629,7 +4661,7 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
        WHERE rd_id = $1 AND is_active = true`,
       [id]
     );
-    
+
     if (availabilityResult.rows.length === 0) {
       return res.json({ success: true, data: [], message: "No availability set for this dietician" });
     }
@@ -4643,7 +4675,7 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
        AND status NOT IN ('cancelled', 'no_show')`,
       [id, start_date, end_date]
     );
-    
+
     const bookedSlots = new Set(
       bookedResult.rows.map(row => row.scheduled_at_str)
     );
@@ -4656,7 +4688,7 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
        AND blocked_date <= $3::date`,
       [id, start_date, end_date]
     );
-    
+
     // Helper to format datetime as local string (no timezone)
     const formatLocalDatetime = (date, time) => {
       const [hour, min] = time.split(":").map(Number);
@@ -4664,14 +4696,14 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
       const mm = String(min).padStart(2, '0');
       return `${date}T${hh}:${mm}:00`;
     };
-    
+
     // Helper to get IST "now" for comparison (IST = UTC + 5:30)
     const getISTNow = () => {
       const now = new Date();
       // Add 5:30 hours to UTC to get IST
       return new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
     };
-    
+
     // Helper to format date as YYYY-MM-DD without timezone conversion
     const formatDateStr = (d) => {
       const year = d.getFullYear();
@@ -4679,24 +4711,24 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
       const day = String(d.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     };
-    
+
     // Generate available slots (all times in IST)
     const availableSlots = [];
     const startDateParts = start_date.split("-").map(Number);
     const endDateParts = end_date.split("-").map(Number);
-    
+
     // Create date objects for iteration (using local date parts only)
     let currentDate = new Date(startDateParts[0], startDateParts[1] - 1, startDateParts[2]);
     const endDate = new Date(endDateParts[0], endDateParts[1] - 1, endDateParts[2]);
-    
+
     // Get current IST time for filtering past slots
     const istNow = getISTNow();
     const minBookingTime = new Date(istNow.getTime() + 2 * 60 * 60 * 1000); // 2 hour buffer
-    
+
     while (currentDate <= endDate) {
       const dayOfWeek = currentDate.getDay(); // 0=Sunday, 1=Monday, etc.
       const dateStr = formatDateStr(currentDate);
-      
+
       // Check if this day is completely blocked
       const dayBlocked = blockedResult.rows.find(
         b => b.blocked_date_str === dateStr && !b.start_time
@@ -4705,40 +4737,40 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
         currentDate.setDate(currentDate.getDate() + 1);
         continue;
       }
-      
+
       // Get availability for this day of week
       const dayAvailability = availabilityResult.rows.filter(a => a.day_of_week === dayOfWeek);
-      
+
       for (const avail of dayAvailability) {
         const slotDuration = avail.slot_duration_minutes || 60;
-        
+
         // Parse start and end times
         const [startHour, startMin] = avail.start_time.split(":").map(Number);
         const [endHour, endMin] = avail.end_time.split(":").map(Number);
-        
+
         // Convert to minutes for easier calculation
         let slotMinutes = startHour * 60 + startMin;
         const endMinutes = endHour * 60 + endMin;
-        
+
         while (slotMinutes + slotDuration <= endMinutes) {
           const slotHour = Math.floor(slotMinutes / 60);
           const slotMin = slotMinutes % 60;
           const slotTimeStr = `${String(slotHour).padStart(2, '0')}:${String(slotMin).padStart(2, '0')}`;
           const slotDatetime = formatLocalDatetime(dateStr, slotTimeStr);
-          
+
           // Create a Date object for this slot to compare with minBookingTime
           const slotDate = new Date(currentDate);
           slotDate.setHours(slotHour, slotMin, 0, 0);
-          
+
           // Check if slot is in the past or too soon (comparing IST to IST)
           if (slotDate < minBookingTime) {
             slotMinutes += slotDuration;
             continue;
           }
-          
+
           // Check if slot is booked
           const isBooked = bookedSlots.has(slotDatetime);
-          
+
           // Check if slot is in a blocked time range for this specific date
           const timeBlocked = blockedResult.rows.find(b => {
             if (b.blocked_date_str !== dateStr) return false;
@@ -4750,12 +4782,12 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
             const blockEndNum = blockEnd[0] * 60 + blockEnd[1];
             return slotTimeNum >= blockStartNum && slotTimeNum < blockEndNum;
           });
-          
+
           if (timeBlocked) {
             slotMinutes += slotDuration;
             continue;
           }
-          
+
           // Include all slots (both booked and available), with is_booked flag
           availableSlots.push({
             date: dateStr,
@@ -4764,14 +4796,14 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
             duration_minutes: slotDuration,
             is_booked: isBooked
           });
-          
+
           slotMinutes += slotDuration;
         }
       }
-      
+
       currentDate.setDate(currentDate.getDate() + 1);
     }
-    
+
     res.json({ success: true, data: availableSlots });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -4781,9 +4813,9 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
 // Book an appointment (create consultation)
 app.post("/api/appointments/book", async (req, res) => {
   try {
-    const { patient_id, rd_id, scheduled_at, consultation_type, patient_notes } = req.body;
+    const { patient_id, scheduled_at, consultation_type, patient_notes } = req.body;
     // rd_id is optional — when null the appointment is pending dietitian assignment
-    const rdId = rd_id || null;
+    const rdId = null;
 
     if (!patient_id || !scheduled_at) {
       return res.status(400).json({
@@ -4819,9 +4851,9 @@ app.post("/api/appointments/book", async (req, res) => {
     let registeredPatientId;
     if (regPatientResult.rows.length === 0) {
       const newRegPatient = await query(
-        `INSERT INTO dietbyrd_registered_patients (patient_id, assigned_rd_id)
-         VALUES ($1, $2) RETURNING id`,
-        [patient_id, rdId]
+        `INSERT INTO dietbyrd_registered_patients (patient_id)
+         VALUES ($1) RETURNING id`,
+        [patient_id]
       );
       registeredPatientId = newRegPatient.rows[0].id;
     } else {
@@ -4867,12 +4899,52 @@ app.post("/api/appointments/book", async (req, res) => {
     const type = consultation_type || (previousConsultations.rows[0].count > 0 ? 'returning' : 'first');
 
     // Create the consultation (rd_id may be NULL — pending auto-assignment)
+    const rdResult = await query(
+      `SELECT rd.id
+       FROM dietbyrd_registered_dietitians rd
+       JOIN dietbyrd_users u ON u.id = rd.user_id
+       WHERE rd.is_active = true
+         AND u.role = 'rd'
+         AND COALESCE(u.is_active, true) = true
+         AND NOT EXISTS (
+           SELECT 1
+           FROM dietbyrd_consultations c
+           WHERE c.rd_id = rd.id
+             AND c.scheduled_at = $1::timestamp
+             AND c.status IN ('confirmed', 'scheduled')
+         )
+       ORDER BY (
+         SELECT COUNT(*)
+         FROM dietbyrd_consultations c2
+         WHERE c2.rd_id = rd.id
+           AND c2.status = 'confirmed'
+       ) ASC, rd.id ASC
+       LIMIT 1`,
+      [scheduled_at]
+    );
+
+    if (rdResult.rows.length === 0) {
+      return res.status(409).json({
+        success: false,
+        error: "No dietitian available at this time. Please choose a different slot."
+      });
+    }
+
+    const assignedRdId = rdResult.rows[0].id;
+
     const result = await query(
       `INSERT INTO dietbyrd_consultations
        (registered_patient_id, rd_id, scheduled_at, consultation_type, status, booked_by_patient, patient_notes)
        VALUES ($1, $2, $3::timestamp, $4, 'scheduled', true, $5)
        RETURNING *`,
-      [registeredPatientId, rdId, scheduled_at, type, patient_notes || null]
+      [registeredPatientId, assignedRdId, scheduled_at, type, patient_notes || null]
+    );
+
+    await query(
+      `UPDATE dietbyrd_registered_patients
+       SET assigned_rd_id = COALESCE(assigned_rd_id, $1), updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [assignedRdId, registeredPatientId]
     );
 
     // Deduct one consultation from patient's balance
@@ -4910,7 +4982,7 @@ app.get("/api/patients/:id/appointments", async (req, res) => {
   try {
     const { id } = req.params;
     const { status, upcoming_only } = req.query;
-    
+
     let sql = `
       SELECT 
         c.*,
@@ -4924,18 +4996,18 @@ app.get("/api/patients/:id/appointments", async (req, res) => {
       WHERE rp.patient_id = $1
     `;
     const params = [id];
-    
+
     if (status) {
       params.push(status);
       sql += ` AND c.status = $${params.length}`;
     }
-    
+
     if (upcoming_only === 'true') {
       sql += ` AND c.scheduled_at >= NOW() AND c.status NOT IN ('cancelled', 'no_show', 'completed')`;
     }
-    
+
     sql += ` ORDER BY c.scheduled_at DESC`;
-    
+
     const result = await query(sql, params);
     res.json({ success: true, data: result.rows });
   } catch (err) {
@@ -4948,7 +5020,7 @@ app.put("/api/appointments/:id/cancel", async (req, res) => {
   try {
     const { id } = req.params;
     const { cancelled_by, reason } = req.body;
-    
+
     const result = await query(
       `UPDATE dietbyrd_consultations 
        SET status = 'cancelled', 
@@ -4959,14 +5031,14 @@ app.put("/api/appointments/:id/cancel", async (req, res) => {
        RETURNING *`,
       [id, cancelled_by || 'patient']
     );
-    
+
     if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: "Appointment not found or cannot be cancelled" 
+      return res.status(404).json({
+        success: false,
+        error: "Appointment not found or cannot be cancelled"
       });
     }
-    
+
     res.json({ success: true, data: result.rows[0], message: "Appointment cancelled successfully" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -4978,29 +5050,29 @@ app.put("/api/appointments/:id/reschedule", async (req, res) => {
   try {
     const { id } = req.params;
     const { new_scheduled_at, patient_notes } = req.body;
-    
+
     if (!new_scheduled_at) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "new_scheduled_at is required" 
+      return res.status(400).json({
+        success: false,
+        error: "new_scheduled_at is required"
       });
     }
-    
+
     // Get the current appointment to check its rd_id
     const currentAppt = await query(
       `SELECT rd_id FROM dietbyrd_consultations WHERE id = $1 AND status = 'scheduled'`,
       [id]
     );
-    
+
     if (currentAppt.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: "Appointment not found or cannot be rescheduled" 
+      return res.status(404).json({
+        success: false,
+        error: "Appointment not found or cannot be rescheduled"
       });
     }
-    
+
     const rdId = currentAppt.rows[0].rd_id;
-    
+
     // Check if new slot is available
     const existingResult = await query(
       `SELECT id FROM dietbyrd_consultations 
@@ -5010,14 +5082,14 @@ app.put("/api/appointments/:id/reschedule", async (req, res) => {
        AND id != $3`,
       [rdId, new_scheduled_at, id]
     );
-    
+
     if (existingResult.rows.length > 0) {
-      return res.status(409).json({ 
-        success: false, 
-        error: "The new time slot is no longer available" 
+      return res.status(409).json({
+        success: false,
+        error: "The new time slot is no longer available"
       });
     }
-    
+
     // Update the appointment
     const result = await query(
       `UPDATE dietbyrd_consultations 
@@ -5028,14 +5100,14 @@ app.put("/api/appointments/:id/reschedule", async (req, res) => {
        RETURNING *`,
       [id, new_scheduled_at, patient_notes || null]
     );
-    
+
     if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: "Failed to reschedule appointment" 
+      return res.status(404).json({
+        success: false,
+        error: "Failed to reschedule appointment"
       });
     }
-    
+
     res.json({ success: true, data: result.rows[0], message: "Appointment rescheduled successfully" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -5105,14 +5177,14 @@ app.post("/api/dieticians/:id/blocked-slots", async (req, res) => {
   try {
     const { id } = req.params;
     const { blocked_date, start_time, end_time, reason } = req.body;
-    
+
     if (!blocked_date) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "blocked_date is required" 
+      return res.status(400).json({
+        success: false,
+        error: "blocked_date is required"
       });
     }
-    
+
     const result = await query(
       `INSERT INTO dietbyrd_dietician_blocked_slots 
        (rd_id, blocked_date, start_time, end_time, reason)
@@ -5123,7 +5195,7 @@ app.post("/api/dieticians/:id/blocked-slots", async (req, res) => {
        RETURNING *`,
       [id, blocked_date, start_time || null, end_time || null, reason || null]
     );
-    
+
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -5135,10 +5207,10 @@ app.get("/api/dieticians/:id/blocked-slots", async (req, res) => {
   try {
     const { id } = req.params;
     const { start_date, end_date } = req.query;
-    
+
     let sql = `SELECT * FROM dietbyrd_dietician_blocked_slots WHERE rd_id = $1`;
     const params = [id];
-    
+
     if (start_date) {
       params.push(start_date);
       sql += ` AND blocked_date >= $${params.length}::date`;
@@ -5147,9 +5219,9 @@ app.get("/api/dieticians/:id/blocked-slots", async (req, res) => {
       params.push(end_date);
       sql += ` AND blocked_date <= $${params.length}::date`;
     }
-    
+
     sql += ` ORDER BY blocked_date, start_time`;
-    
+
     const result = await query(sql, params);
     res.json({ success: true, data: result.rows });
   } catch (err) {
@@ -5161,18 +5233,18 @@ app.get("/api/dieticians/:id/blocked-slots", async (req, res) => {
 app.delete("/api/dieticians/:rdId/blocked-slots/:slotId", async (req, res) => {
   try {
     const { rdId, slotId } = req.params;
-    
+
     const result = await query(
       `DELETE FROM dietbyrd_dietician_blocked_slots 
        WHERE id = $1 AND rd_id = $2
        RETURNING *`,
       [slotId, rdId]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Blocked slot not found" });
     }
-    
+
     res.json({ success: true, message: "Blocked slot removed successfully" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -5186,7 +5258,7 @@ app.get("/api/dieticians/:id/appointments", async (req, res) => {
   try {
     const { id } = req.params;
     const { start_date, end_date, status } = req.query;
-    
+
     let sql = `
       SELECT 
         c.*,
@@ -5201,24 +5273,24 @@ app.get("/api/dieticians/:id/appointments", async (req, res) => {
       WHERE c.rd_id = $1
     `;
     const params = [id];
-    
+
     if (start_date) {
       params.push(start_date);
       sql += ` AND c.scheduled_at >= $${params.length}::date`;
     }
-    
+
     if (end_date) {
       params.push(end_date);
       sql += ` AND c.scheduled_at < ($${params.length}::date + interval '1 day')`;
     }
-    
+
     if (status) {
       params.push(status);
       sql += ` AND c.status = $${params.length}`;
     }
-    
+
     sql += ` ORDER BY c.scheduled_at ASC`;
-    
+
     const result = await query(sql, params);
     res.json({ success: true, data: result.rows });
   } catch (err) {
@@ -5350,7 +5422,21 @@ const createDoctorCommissionForPayment = async (payment, source = "unknown") => 
 app.get("/api/consultation-packages", async (req, res) => {
   try {
     const result = await query(
-      `SELECT * FROM dietbyrd_consultation_packages WHERE is_active = true ORDER BY num_consultations ASC`
+      `SELECT
+         id,
+         name,
+         num_consultations,
+         CASE
+           WHEN num_consultations = 1 AND price < 99900 THEN 99900
+           ELSE price
+         END AS price,
+         discount_percentage,
+         description,
+         is_active,
+         created_at
+       FROM dietbyrd_consultation_packages
+       WHERE is_active = true
+       ORDER BY num_consultations ASC`
     );
     res.json({ success: true, data: result.rows });
   } catch (err) {
@@ -5380,7 +5466,13 @@ app.post("/api/payments/create-order", async (req, res) => {
       return res.status(404).json({ success: false, error: "Package not found" });
     }
 
-    const pkg = pkgResult.rows[0];
+    const pkg = {
+      ...pkgResult.rows[0],
+      price:
+        pkgResult.rows[0].num_consultations === 1 && Number(pkgResult.rows[0].price) < 99900
+          ? 99900
+          : Number(pkgResult.rows[0].price),
+    };
 
     // Use discounted amount if provided (must be >= 1 rupee = 100 paise)
     const chargeAmount = discounted_amount && discounted_amount >= 100
@@ -5415,11 +5507,11 @@ app.post("/api/payments/create-order", async (req, res) => {
     }
 
     // Store payment record
-    const paymentResult = await query(
+    const patientResult = await query(
       `INSERT INTO dietbyrd_razorpay_payments
        (patient_id, razorpay_order_id, amount, currency, consultations_purchased, status)
        VALUES ($1, $2, $3, 'INR', $4, 'created')
-       RETURNING *`,
+      [userId, normalizedPhone, name]
       [patient_id, razorpayOrderId, chargeAmount, pkg.num_consultations]
     );
 
@@ -5469,7 +5561,7 @@ app.post("/api/payments/verify", async (req, res) => {
     if (RAZORPAY_KEY_SECRET && !razorpay_order_id.startsWith("demo_")) {
       const expectedSignature = crypto
         .createHmac("sha256", RAZORPAY_KEY_SECRET)
-        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .update(`${ razorpay_order_id } | ${ razorpay_payment_id }`)
         .digest("hex");
       
       isValidSignature = expectedSignature === razorpay_signature;
@@ -5491,11 +5583,11 @@ app.post("/api/payments/verify", async (req, res) => {
     // Update payment record
     await query(
       `UPDATE dietbyrd_razorpay_payments 
-       SET razorpay_payment_id = $1, 
-           razorpay_signature = $2, 
-           status = 'success',
-           payment_method = 'razorpay',
-           updated_at = CURRENT_TIMESTAMP
+       SET razorpay_payment_id = $1,
+      razorpay_signature = $2,
+      status = 'success',
+      payment_method = 'razorpay',
+      updated_at = CURRENT_TIMESTAMP
        WHERE id = $3`,
       [razorpay_payment_id, razorpay_signature, payment.id]
     );
@@ -5504,8 +5596,8 @@ app.post("/api/payments/verify", async (req, res) => {
     await query(
       `UPDATE dietbyrd_patients 
        SET consultations_left = COALESCE(consultations_left, 0) + $1,
-           last_payment_at = CURRENT_TIMESTAMP,
-           updated_at = CURRENT_TIMESTAMP
+      last_payment_at = CURRENT_TIMESTAMP,
+      updated_at = CURRENT_TIMESTAMP
        WHERE id = $2`,
       [payment.consultations_purchased, payment.patient_id]
     );
@@ -5566,9 +5658,9 @@ app.post("/api/payments/webhook", async (req, res) => {
       await query(
         `UPDATE dietbyrd_razorpay_payments
          SET razorpay_payment_id = COALESCE(razorpay_payment_id, $1),
-             status = 'success',
-             payment_method = 'razorpay',
-             updated_at = CURRENT_TIMESTAMP
+      status = 'success',
+      payment_method = 'razorpay',
+      updated_at = CURRENT_TIMESTAMP
          WHERE id = $2`,
         [razorpayPaymentId || null, payment.id]
       );
@@ -5653,12 +5745,12 @@ app.get("/api/me/commissions", async (req, res) => {
     let whereSql = "doctor_id = $1";
     if (status !== "all") {
       params.push(status);
-      whereSql += ` AND status = $${params.length}`;
+      whereSql += ` AND status = $${ params.length }`;
     }
 
     const commissionsResult = await query(
       `SELECT * FROM dietbyrd_doctor_commissions
-       WHERE ${whereSql}
+       WHERE ${ whereSql }
        ORDER BY created_at DESC`,
       params
     );
@@ -5666,7 +5758,7 @@ app.get("/api/me/commissions", async (req, res) => {
     const totalsResult = await query(
       `SELECT
          COALESCE(SUM(CASE WHEN status = 'pending' THEN commission_amount END), 0) AS total_pending,
-         COALESCE(SUM(CASE WHEN status = 'paid' THEN commission_amount END), 0) AS total_paid
+      COALESCE(SUM(CASE WHEN status = 'paid' THEN commission_amount END), 0) AS total_paid
        FROM dietbyrd_doctor_commissions
        WHERE doctor_id = $1`,
       [auth.userId]
@@ -5715,31 +5807,31 @@ app.get("/api/doctor/me/patients", async (req, res) => {
     }
 
     const patientsResult = await query(
-      `SELECT * FROM (
-        SELECT DISTINCT ON (p.id)
+      `SELECT * FROM(
+        SELECT DISTINCT ON(p.id)
           p.id,
-          p.name,
-          p.phone,
-          COALESCE(r.referred_at, r.created_at) AS referred_at,
-          COALESCE(payment_summary.payment_status, 'unpaid') AS payment_status,
-          COALESCE(consult_summary.consultation_status, 'not_yet') AS consultation_status
+        p.name,
+        p.phone,
+        COALESCE(r.referred_at, r.created_at) AS referred_at,
+        COALESCE(payment_summary.payment_status, 'unpaid') AS payment_status,
+        COALESCE(consult_summary.consultation_status, 'not_yet') AS consultation_status
         FROM dietbyrd_referrals r
         JOIN dietbyrd_patients p ON r.patient_id = p.id
         LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id
-        LEFT JOIN LATERAL (
+        LEFT JOIN LATERAL(
           SELECT
             CASE
-              WHEN COUNT(*) FILTER (WHERE pay.status = 'success') > 0 OR rp.dietary_preference IS NOT NULL THEN 'paid'
+              WHEN COUNT(*) FILTER(WHERE pay.status = 'success') > 0 OR rp.dietary_preference IS NOT NULL THEN 'paid'
               ELSE 'unpaid'
             END AS payment_status
           FROM dietbyrd_razorpay_payments pay
           WHERE pay.patient_id = p.id
         ) AS payment_summary ON true
-        LEFT JOIN LATERAL (
+        LEFT JOIN LATERAL(
           SELECT
             CASE
-              WHEN COUNT(*) FILTER (WHERE c.status = 'completed') > 0 THEN 'completed'
-              WHEN COUNT(*) FILTER (WHERE c.status IN ('scheduled', 'confirmed', 'documents_pending')) > 0 THEN 'booked'
+              WHEN COUNT(*) FILTER(WHERE c.status = 'completed') > 0 THEN 'completed'
+              WHEN COUNT(*) FILTER(WHERE c.status IN('scheduled', 'confirmed', 'documents_pending')) > 0 THEN 'booked'
               ELSE 'not_yet'
             END AS consultation_status
           FROM dietbyrd_consultations c
@@ -5815,8 +5907,8 @@ app.post("/api/admin/staff/create", async (req, res) => {
 
     // Create user account — store hash for auth, plain_password for admin visibility
     const userResult = await query(
-      `INSERT INTO dietbyrd_users (phone, role, password, plain_password, name, is_active, is_verified)
-       VALUES ($1, $2, $3, $4, $5, true, true)
+      `INSERT INTO dietbyrd_users(phone, role, password, plain_password, name, is_active, is_verified)
+       VALUES($1, $2, $3, $4, $5, true, true)
        RETURNING id, phone, role, name`,
       [phone, role, hashedStaffPw, plainPassword, name]
     );
@@ -5866,7 +5958,7 @@ app.delete("/api/admin/staff/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
     const result = await query(
-      `DELETE FROM dietbyrd_users WHERE id = $1 AND role IN ('mlt_intern','support_intern') RETURNING id`,
+      `DELETE FROM dietbyrd_users WHERE id = $1 AND role IN('mlt_intern', 'support_intern') RETURNING id`,
       [userId]
     );
     if (result.rows.length === 0) {
@@ -5912,19 +6004,19 @@ app.get("/api/support/patients", async (req, res) => {
     const whereClauses = [];
 
     if (rawQuery) {
-      params.push(`%${rawQuery}%`);
+      params.push(`% ${ rawQuery } % `);
       whereClauses.push(
-        `(COALESCE(p.name, u.name) ILIKE $${params.length} OR u.phone ILIKE $${params.length} OR u.email ILIKE $${params.length})`
+        `(COALESCE(p.name, u.name) ILIKE $${ params.length } OR u.phone ILIKE $${ params.length } OR u.email ILIKE $${ params.length })`
       );
     }
 
-    const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
+    const whereSql = whereClauses.length ? `WHERE ${ whereClauses.join(" AND ") }` : "";
 
     const countResult = await query(
-      `SELECT COUNT(*)::int AS total
+      `SELECT COUNT(*):: int AS total
        FROM dietbyrd_patients p
        JOIN dietbyrd_users u ON u.id = p.user_id
-       ${whereSql}`,
+       ${ whereSql }`,
       params
     );
     const total = countResult.rows[0]?.total || 0;
@@ -5935,18 +6027,18 @@ app.get("/api/support/patients", async (req, res) => {
 
     const result = await query(
       `SELECT p.id,
-              COALESCE(p.name, u.name) AS name,
-              u.phone,
-              u.email,
-              p.gender,
-              u.is_active,
-              p.created_at,
-              (SELECT COUNT(*) FROM dietbyrd_appointments WHERE patient_id = p.id) as appointment_count
+      COALESCE(p.name, u.name) AS name,
+      u.phone,
+      u.email,
+      p.gender,
+      u.is_active,
+      p.created_at,
+      (SELECT COUNT(*) FROM dietbyrd_appointments WHERE patient_id = p.id) as appointment_count
        FROM dietbyrd_patients p
        JOIN dietbyrd_users u ON u.id = p.user_id
-       ${whereSql}
+       ${ whereSql }
        ORDER BY p.created_at DESC
-       LIMIT $${limitParam} OFFSET $${offsetParam}`,
+       LIMIT $${ limitParam } OFFSET $${ offsetParam } `,
       listParams
     );
 
@@ -5975,8 +6067,8 @@ app.get("/api/support/dieticians", async (req, res) => {
   try {
     const result = await query(
       `SELECT d.id, u.name, u.phone, u.email, d.specialization, d.qualification,
-              d.experience_years, d.consultation_fee, d.is_active, d.created_at,
-              (SELECT COUNT(*) FROM dietbyrd_appointments WHERE dietician_id = d.id) as appointment_count
+      d.experience_years, d.consultation_fee, d.is_active, d.created_at,
+      (SELECT COUNT(*) FROM dietbyrd_appointments WHERE dietician_id = d.id) as appointment_count
        FROM dietbyrd_dieticians d
        JOIN dietbyrd_users u ON u.id = d.user_id
        ORDER BY u.name ASC`
@@ -5996,35 +6088,35 @@ app.get("/api/support/tickets", async (req, res) => {
 
     let queryText = `
       SELECT t.*,
-             u_patient.name as patient_name, u_patient.phone as patient_phone,
-             u_assigned.name as assigned_to_name,
-             u_created.name as created_by_name,
-             (SELECT COUNT(*) FROM dietbyrd_ticket_comments WHERE ticket_id = t.id) as comment_count
+  u_patient.name as patient_name, u_patient.phone as patient_phone,
+  u_assigned.name as assigned_to_name,
+  u_created.name as created_by_name,
+  (SELECT COUNT(*) FROM dietbyrd_ticket_comments WHERE ticket_id = t.id) as comment_count
       FROM dietbyrd_tickets t
       LEFT JOIN dietbyrd_patients p ON p.id = t.patient_id
       LEFT JOIN dietbyrd_users u_patient ON u_patient.id = p.user_id
       LEFT JOIN dietbyrd_users u_assigned ON u_assigned.id = t.assigned_to
       JOIN dietbyrd_users u_created ON u_created.id = t.created_by
-      WHERE 1=1
-    `;
+      WHERE 1 = 1
+  `;
 
     const params = [];
     let paramIndex = 1;
 
     if (status) {
-      queryText += ` AND t.status = $${paramIndex}`;
+      queryText += ` AND t.status = $${ paramIndex } `;
       params.push(status);
       paramIndex++;
     }
 
     if (priority) {
-      queryText += ` AND t.priority = $${paramIndex}`;
+      queryText += ` AND t.priority = $${ paramIndex } `;
       params.push(priority);
       paramIndex++;
     }
 
     if (patient_id) {
-      queryText += ` AND t.patient_id = $${paramIndex}`;
+      queryText += ` AND t.patient_id = $${ paramIndex } `;
       params.push(patient_id);
       paramIndex++;
     }
@@ -6065,10 +6157,10 @@ app.get("/api/patient/me/tickets", async (req, res) => {
 
     const result = await query(
       `SELECT t.*,
-              u_patient.name as patient_name, u_patient.phone as patient_phone,
-              u_assigned.name as assigned_to_name,
-              u_created.name as created_by_name,
-              (SELECT COUNT(*)
+  u_patient.name as patient_name, u_patient.phone as patient_phone,
+  u_assigned.name as assigned_to_name,
+  u_created.name as created_by_name,
+  (SELECT COUNT(*)
                FROM dietbyrd_ticket_comments c
                WHERE c.ticket_id = t.id AND c.is_internal = false) as comment_count
        FROM dietbyrd_tickets t
@@ -6114,9 +6206,9 @@ app.get("/api/patient/me/tickets/:id", async (req, res) => {
 
     const ticketResult = await query(
       `SELECT t.*,
-              u_patient.name as patient_name, u_patient.phone as patient_phone,
-              u_assigned.name as assigned_to_name,
-              u_created.name as created_by_name
+  u_patient.name as patient_name, u_patient.phone as patient_phone,
+  u_assigned.name as assigned_to_name,
+  u_created.name as created_by_name
        FROM dietbyrd_tickets t
        LEFT JOIN dietbyrd_patients p ON p.id = t.patient_id
        LEFT JOIN dietbyrd_users u_patient ON u_patient.id = p.user_id
@@ -6144,7 +6236,7 @@ app.get("/api/patient/me/tickets/:id", async (req, res) => {
       data: {
         ticket: ticketResult.rows[0],
         comments: commentsResult.rows,
-          `DELETE FROM dietbyrd_users WHERE id = $1 AND role IN ('mlt_intern','support_intern') RETURNING id`,
+      },
     });
   } catch (err) {
     console.error("[patient/me/tickets/:id] Error:", err);
@@ -6159,9 +6251,9 @@ app.get("/api/support/tickets/:id", async (req, res) => {
 
     const ticketResult = await query(
       `SELECT t.*,
-              u_patient.name as patient_name, u_patient.phone as patient_phone,
-              u_assigned.name as assigned_to_name,
-              u_created.name as created_by_name
+  u_patient.name as patient_name, u_patient.phone as patient_phone,
+  u_assigned.name as assigned_to_name,
+  u_created.name as created_by_name
        FROM dietbyrd_tickets t
        LEFT JOIN dietbyrd_patients p ON p.id = t.patient_id
        LEFT JOIN dietbyrd_users u_patient ON u_patient.id = p.user_id
@@ -6215,10 +6307,10 @@ app.post("/api/support/tickets", async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO dietbyrd_tickets (
-        patient_id, title, description, category, priority, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *`,
+      `INSERT INTO dietbyrd_tickets(
+    patient_id, title, description, category, priority, created_by
+  ) VALUES($1, $2, $3, $4, $5, $6)
+RETURNING * `,
       [patient_id || null, ticketTitle, ticketDescription, ticketCategory, ticketPriority || 'medium', created_by]
     );
 
@@ -6240,25 +6332,25 @@ app.patch("/api/support/tickets/:id", async (req, res) => {
     let paramIndex = 1;
 
     if (status) {
-      updates.push(`status = $${paramIndex}`);
+      updates.push(`status = $${ paramIndex } `);
       params.push(status);
       paramIndex++;
     }
 
     if (priority) {
-      updates.push(`priority = $${paramIndex}`);
+      updates.push(`priority = $${ paramIndex } `);
       params.push(priority);
       paramIndex++;
     }
 
     if (assigned_to !== undefined) {
-      updates.push(`assigned_to = $${paramIndex}`);
+      updates.push(`assigned_to = $${ paramIndex } `);
       params.push(assigned_to);
       paramIndex++;
     }
 
     if (resolution_notes) {
-      updates.push(`resolution_notes = $${paramIndex}`);
+      updates.push(`resolution_notes = $${ paramIndex } `);
       params.push(resolution_notes);
       paramIndex++;
     }
@@ -6274,10 +6366,10 @@ app.patch("/api/support/tickets/:id", async (req, res) => {
     params.push(id);
     const queryText = `
       UPDATE dietbyrd_tickets 
-      SET ${updates.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING *
-    `;
+      SET ${ updates.join(', ') }
+      WHERE id = $${ paramIndex }
+RETURNING *
+  `;
 
     const result = await query(queryText, params);
 
@@ -6306,9 +6398,9 @@ app.post("/api/support/tickets/:id/comments", async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO dietbyrd_ticket_comments (ticket_id, user_id, comment, is_internal)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *`,
+      `INSERT INTO dietbyrd_ticket_comments(ticket_id, user_id, comment, is_internal)
+VALUES($1, $2, $3, $4)
+RETURNING * `,
       [id, user_id, comment, is_internal || false]
     );
 
@@ -6324,14 +6416,14 @@ app.get("/api/appointments/unassigned", async (_req, res) => {
   try {
     const result = await query(
       `SELECT
-        c.id,
-        c.scheduled_at,
-        c.consultation_type,
-        c.status,
-        c.created_at,
-        p.id AS patient_id,
-        p.name AS patient_name,
-        p.phone AS patient_phone,
+c.id,
+  c.scheduled_at,
+  c.consultation_type,
+  c.status,
+  c.created_at,
+  p.id AS patient_id,
+    p.name AS patient_name,
+      p.phone AS patient_phone,
         p.diagnosis AS patient_diagnosis
        FROM dietbyrd_consultations c
        LEFT JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
@@ -6350,10 +6442,10 @@ app.get("/api/appointments/unassigned", async (_req, res) => {
 async function runAutoAssign() {
   const pending = await query(
     `SELECT
-      c.id AS consultation_id,
-      c.scheduled_at,
-      c.registered_patient_id,
-      p.name AS patient_name
+c.id AS consultation_id,
+  c.scheduled_at,
+  c.registered_patient_id,
+  p.name AS patient_name
      FROM dietbyrd_consultations c
      LEFT JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
      LEFT JOIN dietbyrd_patients p ON rp.patient_id = p.id
@@ -6376,41 +6468,41 @@ async function runAutoAssign() {
 
     const bestRd = await query(
       `SELECT
-        rd.id,
-        rd.name,
-        (
-          SELECT COUNT(*)
+rd.id,
+  rd.name,
+  (
+    SELECT COUNT(*)
           FROM dietbyrd_consultations c2
           WHERE c2.rd_id = rd.id
-            AND c2.scheduled_at >= date_trunc('week', $1::timestamp)
-            AND c2.scheduled_at < date_trunc('week', $1::timestamp) + INTERVAL '7 days'
-            AND c2.status NOT IN ('cancelled', 'no_show')
+            AND c2.scheduled_at >= date_trunc('week', $1:: timestamp)
+            AND c2.scheduled_at < date_trunc('week', $1:: timestamp) + INTERVAL '7 days'
+            AND c2.status NOT IN('cancelled', 'no_show')
         ) AS week_bookings
        FROM dietbyrd_registered_dietitians rd
        WHERE rd.is_active = true
-         AND NOT EXISTS (
-           SELECT 1 FROM dietbyrd_consultations cx
+         AND NOT EXISTS(
+      SELECT 1 FROM dietbyrd_consultations cx
            WHERE cx.rd_id = rd.id
-             AND cx.scheduled_at = $1::timestamp
-             AND cx.status NOT IN ('cancelled', 'no_show')
-         )
-         AND EXISTS (
-           SELECT 1 FROM dietbyrd_dietician_availability da
+             AND cx.scheduled_at = $1:: timestamp
+             AND cx.status NOT IN('cancelled', 'no_show')
+    )
+         AND EXISTS(
+      SELECT 1 FROM dietbyrd_dietician_availability da
            WHERE da.rd_id = rd.id
              AND da.is_active = true
-             AND da.day_of_week = EXTRACT(DOW FROM $1::timestamp)::int
-             AND $1::time >= da.start_time
-             AND $1::time < da.end_time
-         )
-         AND NOT EXISTS (
-           SELECT 1 FROM dietbyrd_dietician_blocked_slots bs
+             AND da.day_of_week = EXTRACT(DOW FROM $1:: timestamp):: int
+             AND $1:: time >= da.start_time
+             AND $1:: time < da.end_time
+    )
+         AND NOT EXISTS(
+      SELECT 1 FROM dietbyrd_dietician_blocked_slots bs
            WHERE bs.rd_id = rd.id
-             AND bs.blocked_date = $1::date
-             AND (
-               bs.start_time IS NULL
-               OR ($1::time >= bs.start_time AND $1::time < bs.end_time)
-             )
-         )
+             AND bs.blocked_date = $1:: date
+             AND(
+        bs.start_time IS NULL
+               OR($1:: time >= bs.start_time AND $1:: time < bs.end_time)
+      )
+    )
        ORDER BY week_bookings ASC
        LIMIT 1`,
       [scheduled_at]
@@ -6460,7 +6552,7 @@ async function runAutoAssign() {
 // ─── Doctor commission_rate column migration ──────────────────────────────────
 (async () => {
   try {
-    await query(`ALTER TABLE dietbyrd_doctors ADD COLUMN IF NOT EXISTS commission_rate NUMERIC(5,2) DEFAULT 0`);
+    await query(`ALTER TABLE dietbyrd_doctors ADD COLUMN IF NOT EXISTS commission_rate NUMERIC(5, 2) DEFAULT 0`);
     console.log('[migration] commission_rate column ready');
   } catch (err) {
     console.error('[migration] commission_rate column error:', err.message);
@@ -6487,8 +6579,8 @@ async function runAutoAssign() {
       UPDATE dietbyrd_patients
       SET diagnoses = jsonb_build_array(diagnosis)
       WHERE diagnosis IS NOT NULL
-        AND (diagnoses IS NULL OR diagnoses = '[]'::jsonb)
-    `);
+AND(diagnoses IS NULL OR diagnoses = '[]':: jsonb)
+  `);
     console.log('[migration] diagnoses column ready');
   } catch (err) {
     console.error('[migration] diagnoses column error:', err.message);
@@ -6501,7 +6593,7 @@ async function runAutoAssign() {
     await query(`
       ALTER TABLE dietbyrd_food_library
         ADD COLUMN IF NOT EXISTS oxalate_eee NUMERIC DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS phytate_eee NUMERIC DEFAULT 0
+  ADD COLUMN IF NOT EXISTS phytate_eee NUMERIC DEFAULT 0
     `);
 
     // Batch update existing items by ID with correct modulator values
@@ -6539,13 +6631,13 @@ async function runAutoAssign() {
       ['GINGER', 5, 0], ['GREEN_CHILI', 5, 0], ['TURMERIC', 5, 0],
     ];
     if (modulatorUpdates.length > 0) {
-      const valuesList = modulatorUpdates.map(([id, ox, ph]) => `('${id}', ${ox}, ${ph})`).join(', ');
+      const valuesList = modulatorUpdates.map(([id, ox, ph]) => `('${id}', ${ ox }, ${ ph })`).join(', ');
       await query(`
         UPDATE dietbyrd_food_library AS t
         SET oxalate_eee = v.ox, phytate_eee = v.ph
-        FROM (VALUES ${valuesList}) AS v(id, ox, ph)
+FROM(VALUES ${ valuesList }) AS v(id, ox, ph)
         WHERE t.id = v.id
-      `);
+  `);
     }
     console.log('[migration] modulator values updated for existing items');
 
@@ -6868,19 +6960,19 @@ async function runAutoAssign() {
 
     for (const f of newFoods) {
       await query(`
-        INSERT INTO dietbyrd_food_library (
-          id, name_en, name_hi, category,
-          calories, protein, carbs, fat, fiber,
-          iron, calcium, magnesium, zinc, potassium, sodium, phosphorus, iodine, selenium, copper,
-          vitamin_a, vitamin_b1, vitamin_b2, vitamin_b3, vitamin_b6, vitamin_b9, vitamin_b12,
-          vitamin_c, vitamin_d, vitamin_e, vitamin_k,
-          oxalate_eee, phytate_eee,
-          yield_factor, image_url, tags, food_type, dietitian_visibility, caution_level
-        ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-          $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,'',$34,$35,true,$36
-        ) ON CONFLICT (id) DO NOTHING
-      `, [
+        INSERT INTO dietbyrd_food_library(
+    id, name_en, name_hi, category,
+    calories, protein, carbs, fat, fiber,
+    iron, calcium, magnesium, zinc, potassium, sodium, phosphorus, iodine, selenium, copper,
+    vitamin_a, vitamin_b1, vitamin_b2, vitamin_b3, vitamin_b6, vitamin_b9, vitamin_b12,
+    vitamin_c, vitamin_d, vitamin_e, vitamin_k,
+    oxalate_eee, phytate_eee,
+    yield_factor, image_url, tags, food_type, dietitian_visibility, caution_level
+  ) VALUES(
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+    $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, '', $34, $35, true, $36
+  ) ON CONFLICT(id) DO NOTHING
+    `, [
         f.id, f.name_en, f.name_hi, f.category,
         f.calories, f.protein, f.carbs, f.fat, f.fiber,
         f.iron, f.calcium, f.magnesium, f.zinc, f.potassium, f.sodium, f.phosphorus, f.iodine, f.selenium, f.copper,
@@ -6890,7 +6982,7 @@ async function runAutoAssign() {
         f.yield_factor || 1.0, f.tags || [], f.food_type || 'CORE', f.caution_level || 'NONE',
       ]);
     }
-    console.log(`[migration] inserted ${newFoods.length} new food items (skipped existing)`);
+    console.log(`[migration] inserted ${ newFoods.length } new food items(skipped existing)`);
 
     console.log('[migration] oxalate_eee / phytate_eee columns ready');
   } catch (err) {
@@ -6902,10 +6994,10 @@ async function runAutoAssign() {
 runAutoAssign()
   .then(({ assigned, total_pending }) => {
     if (total_pending > 0) {
-      console.log(`[auto-assign] startup run: assigned ${assigned}/${total_pending}`);
+      console.log(`[auto - assign] startup run: assigned ${ assigned }/${total_pending}`);
     }
   })
-  .catch((err) => console.error("[auto-assign] startup error:", err.message));
+  .catch ((err) => console.error("[auto-assign] startup error:", err.message));
 
 setInterval(() => {
   runAutoAssign()
@@ -6922,6 +7014,343 @@ app.post("/api/appointments/trigger-auto-assign", async (_req, res) => {
   try {
     const result = await runAutoAssign();
     res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+const getPatientProfileForUser = async (userId) => {
+  const result = await query(
+    "SELECT id, phone, name FROM dietbyrd_patients WHERE user_id = $1 LIMIT 1",
+    [userId]
+  );
+  return result.rows[0] || null;
+};
+
+const hasCompletedPaidConsultation = async (patientProfileId) => {
+  const result = await query(
+    `SELECT 1
+     FROM dietbyrd_consultations c
+     JOIN dietbyrd_registered_patients rp ON rp.id = c.registered_patient_id
+     WHERE rp.patient_id = $1
+       AND c.status = 'completed'
+       AND EXISTS (
+         SELECT 1
+         FROM dietbyrd_razorpay_payments pay
+         WHERE pay.patient_id = rp.patient_id
+           AND pay.status IN ('paid', 'captured', 'success')
+       )
+     LIMIT 1`,
+    [patientProfileId]
+  );
+  return result.rows.length > 0;
+};
+
+app.get("/api/reviews", async (req, res) => {
+  try {
+    const approvedOnly = req.query.approved === "1";
+    const limit = Math.min(parseInt(req.query.limit || "20", 10), 50);
+    const offset = Math.max(parseInt(req.query.offset || "0", 10), 0);
+    const result = await query(
+      `SELECT r.id, r.patient_id, u.name AS patient_name, r.rating, r.body, r.condition_tag,
+              r.is_approved, r.created_at, r.approved_at
+       FROM reviews r
+       LEFT JOIN dietbyrd_users u ON u.id = r.patient_id
+       WHERE ($1::boolean = false OR r.is_approved = true)
+       ORDER BY r.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [approvedOnly, limit, offset]
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/reviews/me/status", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Only patients can review." });
+
+    const patient = await getPatientProfileForUser(auth.userId);
+    const completed = patient ? await hasCompletedPaidConsultation(patient.id) : false;
+    const phone = formatPhoneE164(auth.user.phone || patient?.phone || "");
+    const existing = await query("SELECT 1 FROM reviews WHERE phone_e164 = $1 LIMIT 1", [phone]);
+    const hasReviewed = existing.rows.length > 0;
+
+    res.json({
+      success: true,
+      data: {
+        eligible: completed && !hasReviewed,
+        has_completed_paid_consultation: completed,
+        has_reviewed: hasReviewed,
+        reason: !completed ? "Available after your first completed paid consultation" : hasReviewed ? "You have already posted a review." : null,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/reviews", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Only patients can post a review." });
+
+    const patient = await getPatientProfileForUser(auth.userId);
+    if (!patient || !(await hasCompletedPaidConsultation(patient.id))) {
+      return res.status(403).json({ success: false, error: "Only patients who have completed a paid consultation can post a review." });
+    }
+
+    const rating = Number(req.body.rating);
+    const body = String(req.body.body || "").trim();
+    const conditionTag = req.body.condition_tag ? String(req.body.condition_tag).trim() : null;
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5 || body.length < 20 || body.length > 2000) {
+      return res.status(400).json({ success: false, error: "Please provide a 1-5 rating and a review between 20 and 2000 characters." });
+    }
+
+    const phone = formatPhoneE164(auth.user.phone || patient.phone || "");
+    const result = await query(
+      `INSERT INTO reviews (patient_id, phone_e164, rating, body, condition_tag)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [auth.userId, phone, rating, body, conditionTag || null]
+    );
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({ success: false, error: "You have already posted a review." });
+    }
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/admin/reviews", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (!["ops_manager", "founder", "tech_lead"].includes(auth.role)) {
+      return res.status(403).json({ success: false, error: "Not authorized" });
+    }
+    const approved = req.query.approved === undefined ? null : req.query.approved === "1";
+    const result = await query(
+      `SELECT r.id, r.patient_id, u.name AS patient_name, r.rating, r.body, r.condition_tag,
+              r.is_approved, r.created_at, r.approved_at
+       FROM reviews r
+       LEFT JOIN dietbyrd_users u ON u.id = r.patient_id
+       WHERE ($1::boolean IS NULL OR r.is_approved = $1)
+       ORDER BY r.created_at DESC`,
+      [approved]
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.patch("/api/admin/reviews/:id", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (!["ops_manager", "founder", "tech_lead"].includes(auth.role)) {
+      return res.status(403).json({ success: false, error: "Not authorized" });
+    }
+    const isApproved = !!req.body.is_approved;
+    const result = await query(
+      `UPDATE reviews
+       SET is_approved = $1, approved_at = CASE WHEN $1 THEN NOW() ELSE NULL END
+       WHERE id = $2
+       RETURNING *`,
+      [isApproved, req.params.id]
+    );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+const DOCUMENT_BUCKET = "patient-documents";
+const DOCUMENT_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
+const DOCUMENT_KIND_TYPES = new Set(["blood_report", "prescription", "other"]);
+const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
+
+const signedDocumentUrl = async (filePath) => {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) return null;
+
+  const response = await fetch(`${supabaseUrl}/storage/v1/object/sign/${DOCUMENT_BUCKET}/${filePath}`, {
+    method: "POST",
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ expiresIn: 72 * 60 * 60 }),
+  });
+  if (!response.ok) return null;
+  const data = await response.json();
+  return data.signedURL ? `${supabaseUrl}/storage/v1${data.signedURL}` : null;
+};
+
+const attachDocumentUrls = async (rows) =>
+  Promise.all(rows.map(async (row) => ({ ...row, signed_url: await signedDocumentUrl(row.file_path) })));
+
+const readRawBody = (req) =>
+  new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+
+const parseMultipartUpload = async (req) => {
+  const contentType = req.headers["content-type"] || "";
+  const boundaryMatch = contentType.match(/boundary=(.+)$/);
+  if (!boundaryMatch) throw new Error("Multipart boundary missing");
+  const boundary = `--${boundaryMatch[1]}`;
+  const raw = await readRawBody(req);
+  const rawText = raw.toString("latin1");
+  const parts = rawText.split(boundary).slice(1, -1);
+  const fields = {};
+  let file = null;
+
+  for (const part of parts) {
+    const headerEnd = part.indexOf("\r\n\r\n");
+    if (headerEnd < 0) continue;
+    const header = part.slice(0, headerEnd);
+    const content = part.slice(headerEnd + 4, part.endsWith("\r\n") ? -2 : undefined);
+    const nameMatch = header.match(/name="([^"]+)"/);
+    const filenameMatch = header.match(/filename="([^"]*)"/);
+    const typeMatch = header.match(/Content-Type:\s*([^\r\n]+)/i);
+    if (!nameMatch) continue;
+    if (filenameMatch) {
+      file = {
+        field: nameMatch[1],
+        originalname: filenameMatch[1],
+        mimetype: typeMatch?.[1]?.trim() || "application/octet-stream",
+        buffer: Buffer.from(content, "latin1"),
+      };
+    } else {
+      fields[nameMatch[1]] = content;
+    }
+  }
+  return { fields, file };
+};
+
+const uploadToDocumentStorage = async (filePath, file) => {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error("Supabase document storage is not configured");
+  }
+  const response = await fetch(`${supabaseUrl}/storage/v1/object/${DOCUMENT_BUCKET}/${filePath}`, {
+    method: "PUT",
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": file.mimetype,
+      "x-upsert": "false",
+    },
+    body: file.buffer,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || "Failed to upload document");
+  }
+};
+
+app.post("/api/patient/me/documents", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Only patients can upload documents." });
+
+    const patient = await getPatientProfileForUser(auth.userId);
+    if (!patient) return res.status(404).json({ success: false, error: "Patient profile not found" });
+
+    const { fields, file } = await parseMultipartUpload(req);
+    const kind = fields.kind || "blood_report";
+    if (!DOCUMENT_KIND_TYPES.has(kind)) return res.status(400).json({ success: false, error: "Invalid document kind" });
+    if (!file) return res.status(400).json({ success: false, error: "File is required" });
+    if (!DOCUMENT_MIME_TYPES.has(file.mimetype)) return res.status(400).json({ success: false, error: "Only PDF, JPG, and PNG files are allowed" });
+    if (file.buffer.length > DOCUMENT_MAX_BYTES) return res.status(400).json({ success: false, error: "File must be 10 MB or smaller" });
+
+    const extension = file.mimetype === "application/pdf" ? "pdf" : file.mimetype === "image/png" ? "png" : "jpg";
+    const id = crypto.randomUUID();
+    const filePath = `${auth.userId}/${id}.${extension}`;
+    await uploadToDocumentStorage(filePath, file);
+
+    const result = await query(
+      `INSERT INTO patient_documents
+       (id, patient_id, patient_profile_id, kind, file_path, original_filename, mime_type, size_bytes, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $2)
+       RETURNING *`,
+      [id, auth.userId, patient.id, kind, filePath, file.originalname, file.mimetype, file.buffer.length]
+    );
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/patient/me/documents", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Only patients can view their documents." });
+    const result = await query(
+      "SELECT * FROM patient_documents WHERE patient_id = $1 ORDER BY created_at DESC",
+      [auth.userId]
+    );
+    res.json({ success: true, data: await attachDocumentUrls(result.rows) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete("/api/patient/me/documents/:id", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Only patients can delete documents." });
+    const result = await query(
+      "DELETE FROM patient_documents WHERE id = $1 AND patient_id = $2 RETURNING id",
+      [req.params.id, auth.userId]
+    );
+    res.json({ success: true, data: result.rows[0] || { id: req.params.id } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/rd/patients/:patientId/documents", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (["support", "support_intern"].includes(auth.role)) return res.status(403).json({ success: false, error: "Support cannot access patient documents." });
+    if (!["rd", "mlt_intern"].includes(auth.role)) return res.status(403).json({ success: false, error: "Not authorized" });
+
+    const patientProfileId = parseInt(req.params.patientId, 10);
+    if (auth.role === "rd") {
+      const rdResult = await query("SELECT id FROM dietbyrd_registered_dietitians WHERE user_id = $1", [auth.userId]);
+      const rdId = rdResult.rows[0]?.id;
+      const assigned = await query(
+        `SELECT 1 FROM dietbyrd_consultations c
+         JOIN dietbyrd_registered_patients rp ON rp.id = c.registered_patient_id
+         WHERE rp.patient_id = $1 AND c.rd_id = $2 LIMIT 1`,
+        [patientProfileId, rdId]
+      );
+      if (!rdId || assigned.rows.length === 0) return res.status(403).json({ success: false, error: "Not assigned to this patient" });
+    }
+
+    const result = await query(
+      "SELECT * FROM patient_documents WHERE patient_profile_id = $1 ORDER BY created_at DESC",
+      [patientProfileId]
+    );
+    res.json({ success: true, data: await attachDocumentUrls(result.rows) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

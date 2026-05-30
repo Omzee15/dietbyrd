@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth, getDashboardPath } from "@/contexts/AuthContext";
 import { PublicBookingModal } from "@/components/PublicBookingModal";
+import { getApprovedReviews } from "@/lib/api";
 import {
   BadgeCheck,
   CalendarDays,
@@ -17,7 +18,7 @@ import {
   UserRoundCheck,
 } from "lucide-react";
 
-const testimonials = [
+const fallbackTestimonials = [
   {
     text: 'My dietitian gave me a plan that helped me <strong>reverse diabetes</strong> — I went from HbA1c 6.3 to 5.9 in three months. And I didn\'t have to give up a single meal that matters to me. Idli, dosa, rice — it\'s all still there.',
     name: 'Suresh K.',
@@ -118,6 +119,7 @@ const Landing = () => {
   const { isAuthenticated, user, logout } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
+  const [approvedTestimonials, setApprovedTestimonials] = useState<typeof fallbackTestimonials>([]);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
@@ -167,11 +169,30 @@ const Landing = () => {
     return () => observer.disconnect();
   }, []);
 
+  const testimonialItems = approvedTestimonials.length > 0 ? approvedTestimonials : fallbackTestimonials;
+
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTestimonial((prev) => (prev + 1) % testimonials.length);
+      setCurrentTestimonial((prev) => (prev + 1) % testimonialItems.length);
     }, 5000);
     return () => clearInterval(interval);
+  }, [testimonialItems.length]);
+
+  useEffect(() => {
+    getApprovedReviews(6)
+      .then((reviews) => {
+        setApprovedTestimonials(
+          reviews.map((review) => ({
+            text: review.body,
+            name: review.patient_name || "Verified Patient",
+            detail: "Verified Diet By RD patient",
+            condition: review.condition_tag || `${review.rating}/5 review`,
+            avatar: "★",
+          }))
+        );
+        setCurrentTestimonial(0);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -1200,24 +1221,27 @@ const Landing = () => {
           <div ref={addToRefs} className="testimonial-wrap reveal reveal-delay-2">
             <div className="testimonial-card">
               <Quote className="testimonial-quote" aria-hidden="true" />
-              <p className="testimonial-text" dangerouslySetInnerHTML={{ __html: testimonials[currentTestimonial].text }} />
+              <p className="testimonial-text" dangerouslySetInnerHTML={{ __html: testimonialItems[currentTestimonial]?.text || "" }} />
               <div className="testimonial-author">
-                <div className="testimonial-avatar">{testimonials[currentTestimonial].avatar}</div>
+                <div className="testimonial-avatar">{testimonialItems[currentTestimonial]?.avatar}</div>
                 <div>
-                  <div className="testimonial-name">{testimonials[currentTestimonial].name}</div>
-                  <div className="testimonial-detail">{testimonials[currentTestimonial].detail}</div>
-                  <div className="testimonial-condition">{testimonials[currentTestimonial].condition}</div>
+                  <div className="testimonial-name">{testimonialItems[currentTestimonial]?.name}</div>
+                  <div className="testimonial-detail">{testimonialItems[currentTestimonial]?.detail}</div>
+                  <div className="testimonial-condition">{testimonialItems[currentTestimonial]?.condition}</div>
                 </div>
               </div>
             </div>
             <div className="carousel-nav">
-              <button className="carousel-btn" disabled={testimonials.length <= 1} onClick={() => setCurrentTestimonial((prev) => (prev - 1 + testimonials.length) % testimonials.length)}>←</button>
-              <button className="carousel-btn" disabled={testimonials.length <= 1} onClick={() => setCurrentTestimonial((prev) => (prev + 1) % testimonials.length)}>→</button>
+              <button className="carousel-btn" disabled={testimonialItems.length <= 1} onClick={() => setCurrentTestimonial((prev) => (prev - 1 + testimonialItems.length) % testimonialItems.length)}>←</button>
+              <button className="carousel-btn" disabled={testimonialItems.length <= 1} onClick={() => setCurrentTestimonial((prev) => (prev + 1) % testimonialItems.length)}>→</button>
             </div>
             <div className="carousel-dots">
-              {testimonials.map((_, i) => (
+              {testimonialItems.map((_, i) => (
                 <button key={i} className={`carousel-dot ${i === currentTestimonial ? 'active' : ''}`} onClick={() => setCurrentTestimonial(i)} />
               ))}
+            </div>
+            <div style={{ textAlign: 'center', marginTop: '20px' }}>
+              <Link to="/reviews" style={{ color: 'var(--teal)', fontWeight: 600 }}>Read all reviews →</Link>
             </div>
           </div>
         </div>
