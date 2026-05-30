@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
@@ -50,6 +50,7 @@ const MLTInternsPage = () => {
   const [newPassword, setNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
+  const resetPasswordInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleLogout = () => {
     logout();
@@ -119,8 +120,12 @@ const MLTInternsPage = () => {
       if (!result.success) throw new Error(result.error);
       return result.data;
     },
-    onSuccess: () => {
-      refetch();
+    onSuccess: (_data, userId) => {
+      queryClient.setQueryData(["staff", "mlt_intern"], (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.filter((intern: StaffMember) => intern.id !== userId);
+      });
+      queryClient.invalidateQueries({ queryKey: ["staff", "mlt_intern"] });
       toast.success("MLT Intern deleted");
       setDeleteTarget(null);
     },
@@ -285,7 +290,13 @@ const MLTInternsPage = () => {
 
       {/* Reset Password Dialog */}
       <Dialog open={!!resetPasswordTarget} onOpenChange={(open) => !open && setResetPasswordTarget(null)}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent
+          className="sm:max-w-sm"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            resetPasswordInputRef.current?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Reset Password</DialogTitle>
             <DialogDescription>
@@ -297,11 +308,13 @@ const MLTInternsPage = () => {
               <label className="text-sm font-medium">New Password</label>
               <div className="relative">
                 <Input
+                  ref={resetPasswordInputRef}
                   type={showNewPassword ? "text" : "password"}
                   placeholder="Min. 6 characters"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="pr-10"
+                  autoFocus
                 />
                 <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

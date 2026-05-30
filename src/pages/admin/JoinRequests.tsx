@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Search, UserPlus, Stethoscope, UtensilsCrossed,
   Check, X, Loader2, Clock, CheckCircle, XCircle, Filter, LogOut, Eye,
-  MapPin, Award, Building2, Phone, Calendar, FileText, MessageSquare
+  MapPin, Award, Building2, Phone, Calendar, FileText, MessageSquare, Mail
 } from "lucide-react";
 import { getAdminSidebarSections } from "@/lib/admin-sidebar";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ const JoinRequests = () => {
   const [showInterviewDialog, setShowInterviewDialog] = useState(false);
   const [interviewRequest, setInterviewRequest] = useState<JoinRequest | null>(null);
   const [interviewMessage, setInterviewMessage] = useState("");
+  const [interviewDelivery, setInterviewDelivery] = useState<"email_first" | "email_only" | "whatsapp_only" | "both">("email_first");
   const [rejectionReason, setRejectionReason] = useState("");
   const [adminMessage, setAdminMessage] = useState("");
   const [commissionRate, setCommissionRate] = useState("");
@@ -99,10 +100,30 @@ const JoinRequests = () => {
 
   // Schedule interview mutation
   const interviewMutation = useMutation({
-    mutationFn: ({ id, message }: { id: number; message?: string }) =>
-      scheduleInterview(id, message),
-    onSuccess: () => {
-      toast.success("Interview invitation sent via WhatsApp!");
+    mutationFn: ({ id, message, delivery }: { id: number; message?: string; delivery: "email_first" | "email_only" | "whatsapp_only" | "both" }) =>
+      scheduleInterview(id, message, delivery),
+    onSuccess: (data, variables) => {
+      const emailSent = data?.email?.sent;
+      const whatsappSent = data?.whatsapp?.sent;
+      const status = data?.status || "interview_sent";
+
+      queryClient.setQueriesData({ queryKey: ["join-requests"] }, (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((req: JoinRequest) =>
+          req.id === variables.id ? { ...req, status } : req
+        );
+      });
+
+      if (emailSent && whatsappSent) {
+        toast.success("Interview invitation sent via email and WhatsApp.");
+      } else if (emailSent) {
+        toast.success("Interview invitation emailed.");
+      } else if (whatsappSent) {
+        toast.success("Interview invitation sent via WhatsApp.");
+      } else {
+        toast.success("Interview invitation sent.");
+      }
+
       setShowInterviewDialog(false);
       setInterviewRequest(null);
       setInterviewMessage("");
@@ -146,6 +167,8 @@ const JoinRequests = () => {
   const openInterviewDialog = (request: JoinRequest) => {
     setInterviewRequest(request);
     setInterviewMessage("");
+    const hasEmail = Boolean(request.applicant_email);
+    setInterviewDelivery(hasEmail ? "email_first" : "whatsapp_only");
     setShowInterviewDialog(true);
   };
 
@@ -162,7 +185,11 @@ const JoinRequests = () => {
 
   const handleScheduleInterview = () => {
     if (interviewRequest) {
-      interviewMutation.mutate({ id: interviewRequest.id, message: interviewMessage || undefined });
+      interviewMutation.mutate({
+        id: interviewRequest.id,
+        message: interviewMessage || undefined,
+        delivery: interviewDelivery,
+      });
     }
   };
 
@@ -232,6 +259,8 @@ const JoinRequests = () => {
     switch (status) {
       case "pending":
         return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200"><Clock className="w-3 h-3 mr-1" /> Pending</Badge>;
+      case "interview_sent":
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200"><MessageSquare className="w-3 h-3 mr-1" /> Interview Sent</Badge>;
       case "approved":
         return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200"><CheckCircle className="w-3 h-3 mr-1" /> Approved</Badge>;
       case "rejected":
@@ -328,6 +357,7 @@ const JoinRequests = () => {
                 <SelectContent>
                   <SelectItem value="all">All Requests</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="interview_sent">Interview Sent</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
@@ -336,9 +366,10 @@ const JoinRequests = () => {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-4 gap-4 mb-8">
             {[
               { label: "Pending", count: requests.filter(r => r.status === "pending").length, bgColor: "bg-amber-50", borderColor: "border-amber-100", textColor: "text-amber-700", labelColor: "text-amber-600" },
+              { label: "Interview Sent", count: requests.filter(r => r.status === "interview_sent").length, bgColor: "bg-blue-50", borderColor: "border-blue-100", textColor: "text-blue-700", labelColor: "text-blue-600" },
               { label: "Approved", count: requests.filter(r => r.status === "approved").length, bgColor: "bg-emerald-50", borderColor: "border-emerald-100", textColor: "text-emerald-700", labelColor: "text-emerald-600" },
               { label: "Rejected", count: requests.filter(r => r.status === "rejected").length, bgColor: "bg-red-50", borderColor: "border-red-100", textColor: "text-red-700", labelColor: "text-red-600" },
             ].map((stat) => (
@@ -516,6 +547,15 @@ const JoinRequests = () => {
                     <p className="font-medium">{detailsRequest.phone}</p>
                   </div>
                 </div>
+                {detailsRequest.applicant_email && (
+                  <div className="flex items-start gap-2">
+                    <Mail className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Email</p>
+                      <p className="font-medium">{detailsRequest.applicant_email}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-start gap-2">
                   <Award className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                   <div>
@@ -614,10 +654,29 @@ const JoinRequests = () => {
           <DialogHeader>
             <DialogTitle>Schedule Interview</DialogTitle>
             <DialogDescription>
-              Send a WhatsApp message to {interviewRequest?.name} ({interviewRequest?.phone}) to schedule an interview.
+              Send an interview invitation to {interviewRequest?.name} ({interviewRequest?.phone}).
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
+            <div className="mb-4 space-y-2">
+              <label className="text-sm font-medium text-slate-700">Delivery method</label>
+              <Select value={interviewDelivery} onValueChange={(value) => setInterviewDelivery(value as typeof interviewDelivery)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="email_first">Email first (fallback WhatsApp)</SelectItem>
+                  <SelectItem value="email_only">Email only</SelectItem>
+                  <SelectItem value="whatsapp_only">WhatsApp only</SelectItem>
+                  <SelectItem value="both">Email + WhatsApp</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {interviewRequest?.applicant_email
+                  ? `Email will be sent to ${interviewRequest.applicant_email}.`
+                  : "No registered email found — WhatsApp delivery is recommended."}
+              </p>
+            </div>
             <label className="text-sm font-medium text-slate-700 mb-2 block">
               Message (optional)
             </label>

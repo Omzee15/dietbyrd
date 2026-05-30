@@ -195,9 +195,22 @@ const AdminDashboard = () => {
       const urlMap = { patient: "patients", doctor: "doctors", dietician: "dieticians" };
       const res = await fetch(`/api/${urlMap[deleteTarget.type]}/${deleteTarget.id}`, { method: "DELETE" });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error);
+      const queryKey = [urlMap[deleteTarget.type]] as const;
+
+      if (!data.success) {
+        const errorMessage = typeof data.error === "string" ? data.error : "Delete failed";
+        const isNotFound = errorMessage.toLowerCase().includes("not found");
+        if (!isNotFound) {
+          throw new Error(errorMessage);
+        }
+      }
+
+      queryClient.setQueryData(queryKey, (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.filter((item: { id: number }) => item.id !== deleteTarget.id);
+      });
+      queryClient.invalidateQueries({ queryKey });
       toast.success(`${deleteTarget.name} deleted successfully`);
-      queryClient.invalidateQueries({ queryKey: [urlMap[deleteTarget.type]] });
       setDeleteTarget(null);
       if (selectedPatient?.id === deleteTarget.id) setSelectedPatient(null);
     } catch (err: any) {

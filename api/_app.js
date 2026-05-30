@@ -728,7 +728,7 @@ const getAuthContextFromHeaders = async (req) => {
   return { userId, role, user };
 };
 
-const sendJoinRequestMessageEmail = async ({ recipientEmail, recipientName, senderName, message }) => {
+const sendJoinRequestMessageEmail = async ({ recipientEmail, recipientName, senderName, message, subject }) => {
   if (!recipientEmail) {
     return { sent: false, reason: "missing_email" };
   }
@@ -742,7 +742,7 @@ const sendJoinRequestMessageEmail = async ({ recipientEmail, recipientName, send
     return { sent: false, reason: "sendgrid_not_configured" };
   }
 
-  const subject = "Update on your DietByRD join request";
+  const resolvedSubject = subject || "Update on your DietByRD join request";
   const safeRecipient = recipientName || "there";
   const safeSender = senderName || "DietByRD team";
   const text = `Hi ${safeRecipient},\n\n${message}\n\n- DietByRD Team (from ${safeSender})`;
@@ -759,7 +759,7 @@ const sendJoinRequestMessageEmail = async ({ recipientEmail, recipientName, send
     await sgMail.send({
       to: recipientEmail,
       from: { email: SENDGRID_FROM_EMAIL, name: SENDGRID_FROM_NAME },
-      subject,
+      subject: resolvedSubject,
       text,
       html,
     });
@@ -2130,7 +2130,7 @@ app.post("/api/join-requests", async (req, res) => {
             clinic_name VARCHAR(150),
             clinic_address TEXT,
             specializations JSONB,
-            status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+            status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'interview_sent', 'approved', 'rejected')),
             reviewed_by INT NULL,
             reviewed_at TIMESTAMP NULL,
             rejection_reason TEXT NULL,
@@ -2175,9 +2175,11 @@ app.get("/api/join-requests", async (req, res) => {
     let sql = `
       SELECT 
         jr.*,
-        reviewer.name AS reviewed_by_name
+        reviewer.name AS reviewed_by_name,
+        applicant.email AS applicant_email
       FROM dietbyrd_join_requests jr
       LEFT JOIN dietbyrd_users reviewer ON jr.reviewed_by = reviewer.id
+      LEFT JOIN dietbyrd_users applicant ON jr.user_id = applicant.id
     `;
     const params = [];
     if (status) {
@@ -2201,38 +2203,83 @@ app.get("/api/join-requests", async (req, res) => {
 app.post("/api/join-requests/:id/schedule-interview", async (req, res) => {
   try {
     const { id } = req.params;
-    const { message } = req.body;
+    const { message, delivery } = req.body || {};
+    const deliveryMode = ["email_first", "email_only", "whatsapp_only", "both"].includes(String(delivery))
+      ? String(delivery)
+      : "email_first";
 
     const result = await query(
-      "SELECT phone, name FROM dietbyrd_join_requests WHERE id = $1",
+      "SELECT jr.phone, jr.name, u.email FROM dietbyrd_join_requests jr LEFT JOIN dietbyrd_users u ON jr.user_id = u.id WHERE jr.id = $1",
       [id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Join request not found" });
     }
-    const { phone, name } = result.rows[0];
-    const customMessage = message?.trim();
-    const body = customMessage
-      ? `Hi ${name}! 👋\n\nWe'd like to schedule an interview with you regarding your DietByRD application.\n\n${customMessage}\n\n- Team DietByRD`
-      : `Hi ${name}! 👋\n\nWe'd like to schedule an interview with you regarding your DietByRD application. Our team will contact you shortly to confirm the details.\n\n- Team DietByRD`;
+    const { phone, name, email } = result.rows[0];
+    const customMessage = String(message || "").trim();
+    const baseMessage = customMessage
+      ? `We'd like to schedule an interview with you regarding your DietByRD application.\n\n${customMessage}`
+      : "We'd like to schedule an interview with you regarding your DietByRD application. Our team will contact you shortly to confirm the details.";
+    const whatsappBody = `Hi ${name}! 👋\n\n${baseMessage}\n\n- Team DietByRD`;
 
-    if (twilioClient) {
-      const cleanPhone = phone.replace(/\D/g, "").replace(/^91/, "");
-      try {
-        await twilioClient.messages.create({
-          from: TWILIO_WHATSAPP_FROM,
-          to: `whatsapp:+91${cleanPhone}`,
-          body,
-        });
-        console.log(`[Interview] WhatsApp sent to +91${cleanPhone}`);
-      } catch (smsErr) {
-        console.log(`[Interview] WhatsApp failed: ${smsErr.message}`);
-      }
-    } else {
-      console.log(`[Interview][dev] Would send to ${phone}: ${body}`);
+    const shouldSendEmail = deliveryMode !== "whatsapp_only";
+    const shouldSendWhatsapp = deliveryMode !== "email_only";
+
+    let emailResult = { sent: false, reason: "not_requested" };
+    let whatsappResult = { sent: false, reason: "not_requested" };
+
+    if (shouldSendEmail) {
+      emailResult = await sendJoinRequestMessageEmail({
+        recipientEmail: email,
+        recipientName: name,
+        senderName: "DietByRD team",
+        message: baseMessage,
+        subject: "Interview invitation — DietByRD",
+      });
     }
 
-    res.json({ success: true, data: { sent: true } });
+    const shouldFallbackToWhatsapp =
+      shouldSendWhatsapp &&
+      (deliveryMode === "email_first" ? !emailResult.sent : deliveryMode === "both");
+
+    if (shouldFallbackToWhatsapp) {
+      if (twilioClient) {
+        const cleanPhone = phone.replace(/\D/g, "").replace(/^91/, "");
+        try {
+          await twilioClient.messages.create({
+            from: TWILIO_WHATSAPP_FROM,
+            to: `whatsapp:+91${cleanPhone}`,
+            body: whatsappBody,
+          });
+          whatsappResult = { sent: true };
+          console.log(`[Interview] WhatsApp sent to +91${cleanPhone}`);
+        } catch (smsErr) {
+          whatsappResult = { sent: false, reason: "whatsapp_failed" };
+          console.log(`[Interview] WhatsApp failed: ${smsErr.message}`);
+        }
+      } else {
+        whatsappResult = { sent: true, reason: "dev_simulated" };
+        console.log(`[Interview][dev] Would send to ${phone}: ${whatsappBody}`);
+      }
+    }
+
+    if (!emailResult.sent && !whatsappResult.sent) {
+      return res.status(400).json({
+        success: false,
+        error: "Invitation could not be delivered. Please verify email or WhatsApp settings.",
+      });
+    }
+
+    await query("UPDATE dietbyrd_join_requests SET status = 'interview_sent' WHERE id = $1", [id]);
+
+    res.json({
+      success: true,
+      data: {
+        email: emailResult,
+        whatsapp: whatsappResult,
+        status: "interview_sent",
+      },
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -2977,12 +3024,24 @@ app.delete("/api/doctors/:id", async (req, res) => {
       return res.status(404).json({ success: false, error: "Doctor not found" });
     }
     const userId = doctor.rows[0].user_id;
+    await query("BEGIN");
     await query("DELETE FROM dietbyrd_doctors WHERE id = $1", [id]);
     if (userId) {
+      await query(
+        "DELETE FROM dietbyrd_join_request_messages WHERE recipient_user_id = $1 OR sender_id = $1",
+        [userId]
+      );
+      await query("DELETE FROM dietbyrd_join_requests WHERE user_id = $1", [userId]);
       await query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
     }
+    await query("COMMIT");
     res.json({ success: true, message: "Doctor deleted successfully" });
   } catch (err) {
+    try {
+      await query("ROLLBACK");
+    } catch {
+      // Ignore rollback errors
+    }
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -3162,6 +3221,7 @@ app.delete("/api/dieticians/:id", async (req, res) => {
       return res.status(404).json({ success: false, error: "Dietician not found" });
     }
     const userId = dietician.rows[0].user_id;
+    await query("BEGIN");
     // Unassign from pending consultations before deleting
     await query(
       "UPDATE dietbyrd_consultations SET rd_id = NULL WHERE rd_id = $1 AND status = 'scheduled'",
@@ -3169,10 +3229,21 @@ app.delete("/api/dieticians/:id", async (req, res) => {
     );
     await query("DELETE FROM dietbyrd_registered_dietitians WHERE id = $1", [id]);
     if (userId) {
+      await query(
+        "DELETE FROM dietbyrd_join_request_messages WHERE recipient_user_id = $1 OR sender_id = $1",
+        [userId]
+      );
+      await query("DELETE FROM dietbyrd_join_requests WHERE user_id = $1", [userId]);
       await query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
     }
+    await query("COMMIT");
     res.json({ success: true, message: "Dietician deleted successfully" });
   } catch (err) {
+    try {
+      await query("ROLLBACK");
+    } catch {
+      // Ignore rollback errors
+    }
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -5795,7 +5866,7 @@ app.delete("/api/admin/staff/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
     const result = await query(
-      `DELETE FROM dietbyrd_users WHERE id = $1 AND role IN ('mlt_intern','support') RETURNING id`,
+      `DELETE FROM dietbyrd_users WHERE id = $1 AND role IN ('mlt_intern','support_intern') RETURNING id`,
       [userId]
     );
     if (result.rows.length === 0) {
@@ -6073,7 +6144,7 @@ app.get("/api/patient/me/tickets/:id", async (req, res) => {
       data: {
         ticket: ticketResult.rows[0],
         comments: commentsResult.rows,
-      },
+          `DELETE FROM dietbyrd_users WHERE id = $1 AND role IN ('mlt_intern','support_intern') RETURNING id`,
     });
   } catch (err) {
     console.error("[patient/me/tickets/:id] Error:", err);
@@ -6273,7 +6344,7 @@ app.get("/api/appointments/unassigned", async (_req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
-});
+            await query("DELETE FROM dietbyrd_join_requests WHERE user_id = $1", [userId]);
 
 // ─── Core auto-assign logic (shared by scheduler and HTTP endpoint) ────────────
 async function runAutoAssign() {
@@ -6374,7 +6445,7 @@ async function runAutoAssign() {
   } catch (err) {
     console.error('[migration] plain_password column error:', err.message);
   }
-})();
+        await query("DELETE FROM dietbyrd_join_requests WHERE user_id = $1", [userId]);
 
 // ─── Join request about_yourself column migration ─────────────────────────────
 (async () => {

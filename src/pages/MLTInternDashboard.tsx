@@ -861,7 +861,9 @@ const MLTInternDashboard = () => {
                             <td className="px-6 py-4 text-sm text-gray-900">{request.qualification}</td>
                             <td className="px-6 py-4 text-sm text-gray-900">{new Date(request.created_at).toLocaleDateString()}</td>
                             <td className="px-6 py-4">
-                              <Badge variant="secondary" className="capitalize">{request.status}</Badge>
+                              <Badge variant="secondary" className="capitalize">
+                                {request.status === "interview_sent" ? "Interview Sent" : request.status}
+                              </Badge>
                             </td>
                             <td className="px-6 py-4" onClick={(event) => event.stopPropagation()}>
                               <div className="flex items-center gap-2">

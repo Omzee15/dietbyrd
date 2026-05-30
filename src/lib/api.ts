@@ -352,6 +352,7 @@ export interface JoinRequest {
   id: number;
   phone: string;
   name: string;
+  applicant_email?: string | null;
   requested_role: "doctor" | "rd";
   qualification: string;
   clinic_name?: string | null;
@@ -397,11 +398,18 @@ export const rejectJoinRequest = (id: number, reviewedBy?: number, reason?: stri
     body: JSON.stringify({ action: "reject", reviewed_by: reviewedBy, rejection_reason: reason, admin_message: adminMessage }),
   });
 
-export const scheduleInterview = (id: number, message?: string) =>
-  request<{ sent: boolean }>(`/join-requests/${id}/schedule-interview`, {
-    method: "POST",
-    body: JSON.stringify({ message }),
-  });
+export const scheduleInterview = (
+  id: number,
+  message?: string,
+  delivery?: "email_first" | "email_only" | "whatsapp_only" | "both",
+) =>
+  request<{ email?: { sent: boolean; reason?: string }; whatsapp?: { sent: boolean; reason?: string }; status?: string }>(
+    `/join-requests/${id}/schedule-interview`,
+    {
+      method: "POST",
+      body: JSON.stringify({ message, delivery }),
+    },
+  );
 
 // ─── Appointment Booking ──────────────────────────────────────────────────────
 export interface DieticianAvailability {

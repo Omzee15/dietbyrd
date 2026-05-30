@@ -252,7 +252,7 @@ CREATE TABLE dietbyrd_join_requests (
     clinic_name VARCHAR(150) NULL,
     clinic_address TEXT NULL,
     specializations JSONB NULL,
-    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'interview_sent', 'approved', 'rejected')),
     reviewed_by INT REFERENCES dietbyrd_users(id) ON DELETE SET NULL,
     reviewed_at TIMESTAMP NULL,
     rejection_reason TEXT NULL,
