@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS dietbyrd_consultation_packages (
 -- Insert default packages (only single consultation active for now)
 INSERT INTO dietbyrd_consultation_packages (name, num_consultations, price, discount_percentage, description, is_active)
 VALUES 
-    ('Single Consultation', 1, 49900, 0, 'One personalized diet consultation', true)
+    ('Single Consultation', 1, 99900, 0, 'One personalized diet consultation', true)
 ON CONFLICT DO NOTHING;
 
 COMMENT ON TABLE dietbyrd_razorpay_payments IS 'Tracks all Razorpay payments for consultation purchases';

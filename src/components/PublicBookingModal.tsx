@@ -222,8 +222,11 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
 
     try {
       const pkgs = await getConsultationPackages();
-      setPackages(pkgs);
-      if (pkgs.length > 0) setSelectedPackage(pkgs[0]);
+      const normalizedPackages = pkgs.map((pkg) =>
+        pkg.num_consultations === 1 && pkg.price < 99900 ? { ...pkg, price: 99900 } : pkg
+      );
+      setPackages(normalizedPackages);
+      if (normalizedPackages.length > 0) setSelectedPackage(normalizedPackages[0]);
     } catch {
       // non-fatal
     }
@@ -371,6 +374,10 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
               <p className="text-sm text-muted-foreground">
                 Select a time that works for you — we'll match you with an available dietitian.
               </p>
+              <div className="px-4 py-3 rounded-lg text-sm flex gap-2" style={{ background: "var(--teal-l)", color: "var(--teal)" }}>
+                <span aria-hidden="true">ℹ️</span>
+                <span>We'll assign an available dietitian to you after booking.</span>
+              </div>
               <div className="flex items-center justify-between">
                 <Button
                   variant="outline"
