@@ -18,6 +18,7 @@ import Privacy from "./pages/legal/Privacy";
 import Terms from "./pages/legal/Terms";
 import Refund from "./pages/legal/Refund";
 import Cancellation from "./pages/legal/Cancellation";
+import Reviews from "./pages/Reviews";
 
 // Doctor Pages
 import DoctorDashboard from "./pages/DoctorDashboard";
@@ -54,6 +55,7 @@ import AdminFoodLibrary from "./pages/admin/FoodLibrary";
 import AdminCoupons from "./pages/admin/Coupons";
 import AdminMLTInterns from "./pages/admin/MLTInterns";
 import AdminSupportTeam from "./pages/admin/SupportTeam";
+import AdminReviews from "./pages/admin/Reviews";
 
 // MLT Intern Pages
 import MLTInternDashboard from "./pages/MLTInternDashboard";
@@ -86,6 +88,7 @@ const App = () => (
             <Route path="/terms" element={<Terms />} />
             <Route path="/refund" element={<Refund />} />
             <Route path="/cancellation" element={<Cancellation />} />
+            <Route path="/reviews" element={<Reviews />} />
 
             {/* Doctor routes - doctors and their assistants */}
             <Route element={<ProtectedRoute allowedRoles={["doctor", "assistant"]} />}>
@@ -132,6 +135,7 @@ const App = () => (
               <Route path="/admin/join-requests" element={<AdminJoinRequests />} />
               <Route path="/admin/food-library" element={<AdminFoodLibrary />} />
               <Route path="/admin/coupons" element={<AdminCoupons />} />
+              <Route path="/admin/reviews" element={<AdminReviews />} />
               <Route path="/admin/settings" element={<AdminSettings />} />
             </Route>
 

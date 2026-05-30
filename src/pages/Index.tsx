@@ -52,6 +52,14 @@ const formatRoleLabel = (role: string | null) => {
   return role.replace(/_/g, " ");
 };
 
+const getPhoneDigits = (value: string) => value.replace(/\D/g, "");
+
+const normalizePhoneForAuth = (value: string) => {
+  const digits = getPhoneDigits(value);
+  if (!digits) return "";
+  return digits.length > 10 ? digits.slice(-10) : digits;
+};
+
 const Index = () => {
   const navigate = useNavigate();
   const {
@@ -115,11 +123,13 @@ const Index = () => {
     setError("");
     setSuccess("");
 
-    const digits = phone.replace(/\D/g, "");
-    if (digits.length < 10) {
+    const digits = getPhoneDigits(phone);
+    if (digits.length < 9) {
       setError("Please enter a valid phone number");
       return;
     }
+
+    const normalizedPhone = normalizePhoneForAuth(phone);
 
     setCheckingPhone(true);
 
@@ -127,7 +137,7 @@ const Index = () => {
       const res = await fetch("/api/auth/check-phone", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: digits.slice(-10) }),
+        body: JSON.stringify({ phone: normalizedPhone }),
       });
 
       const data: CheckPhoneResponse = await res.json();
@@ -145,7 +155,12 @@ const Index = () => {
       setResolvedRole(userRole);
 
       if (!exists || authFlow === "phone-signin" || authFlow === "otp" || userRole === "patient") {
-        const otpResult = await sendOtp(digits.slice(-10));
+        if (digits.length < 10) {
+          setError("Please enter a 10-digit phone number to receive OTP");
+          return;
+        }
+
+        const otpResult = await sendOtp(normalizedPhone);
         if (!otpResult.success) {
           setError(otpResult.error || "Failed to send OTP");
           return;
@@ -172,8 +187,15 @@ const Index = () => {
     setSuccess("");
     setIsLoading(true);
 
-    const digits = phone.replace(/\D/g, "").slice(-10);
-    const result = await login(digits, password);
+    const digits = getPhoneDigits(phone);
+    if (digits.length < 9) {
+      setError("Please enter a valid phone number");
+      setIsLoading(false);
+      return;
+    }
+
+    const normalizedPhone = normalizePhoneForAuth(phone);
+    const result = await login(normalizedPhone, password);
     if (!result.success) {
       if (result.pending) {
         setAdminMessage(result.admin_message ?? null);
@@ -191,8 +213,15 @@ const Index = () => {
     setSuccess("");
     setIsLoading(true);
 
-    const digits = phone.replace(/\D/g, "").slice(-10);
-    const result = await sendOtp(digits);
+    const digits = getPhoneDigits(phone);
+    if (digits.length < 10) {
+      setError("Please enter a 10-digit phone number to receive OTP");
+      setIsLoading(false);
+      return;
+    }
+
+    const normalizedPhone = normalizePhoneForAuth(phone);
+    const result = await sendOtp(normalizedPhone);
     if (!result.success) {
       setError(result.error || "Failed to send OTP");
     } else {
@@ -211,8 +240,15 @@ const Index = () => {
     setSuccess("");
     setIsLoading(true);
 
-    const digits = phone.replace(/\D/g, "").slice(-10);
-    const result = await verifyOtp(digits, otp);
+    const digits = getPhoneDigits(phone);
+    if (digits.length < 10) {
+      setError("Please enter a 10-digit phone number to verify OTP");
+      setIsLoading(false);
+      return;
+    }
+
+    const normalizedPhone = normalizePhoneForAuth(phone);
+    const result = await verifyOtp(normalizedPhone, otp);
     if (!result.success) {
       setError(result.error || "Invalid OTP");
       setIsLoading(false);
@@ -237,12 +273,19 @@ const Index = () => {
     setError("");
     setIsLoading(true);
     try {
-      const digits = phone.replace(/\D/g, "").slice(-10);
+      const digits = getPhoneDigits(phone);
+      if (digits.length < 10) {
+        setError("Please enter a 10-digit phone number");
+        setIsLoading(false);
+        return;
+      }
+
+      const normalizedPhone = normalizePhoneForAuth(phone);
       const res = await fetch("/api/auth/complete-welcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: digits,
+          phone: normalizedPhone,
           name: nameInput.trim(),
           email: null,
           age: null,
