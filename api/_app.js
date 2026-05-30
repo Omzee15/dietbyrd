@@ -3617,6 +3617,139 @@ app.get("/api/patients/lookup-phone", async (req, res) => {
   }
 });
 
+// Doctor creates patient + pending payment booking and sends payment link
+app.post("/api/doctor/patients", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== 'doctor') return res.status(403).json({ success: false, error: 'Forbidden' });
+
+    const { name, phone_e164, age, condition, notes } = req.body;
+    const rawPhone = phone_e164 || req.body.phone || req.body.phone_e164 || '';
+    if (!rawPhone || !name) return res.status(400).json({ success: false, error: 'name and phone_e164 are required' });
+
+    const variants = buildPhoneVariants(rawPhone);
+
+    // Check for existing patient (by user->patient or patient.phone)
+    const existingUser = await query(
+      "SELECT id, phone FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [variants]
+    );
+
+    let patientId = null;
+    if (existingUser.rows.length > 0) {
+      const userId = existingUser.rows[0].id;
+      const existingPatient = await query("SELECT id FROM dietbyrd_patients WHERE user_id = $1 LIMIT 1", [userId]);
+      if (existingPatient.rows.length > 0) {
+        return res.status(409).json({ success: false, error: 'Patient already exists', patient_id: existingPatient.rows[0].id });
+      }
+    }
+
+    // Also check if a patient row exists with matching phone directly
+    const existingPatientByPhone = await query(
+      "SELECT id FROM dietbyrd_patients WHERE phone = ANY($1::text[]) LIMIT 1",
+      [variants]
+    );
+    if (existingPatientByPhone.rows.length > 0) {
+      return res.status(409).json({ success: false, error: 'Patient already exists', patient_id: existingPatientByPhone.rows[0].id });
+    }
+
+    // Create user if needed
+    let userId;
+    if (existingUser.rows.length > 0) {
+      userId = existingUser.rows[0].id;
+    } else {
+      const newUser = await query(
+        `INSERT INTO dietbyrd_users (phone, role, name, is_active)
+         VALUES ($1, 'patient', $2, true)
+         RETURNING id`,
+        [formatPhoneE164(rawPhone), name]
+      );
+      userId = newUser.rows[0].id;
+    }
+
+    // Create patient record
+    const newPatient = await query(
+      `INSERT INTO dietbyrd_patients (user_id, name, phone, age, diagnosis, diagnosis_description, referral_source, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, 'doctor_portal', $7)
+       RETURNING id`,
+      [userId, name, formatPhoneE164(rawPhone), age || null, condition || null, null, notes || null]
+    );
+    patientId = newPatient.rows[0].id;
+
+    // Ensure a registered_patient exists for consultations
+    let regPatient = await query("SELECT id FROM dietbyrd_registered_patients WHERE patient_id = $1", [patientId]);
+    let registeredPatientId;
+    if (regPatient.rows.length === 0) {
+      const created = await query(
+        `INSERT INTO dietbyrd_registered_patients (patient_id)
+         VALUES ($1) RETURNING id`,
+        [patientId]
+      );
+      registeredPatientId = created.rows[0].id;
+    } else {
+      registeredPatientId = regPatient.rows[0].id;
+    }
+
+    // Create pending consultation (booking) record
+    const consult = await query(
+      `INSERT INTO dietbyrd_consultations (registered_patient_id, status, referred_by_doctor_id, notes)
+       VALUES ($1, 'pending_payment', $2, $3)
+       RETURNING id`,
+      [registeredPatientId, auth.userId, notes || null]
+    );
+    const bookingId = consult.rows[0].id;
+
+    const paymentLink = `${process.env.PUBLIC_SITE_URL || process.env.FRONTEND_URL || 'http://localhost:5173'}/pay?ref=${bookingId}`;
+
+    // Attempt to send WhatsApp/SMS using existing helpers (falls back to SMS/console logging)
+    let messageResult = { sent: false, reason: 'not_attempted' };
+    try {
+      // Prefer WhatsApp template path if available
+      messageResult = await sendReferralWhatsApp({
+        patientId,
+        patientName: name,
+        phone: formatPhoneE164(rawPhone),
+        doctorName: auth.user?.name || 'your doctor',
+        registrationLink: paymentLink
+      });
+
+      // If WhatsApp failed, try SMS fallback
+      if (!messageResult || !messageResult.sent) {
+        messageResult = await sendReferralRegistrationSms({
+          patientId,
+          patientName: name,
+          phone: formatPhoneE164(rawPhone),
+          doctorName: auth.user?.name || 'your doctor',
+          registrationLink: paymentLink
+        });
+      }
+    } catch (err) {
+      console.log('[Doctor Referral] Message send failed', err?.message || err);
+      messageResult = { sent: false, reason: 'exception', error: err?.message || String(err) };
+    }
+
+    // Log to doctor_referrals_log if table exists (best-effort)
+    try {
+      await query(
+        `INSERT INTO doctor_referrals_log (doctor_id, patient_id, consultation_id, phone, sent_at, channel, message, metadata)
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, $6, $7)`,
+        [auth.userId, patientId, bookingId, formatPhoneE164(rawPhone), messageResult?.channel || (messageResult?.sent ? 'whatsapp_or_sms' : 'none'), messageResult?.reason || 'sent', JSON.stringify(messageResult || {})]
+      );
+    } catch (err) {
+      // ignore if logging table does not exist
+    }
+
+    res.status(201).json({
+      success: true,
+      data: { patient_id: patientId, booking_id: bookingId, payment_link: paymentLink, payment_link_sent: !!messageResult?.sent, message_result: messageResult }
+    });
+  } catch (err) {
+    console.error('[/api/doctor/patients] error', err?.message || err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ─── Consultations ────────────────────────────────────────────────────────────
 app.get("/api/consultations", async (req, res) => {
   try {
