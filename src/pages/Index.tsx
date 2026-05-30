@@ -26,9 +26,7 @@ type AuthStep =
   | "otp-verify"
   | "welcome-form"
   | "join-form"
-  | "pending"
-  | "signup"
-  | "signup-otp";
+  | "pending";
 
 type CheckPhoneResponse = {
   success?: boolean;
@@ -60,8 +58,6 @@ const Index = () => {
     login,
     sendOtp,
     verifyOtp,
-    sendSignupOtp,
-    verifySignupOtp,
     isAuthenticated,
     user,
     isLoading: authLoading,
@@ -75,24 +71,14 @@ const Index = () => {
   const [otpTimer, setOtpTimer] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [resolvedRole, setResolvedRole] = useState<string | null>(null);
+  const [authTab, setAuthTab] = useState<"login" | "signup">("login");
 
   const [nameInput, setNameInput] = useState("");
-  const [signupName, setSignupName] = useState("");
-  const [signupPhone, setSignupPhone] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
-  const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
-  const [signupOtp, setSignupOtp] = useState("");
-  const [signupOtpTimer, setSignupOtpTimer] = useState(0);
-  const [showSignupPassword, setShowSignupPassword] = useState(false);
-  const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSignupLoading, setIsSignupLoading] = useState(false);
   const [checkingPhone, setCheckingPhone] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [adminMessage, setAdminMessage] = useState<string | null>(null);
-  const [signupError, setSignupError] = useState("");
-  const [signupSuccess, setSignupSuccess] = useState("");
 
   useEffect(() => {
     if (!authLoading && isAuthenticated && user) {
@@ -107,13 +93,6 @@ const Index = () => {
     }
   }, [otpTimer]);
 
-  useEffect(() => {
-    if (signupOtpTimer > 0) {
-      const timer = setTimeout(() => setSignupOtpTimer((prev) => prev - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [signupOtpTimer]);
-
   const resetStepState = () => {
     setPassword("");
     setOtp("");
@@ -126,19 +105,6 @@ const Index = () => {
     setAdminMessage(null);
   };
 
-  const resetSignupState = () => {
-    setSignupName("");
-    setSignupPhone("");
-    setSignupPassword("");
-    setSignupConfirmPassword("");
-    setSignupOtp("");
-    setSignupOtpTimer(0);
-    setShowSignupPassword(false);
-    setShowSignupConfirmPassword(false);
-    setSignupError("");
-    setSignupSuccess("");
-  };
-
   const handleChangePhone = () => {
     resetStepState();
     setStep("phone");
@@ -148,8 +114,6 @@ const Index = () => {
     e.preventDefault();
     setError("");
     setSuccess("");
-    setSignupError("");
-    setSignupSuccess("");
 
     const digits = phone.replace(/\D/g, "");
     if (digits.length < 10) {
@@ -180,11 +144,16 @@ const Index = () => {
 
       setResolvedRole(userRole);
 
-      if (!exists || authFlow === "phone-signin") {
-        setSignupPhone(digits.slice(-10));
-        setSignupName(userName || "");
-        setSignupSuccess("No account found. Create your account to continue.");
-        setStep("signup");
+      if (!exists || authFlow === "phone-signin" || authFlow === "otp" || userRole === "patient") {
+        const otpResult = await sendOtp(digits.slice(-10));
+        if (!otpResult.success) {
+          setError(otpResult.error || "Failed to send OTP");
+          return;
+        }
+        setStep("otp-verify");
+        setOtp("");
+        setOtpTimer(otpResult.expiresIn || 120);
+        setSuccess(userName ? `Welcome back, ${userName}! OTP sent to your phone.` : "OTP sent to your phone.");
         return;
       }
 
@@ -301,80 +270,7 @@ const Index = () => {
     }
   };
 
-  const handleSignupSendOtp = async (e?: React.FormEvent) => {
-    if (e) {
-      e.preventDefault();
-    }
-    setSignupError("");
-    setSignupSuccess("");
-
-    if (!signupName.trim()) {
-      setSignupError("Please enter your name");
-      return;
-    }
-
-    const digits = signupPhone.replace(/\D/g, "").slice(-10);
-    if (digits.length < 10) {
-      setSignupError("Please enter a valid phone number");
-      return;
-    }
-
-    if (!signupPassword || signupPassword.length < 6) {
-      setSignupError("Password must be at least 6 characters");
-      return;
-    }
-
-    if (signupPassword !== signupConfirmPassword) {
-      setSignupError("Passwords do not match");
-      return;
-    }
-
-    setIsSignupLoading(true);
-    const result = await sendSignupOtp(digits, signupPassword, signupName.trim());
-    if (!result.success) {
-      setSignupError(result.error || "Failed to send OTP");
-    } else {
-      setSignupOtp("");
-      setSignupOtpTimer(result.expiresIn || 120);
-      setSignupSuccess("OTP sent to your phone.");
-      setStep("signup-otp");
-    }
-    setIsSignupLoading(false);
-  };
-
-  const handleSignupVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSignupError("");
-    setSignupSuccess("");
-
-    if (signupOtp.trim().length !== 6) {
-      setSignupError("Please enter a valid 6-digit OTP");
-      return;
-    }
-
-    const digits = signupPhone.replace(/\D/g, "").slice(-10);
-    setIsSignupLoading(true);
-
-    const verifyResult = await verifySignupOtp(digits, signupOtp);
-    if (!verifyResult.success) {
-      setSignupError(verifyResult.error || "OTP verification failed");
-      setIsSignupLoading(false);
-      return;
-    }
-
-    const loginResult = await login(digits, signupPassword);
-    if (!loginResult.success) {
-      setSignupError(loginResult.error || "Account created, but login failed");
-      setIsSignupLoading(false);
-      return;
-    }
-
-    setSignupSuccess("Account created! Redirecting...");
-    setIsSignupLoading(false);
-  };
-
   const renderStepContent = () => {
-    // Show simplified name-only form for new patients
     if (step === "welcome-form") {
       return (
         <>
@@ -405,11 +301,7 @@ const Index = () => {
               disabled={isLoading}
               className="w-full h-14 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-base shadow-lg shadow-emerald-500/25 transition-all duration-300"
             >
-              {isLoading ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
-              ) : (
-                "Get Started →"
-              )}
+              {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : "Get Started →"}
             </Button>
             <p className="text-xs text-center text-slate-400">
               You can complete your health profile after signing in.
@@ -419,7 +311,19 @@ const Index = () => {
       );
     }
 
-    // Show pending approval screen
+    if (step === "join-form") {
+      return (
+        <JoinRequestForm
+          inline
+          onBack={handleChangePhone}
+          onComplete={() => {
+            setSuccess("Thanks for your interest! Our team will review your request.");
+            setStep("phone");
+          }}
+        />
+      );
+    }
+
     if (step === "pending") {
       return (
         <div className="flex flex-col items-center text-center gap-6">
@@ -438,272 +342,15 @@ const Index = () => {
               <p className="text-sm text-blue-700">{adminMessage}</p>
             </div>
           )}
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => {
-              resetStepState();
-              setStep("phone");
-            }}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Login
+          <Button type="button" variant="outline" onClick={handleChangePhone}>
+            Back to login
           </Button>
         </div>
       );
     }
 
-    // Show join request form
-    if (step === "join-form") {
-      return (
-        <JoinRequestForm 
-          onComplete={() => {
-            setStep("phone");
-            resetStepState();
-          }}
-          onBack={() => {
-            setStep("phone");
-            resetStepState();
-          }}
-          inline
-        />
-      );
-    }
-
-    const renderAuthTabs = () => (
-      <div className="flex items-center gap-2 mb-6 rounded-2xl bg-slate-100 p-1">
-        <button
-          type="button"
-          onClick={() => {
-            resetSignupState();
-            resetStepState();
-            setStep("phone");
-          }}
-          className={`flex-1 h-10 rounded-xl text-sm font-semibold transition-all ${
-            step === "signup" || step === "signup-otp"
-              ? "text-slate-500 hover:text-slate-700"
-              : "bg-white shadow text-slate-900"
-          }`}
-        >
-          Login
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            resetStepState();
-            resetSignupState();
-            setStep("signup");
-          }}
-          className={`flex-1 h-10 rounded-xl text-sm font-semibold transition-all ${
-            step === "signup" || step === "signup-otp"
-              ? "bg-white shadow text-slate-900"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          Sign Up
-        </button>
-      </div>
-    );
-
-    if (step === "signup") {
-      return (
-        <>
-          {renderAuthTabs()}
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-slate-900">Create your account</h2>
-            <p className="text-slate-500 mt-2 text-base">Sign up with your phone and password</p>
-          </div>
-
-          {(signupError || signupSuccess) && (
-            <div className="space-y-3 mb-6">
-              {signupError && (
-                <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-base flex items-center gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
-                  {signupError}
-                </div>
-              )}
-              {signupSuccess && (
-                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm flex items-center gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                  {signupSuccess}
-                </div>
-              )}
-            </div>
-          )}
-
-          <form onSubmit={handleSignupSendOtp} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-base font-medium text-slate-700">Full Name</label>
-              <Input
-                type="text"
-                placeholder="Enter your full name"
-                value={signupName}
-                onChange={(e) => setSignupName(e.target.value.replace(/[^a-zA-Z\s.\-']/g, ""))}
-                className="h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-base font-medium text-slate-700">Phone Number</label>
-              <div className="relative">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <Input
-                  type="tel"
-                  placeholder="Enter your phone number"
-                  value={signupPhone}
-                  onChange={(e) => setSignupPhone(e.target.value.replace(/\D/g, ""))}
-                  className="pl-12 h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base"
-                  maxLength={10}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-base font-medium text-slate-700">Create Password</label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <Input
-                  type={showSignupPassword ? "text" : "password"}
-                  placeholder="Create a password"
-                  value={signupPassword}
-                  onChange={(e) => setSignupPassword(e.target.value)}
-                  className="pl-12 pr-12 h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowSignupPassword((prev) => !prev)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  aria-label={showSignupPassword ? "Hide password" : "Show password"}
-                >
-                  {showSignupPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-base font-medium text-slate-700">Confirm Password</label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <Input
-                  type={showSignupConfirmPassword ? "text" : "password"}
-                  placeholder="Re-enter your password"
-                  value={signupConfirmPassword}
-                  onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                  className="pl-12 pr-12 h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowSignupConfirmPassword((prev) => !prev)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  aria-label={showSignupConfirmPassword ? "Hide password" : "Show password"}
-                >
-                  {showSignupConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              disabled={isSignupLoading}
-              className="w-full h-14 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-base shadow-lg shadow-emerald-500/25 transition-all duration-300"
-            >
-              {isSignupLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : "Send OTP →"}
-            </Button>
-          </form>
-        </>
-      );
-    }
-
-    if (step === "signup-otp") {
-      return (
-        <>
-          {renderAuthTabs()}
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-slate-900">Verify your phone</h2>
-            <p className="text-slate-500 mt-2 text-base">
-              Enter the 6-digit OTP sent to +91 {signupPhone.replace(/\D/g, "").slice(-10)}
-            </p>
-          </div>
-
-          {(signupError || signupSuccess) && (
-            <div className="space-y-3 mb-6">
-              {signupError && (
-                <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-base flex items-center gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
-                  {signupError}
-                </div>
-              )}
-              {signupSuccess && (
-                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm flex items-center gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                  {signupSuccess}
-                </div>
-              )}
-            </div>
-          )}
-
-          <form onSubmit={handleSignupVerifyOtp} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-base font-medium text-slate-700">OTP</label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={6}
-                placeholder="Enter 6-digit OTP"
-                value={signupOtp}
-                onChange={(e) => setSignupOtp(e.target.value.replace(/\D/g, ""))}
-                className="h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base tracking-widest font-mono text-center"
-                required
-              />
-            </div>
-
-            {signupOtpTimer > 0 ? (
-              <p className="text-sm text-slate-500 text-center">
-                Expires in {Math.floor(signupOtpTimer / 60)}:{(signupOtpTimer % 60).toString().padStart(2, "0")}
-              </p>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSignupSendOtp}
-                disabled={isSignupLoading}
-                className="w-full text-center text-emerald-600 hover:text-emerald-700 font-medium text-sm disabled:opacity-50"
-              >
-                Resend OTP
-              </button>
-            )}
-
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setStep("signup");
-                  setSignupOtp("");
-                }}
-              >
-                ← Back
-              </Button>
-              <Button
-                type="submit"
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                disabled={isSignupLoading || signupOtp.length !== 6}
-              >
-                {isSignupLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify & Create Account"}
-              </Button>
-            </div>
-          </form>
-        </>
-      );
-    }
-
     return (
       <>
-        {renderAuthTabs()}
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-slate-900">Welcome to DietbyRD</h2>
           <p className="text-slate-500 mt-2 text-base">Enter your Phone number</p>
@@ -923,7 +570,10 @@ const Index = () => {
             {step === "otp-verify" && otpTimer === 0 && (
               <button
                 type="button"
-                onClick={() => { setOtp(""); handleSendOtp(); }}
+                onClick={() => {
+                  setOtp("");
+                  handleSendOtp();
+                }}
                 disabled={isLoading}
                 className="w-full text-center text-emerald-600 hover:text-emerald-700 font-medium text-sm disabled:opacity-50"
               >
@@ -959,7 +609,7 @@ const Index = () => {
   }
 
   return (
-    <div className="h-screen bg-slate-200 p-4 lg:p-6 xl:p-8 flex animate-[fadeIn_0.25s_ease]" style={{ animationFillMode: 'both' }}>
+    <div className="h-screen bg-slate-200 p-4 lg:p-6 xl:p-8 flex page-fade-in">
       <div className="w-full h-full flex flex-col lg:flex-row gap-4 lg:gap-5">
         <div className="flex-1 lg:w-[30%] flex flex-col items-center justify-center bg-white rounded-3xl shadow-xl p-8 lg:p-10 overflow-y-auto">
           {step !== "join-form" && step !== "welcome-form" && step !== "pending" && (
@@ -1025,13 +675,7 @@ const Index = () => {
           <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-white/5 animate-float-slow-1" />
           <div className="absolute bottom-0 -left-16 w-64 h-64 rounded-full bg-teal-500/10 animate-float-slow-2" />
           <div className="absolute top-1/2 right-8 w-40 h-40 rounded-full bg-emerald-400/10 animate-float-slow-3" />
-          <div
-            className="absolute inset-0 opacity-[0.06]"
-            style={{
-              backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
-              backgroundSize: "28px 28px",
-            }}
-          />
+          <div className="absolute inset-0 opacity-[0.06] dot-grid" />
 
           <Link to="/" className="relative flex items-center gap-3 hover:opacity-90 transition-opacity cursor-pointer">
             <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-lg">

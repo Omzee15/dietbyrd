@@ -175,3 +175,12 @@
 .animate-float-slow-3 {
   animation: float-slow-3 10s ease-in-out infinite;
 }
+
+.page-fade-in {
+  animation: fadeIn 0.25s ease both;
+}
+
+.dot-grid {
+  background-image: radial-gradient(circle, #fff 1px, transparent 1px);
+  background-size: 28px 28px;
+}

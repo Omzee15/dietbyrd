@@ -509,6 +509,16 @@ export const getPatientAppointments = (patientId: number, options?: { status?: s
   return request<Appointment[]>(`/patients/${patientId}/appointments?${params.toString()}`);
 };
 
+export const getPatientMeAppointments = (options?: { status?: string; upcoming_only?: boolean }) => {
+  const params = new URLSearchParams();
+  if (options?.status) params.set("status", options.status);
+  if (options?.upcoming_only) params.set("upcoming_only", "true");
+  const query = params.toString();
+  return request<Appointment[]>(`/patient/me/appointments${query ? `?${query}` : ""}` , {
+    headers: getStoredAuthHeaders(),
+  });
+};
+
 export const cancelAppointment = (appointmentId: number, cancelledBy?: string) =>
   request<Appointment>(`/appointments/${appointmentId}/cancel`, {
     method: "PUT",

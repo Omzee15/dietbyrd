@@ -10,7 +10,6 @@ import {
   Loader2,
   LogOut,
   Plus,
-  Settings,
   User,
   UtensilsCrossed,
   X,
@@ -42,7 +41,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import AppSidebar from "@/components/AppSidebar";
 import {
   getPatient,
-  getPatientAppointments,
+  getPatientMeAppointments,
   getAvailableSlots,
   getAllDieticianSlots,
   bookAppointment,
@@ -96,9 +95,10 @@ const PatientAppointments = () => {
 
   // Get patient appointments
   const { data: appointments, isLoading: appointmentsLoading, refetch: refetchAppointments } = useQuery({
-    queryKey: ["patient-appointments", user?.profileId],
-    queryFn: () => getPatientAppointments(user!.profileId!),
-    enabled: !!user?.profileId,
+    queryKey: ["patient-appointments", user?.id],
+    queryFn: () => getPatientMeAppointments(),
+    enabled: !!user?.id,
+    refetchOnWindowFocus: true,
   });
 
   // Calculate week date range for available slots
@@ -448,13 +448,29 @@ const PatientAppointments = () => {
   const getInitials = (name: string) =>
     name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?";
 
+  const formatPhoneDisplay = (raw?: string | null) => {
+    if (!raw) return "";
+    const trimmed = raw.trim();
+    if (!trimmed) return "";
+    const digits = trimmed.replace(/\D/g, "");
+    if (digits.length < 10) return trimmed;
+    const lastTen = digits.slice(-10);
+    const prefixDigits = digits.length > 10 ? digits.slice(0, -10) : "";
+    const prefix = prefixDigits ? `+${prefixDigits}` : "+91";
+    return `${prefix} ${lastTen.slice(0, 5)} ${lastTen.slice(5)}`;
+  };
+
   // Separate appointments
+  const isUpcomingAppointment = (appointment: Appointment) =>
+    (appointment.status === "confirmed" || appointment.status === "scheduled") &&
+    parseIST(appointment.scheduled_at) > new Date();
+
   const upcomingAppointments = (appointments || [])
-    .filter((a) => a.status === "scheduled" && parseIST(a.scheduled_at) > new Date())
+    .filter((a) => isUpcomingAppointment(a))
     .sort((a, b) => parseIST(a.scheduled_at).getTime() - parseIST(b.scheduled_at).getTime());
 
   const pastAppointments = (appointments || [])
-    .filter((a) => a.status === "completed" || parseIST(a.scheduled_at) <= new Date())
+    .filter((a) => !isUpcomingAppointment(a))
     .sort((a, b) => parseIST(b.scheduled_at).getTime() - parseIST(a.scheduled_at).getTime());
 
   const sidebarSections = [
@@ -467,10 +483,6 @@ const PatientAppointments = () => {
         { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
         { label: "Support", href: "/patient/support", icon: MessageSquare },
       ],
-    },
-    {
-      title: "Settings",
-      items: [{ label: "Preferences", href: "/patient/settings", icon: Settings }],
     },
   ];
 
@@ -516,11 +528,16 @@ const PatientAppointments = () => {
           {patient && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2">
+                <Button variant="ghost" className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
                     {getInitials(patient.name || "")}
                   </div>
-                  <span className="text-sm font-medium">{patient.name}</span>
+                  <div className="flex flex-col items-start leading-tight">
+                    <span className="text-sm font-medium">{patient.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatPhoneDisplay(patient.phone || patient.user_phone || user?.phone) || patient.email || ""}
+                    </span>
+                  </div>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -659,7 +676,7 @@ const PatientAppointments = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {pastAppointments.slice(0, 5).map((appointment) => (
+                    {pastAppointments.map((appointment) => (
                       <div
                         key={appointment.id}
                         className="flex items-center justify-between p-3 border rounded-lg bg-muted/30"
@@ -990,7 +1007,12 @@ const PatientAppointments = () => {
                               <span className="font-medium">{appliedCoupon.code}</span>
                               <span>— ₹{appliedCoupon.discount_applied} off</span>
                             </div>
-                            <button onClick={handleRemoveCoupon} className="text-green-600 hover:text-green-800">
+                            <button
+                              onClick={handleRemoveCoupon}
+                              className="text-green-600 hover:text-green-800"
+                              aria-label="Remove applied coupon"
+                              title="Remove coupon"
+                            >
                               <X className="w-4 h-4" />
                             </button>
                           </div>
@@ -1117,7 +1139,12 @@ const PatientAppointments = () => {
                       <span className="font-medium">{appliedCoupon.code}</span>
                       <span>— ₹{appliedCoupon.discount_applied} off</span>
                     </div>
-                    <button onClick={handleRemoveCoupon} className="text-green-600 hover:text-green-800">
+                    <button
+                      onClick={handleRemoveCoupon}
+                      className="text-green-600 hover:text-green-800"
+                      aria-label="Remove applied coupon"
+                      title="Remove coupon"
+                    >
                       <X className="w-4 h-4" />
                     </button>
                   </div>

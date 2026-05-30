@@ -17,7 +17,6 @@ import {
   Ruler,
   Save,
   Scale,
-  Settings,
   User,
   UtensilsCrossed,
   X,
@@ -30,12 +29,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import AppSidebar from "@/components/AppSidebar";
 import { getPatient, getPatientDietPlans, updatePatient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,10 +48,12 @@ const PatientProfile = () => {
   // Edit state for body details
   const [isEditingBody, setIsEditingBody] = useState(false);
   const [bodyDetails, setBodyDetails] = useState({
-    age: 0,
+    age: "",
     height: "",
     weight: "",
+    allergies: "",
   });
+  const [bodyErrors, setBodyErrors] = useState<{ age?: string; height?: string; weight?: string }>({});
 
   // Edit state for personal info
   const [isEditingPersonal, setIsEditingPersonal] = useState(false);
@@ -77,11 +78,12 @@ const PatientProfile = () => {
 
   // Update patient mutation — body details
   const updatePatientMutation = useMutation({
-    mutationFn: (data: { age?: number; height?: string; weight?: string }) =>
+    mutationFn: (data: { age?: number; height?: number; weight?: number; allergies?: string }) =>
       updatePatient(user!.profileId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
       toast.success("Body details updated successfully!");
+      setBodyErrors({});
       setIsEditingBody(false);
     },
     onError: (error: Error) => {
@@ -103,20 +105,75 @@ const PatientProfile = () => {
     },
   });
 
+  const validateBodyAge = (value: string): string => {
+    if (!value.trim()) return "";
+    if (!/^\d+$/.test(value)) return "Please enter an age between 1 and 80.";
+    const age = Number(value);
+    if (age < 1 || age > 80) return "Please enter an age between 1 and 80.";
+    return "";
+  };
+
+  const validateBodyHeight = (value: string): string => {
+    if (!value.trim()) return "";
+    const height = Number(value);
+    if (!Number.isFinite(height) || height < 50 || height > 250) {
+      return "Please enter a height between 50 cm and 250 cm.";
+    }
+    return "";
+  };
+
+  const validateBodyWeight = (value: string): string => {
+    if (!value.trim()) return "";
+    const weight = Number(value);
+    if (!Number.isFinite(weight) || weight < 10 || weight > 300) {
+      return "Please enter a weight between 10 kg and 300 kg.";
+    }
+    return "";
+  };
+
+  const validateBodyDetails = () => ({
+    age: validateBodyAge(bodyDetails.age),
+    height: validateBodyHeight(bodyDetails.height),
+    weight: validateBodyWeight(bodyDetails.weight),
+  });
+
+  const hasBodyErrors = Object.values(bodyErrors).some(Boolean);
+
+  const updateBodyField = (field: "age" | "height" | "weight", value: string) => {
+    const nextValue = field === "age"
+      ? value.replace(/\D/g, "")
+      : value.replace(/[^0-9.]/g, "");
+    setBodyDetails((prev) => ({ ...prev, [field]: nextValue }));
+    const validator =
+      field === "age" ? validateBodyAge :
+      field === "height" ? validateBodyHeight :
+      validateBodyWeight;
+    setBodyErrors((prev) => ({ ...prev, [field]: validator(nextValue) }));
+  };
+
   const handleEditBody = () => {
     setBodyDetails({
-      age: patient?.age || 0,
-      height: (patient as any)?.height || "",
-      weight: (patient as any)?.weight || "",
+      age: patient?.age ? String(patient.age) : "",
+      height: (patient as any)?.height ? String((patient as any).height) : "",
+      weight: (patient as any)?.weight ? String((patient as any).weight) : "",
+      allergies: Array.isArray(patient?.allergies)
+        ? patient.allergies.join(", ")
+        : (patient?.allergies || ""),
     });
+    setBodyErrors({});
     setIsEditingBody(true);
   };
 
   const handleSaveBody = () => {
+    const nextErrors = validateBodyDetails();
+    setBodyErrors(nextErrors);
+    if (Object.values(nextErrors).some(Boolean)) return;
+    const trimmedAllergies = bodyDetails.allergies.trim();
     updatePatientMutation.mutate({
-      age: bodyDetails.age || undefined,
-      height: bodyDetails.height || undefined,
-      weight: bodyDetails.weight || undefined,
+      age: bodyDetails.age ? parseInt(bodyDetails.age, 10) : undefined,
+      height: bodyDetails.height ? parseFloat(bodyDetails.height) : undefined,
+      weight: bodyDetails.weight ? parseFloat(bodyDetails.weight) : undefined,
+      allergies: trimmedAllergies ? trimmedAllergies : undefined,
     });
   };
 
@@ -151,6 +208,18 @@ const PatientProfile = () => {
   const getInitials = (name: string) =>
     name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?";
 
+  const formatPhoneDisplay = (raw?: string | null) => {
+    if (!raw) return "";
+    const trimmed = raw.trim();
+    if (!trimmed) return "";
+    const digits = trimmed.replace(/\D/g, "");
+    if (digits.length < 10) return trimmed;
+    const lastTen = digits.slice(-10);
+    const prefixDigits = digits.length > 10 ? digits.slice(0, -10) : "";
+    const prefix = prefixDigits ? `+${prefixDigits}` : "+91";
+    return `${prefix} ${lastTen.slice(0, 5)} ${lastTen.slice(5)}`;
+  };
+
   // Get latest weight from diet plans
   const latestWeight = dietPlans?.find((p) => p.is_active)?.plan_json?.weight || 
     dietPlans?.[0]?.plan_json?.weight;
@@ -165,10 +234,6 @@ const PatientProfile = () => {
         { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
         { label: "Support", href: "/patient/support", icon: MessageSquare },
       ],
-    },
-    {
-      title: "Settings",
-      items: [{ label: "Preferences", href: "/patient/settings", icon: Settings }],
     },
   ];
 
@@ -203,20 +268,20 @@ const PatientProfile = () => {
           {patient && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 hover:bg-muted rounded-lg px-2 py-1.5 transition-colors">
+                <button className="flex items-center gap-3 hover:bg-muted rounded-lg px-2 py-1.5 transition-colors">
                   <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
                     {getInitials(patient.name || "?")}
                   </div>
-                  <span className="text-sm font-medium">{patient.name}</span>
+                  <div className="flex flex-col items-start leading-tight">
+                    <span className="text-sm font-medium">{patient.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatPhoneDisplay(patient.phone || patient.user_phone || user?.phone) || patient.email || ""}
+                    </span>
+                  </div>
                   <ChevronDown className="w-4 h-4 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => navigate("/patient/settings")} className="cursor-pointer">
-                  <Settings className="w-4 h-4 mr-2" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600">
                   <LogOut className="w-4 h-4 mr-2" />
                   Sign Out
@@ -459,7 +524,7 @@ const PatientProfile = () => {
                       <Button 
                         size="sm" 
                         onClick={handleSaveBody}
-                        disabled={updatePatientMutation.isPending}
+                        disabled={updatePatientMutation.isPending || hasBodyErrors}
                       >
                         {updatePatientMutation.isPending ? (
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -484,12 +549,24 @@ const PatientProfile = () => {
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Age (years)</p>
                         <Input
                           type="number"
-                          value={bodyDetails.age || ""}
-                          onChange={(e) => setBodyDetails({...bodyDetails, age: parseInt(e.target.value) || 0})}
-                          onKeyDown={(e) => ['e','E','+','-','.'].includes(e.key) && e.preventDefault()}
+                          value={bodyDetails.age}
+                          min={1}
+                          max={80}
+                          step={1}
+                          onChange={(e) => updateBodyField("age", e.target.value)}
+                          onKeyDown={(e) => ["e", "E", "+", "-", "."].includes(e.key) && e.preventDefault()}
+                          onBlur={() =>
+                            setBodyErrors((prev) => ({
+                              ...prev,
+                              age: validateBodyAge(bodyDetails.age),
+                            }))
+                          }
                           placeholder="Enter age"
                           className="h-8"
                         />
+                        {bodyErrors.age && (
+                          <p className="text-[13px] text-[#C53030] mt-1">{bodyErrors.age}</p>
+                        )}
                       </div>
                     ) : (
                       <div>
@@ -508,12 +585,25 @@ const PatientProfile = () => {
                       <div className="flex-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Height (cm)</p>
                         <Input
-                          type="text"
+                          type="number"
                           value={bodyDetails.height}
-                          onChange={(e) => setBodyDetails({...bodyDetails, height: e.target.value.replace(/[^0-9.'"\s]/g, "")})}
+                          min={50}
+                          max={250}
+                          step={0.1}
+                          onChange={(e) => updateBodyField("height", e.target.value)}
+                          onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
+                          onBlur={() =>
+                            setBodyErrors((prev) => ({
+                              ...prev,
+                              height: validateBodyHeight(bodyDetails.height),
+                            }))
+                          }
                           placeholder="e.g., 170"
                           className="h-8"
                         />
+                        {bodyErrors.height && (
+                          <p className="text-[13px] text-[#C53030] mt-1">{bodyErrors.height}</p>
+                        )}
                       </div>
                     ) : (
                       <div>
@@ -532,12 +622,25 @@ const PatientProfile = () => {
                       <div className="flex-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Weight (kg)</p>
                         <Input
-                          type="text"
+                          type="number"
                           value={bodyDetails.weight}
-                          onChange={(e) => setBodyDetails({...bodyDetails, weight: e.target.value.replace(/[^0-9.]/g, "")})}
+                          min={10}
+                          max={300}
+                          step={0.1}
+                          onChange={(e) => updateBodyField("weight", e.target.value)}
+                          onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
+                          onBlur={() =>
+                            setBodyErrors((prev) => ({
+                              ...prev,
+                              weight: validateBodyWeight(bodyDetails.weight),
+                            }))
+                          }
                           placeholder="e.g., 70"
                           className="h-8"
                         />
+                        {bodyErrors.weight && (
+                          <p className="text-[13px] text-[#C53030] mt-1">{bodyErrors.weight}</p>
+                        )}
                       </div>
                     ) : (
                       <div>
@@ -547,6 +650,25 @@ const PatientProfile = () => {
                     )}
                   </div>
                 </div>
+                {isEditingBody && (
+                  <div className="mt-4 p-4 bg-muted/50 rounded-xl">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+                      Allergies (optional)
+                    </p>
+                    <Textarea
+                      value={bodyDetails.allergies}
+                      onChange={(e) =>
+                        setBodyDetails((prev) => ({ ...prev, allergies: e.target.value }))
+                      }
+                      maxLength={500}
+                      placeholder="e.g., Peanuts, shellfish, lactose intolerance"
+                      className="min-h-[92px]"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {bodyDetails.allergies.length}/500
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

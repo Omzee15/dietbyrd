@@ -27,7 +27,6 @@ import {
   Ruler,
   Save,
   Scale,
-  Settings,
   Stethoscope,
   Target,
   User,
@@ -49,7 +48,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +57,7 @@ import {
   getPatient,
   getPatientDietPlans,
   getConsultations,
+  getPatientMeAppointments,
   updatePatient,
   getAvailableSlots,
   getAllDieticianSlots,
@@ -106,6 +105,52 @@ const cmToFtIn = (cm: number): string => {
   const feet = Math.floor(totalInches / 12);
   const inches = Math.round(totalInches % 12);
   return inches === 12 ? `${feet + 1}'0"` : `${feet}'${inches}"`;
+};
+
+const cmToFtDecimal = (cm: number): string => {
+  if (!cm || cm <= 0) return "";
+  return (cm / 30.48).toFixed(1);
+};
+
+const ftDecimalToCm = (ft: number): string => {
+  if (!ft || ft <= 0) return "";
+  return (ft * 30.48).toFixed(1);
+};
+
+const isIntegerString = (value: string): boolean => /^\d+$/.test(value);
+
+const validateAgeValue = (value: string): string => {
+  if (!value.trim()) return "";
+  if (!isIntegerString(value)) return "Please enter an age between 1 and 80.";
+  const age = Number(value);
+  if (age < 1 || age > 80) return "Please enter an age between 1 and 80.";
+  return "";
+};
+
+const validateHeightValue = (value: string, unit: "cm" | "ft"): string => {
+  if (!value.trim()) return "";
+  const height = Number(value);
+  if (!Number.isFinite(height)) {
+    return unit === "cm"
+      ? "Please enter a height between 50 cm and 250 cm."
+      : "Please enter a height between 1.5 ft and 8 ft.";
+  }
+  if (unit === "cm" && (height < 50 || height > 250)) {
+    return "Please enter a height between 50 cm and 250 cm.";
+  }
+  if (unit === "ft" && (height < 1.5 || height > 8)) {
+    return "Please enter a height between 1.5 ft and 8 ft.";
+  }
+  return "";
+};
+
+const validateWeightValue = (value: string): string => {
+  if (!value.trim()) return "";
+  const weight = Number(value);
+  if (!Number.isFinite(weight) || weight < 10 || weight > 300) {
+    return "Please enter a weight between 10 kg and 300 kg.";
+  }
+  return "";
 };
 
 // ─── BMI/TDEE Calculation Helpers ──────────────────────────────────────────────
@@ -174,6 +219,7 @@ const PatientDashboard = () => {
   const [bodyWeight, setBodyWeight] = useState<string>("");
   const [bodyAllergies, setBodyAllergies] = useState<string>("");
   const [bodyWorkoutFrequency, setBodyWorkoutFrequency] = useState<string>("");
+  const [bodyErrors, setBodyErrors] = useState<{ age?: string; height?: string; weight?: string }>({});
 
   // Profile completion state
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -188,6 +234,7 @@ const PatientDashboard = () => {
   const [profileAllergies, setProfileAllergies] = useState("");
   const [profileWorkout, setProfileWorkout] = useState("");
   const [profileDietary, setProfileDietary] = useState("");
+  const [profileErrors, setProfileErrors] = useState<{ age?: string; height?: string; weight?: string }>({});
 
   // Appointment booking state
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -207,6 +254,13 @@ const PatientDashboard = () => {
     enabled: !!user?.profileId,
   });
 
+  const { data: appointments, isLoading: appointmentsLoading, refetch: refetchAppointments } = useQuery({
+    queryKey: ["patient-appointments", user?.id],
+    queryFn: () => getPatientMeAppointments(),
+    enabled: !!user?.id,
+    refetchOnWindowFocus: true,
+  });
+
   // Update patient mutation for body details
   const updatePatientMutation = useMutation({
     mutationFn: (data: { age?: number; height?: number; weight?: number; allergies?: string; workout_frequency?: number }) =>
@@ -214,6 +268,7 @@ const PatientDashboard = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
       toast.success("Body details updated successfully!");
+      setBodyErrors({});
       setIsEditingBody(false);
     },
     onError: (error: Error) => {
@@ -266,12 +321,14 @@ const PatientDashboard = () => {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient-consultations"] });
+      queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
       queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
       toast.success("Appointment booked successfully!");
       setIsBookingModalOpen(false);
       setSelectedSlot(null);
       setAppointmentNotes("");
       refetchSlots();
+      refetchAppointments();
     },
     onError: (error: Error) => {
       // Check if it's a payment required error
@@ -290,8 +347,10 @@ const PatientDashboard = () => {
     mutationFn: (appointmentId: number) => cancelAppointment(appointmentId, "patient"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient-consultations"] });
+      queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
       queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
       toast.success("Appointment cancelled");
+      refetchAppointments();
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to cancel appointment");
@@ -435,19 +494,50 @@ const PatientDashboard = () => {
         : (patient?.allergies || "")
     );
     setBodyWorkoutFrequency(patient?.workout_frequency?.toString() || "");
+    setBodyErrors({});
     setIsEditingBody(true);
   };
 
+  const updateBodyAge = (value: string) => {
+    const nextValue = value.replace(/\D/g, "");
+    setBodyAge(nextValue);
+    setBodyErrors((prev) => ({ ...prev, age: validateAgeValue(nextValue) }));
+  };
+
+  const updateBodyHeight = (value: string) => {
+    const nextValue = value.replace(/[^0-9.]/g, "");
+    setBodyHeight(nextValue);
+    setBodyErrors((prev) => ({ ...prev, height: validateHeightValue(nextValue, bodyHeightUnit) }));
+  };
+
+  const updateBodyWeight = (value: string) => {
+    const nextValue = value.replace(/[^0-9.]/g, "");
+    setBodyWeight(nextValue);
+    setBodyErrors((prev) => ({ ...prev, weight: validateWeightValue(nextValue) }));
+  };
+
   const handleSaveBodyDetails = () => {
-    const bodyHeightCm = bodyHeight
-      ? parseFloat(bodyHeightUnit === "ft" ? parseHeightToCm(bodyHeight) : bodyHeight)
+    const nextErrors = {
+      age: validateAgeValue(bodyAge),
+      height: validateHeightValue(bodyHeight, bodyHeightUnit),
+      weight: validateWeightValue(bodyWeight),
+    };
+    setBodyErrors(nextErrors);
+    if (Object.values(nextErrors).some(Boolean)) return;
+
+    const heightValue = bodyHeight ? parseFloat(bodyHeight) : NaN;
+    const bodyHeightCm = Number.isFinite(heightValue)
+      ? bodyHeightUnit === "ft"
+        ? heightValue * 30.48
+        : heightValue
       : undefined;
+    const trimmedAllergies = bodyAllergies.trim();
     updatePatientMutation.mutate({
-      age: bodyAge ? parseInt(bodyAge) : undefined,
+      age: bodyAge ? parseInt(bodyAge, 10) : undefined,
       height: bodyHeightCm && !isNaN(bodyHeightCm) ? bodyHeightCm : undefined,
       weight: bodyWeight ? parseFloat(bodyWeight) : undefined,
-      allergies: bodyAllergies || undefined,
-      workout_frequency: bodyWorkoutFrequency ? parseInt(bodyWorkoutFrequency) : undefined,
+      allergies: trimmedAllergies ? trimmedAllergies : undefined,
+      workout_frequency: bodyWorkoutFrequency ? parseInt(bodyWorkoutFrequency, 10) : undefined,
     });
   };
 
@@ -469,13 +559,41 @@ const PatientDashboard = () => {
     );
     setProfileWorkout(patient?.workout_frequency?.toString() || "");
     setProfileDietary(patient?.dietary_preference || "");
+    setProfileErrors({});
     setIsProfileModalOpen(true);
   };
 
+  const updateProfileAge = (value: string) => {
+    const nextValue = value.replace(/\D/g, "");
+    setProfileAge(nextValue);
+    setProfileErrors((prev) => ({ ...prev, age: validateAgeValue(nextValue) }));
+  };
+
+  const updateProfileHeight = (value: string) => {
+    const nextValue = value.replace(/[^0-9.]/g, "");
+    setProfileHeight(nextValue);
+    setProfileErrors((prev) => ({ ...prev, height: validateHeightValue(nextValue, profileHeightUnit) }));
+  };
+
+  const updateProfileWeight = (value: string) => {
+    const nextValue = value.replace(/[^0-9.]/g, "");
+    setProfileWeight(nextValue);
+    setProfileErrors((prev) => ({ ...prev, weight: validateWeightValue(nextValue) }));
+  };
+
   const handleSaveProfile = () => {
+    const nextErrors = {
+      age: validateAgeValue(profileAge),
+      height: validateHeightValue(profileHeight, profileHeightUnit),
+      weight: validateWeightValue(profileWeight),
+    };
+    setProfileErrors(nextErrors);
+    if (Object.values(nextErrors).some(Boolean)) return;
+
     const profileHeightCm = profileHeight
-      ? parseFloat(profileHeightUnit === "ft" ? parseHeightToCm(profileHeight) : profileHeight)
+      ? parseFloat(profileHeightUnit === "ft" ? ftDecimalToCm(parseFloat(profileHeight)) : profileHeight)
       : undefined;
+    const trimmedProfileAllergies = profileAllergies.trim();
     updatePatientMutation.mutate({
       name: profileName.trim() || undefined,
       age: profileAge ? parseInt(profileAge) : undefined,
@@ -484,7 +602,7 @@ const PatientDashboard = () => {
       diagnoses: profileDiagnoses.length > 0 ? profileDiagnoses : undefined,
       height: profileHeightCm && !isNaN(profileHeightCm) ? profileHeightCm : undefined,
       weight: profileWeight ? parseFloat(profileWeight) : undefined,
-      allergies: profileAllergies || undefined,
+      allergies: trimmedProfileAllergies ? trimmedProfileAllergies : undefined,
       workout_frequency: profileWorkout ? parseInt(profileWorkout) : undefined,
       dietary_preference: profileDietary || undefined,
     });
@@ -538,6 +656,31 @@ const PatientDashboard = () => {
 
   const formatTime = (dateStr: string) => formatDateTime12(dateStr);
 
+  const formatAppointmentDate = (dateStr: string) =>
+    parseIST(dateStr).toLocaleDateString("en-US", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+
+  const formatPhoneDisplay = (raw?: string | null) => {
+    if (!raw) return "";
+    const trimmed = raw.trim();
+    if (!trimmed) return "";
+    const digits = trimmed.replace(/\D/g, "");
+    if (digits.length < 10) return trimmed;
+    const lastTen = digits.slice(-10);
+    const prefixDigits = digits.length > 10 ? digits.slice(0, -10) : "";
+    const prefix = prefixDigits ? `+${prefixDigits}` : "+91";
+    return `${prefix} ${lastTen.slice(0, 5)} ${lastTen.slice(5)}`;
+  };
+
+  const formatDieticianName = (name?: string | null) => {
+    if (!name) return "";
+    return /^dr\.?\s/i.test(name) ? name : `Dr. ${name}`;
+  };
+
   const getInitials = (name: string) =>
     name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?";
 
@@ -545,6 +688,14 @@ const PatientDashboard = () => {
   const upcomingConsultations = (consultations || [])
     .filter((c) => c.status === "scheduled" && parseIST(c.scheduled_at) > new Date())
     .sort((a, b) => parseIST(a.scheduled_at).getTime() - parseIST(b.scheduled_at).getTime());
+
+  const upcomingAppointments = (appointments || [])
+    .filter((a) =>
+      (a.status === "confirmed" || a.status === "scheduled") && parseIST(a.scheduled_at) > new Date()
+    )
+    .sort((a, b) => parseIST(a.scheduled_at).getTime() - parseIST(b.scheduled_at).getTime());
+
+  const nextAppointment = upcomingAppointments[0];
 
   // Check if patient has completed first consultation
   const hasCompletedConsultation = (consultations || []).some((c) => c.status === "completed");
@@ -815,10 +966,6 @@ const PatientDashboard = () => {
         { label: "Support", href: "/patient/support", icon: MessageSquare },
       ],
     },
-    {
-      title: "Settings",
-      items: [{ label: "Preferences", href: "/patient/settings", icon: Settings }],
-    },
   ];
 
   const bottomContent = (
@@ -831,7 +978,8 @@ const PatientDashboard = () => {
     </button>
   );
 
-  const isLoading = patientLoading || plansLoading;
+  const isLoading = patientLoading || plansLoading || appointmentsLoading;
+  const hasBodyErrors = Object.values(bodyErrors).some(Boolean);
 
   return (
     <div className="flex min-h-screen">
@@ -849,20 +997,20 @@ const PatientDashboard = () => {
           {patient && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 hover:bg-muted rounded-lg px-2 py-1.5 transition-colors">
+                <button className="flex items-center gap-3 hover:bg-muted rounded-lg px-2 py-1.5 transition-colors">
                   <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
                     {getInitials(patient.name || "?")}
                   </div>
-                  <span className="text-sm font-medium">{patient.name}</span>
+                  <div className="flex flex-col items-start leading-tight">
+                    <span className="text-sm font-medium">{patient.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatPhoneDisplay(patient.phone || patient.user_phone || user?.phone) || patient.email || ""}
+                    </span>
+                  </div>
                   <ChevronDown className="w-4 h-4 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => navigate("/patient/settings")} className="cursor-pointer">
-                  <Settings className="w-4 h-4 mr-2" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600">
                   <LogOut className="w-4 h-4 mr-2" />
                   Sign Out
@@ -1157,15 +1305,25 @@ const PatientDashboard = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {upcomingConsultations.length > 0 ? (
-                    <>
+                  {nextAppointment ? (
+                    <div className="space-y-1.5">
                       <div className="text-2xl font-bold">
-                        {formatDate(upcomingConsultations[0].scheduled_at)}
+                        {formatAppointmentDate(nextAppointment.scheduled_at)}
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        at {formatTime(upcomingConsultations[0].scheduled_at)}
+                        at {formatTime(nextAppointment.scheduled_at)}
                       </p>
-                    </>
+                      {nextAppointment.dietician_name ? (
+                        <p className="text-sm text-muted-foreground">
+                          with {formatDieticianName(nextAppointment.dietician_name)}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-amber-600">Dietician will be assigned to you soon</p>
+                      )}
+                      <Badge className="mt-2 bg-teal-50 text-teal-700 border border-teal-200">
+                        Confirmed
+                      </Badge>
+                    </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">No upcoming appointments</p>
                   )}
@@ -1207,7 +1365,7 @@ const PatientDashboard = () => {
                       <Button variant="outline" size="sm" onClick={() => setIsEditingBody(false)}>
                         Cancel
                       </Button>
-                      <Button size="sm" onClick={handleSaveBodyDetails} disabled={updatePatientMutation.isPending}>
+                      <Button size="sm" onClick={handleSaveBodyDetails} disabled={updatePatientMutation.isPending || hasBodyErrors}>
                         {updatePatientMutation.isPending ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
@@ -1233,8 +1391,21 @@ const PatientDashboard = () => {
                         type="number"
                         placeholder="e.g. 30"
                         value={bodyAge}
-                        onChange={(e) => setBodyAge(e.target.value)}
+                        min={1}
+                        max={80}
+                        step={1}
+                        onChange={(e) => updateBodyAge(e.target.value)}
+                        onKeyDown={(e) => ["e", "E", "+", "-", "."].includes(e.key) && e.preventDefault()}
+                        onBlur={() =>
+                          setBodyErrors((prev) => ({
+                            ...prev,
+                            age: validateAgeValue(bodyAge),
+                          }))
+                        }
                       />
+                      {bodyErrors.age && (
+                        <p className="text-[13px] text-[#C53030] mt-1">{bodyErrors.age}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium flex items-center gap-2">
@@ -1245,8 +1416,14 @@ const PatientDashboard = () => {
                             type="button"
                             onClick={() => {
                               if (bodyHeightUnit === "ft") {
-                                setBodyHeight(parseHeightToCm(bodyHeight));
+                                const num = parseFloat(bodyHeight);
+                                const cmValue = Number.isFinite(num) ? ftDecimalToCm(num) : "";
+                                setBodyHeight(cmValue);
                                 setBodyHeightUnit("cm");
+                                setBodyErrors((prev) => ({
+                                  ...prev,
+                                  height: validateHeightValue(cmValue, "cm"),
+                                }));
                               }
                             }}
                             className={`px-2 py-0.5 transition-colors ${bodyHeightUnit === "cm" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
@@ -1256,8 +1433,13 @@ const PatientDashboard = () => {
                             onClick={() => {
                               if (bodyHeightUnit === "cm") {
                                 const num = parseFloat(bodyHeight);
-                                setBodyHeight(num > 0 ? cmToFtIn(num) : "");
+                                const ftValue = Number.isFinite(num) ? cmToFtDecimal(num) : "";
+                                setBodyHeight(ftValue);
                                 setBodyHeightUnit("ft");
+                                setBodyErrors((prev) => ({
+                                  ...prev,
+                                  height: validateHeightValue(ftValue, "ft"),
+                                }));
                               }
                             }}
                             className={`px-2 py-0.5 transition-colors ${bodyHeightUnit === "ft" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
@@ -1265,16 +1447,26 @@ const PatientDashboard = () => {
                         </div>
                       </label>
                       <Input
-                        type="text"
-                        placeholder={bodyHeightUnit === "cm" ? "e.g. 170" : "e.g. 5'7\""}
+                        type="number"
+                        placeholder={bodyHeightUnit === "cm" ? "e.g. 170" : "e.g. 5.5"}
                         value={bodyHeight}
                         onChange={(e) => {
-                          const val = e.target.value.replace(/[^0-9.'"]/g, "");
-                          setBodyHeight(val);
-                          if (val.includes("'") && bodyHeightUnit === "cm") setBodyHeightUnit("ft");
+                          updateBodyHeight(e.target.value);
                         }}
-                        onKeyDown={filterHeightKey}
+                        min={bodyHeightUnit === "cm" ? 50 : 1.5}
+                        max={bodyHeightUnit === "cm" ? 250 : 8}
+                        step={0.1}
+                        onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
+                        onBlur={() =>
+                          setBodyErrors((prev) => ({
+                            ...prev,
+                            height: validateHeightValue(bodyHeight, bodyHeightUnit),
+                          }))
+                        }
                       />
+                      {bodyErrors.height && (
+                        <p className="text-[13px] text-[#C53030] mt-1">{bodyErrors.height}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium flex items-center gap-2">
@@ -1285,8 +1477,21 @@ const PatientDashboard = () => {
                         type="number"
                         placeholder="e.g. 70"
                         value={bodyWeight}
-                        onChange={(e) => setBodyWeight(e.target.value)}
+                        min={10}
+                        max={300}
+                        step={0.1}
+                        onChange={(e) => updateBodyWeight(e.target.value)}
+                        onKeyDown={(e) => ["e", "E", "+", "-"] .includes(e.key) && e.preventDefault()}
+                        onBlur={() =>
+                          setBodyErrors((prev) => ({
+                            ...prev,
+                            weight: validateWeightValue(bodyWeight),
+                          }))
+                        }
                       />
+                      {bodyErrors.weight && (
+                        <p className="text-[13px] text-[#C53030] mt-1">{bodyErrors.weight}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium flex items-center gap-2">
@@ -1297,6 +1502,7 @@ const PatientDashboard = () => {
                         placeholder="e.g. Peanuts, Shellfish, Gluten..."
                         value={bodyAllergies}
                         onChange={(e) => setBodyAllergies(e.target.value)}
+                        maxLength={500}
                         rows={1}
                       />
                     </div>
@@ -1522,152 +1728,6 @@ const PatientDashboard = () => {
               </Card>
             )}
 
-            {/* Diet Plan History */}
-            {dietPlans && dietPlans.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
-                    Diet Plan History
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {dietPlans.map((plan) => (
-                      <div
-                        key={plan.id}
-                        className="border rounded-lg overflow-hidden"
-                      >
-                        <div
-                          className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors"
-                          onClick={() =>
-                            setExpandedPlanId(expandedPlanId === plan.id ? null : plan.id)
-                          }
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                              <FileText className="w-5 h-5 text-primary" />
-                            </div>
-                            <div>
-                              <p className="font-medium">
-                                Diet Plan - {formatDate(plan.issued_at || plan.created_at)}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {plan.plan_json?.totals?.calories || 0} kcal daily
-                                {plan.plan_json?.weight?.current && ` · Weight: ${plan.plan_json.weight.current}kg`}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                downloadDietPlanPDF(plan);
-                              }}
-                              className="h-8 px-2"
-                              title="Download PDF"
-                            >
-                              <Download className="w-4 h-4" />
-                            </Button>
-                            {plan.is_active && (
-                              <Badge className="bg-green-500/10 text-green-600 border-green-500/30">
-                                Active
-                              </Badge>
-                            )}
-                            {expandedPlanId === plan.id ? (
-                              <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                            ) : (
-                              <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Expanded view */}
-                        {expandedPlanId === plan.id && plan.plan_json && (
-                          <div className="border-t p-4 bg-muted/30">
-                            <div className="grid gap-4">
-                              {/* Weight Info */}
-                              {plan.plan_json.weight && (plan.plan_json.weight.current || plan.plan_json.weight.target) && (
-                                <div className="grid grid-cols-2 gap-3">
-                                  {plan.plan_json.weight.current && (
-                                    <div className="flex items-center gap-3 p-3 bg-background rounded-lg">
-                                      <Scale className="w-5 h-5 text-muted-foreground" />
-                                      <div>
-                                        <p className="text-xs text-muted-foreground">Weight at time</p>
-                                        <p className="font-semibold">{plan.plan_json.weight.current} kg</p>
-                                      </div>
-                                    </div>
-                                  )}
-                                  {plan.plan_json.weight.target && (
-                                    <div className="flex items-center gap-3 p-3 bg-background rounded-lg">
-                                      <Target className="w-5 h-5 text-muted-foreground" />
-                                      <div>
-                                        <p className="text-xs text-muted-foreground">Target Weight</p>
-                                        <p className="font-semibold">{plan.plan_json.weight.target} kg</p>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Summary */}
-                              <div className="grid grid-cols-4 gap-3">
-                                {[
-                                  { label: "Calories", value: plan.plan_json.totals?.calories || 0, unit: "kcal" },
-                                  { label: "Protein", value: plan.plan_json.totals?.protein || 0, unit: "g" },
-                                  { label: "Carbs", value: plan.plan_json.totals?.carbs || 0, unit: "g" },
-                                  { label: "Fat", value: plan.plan_json.totals?.fat || 0, unit: "g" },
-                                ].map((item) => (
-                                  <div
-                                    key={item.label}
-                                    className="text-center p-3 bg-background rounded-lg"
-                                  >
-                                    <p className="text-xs text-muted-foreground">{item.label}</p>
-                                    <p className="text-lg font-bold">
-                                      {item.value}
-                                      <span className="text-xs font-normal ml-0.5">{item.unit}</span>
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
-
-                              {/* Meals */}
-                              <div className="space-y-3">
-                                {(plan.plan_json.meals || []).map((meal: any) => (
-                                  <div key={meal.name} className="bg-background rounded-lg p-3">
-                                    <p className="font-medium text-sm mb-2">{meal.name}</p>
-                                    {meal.items && meal.items.length > 0 ? (
-                                      <div className="space-y-1">
-                                        {meal.items.map((item: any, idx: number) => (
-                                          <div
-                                            key={idx}
-                                            className="flex justify-between text-sm text-muted-foreground"
-                                          >
-                                            <span>
-                                              {item.name} ({item.quantity}{item.unit})
-                                            </span>
-                                            <span>{item.calories} kcal</span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p className="text-sm text-muted-foreground italic">No items</p>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             {/* Appointments Section */}
             <Card>
               <CardHeader>
@@ -1683,11 +1743,11 @@ const PatientDashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {upcomingConsultations.length > 0 ? (
+                {upcomingAppointments.length > 0 ? (
                   <div className="space-y-3">
-                    {upcomingConsultations.map((consultation) => (
+                    {upcomingAppointments.map((appointment) => (
                       <div
-                        key={consultation.id}
+                        key={appointment.id}
                         className="flex items-center justify-between p-4 border rounded-lg"
                       >
                         <div className="flex items-center gap-4">
@@ -1696,16 +1756,16 @@ const PatientDashboard = () => {
                           </div>
                           <div>
                             <p className="font-medium">
-                              {consultation.type === "initial" || consultation.type === "first" 
+                              {appointment.consultation_type === "initial" || appointment.consultation_type === "first"
                                 ? "Initial Consultation" 
                                 : "Follow-up Consultation"}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              {formatDate(consultation.scheduled_at)} at {formatTime(consultation.scheduled_at)}
+                              {formatDate(appointment.scheduled_at)} at {formatTime(appointment.scheduled_at)}
                             </p>
-                            {consultation.dietician_name ? (
+                            {appointment.dietician_name ? (
                               <p className="text-xs text-muted-foreground">
-                                with {consultation.dietician_name}
+                                with {formatDieticianName(appointment.dietician_name)}
                               </p>
                             ) : (
                               <p className="text-xs text-amber-600">
@@ -1716,16 +1776,16 @@ const PatientDashboard = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="capitalize">
-                            {consultation.status}
+                            {appointment.status}
                           </Badge>
-                          {consultation.status === "scheduled" && (
+                          {(appointment.status === "scheduled" || appointment.status === "confirmed") && (
                             <Button
                               variant="ghost"
                               size="sm"
                               className="text-red-500 hover:text-red-600 hover:bg-red-50"
                               onClick={() => {
                                 if (window.confirm("Are you sure you want to cancel this appointment?")) {
-                                  cancelAppointmentMutation.mutate(consultation.id);
+                                  cancelAppointmentMutation.mutate(appointment.id);
                                 }
                               }}
                               disabled={cancelAppointmentMutation.isPending}
@@ -1813,7 +1873,19 @@ const PatientDashboard = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium">Age</label>
-                  <Input type="number" value={profileAge} onChange={e => setProfileAge(e.target.value)} placeholder="Years" min="1" max="120" className="mt-1" onKeyDown={(e) => ['e','E','+','-','.'].includes(e.key) && e.preventDefault()} />
+                  <Input
+                    type="number"
+                    value={profileAge}
+                    onChange={e => updateProfileAge(e.target.value)}
+                    onBlur={() => setProfileErrors(prev => ({ ...prev, age: validateAgeValue(profileAge) }))}
+                    placeholder="Years"
+                    min={1}
+                    max={80}
+                    step={1}
+                    className="mt-1"
+                    onKeyDown={(e) => ['e','E','+','-','.'].includes(e.key) && e.preventDefault()}
+                  />
+                  {profileErrors.age && <p className="text-[13px] text-[#C53030] mt-1">{profileErrors.age}</p>}
                 </div>
                 <div>
                   <label className="text-sm font-medium">Gender</label>
@@ -1868,8 +1940,11 @@ const PatientDashboard = () => {
                         type="button"
                         onClick={() => {
                           if (profileHeightUnit === "ft") {
-                            setProfileHeight(parseHeightToCm(profileHeight));
+                            const num = parseFloat(profileHeight);
+                            const cmValue = Number.isFinite(num) ? ftDecimalToCm(num) : "";
+                            setProfileHeight(cmValue);
                             setProfileHeightUnit("cm");
+                            setProfileErrors(prev => ({ ...prev, height: validateHeightValue(cmValue, "cm") }));
                           }
                         }}
                         className={`px-2 py-0.5 transition-colors ${profileHeightUnit === "cm" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
@@ -1879,8 +1954,10 @@ const PatientDashboard = () => {
                         onClick={() => {
                           if (profileHeightUnit === "cm") {
                             const num = parseFloat(profileHeight);
-                            setProfileHeight(num > 0 ? cmToFtIn(num) : "");
+                            const ftValue = Number.isFinite(num) ? cmToFtDecimal(num) : "";
+                            setProfileHeight(ftValue);
                             setProfileHeightUnit("ft");
+                            setProfileErrors(prev => ({ ...prev, height: validateHeightValue(ftValue, "ft") }));
                           }
                         }}
                         className={`px-2 py-0.5 transition-colors ${profileHeightUnit === "ft" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
@@ -1888,21 +1965,34 @@ const PatientDashboard = () => {
                     </div>
                   </label>
                   <Input
-                    type="text"
+                    type="number"
                     value={profileHeight}
-                    onChange={e => {
-                      const val = e.target.value.replace(/[^0-9.'"]/g, "");
-                      setProfileHeight(val);
-                      if (val.includes("'") && profileHeightUnit === "cm") setProfileHeightUnit("ft");
-                    }}
-                    onKeyDown={filterHeightKey}
-                    placeholder={profileHeightUnit === "cm" ? "e.g. 170" : "e.g. 5'7\""}
+                    onChange={e => updateProfileHeight(e.target.value)}
+                    onBlur={() => setProfileErrors(prev => ({ ...prev, height: validateHeightValue(profileHeight, profileHeightUnit) }))}
+                    min={profileHeightUnit === "cm" ? 50 : 1.5}
+                    max={profileHeightUnit === "cm" ? 250 : 8}
+                    step={0.1}
+                    onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
+                    placeholder={profileHeightUnit === "cm" ? "e.g. 170" : "e.g. 5.5"}
                     className="mt-1"
                   />
+                  {profileErrors.height && <p className="text-[13px] text-[#C53030] mt-1">{profileErrors.height}</p>}
                 </div>
                 <div>
                   <label className="text-sm font-medium">Weight (kg)</label>
-                  <Input type="number" value={profileWeight} onChange={e => setProfileWeight(e.target.value)} placeholder="70" className="mt-1" onKeyDown={(e) => ['e','E','+','-'].includes(e.key) && e.preventDefault()} />
+                  <Input
+                    type="number"
+                    value={profileWeight}
+                    onChange={e => updateProfileWeight(e.target.value)}
+                    onBlur={() => setProfileErrors(prev => ({ ...prev, weight: validateWeightValue(profileWeight) }))}
+                    placeholder="70"
+                    min={10}
+                    max={300}
+                    step={0.1}
+                    className="mt-1"
+                    onKeyDown={(e) => ['e','E','+','-'].includes(e.key) && e.preventDefault()}
+                  />
+                  {profileErrors.weight && <p className="text-[13px] text-[#C53030] mt-1">{profileErrors.weight}</p>}
                 </div>
                 <div>
                   <label className="text-sm font-medium">Workouts/week</label>
@@ -1912,7 +2002,7 @@ const PatientDashboard = () => {
 
               <div>
                 <label className="text-sm font-medium">Allergies (optional)</label>
-                <Input value={profileAllergies} onChange={e => setProfileAllergies(e.target.value)} placeholder="e.g., Nuts, Dairy (comma-separated)" className="mt-1" />
+                <Input value={profileAllergies} onChange={e => setProfileAllergies(e.target.value)} maxLength={500} placeholder="e.g., Nuts, Dairy (comma-separated)" className="mt-1" />
               </div>
 
               <div>
@@ -1921,7 +2011,7 @@ const PatientDashboard = () => {
               </div>
             </div>
 
-            <Button className="w-full" onClick={handleSaveProfile} disabled={updatePatientMutation.isPending}>
+            <Button className="w-full" onClick={handleSaveProfile} disabled={updatePatientMutation.isPending || Object.values(profileErrors).some(Boolean)}>
               {updatePatientMutation.isPending ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
               ) : (

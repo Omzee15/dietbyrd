@@ -118,7 +118,6 @@ const App = () => (
               <Route path="/patient/diet-plans" element={<PatientDietPlans />} />
               <Route path="/patient/appointments" element={<PatientAppointments />} />
               <Route path="/patient/support" element={<PatientSupport />} />
-              <Route path="/patient/settings" element={<PatientDashboard />} />
             </Route>
 
             {/* Admin routes - multiple roles can access */}

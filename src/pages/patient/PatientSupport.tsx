@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Plus, LogOut, ChevronDown, Settings, Eye, X, Send } from "lucide-react";
+import { MessageSquare, Plus, LogOut, ChevronDown, Eye, X, Send } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { getPatient } from "@/lib/api";
 import { toast } from "sonner";
@@ -254,10 +254,6 @@ const PatientSupport = () => {
         { label: "Support", href: "/patient/support", icon: MessageSquare },
       ],
     },
-    {
-      title: "Settings",
-      items: [{ label: "Preferences", href: "/patient/settings", icon: Settings }],
-    },
   ];
 
   const bottomContent = (
@@ -380,14 +376,6 @@ const PatientSupport = () => {
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem
-                    onClick={() => navigate("/patient/settings")}
-                    className="cursor-pointer"
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={handleLogout}
                     className="cursor-pointer text-red-600 focus:text-red-600"
