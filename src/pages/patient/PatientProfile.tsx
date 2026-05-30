@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Edit3,
   FileText,
+  ExternalLink,
   Heart,
   Loader2,
   LogOut,
@@ -18,9 +19,11 @@ import {
   Save,
   Scale,
   User,
+  Upload,
   UtensilsCrossed,
   X,
   MessageSquare,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,7 +39,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import AppSidebar from "@/components/AppSidebar";
-import { getPatient, getPatientDietPlans, updatePatient } from "@/lib/api";
+import { deleteMyDocument, getMyDocuments, getPatient, getPatientDietPlans, updatePatient, uploadMyDocument } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -54,6 +57,7 @@ const PatientProfile = () => {
     allergies: "",
   });
   const [bodyErrors, setBodyErrors] = useState<{ age?: string; height?: string; weight?: string }>({});
+  const [documentKind, setDocumentKind] = useState<"blood_report" | "prescription" | "other">("blood_report");
 
   // Edit state for personal info
   const [isEditingPersonal, setIsEditingPersonal] = useState(false);
@@ -74,6 +78,30 @@ const PatientProfile = () => {
     queryKey: ["patient-diet-plans", user?.profileId],
     queryFn: () => getPatientDietPlans(user!.profileId!),
     enabled: !!user?.profileId,
+  });
+
+  const { data: documents = [], isLoading: documentsLoading } = useQuery({
+    queryKey: ["patient-documents"],
+    queryFn: getMyDocuments,
+    enabled: !!user?.id,
+  });
+
+  const uploadDocumentMutation = useMutation({
+    mutationFn: (file: File) => uploadMyDocument(file, documentKind),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient-documents"] });
+      toast.success("Document uploaded successfully");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to upload document"),
+  });
+
+  const deleteDocumentMutation = useMutation({
+    mutationFn: (id: string) => deleteMyDocument(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient-documents"] });
+      toast.success("Document deleted");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to delete document"),
   });
 
   // Update patient mutation — body details
@@ -667,6 +695,80 @@ const PatientProfile = () => {
                     <p className="text-xs text-muted-foreground mt-1">
                       {bodyDetails.allergies.length}/500
                     </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card id="reports">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <FileText className="w-5 h-5" />
+                  Blood Reports & Documents
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col md:flex-row gap-3">
+                  <Select value={documentKind} onValueChange={(value: "blood_report" | "prescription" | "other") => setDocumentKind(value)}>
+                    <SelectTrigger className="md:w-56">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="blood_report">Blood Report</SelectItem>
+                      <SelectItem value="prescription">Prescription</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <label className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground cursor-pointer hover:bg-primary/90">
+                    <Upload className="w-4 h-4" />
+                    Upload Document
+                    <input
+                      type="file"
+                      accept="application/pdf,image/jpeg,image/png"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.currentTarget.value = "";
+                        if (!file) return;
+                        if (file.size > 10 * 1024 * 1024) {
+                          toast.error("File must be 10 MB or smaller");
+                          return;
+                        }
+                        uploadDocumentMutation.mutate(file);
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {documentsLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading documents...</p>
+                ) : documents.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {documents.map((doc) => (
+                      <div key={doc.id} className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 border rounded-lg">
+                        <div>
+                          <p className="font-medium">{doc.original_filename}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {doc.kind.replace("_", " ")} · {new Date(doc.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          {doc.signed_url && (
+                            <Button variant="outline" size="sm" asChild>
+                              <a href={doc.signed_url} target="_blank" rel="noreferrer">
+                                <ExternalLink className="w-4 h-4 mr-1" /> View
+                              </a>
+                            </Button>
+                          )}
+                          <Button variant="outline" size="sm" onClick={() => deleteDocumentMutation.mutate(doc.id)}>
+                            <Trash2 className="w-4 h-4 mr-1" /> Delete
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
