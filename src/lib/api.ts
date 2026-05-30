@@ -17,8 +17,9 @@ const getStoredAuthHeaders = (): Record<string, string> => {
 };
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const isFormData = typeof FormData !== "undefined" && options?.body instanceof FormData;
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    headers: { ...(isFormData ? {} : { "Content-Type": "application/json" }), ...options?.headers },
     ...options,
   });
   const data = await res.json();
@@ -514,7 +515,7 @@ export const getPatientMeAppointments = (options?: { status?: string; upcoming_o
   if (options?.status) params.set("status", options.status);
   if (options?.upcoming_only) params.set("upcoming_only", "true");
   const query = params.toString();
-  return request<Appointment[]>(`/patient/me/appointments${query ? `?${query}` : ""}` , {
+  return request<Appointment[]>(`/patient/me/appointments${query ? `?${query}` : ""}`, {
     headers: getStoredAuthHeaders(),
   });
 };
@@ -642,6 +643,81 @@ export const verifyPayment = (data: {
   });
 
 // ─── Dietician Appointments (for calendar view) ──────────────────────────────
+export interface Review {
+  id: string;
+  patient_id: number;
+  patient_name?: string | null;
+  rating: number;
+  body: string;
+  condition_tag?: string | null;
+  is_approved: boolean;
+  created_at: string;
+  approved_at?: string | null;
+}
+
+export const getApprovedReviews = (limit = 20, offset = 0) =>
+  request<Review[]>(`/reviews?approved=1&limit=${limit}&offset=${offset}`);
+
+export const getReviewEligibility = () =>
+  request<{ eligible: boolean; has_completed_paid_consultation: boolean; has_reviewed: boolean; reason?: string }>("/reviews/me/status", {
+    headers: getStoredAuthHeaders(),
+  });
+
+export const submitReview = (data: { rating: number; body: string; condition_tag?: string }) =>
+  request<Review>("/reviews", {
+    method: "POST",
+    headers: getStoredAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+
+export const getAdminReviews = (approved?: boolean) =>
+  request<Review[]>(`/admin/reviews${typeof approved === "boolean" ? `?approved=${approved ? "1" : "0"}` : ""}`, {
+    headers: getStoredAuthHeaders(),
+  });
+
+export const updateAdminReview = (id: string, is_approved: boolean) =>
+  request<Review>(`/admin/reviews/${id}`, {
+    method: "PATCH",
+    headers: getStoredAuthHeaders(),
+    body: JSON.stringify({ is_approved }),
+  });
+
+export interface PatientDocument {
+  id: string;
+  patient_id: number;
+  kind: "blood_report" | "prescription" | "other";
+  file_path: string;
+  original_filename: string;
+  mime_type: string;
+  size_bytes: number;
+  uploaded_by: number;
+  created_at: string;
+  signed_url?: string | null;
+}
+
+export const getMyDocuments = () =>
+  request<PatientDocument[]>("/patient/me/documents", { headers: getStoredAuthHeaders() });
+
+export const uploadMyDocument = (file: File, kind: PatientDocument["kind"]) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("kind", kind);
+  return request<PatientDocument>("/patient/me/documents", {
+    method: "POST",
+    headers: getStoredAuthHeaders(),
+    body: formData,
+  });
+};
+
+export const deleteMyDocument = (id: string) =>
+  request<{ id: string }>(`/patient/me/documents/${id}`, {
+    method: "DELETE",
+    headers: getStoredAuthHeaders(),
+  });
+
+export const getPatientDocumentsForCareTeam = (patientId: number) =>
+  request<PatientDocument[]>(`/rd/patients/${patientId}/documents`, { headers: getStoredAuthHeaders() });
+
 export interface DieticianAppointment extends Appointment {
   patient_name?: string;
   patient_phone?: string;

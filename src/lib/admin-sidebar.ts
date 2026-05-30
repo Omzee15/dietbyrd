@@ -1,4 +1,4 @@
-import { Users, Stethoscope, UtensilsCrossed, UserCheck, UserPlus, BarChart3, Tag } from "lucide-react";
+import { MessageSquareQuote, Users, Stethoscope, UtensilsCrossed, UserCheck, UserPlus, BarChart3, Tag } from "lucide-react";
 
 export const getAdminSidebarSections = (counts?: {
   patients?: number;
@@ -23,6 +23,7 @@ export const getAdminSidebarSections = (counts?: {
     items: [
       { label: "Food Library", href: "/admin/food-library", icon: UtensilsCrossed },
       { label: "Coupon Codes", href: "/admin/coupons", icon: Tag },
+      { label: "Reviews", href: "/admin/reviews", icon: MessageSquareQuote },
     ],
   },
 ];
