@@ -692,7 +692,7 @@ const query = async (text, params) => {
 
 const ADMIN_JOIN_REQUEST_ROLES = ["ops_manager", "mlt_intern", "founder", "tech_lead"];
 const ADMIN_COMMISSION_ROLES = ["ops_manager", "founder", "tech_lead"];
-const JOIN_REQUEST_RECIPIENT_ROLES = ["doctor", "rd"];
+const JOIN_REQUEST_RECIPIENT_ROLES = ["doctor", "rd", "mlt_intern"];
 
 const getAuthContextFromHeaders = async (req) => {
   const rawId = req.headers["x-user-id"];
@@ -2044,10 +2044,10 @@ app.post("/api/join-requests", async (req, res) => {
       });
     }
     
-    if (!["doctor", "rd"].includes(role)) {
+    if (!["doctor", "rd", "mlt_intern"].includes(role)) {
       return res.status(400).json({ 
         success: false, 
-        error: "Role must be 'doctor' or 'rd'" 
+        error: "Role must be 'doctor', 'rd', or 'mlt_intern'" 
       });
     }
     
@@ -2125,7 +2125,7 @@ app.post("/api/join-requests", async (req, res) => {
             phone VARCHAR(15) NOT NULL,
             password VARCHAR(255) NOT NULL,
             name VARCHAR(100) NOT NULL,
-            requested_role VARCHAR(20) NOT NULL CHECK (requested_role IN ('doctor', 'rd')),
+            requested_role VARCHAR(20) NOT NULL CHECK (requested_role IN ('doctor', 'rd', 'mlt_intern')),
             qualification VARCHAR(150),
             clinic_name VARCHAR(150),
             clinic_address TEXT,

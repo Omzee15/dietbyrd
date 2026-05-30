@@ -1,0 +1,8 @@
+allowBuilds:
+  '@parcel/watcher': false
+  '@swc/core': false
+  core-js: false
+  esbuild: false
+  netlify-cli: false
+  sharp: false
+  unix-dgram: false

@@ -240,8 +240,8 @@ const Landing = () => {
           position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
           padding: 0 5%;
           transition: all 0.3s;
-          background: transparent;
-          border-bottom: 1px solid transparent;
+          background: rgba(10,22,40,.96);
+          border-bottom: 1px solid rgba(255,255,255,.08);
         }
         .landing-nav.scrolled {
           background: rgba(10,22,40,.96);
@@ -325,17 +325,18 @@ const Landing = () => {
 
         /* Hero */
         .hero {
-          min-height: 100vh; background: var(--navy);
+          min-height: auto; background: transparent;
           display: flex; align-items: center;
+          padding: 96px 24px;
           position: relative; overflow: hidden;
         }
         .hero-bg {
           position: absolute; inset: 0;
-          background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(11,110,79,.18) 0%, transparent 70%);
+          background: none;
           pointer-events: none;
         }
         .hero-content {
-          max-width: 1100px; margin: 0 auto; padding: 120px 5% 80px;
+          max-width: 1100px; margin: 0 auto; padding: 0;
           position: relative; z-index: 2; text-align: center;
           display: flex; flex-direction: column; align-items: center;
         }
@@ -348,16 +349,16 @@ const Landing = () => {
         .hero-badge::before { content: '★'; font-size: 11px; }
         .hero-h1 {
           font-family: 'Playfair Display', serif;
-          font-size: clamp(2.8rem, 5.5vw, 5rem); font-weight: 900; color: #fff;
+          font-size: clamp(2.8rem, 5.5vw, 5rem); font-weight: 900; color: var(--text);
           line-height: 1.08; letter-spacing: -0.03em; margin-bottom: 22px;
         }
-        .hero-h1 em { font-style: italic; color: var(--gold); }
+        .hero-h1 em { font-style: italic; color: var(--teal); }
         .hero-sub {
-          font-size: clamp(1rem, 1.8vw, 1.2rem); color: rgba(255,255,255,.65);
+          font-size: clamp(1rem, 1.8vw, 1.2rem); color: var(--text2);
           max-width: 580px; line-height: 1.75; margin-bottom: 40px;
           font-weight: 300; text-align: center;
         }
-        .hero-sub strong { color: #fff; font-weight: 600; }
+        .hero-sub strong { color: var(--text); font-weight: 600; }
         .hero-actions {
           display: flex; align-items: center; justify-content: center;
           gap: 12px; flex-wrap: wrap;
@@ -376,11 +377,11 @@ const Landing = () => {
         }
         .btn-ghost {
           display: inline-flex; align-items: center; gap: 8px;
-          color: rgba(255,255,255,.65); font-size: 15px; text-decoration: none;
+          color: var(--text2); font-size: 15px; text-decoration: none;
           font-weight: 500; transition: color 0.2s; background: none;
           border: none; cursor: pointer; font-family: 'DM Sans', sans-serif;
         }
-        .btn-ghost:hover { color: #fff; }
+        .btn-ghost:hover { color: var(--teal); }
         .btn-outline {
           display: inline-flex; align-items: center; gap: 8px;
           color: var(--text2); font-size: 14px; text-decoration: none;
@@ -393,17 +394,17 @@ const Landing = () => {
         .btn-outline:hover { background: var(--teal-l); color: var(--teal); border-color: rgba(11,110,79,0.3); }
         .hero-stats {
           display: flex; gap: 40px; margin-top: 56px; padding-top: 40px;
-          border-top: 1px solid rgba(255,255,255,.1);
+          border-top: 1px solid var(--border);
           flex-wrap: wrap; justify-content: center;
         }
         .hero-stat .num {
           font-family: 'Playfair Display', serif;
-          font-size: 2rem; font-weight: 700; color: #fff; line-height: 1;
+          font-size: 2rem; font-weight: 700; color: var(--navy); line-height: 1;
         }
-        .hero-stat .lbl { font-size: 13px; color: rgba(255,255,255,.5); margin-top: 4px; font-weight: 400; }
+        .hero-stat .lbl { font-size: 13px; color: var(--text3); margin-top: 4px; font-weight: 400; }
 
         /* Sections */
-        .section { padding: 96px 5%; }
+        .section { padding: 96px 24px; }
         .section-inner { max-width: 1200px; margin: 0 auto; }
         .section-eyebrow {
           display: inline-block; font-size: 12px; font-weight: 600;
@@ -423,50 +424,47 @@ const Landing = () => {
 
         /* CTA section */
         .cta-section {
-          background: var(--navy);
-          text-align: center; padding: 100px 5%;
+          text-align: center; padding: 96px 24px;
           min-height: 100vh; display: flex; align-items: center; justify-content: center;
           position: relative; overflow: hidden;
         }
         .cta-section::before {
-          content: ''; position: absolute; inset: 0; pointer-events: none;
-          background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(11,110,79,.18) 0%, transparent 70%);
+          content: none;
         }
         .cta-inner { max-width: 700px; margin: 0 auto; position: relative; z-index: 1; }
         .cta-eyebrow {
-          display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500;
-          letter-spacing: 0.02em; text-transform: uppercase;
-          color: var(--gold); margin-bottom: 28px;
-          background: rgba(201,149,42,.15); border: 1px solid rgba(201,149,42,.3);
-          border-radius: 100px; padding: 6px 16px;
+          display: inline-block; font-size: 13px; font-weight: 600;
+          letter-spacing: 0.1em; text-transform: uppercase;
+          color: var(--teal); margin-bottom: 28px;
         }
-        .cta-eyebrow::before { content: '★'; font-size: 11px; }
+        .cta-eyebrow::before { content: none; }
         .cta-headline {
           font-family: 'Playfair Display', serif;
-          font-size: clamp(2.8rem, 5.5vw, 5rem); font-weight: 900; color: #fff;
+          font-size: clamp(2.8rem, 5.5vw, 5rem); font-weight: 900; color: var(--text);
           line-height: 1.08; letter-spacing: -0.03em; margin-bottom: 22px;
         }
-        .cta-headline em { font-style: italic; color: var(--gold); }
+        .cta-headline em { font-style: italic; color: var(--teal); }
         .cta-body {
-          font-size: clamp(1rem, 1.8vw, 1.2rem); color: rgba(255,255,255,.65); line-height: 1.75;
+          font-size: clamp(1rem, 1.8vw, 1.2rem); color: var(--text2); line-height: 1.75;
           max-width: 580px; margin: 0 auto 40px; font-weight: 300;
         }
-        .cta-body strong { color: #fff; font-weight: 600; }
+        .cta-body strong { color: var(--text); font-weight: 600; }
         .cta-price-badge {
-          display: inline-flex; align-items: center; justify-content: center;
-          background: var(--teal-l); border: 1px solid rgba(11,110,79,0.15);
-          border-radius: 12px; padding: 20px 28px; margin-bottom: 28px;
+          display: inline-flex; align-items: center; justify-content: center; gap: 16px;
+          background: #fff; border: 1px solid var(--border);
+          border-radius: 999px; padding: 8px 8px 8px 24px; margin-bottom: 28px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.05);
         }
-        .cta-price-badge .pb-text { font-size: 13px; color: var(--text2); font-weight: 400; letter-spacing: 0.01em; }
+        .cta-price-badge .pb-text { font-size: 14px; color: var(--text2); font-weight: 400; letter-spacing: 0; }
         .cta-price-badge .pb-price {
-          color: var(--teal); font-family: 'Playfair Display', serif;
-          font-weight: 700; font-size: 36px; line-height: 1; margin-top: 8px;
-          display: inline-block;
+          display: inline-flex; align-items: center; justify-content: center;
+          background: var(--teal); color: #fff; border-radius: 999px;
+          padding: 10px 20px; font-weight: 600; font-size: 15px; line-height: 1;
         }
         .cta-disclaimer { font-size: 13px; color: var(--text3); margin-top: 16px; }
 
-        /* Compare section - WHITE */
-        .rd-section { background: #fff; overflow: hidden; position: relative; }
+        /* Compare section */
+        .rd-section { overflow: hidden; position: relative; }
         .rd-section .section-eyebrow { color: var(--teal); }
         .rd-section .section-title { color: var(--navy); }
         .rd-section .section-sub { color: var(--text2); }
@@ -492,7 +490,7 @@ const Landing = () => {
         .compare-list li .ci.ok { background: rgba(11,110,79,0.2); color: var(--teal); }
         .compare-list li .ci.no { background: rgba(197,48,48,0.15); color: var(--red); }
         .awareness-tag {
-          background: linear-gradient(135deg, #FBF4E6 0%, #F5E6C8 100%);
+          background: var(--cream);
           border: 1px solid rgba(201,149,42,0.25); border-radius: 12px;
           padding: 16px 28px; text-align: center; color: var(--text);
           font-size: 15px; line-height: 1.7; max-width: 600px; margin: 0 auto 36px;
@@ -501,11 +499,10 @@ const Landing = () => {
 
         /* Privacy carousel */
         .privacy-section {
-          background: #fff;
-          padding: 80px 0; overflow: hidden; position: relative;
+          padding: 96px 24px; overflow: hidden; position: relative;
           border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
         }
-        .privacy-inner { max-width: 1100px; margin: 0 auto; text-align: center; padding: 0 5%; }
+        .privacy-inner { max-width: 1100px; margin: 0 auto; text-align: center; padding: 0; }
         .privacy-eyebrow {
           display: inline-block; font-size: 11px; font-weight: 600;
           letter-spacing: 0.1em; text-transform: uppercase;
@@ -524,8 +521,8 @@ const Landing = () => {
         .privacy-marquee-wrap::before, .privacy-marquee-wrap::after {
           content: none;
         }
-        .privacy-marquee-wrap::before { left: 0; background: linear-gradient(90deg, #fff, transparent); }
-        .privacy-marquee-wrap::after { right: 0; background: linear-gradient(-90deg, #fff, transparent); }
+        .privacy-marquee-wrap::before { left: 0; background: none; }
+        .privacy-marquee-wrap::after { right: 0; background: none; }
         .privacy-marquee-track {
           display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; width: auto;
         }
@@ -548,11 +545,10 @@ const Landing = () => {
         .privacy-badge-icon { flex-shrink: 0; }
 
         /* Approach section — WHITE */
-        .approach-section { background: #fff; }
         .approach-section .section-eyebrow { color: var(--teal); }
         .approach-section .section-title { color: var(--navy); }
         .approach-section .section-sub { color: var(--text2); }
-        .approach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; margin-top: 48px; }
+        .approach-grid { display: grid; grid-template-columns: minmax(0, 760px); justify-content: center; gap: 64px; align-items: center; margin-top: 48px; }
         .approach-features { display: flex; flex-direction: column; gap: 28px; }
         .feature-item { display: flex; gap: 18px; align-items: flex-start; }
         .feature-icon {
@@ -564,6 +560,8 @@ const Landing = () => {
         .feature-text p { font-size: 14px; color: var(--text2); line-height: 1.7; }
 
         /* Testimonial */
+        .testimonials-section { padding: 96px 24px; }
+        .testimonials-inner { max-width: 680px; margin: 0 auto; }
         .testimonial-card {
           background: #FFF; border-radius: 16px; padding: 32px;
           box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid var(--border);
@@ -617,8 +615,7 @@ const Landing = () => {
 
         /* About Us & Our Vision */
         .about-section {
-          background: #fff;
-          padding: 96px 5%;
+          padding: 96px 24px;
         }
         .about-section .section-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; color: var(--teal); }
         .about-section .section-title {
@@ -640,8 +637,7 @@ const Landing = () => {
         .about-body .bold { color: var(--navy); font-weight: 600; }
 
         .vision-section {
-          background: #fff;
-          padding: 0 5% 96px;
+          padding: 96px 24px;
         }
         .vision-card {
           background: var(--navy);
@@ -691,44 +687,78 @@ const Landing = () => {
           line-height: 1.7;
         }
 
-        .founder-card-section {
-          background: #fff;
-          padding: 0 5%;
-        }
-        .founder-card-wrap {
-          max-width: 400px;
+        /* Founder Story — WHITE */
+        .founder-section { padding: 96px 24px 0; position: relative; overflow: hidden; }
+        .founder-inner { max-width: 1100px; margin: 0 auto; }
+        .founder-label { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--teal); margin-bottom: 12px; }
+        .founder-title { font-family: 'Playfair Display', serif; font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: var(--navy); line-height: 1.15; margin-bottom: 0; }
+        .founder-profile-grid {
+          max-width: 1100px;
           margin: 64px auto;
-          text-align: center;
+          padding: 0 24px;
+          display: grid;
+          grid-template-columns: 1fr 1.2fr;
+          gap: 48px;
+          align-items: stretch;
         }
-        .founder-image-card {
+        .founder-photo-card {
           background: var(--teal-l);
-          border-radius: 20px;
-          padding: 0 0 24px 0;
+          border-radius: 24px;
           overflow: hidden;
-          text-align: center;
+          aspect-ratio: 4 / 5;
+          min-height: 480px;
         }
-        .founder-image-card img {
+        .founder-photo-card img {
           width: 100%;
+          height: 100%;
           display: block;
+          object-fit: contain;
+          object-position: bottom center;
         }
-        .founder-card-name {
-          font-size: 18px;
+        .founder-brand-card {
+          background: #fff;
+          border-radius: 24px;
+          padding: 40px;
+          border: 1px solid var(--border);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 16px;
+        }
+        .founder-brand-line {
+          font-family: 'Playfair Display', serif;
+          font-size: 22px;
           font-weight: 700;
+          color: var(--navy);
+          margin-bottom: 32px;
+        }
+        .founder-brand-line span { color: var(--gold); }
+        .founder-brand-card h3 {
+          font-family: 'Playfair Display', serif;
+          font-size: 28px;
+          font-weight: 700;
+          color: var(--navy);
+        }
+        .founder-info-role { font-size: 14px; font-weight: 500; color: var(--text2); }
+        .founder-info-location { font-size: 13px; font-weight: 400; color: var(--text3); }
+        .founder-card-divider {
+          width: 100%;
+          height: 1px;
+          background: var(--border);
+          margin: 24px 0;
+        }
+        .founder-story-quote {
+          border-left: 3px solid var(--teal);
+          padding-left: 16px;
+          font-family: 'Playfair Display', serif;
+          font-style: italic;
+          font-size: 16px;
           color: var(--text);
-          margin-top: 16px;
-        }
-        .founder-card-role {
-          font-size: 14px;
-          color: var(--text2);
-          margin-top: 4px;
-        }
-        .founder-card-location {
-          font-size: 13px;
-          color: var(--text3);
-          margin-top: 2px;
+          line-height: 1.6;
         }
         .founder-purpose-pill {
-          display: inline-block;
+          display: inline-flex;
+          width: fit-content;
           background: rgba(11,110,79,0.10);
           color: var(--teal);
           padding: 6px 14px;
@@ -737,58 +767,8 @@ const Landing = () => {
           font-weight: 500;
           margin-top: 16px;
         }
-
-        /* Founder Story — WHITE */
-        .founder-section { background: #fff; padding: 96px 5% 0; position: relative; overflow: hidden; }
-        .founder-inner { max-width: 800px; margin: 0 auto; }
-        .founder-label { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--teal); margin-bottom: 12px; }
-        .founder-title { font-family: 'Playfair Display', serif; font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: var(--navy); line-height: 1.15; margin-bottom: 32px; }
-        .founder-story-card { border-radius: 20px; overflow: hidden; }
-        .founder-story-hero {
-          height: 220px;
-          border-radius: 20px 20px 0 0;
-          background: linear-gradient(135deg, #0A1628 0%, #0F2840 100%);
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .founder-monogram {
-          font-family: 'Playfair Display', serif;
-          font-size: 120px;
-          font-weight: 700;
-          color: rgba(255,255,255,0.06);
-          letter-spacing: -0.04em;
-          line-height: 1;
-        }
-        .founder-info-card {
-          background: #fff;
-          border-radius: 0 0 20px 20px;
-          padding: 32px;
-          border: 1px solid var(--border);
-          border-top: 0;
-        }
-        .founder-info-card h3 {
-          font-family: 'Playfair Display', serif;
-          font-size: 24px;
-          font-weight: 700;
-          color: var(--navy);
-          margin-bottom: 6px;
-        }
-        .founder-info-role { font-size: 14px; color: var(--text2); }
-        .founder-info-location { font-size: 13px; color: var(--text3); margin-top: 2px; margin-bottom: 24px; }
-        .founder-story-quote {
-          border-left: 3px solid var(--teal);
-          padding-left: 16px;
-          font-family: 'Playfair Display', serif;
-          font-style: italic;
-          font-size: 18px;
-          color: var(--text);
-          line-height: 1.6;
-        }
         .road-ahead-section {
-          background: #fff;
-          padding: 48px 5% 96px;
+          padding: 96px 24px;
         }
         .road-ahead-inner {
           max-width: 800px;
@@ -824,8 +804,7 @@ const Landing = () => {
 
         /* Clinician Referral */
         .clinician-referral-section {
-          background: #fff;
-          padding: 72px 5% 88px;
+          padding: 96px 24px;
         }
         .clinician-referral-inner {
           max-width: 900px;
@@ -874,8 +853,7 @@ const Landing = () => {
 
         /* Industry Standards */
         .standards-section {
-          background: #fff;
-          padding: 96px 5%;
+          padding: 96px 24px;
         }
         .standards-section .section-eyebrow { color: var(--teal); }
         .standards-section .section-title { color: var(--navy); }
@@ -891,8 +869,8 @@ const Landing = () => {
         .standard-content h4 { font-size: 15px; font-weight: 600; color: var(--navy); margin-bottom: 6px; }
         .standard-content p { font-size: 14px; color: var(--text2); line-height: 1.7; }
 
-        /* Trust section - WHITE */
-        .trust-section { background: #fff; position: relative; overflow: hidden; }
+        /* Trust section */
+        .trust-section { position: relative; overflow: hidden; }
         .trust-inner { position: relative; z-index: 1; }
         .trust-title { font-family: 'Playfair Display', serif; font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: var(--navy); text-align: center; margin-bottom: 12px; }
         .trust-sub { text-align: center; color: var(--text2); font-size: 1rem; margin-bottom: 56px; font-weight: 300; }
@@ -911,8 +889,8 @@ const Landing = () => {
 
         /* Footer */
         .landing-footer {
-          background: #fff;
-          color: var(--text2); padding: 64px 5% 40px; border-top: 1px solid var(--border);
+          background: var(--navy);
+          color: rgba(255,255,255,0.68); padding: 64px 24px 40px; border-top: 1px solid rgba(255,255,255,0.08);
         }
         .footer-email {
           display: inline-flex; align-items: center; gap: 7px;
@@ -924,51 +902,55 @@ const Landing = () => {
         }
         .footer-email:hover { color: var(--teal); background: rgba(11,110,79,0.1); border-color: rgba(11,110,79,0.25); }
         .footer-inner { max-width: 1200px; margin: 0 auto; }
-        .footer-top { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 40px; border-bottom: 1px solid var(--border); }
-        .footer-brand .fb-logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; color: var(--navy); margin-bottom: 10px; }
+        .footer-top { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 40px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .footer-brand .fb-logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 10px; }
         .footer-brand .fb-logo span { color: var(--gold); }
-        .footer-brand p { font-size: 13.5px; line-height: 1.8; color: var(--text3); font-weight: 300; max-width: 280px; }
-        .footer-col h5 { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--navy); margin-bottom: 16px; }
+        .footer-brand p { font-size: 13.5px; line-height: 1.8; color: rgba(255,255,255,0.58); font-weight: 300; max-width: 280px; }
+        .footer-col h5 { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; margin-bottom: 16px; }
         .footer-col h4 { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 12px; }
-        .footer-col a { display: block; font-size: 13.5px; color: var(--text3); text-decoration: none; margin-bottom: 10px; transition: color 0.2s; }
-        .footer-col a:hover { color: var(--teal); }
+        .footer-col a { display: block; font-size: 13.5px; color: rgba(255,255,255,0.6); text-decoration: none; margin-bottom: 10px; transition: color 0.2s; }
+        .footer-col a:hover { color: #fff; }
         .footer-col ul { list-style: none; padding: 0; margin: 0; }
         .footer-col li { margin-bottom: 10px; }
         .footer-col ul li a { font-size: 13px; color: rgba(255,255,255,.6); text-decoration: none; transition: color 0.2s; }
         .footer-col ul li a:hover { color: #fff; }
         .footer-bottom { display: flex; align-items: center; justify-content: space-between; padding-top: 28px; flex-wrap: wrap; gap: 16px; }
-        .footer-bottom p { font-size: 13px; color: var(--text3); }
+        .footer-bottom p { font-size: 13px; color: rgba(255,255,255,0.5); }
         .footer-badges { display: flex; gap: 10px; flex-wrap: wrap; }
         .f-badge { font-size: 11px; padding: 4px 10px; border-radius: 6px; font-weight: 500; background: var(--teal-l); color: var(--teal); border: 1px solid rgba(11,110,79,0.15); }
 
         /* Responsive */
         @media (max-width: 900px) {
-          .compare-grid, .approach-grid, .founder-inner { grid-template-columns: 1fr; }
+          .compare-grid, .approach-grid { grid-template-columns: 1fr; }
+          .founder-profile-grid { grid-template-columns: 1fr; gap: 24px; }
           .stats-bar-inner { grid-template-columns: 1fr 1fr; }
           .footer-top { grid-template-columns: 1fr 1fr; }
           .nav-links .nav-mid { display: none; }
-          .founder-avatar-wrap { order: -1; }
-          .founder-avatar { width: 160px; height: 200px; font-size: 60px; }
           .clinician-logo-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         }
         @media (max-width: 600px) {
-          .hero-content { padding: 110px 5% 60px; }
-          .cta-section { padding: 110px 5% 60px; }
+          .hero { padding: 64px 24px; }
+          .hero-content { padding: 0; }
+          .cta-section { padding: 64px 24px; }
           .cta-section .btn-primary { width: 100%; justify-content: center; }
           .cta-price-badge { width: 100%; }
-          .vision-section { padding: 0 5% 64px; }
+          .privacy-section,
+          .testimonials-section,
+          .about-section,
+          .vision-section,
+          .clinician-referral-section,
+          .standards-section { padding: 64px 24px; }
           .vision-card { padding: 32px 24px; }
-          .founder-card-wrap { margin: 48px auto; }
-          .founder-section { padding: 64px 5% 0; }
-          .founder-story-hero { height: 180px; }
-          .founder-monogram { font-size: 96px; }
-          .founder-info-card { padding: 28px 24px; }
-          .road-ahead-section { padding: 40px 5% 64px; }
+          .founder-section { padding: 64px 24px 0; }
+          .founder-profile-grid { margin: 40px auto; padding: 0; }
+          .founder-photo-card { min-height: 0; }
+          .founder-brand-card { padding: 28px 24px; }
+          .road-ahead-section { padding: 64px 24px; }
           .road-ahead-card { padding: 28px 24px; }
           .clinician-logo-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .footer-top { grid-template-columns: 1fr; }
           .nav-links { gap: 12px; }
-          .section { padding: 64px 5%; }
+          .section { padding: 64px 24px; }
           .stats-bar-inner { grid-template-columns: 1fr 1fr; }
         }
       `}</style>
@@ -980,6 +962,7 @@ const Landing = () => {
           <div className="nav-links">
             <a href="/" className="nav-mid">Home</a>
             <a href="#approach" className="nav-mid" onClick={scrollTo('approach')}>How It Works</a>
+            <a href="#conditions" className="nav-mid" onClick={scrollTo('conditions')}>Conditions</a>
             <a href="#about" className="nav-mid" onClick={scrollTo('about')}>About Us</a>
             <a href="#reviews" className="nav-mid" onClick={scrollTo('reviews')}>Reviews</a>
             <a href="#trust" className="nav-mid" onClick={scrollTo('trust')}>Contact Us</a>
@@ -1011,14 +994,21 @@ const Landing = () => {
                 </div>
               </div>
             ) : (
-              <button onClick={() => setIsBookingModalOpen(true)} className="nav-cta">Book — ₹999</button>
+              <>
+                <div className="profile-menu-wrap">
+                  <Link to="/login" className="profile-avatar" aria-label="Login">
+                    <User size={18} />
+                  </Link>
+                </div>
+                <button onClick={() => setIsBookingModalOpen(true)} className="nav-cta">Book — ₹999</button>
+              </>
             )}
           </div>
         </div>
       </nav>
 
       {/* CTA — Page 1 */}
-      <section className="cta-section">
+      <section className="cta-section" style={{ background: 'var(--cream)' }}>
         <div className="cta-inner">
           <span ref={addToRefs} className="cta-eyebrow reveal">YOUR HEALTH DESERVES BETTER</span>
           <h1 ref={addToRefs} className="cta-headline reveal reveal-delay-1">
@@ -1029,35 +1019,75 @@ const Landing = () => {
           </p>
           <div ref={addToRefs} className="reveal reveal-delay-2">
             <div className="cta-price-badge">
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                <span className="pb-text">Honest pricing · Absolutely No hidden charges</span>
-                <span className="pb-price">₹999</span>
-              </div>
+              <span className="pb-text">Monthly subscription</span>
+              <span className="pb-price">₹999 / month</span>
             </div>
           </div>
           <button ref={addToRefs} onClick={() => setIsBookingModalOpen(true)} className="btn-primary reveal reveal-delay-3" style={{ fontSize: '18px', padding: '18px 40px' }}>
             Book Your Consultation Now →
           </button>
-          <p ref={addToRefs} className="cta-disclaimer reveal reveal-delay-3">100% Registered Dietitians · IDA Certified · Evidence-Based</p>
-          <div ref={addToRefs} className="hero-stats reveal reveal-delay-3">
-            <div className="hero-stat">
-              <div className="num">RD</div>
-              <div className="lbl">Legally protected title in India</div>
+          <p ref={addToRefs} className="cta-disclaimer reveal reveal-delay-3">Cancel anytime · No lock-in · 100% Registered Dietitians</p>
+        </div>
+      </section>
+
+      {/* Privacy + Stats */}
+      <section className="privacy-section" style={{ background: 'var(--cream)' }}>
+        <div className="privacy-inner">
+          <span ref={addToRefs} className="privacy-eyebrow reveal">Our commitment to you</span>
+          <h3 ref={addToRefs} className="privacy-heading reveal reveal-delay-1">
+            Because we deeply care about you<br />and your privacy
+          </h3>
+          <p ref={addToRefs} className="privacy-sub reveal reveal-delay-2">
+            Your health data is personal. We hold it to the highest standards — legally and ethically.
+          </p>
+          <div className="stats-bar-inner" ref={statsRef}>
+            <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
+              <div className="stat-item-icon">⚖️</div>
+              <div className="stat-item-num">RD</div>
+              <div className="stat-item-lbl">Legally protected title in India</div>
             </div>
-            <div className="hero-stat">
-              <div className="num">100%</div>
-              <div className="lbl">Clinically credentialed dietitians</div>
+            <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
+              <div className="stat-item-icon">🎓</div>
+              <div className="stat-item-num">100%</div>
+              <div className="stat-item-lbl">Clinically credentialed dietitians</div>
             </div>
-            <div className="hero-stat">
-              <div className="num">1:1</div>
-              <div className="lbl">Personalised consultation</div>
+            <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
+              <div className="stat-item-icon">💚</div>
+              <div className="stat-item-num"><span className="gold">₹</span>999</div>
+              <div className="stat-item-lbl">Honest pricing</div>
+            </div>
+            <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
+              <div className="stat-item-icon">🤝</div>
+              <div className="stat-item-num">1:1</div>
+              <div className="stat-item-lbl">Personalised consultation</div>
+            </div>
+          </div>
+          <div className="privacy-marquee-wrap" style={{ marginTop: '48px' }}>
+            <div className="privacy-marquee-track">
+              {[
+                { key: 'ida', label: 'IDA Verified RDs', Icon: BadgeCheck },
+                { key: 'nda', label: 'Strict NDA Policy', Icon: FileLock2 },
+                { key: 'anon', label: 'Anonymous Consultations Available', Icon: UserRoundCheck },
+                { key: 'dpdpa', label: 'DPDPA Compliant', Icon: ShieldCheck },
+              ].map(({ key, label, Icon }) => (
+                <div key={key} className="privacy-badge">
+                  <Icon
+                    aria-hidden="true"
+                    className="privacy-badge-icon"
+                    size={18}
+                    strokeWidth={2.25}
+                    style={{ color: 'var(--teal)' }}
+                  />
+                  <span>{label}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
       {/* RD vs Nutritionist — Page 2 */}
-      <section id="rd-section" className="section rd-section reveal">
+      <section id="rd-section" className="section rd-section reveal" style={{ background: '#fff' }}>
         <div className="section-inner">
           <div style={{ textAlign: 'center' }}>
             <span ref={addToRefs} className="section-eyebrow reveal">The truth no one tells you</span>
@@ -1116,65 +1146,9 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Privacy + Stats */}
-      <section className="privacy-section">
-        <div className="privacy-inner">
-          <span ref={addToRefs} className="privacy-eyebrow reveal">Our commitment to you</span>
-          <h3 ref={addToRefs} className="privacy-heading reveal reveal-delay-1">
-            Because we deeply care about you<br />and your privacy
-          </h3>
-          <p ref={addToRefs} className="privacy-sub reveal reveal-delay-2">
-            Your health data is personal. We hold it to the highest standards — legally and ethically.
-          </p>
-          <div className="stats-bar-inner" ref={statsRef}>
-            <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
-              <div className="stat-item-icon">⚖️</div>
-              <div className="stat-item-num">RD</div>
-              <div className="stat-item-lbl">Legally protected title in India</div>
-            </div>
-            <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
-              <div className="stat-item-icon">🎓</div>
-              <div className="stat-item-num">100%</div>
-              <div className="stat-item-lbl">Clinically credentialed dietitians</div>
-            </div>
-            <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
-              <div className="stat-item-icon">💚</div>
-              <div className="stat-item-num"><span className="gold">₹</span>999</div>
-              <div className="stat-item-lbl">Honest pricing</div>
-            </div>
-            <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
-              <div className="stat-item-icon">🤝</div>
-              <div className="stat-item-num">1:1</div>
-              <div className="stat-item-lbl">Personalised consultation</div>
-            </div>
-          </div>
-          <div className="privacy-marquee-wrap" style={{ marginTop: '48px' }}>
-            <div className="privacy-marquee-track">
-              {[
-                { key: 'ida', label: 'IDA Verified RDs', Icon: BadgeCheck },
-                { key: 'nda', label: 'Strict NDA Policy', Icon: FileLock2 },
-                { key: 'anon', label: 'Anonymous Consultations Available', Icon: UserRoundCheck },
-                { key: 'dpdpa', label: 'DPDPA Compliant', Icon: ShieldCheck },
-              ].map(({ key, label, Icon }) => (
-                <div key={key} className="privacy-badge">
-                  <Icon
-                    aria-hidden="true"
-                    className="privacy-badge-icon"
-                    size={18}
-                    strokeWidth={2.25}
-                    style={{ color: 'var(--teal)' }}
-                  />
-                  <span>{label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* How We Work + Testimonial — Page 3 */}
+      {/* How We Work — Page 3 */}
       <div id="reviews" style={{ position: 'relative', top: '-80px' }} aria-hidden="true" />
-      <section id="approach" className="section approach-section reveal">
+      <section id="approach" className="section approach-section reveal" style={{ background: 'var(--cream)' }}>
         <div className="section-inner">
           <div className="approach-grid">
             <div>
@@ -1216,35 +1190,41 @@ const Landing = () => {
                 </div>
               </div>
             </div>
-            <div ref={addToRefs} className="testimonial-wrap reveal reveal-delay-2">
-              <div className="testimonial-card">
-                <Quote className="testimonial-quote" aria-hidden="true" />
-                <p className="testimonial-text" dangerouslySetInnerHTML={{ __html: testimonials[currentTestimonial].text }} />
-                <div className="testimonial-author">
-                  <div className="testimonial-avatar">{testimonials[currentTestimonial].avatar}</div>
-                  <div>
-                    <div className="testimonial-name">{testimonials[currentTestimonial].name}</div>
-                    <div className="testimonial-detail">{testimonials[currentTestimonial].detail}</div>
-                    <div className="testimonial-condition">{testimonials[currentTestimonial].condition}</div>
-                  </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section className="testimonials-section" style={{ background: '#fff' }}>
+        <div className="testimonials-inner">
+          <div ref={addToRefs} className="testimonial-wrap reveal reveal-delay-2">
+            <div className="testimonial-card">
+              <Quote className="testimonial-quote" aria-hidden="true" />
+              <p className="testimonial-text" dangerouslySetInnerHTML={{ __html: testimonials[currentTestimonial].text }} />
+              <div className="testimonial-author">
+                <div className="testimonial-avatar">{testimonials[currentTestimonial].avatar}</div>
+                <div>
+                  <div className="testimonial-name">{testimonials[currentTestimonial].name}</div>
+                  <div className="testimonial-detail">{testimonials[currentTestimonial].detail}</div>
+                  <div className="testimonial-condition">{testimonials[currentTestimonial].condition}</div>
                 </div>
               </div>
-              <div className="carousel-nav">
-                <button className="carousel-btn" disabled={testimonials.length <= 1} onClick={() => setCurrentTestimonial((prev) => (prev - 1 + testimonials.length) % testimonials.length)}>←</button>
-                <button className="carousel-btn" disabled={testimonials.length <= 1} onClick={() => setCurrentTestimonial((prev) => (prev + 1) % testimonials.length)}>→</button>
-              </div>
-              <div className="carousel-dots">
-                {testimonials.map((_, i) => (
-                  <button key={i} className={`carousel-dot ${i === currentTestimonial ? 'active' : ''}`} onClick={() => setCurrentTestimonial(i)} />
-                ))}
-              </div>
+            </div>
+            <div className="carousel-nav">
+              <button className="carousel-btn" disabled={testimonials.length <= 1} onClick={() => setCurrentTestimonial((prev) => (prev - 1 + testimonials.length) % testimonials.length)}>←</button>
+              <button className="carousel-btn" disabled={testimonials.length <= 1} onClick={() => setCurrentTestimonial((prev) => (prev + 1) % testimonials.length)}>→</button>
+            </div>
+            <div className="carousel-dots">
+              {testimonials.map((_, i) => (
+                <button key={i} className={`carousel-dot ${i === currentTestimonial ? 'active' : ''}`} onClick={() => setCurrentTestimonial(i)} />
+              ))}
             </div>
           </div>
         </div>
       </section>
 
       {/* About Us & Our Vision — Page 4 */}
-      <section id="about" className="about-section reveal">
+      <section id="about" className="about-section reveal" style={{ background: 'var(--cream)' }}>
         <div className="section-inner">
           <div className="about-inner">
             <span ref={addToRefs} className="section-eyebrow reveal">WHO WE ARE</span>
@@ -1262,7 +1242,7 @@ const Landing = () => {
         </div>
       </section>
 
-      <section className="vision-section">
+      <section className="vision-section" style={{ background: '#fff' }}>
         <div className="vision-card reveal">
           <h2 ref={addToRefs} className="vision-title reveal">Our Vision</h2>
           <div className="vision-pillars">
@@ -1298,42 +1278,33 @@ const Landing = () => {
         </div>
       </section>
 
-      <section className="founder-card-section reveal">
-        <div className="founder-card-wrap">
-          <div ref={addToRefs} className="founder-image-card reveal">
-            <img src="/aryan-bhagat-founder.png" alt="Aryan Bhagat, Founder" />
-            <div className="founder-card-name">Aryan Bhagat</div>
-            <div className="founder-card-role">Founder, Diet By RD</div>
-            <div className="founder-card-location">Darbhanga, Bihar</div>
-          </div>
-          <div ref={addToRefs} className="founder-purpose-pill reveal reveal-delay-1">🌱 Built with purpose</div>
-        </div>
-      </section>
-
       {/* The Story Behind Diet By RD — Page 5 */}
-      <section className="founder-section reveal">
+      <section className="founder-section reveal" style={{ background: 'var(--cream)' }}>
         <div className="section-inner">
           <div className="founder-inner">
             <p ref={addToRefs} className="founder-label reveal">THE PEOPLE BEHIND THIS</p>
             <h2 ref={addToRefs} className="founder-title reveal reveal-delay-1">The Story Behind Diet By RD</h2>
-            <div ref={addToRefs} className="founder-story-card reveal reveal-delay-2">
-              <div className="founder-story-hero">
-                <div className="founder-monogram">AB</div>
+            <div ref={addToRefs} className="founder-profile-grid reveal reveal-delay-2">
+              <div className="founder-photo-card">
+                <img src="/aryan-bhagat-founder.png" alt="Aryan Bhagat, Founder" />
               </div>
-              <div className="founder-info-card">
+              <div className="founder-brand-card">
+                <div className="founder-brand-line">Diet By <span>RD</span></div>
                 <h3>Aryan Bhagat</h3>
                 <div className="founder-info-role">Founder, Diet By RD</div>
                 <div className="founder-info-location">Darbhanga, Bihar</div>
+                <div className="founder-card-divider" />
                 <div className="founder-story-quote">
                   "Everything in this world can be learnt." — the belief that started it all.
                 </div>
+                <div className="founder-purpose-pill">🌱 Built with purpose</div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="road-ahead-section reveal">
+      <section className="road-ahead-section reveal" style={{ background: '#fff' }}>
         <div className="road-ahead-inner">
           <p ref={addToRefs} className="road-ahead-copy reveal">
             He watched families trust 'health experts' who were nothing more than confident content creators. He saw diabetic patients follow advice from coaches with no clinical training. He saw people spending money they didn't have on products they didn't need.
@@ -1348,7 +1319,7 @@ const Landing = () => {
         </div>
       </section>
 
-      <section className="clinician-referral-section reveal">
+      <section className="clinician-referral-section reveal" style={{ background: 'var(--cream)' }}>
         <div className="section-inner">
           <div className="clinician-referral-inner">
             <span ref={addToRefs} className="section-eyebrow reveal">REFERRED BY LEADING CLINICIANS</span>
@@ -1368,7 +1339,7 @@ const Landing = () => {
       </section>
 
       {/* Setting the New Industry Standards — Page 6 */}
-      <section className="standards-section">
+      <section className="standards-section" style={{ background: '#fff' }}>
         <div className="section-inner">
           <div className="standards-inner">
             <span ref={addToRefs} className="section-eyebrow reveal">At Diet By RD</span>
@@ -1404,7 +1375,7 @@ const Landing = () => {
       </section>
 
       {/* Referred by Leading Clinicians + Conditions — Page 7 */}
-      <section id="trust" className="section trust-section">
+      <section id="trust" className="section trust-section" style={{ background: 'var(--cream)' }}>
         <div className="section-inner trust-inner">
           <div ref={addToRefs} className="doctor-trust-banner reveal">
             <span className="section-eyebrow">Referred by leading clinicians</span>
@@ -1424,8 +1395,12 @@ const Landing = () => {
               </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          <h2 ref={addToRefs} className="trust-title reveal reveal-delay-1">What we can help you with</h2>
+      <section id="conditions" className="section trust-section" style={{ background: 'var(--cream)' }}>
+        <div className="section-inner trust-inner">
+          <h2 ref={addToRefs} className="trust-title reveal reveal-delay-1">Conditions We Treat</h2>
           <p ref={addToRefs} className="trust-sub reveal reveal-delay-2">
             Your RD is trained to manage these conditions clinically — not with generic advice, but with a personalised plan designed around your specific case.
           </p>
@@ -1441,7 +1416,7 @@ const Landing = () => {
       </section>
 
       {/* Hero */}
-      <section className="hero">
+      <section className="hero" style={{ background: '#fff' }}>
         <div className="hero-bg" />
         <div className="hero-content">
           <div ref={addToRefs} className="hero-badge reveal">YOUR HEALTH DESERVES BETTER</div>
@@ -1457,7 +1432,7 @@ const Landing = () => {
             <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
               Book Your Consultation
             </button>
-            <button onClick={() => navigate('/login')} className="btn-outline">Join as Doctor / Dietitian</button>
+            <button onClick={() => navigate('/login')} className="btn-outline">Join as Doctor / Dietitian / MLT</button>
             <a href="#trust" className="btn-ghost" onClick={scrollTo('trust')}>Contact / Support →</a>
           </div>
           <div ref={addToRefs} className="hero-stats reveal reveal-delay-3">
@@ -1491,7 +1466,7 @@ const Landing = () => {
               <h5>Platform</h5>
               <a href="#" onClick={(e) => { e.preventDefault(); setIsBookingModalOpen(true); }}>Book Consultation</a>
               <a href="#approach" onClick={scrollTo('approach')}>How It Works</a>
-              <a href="#trust" onClick={scrollTo('trust')}>Conditions</a>
+              <a href="#conditions" onClick={scrollTo('conditions')}>Conditions</a>
             </div>
             <div className="footer-col">
               <h5>Company</h5>

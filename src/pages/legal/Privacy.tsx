@@ -1,7 +1,15 @@
 import LegalLayout from "./LegalLayout";
 
 const Privacy = () => (
-  <LegalLayout title="Privacy Policy" lastUpdated="May 2026">
+  <LegalLayout
+    title="Privacy Policy"
+    lastUpdated="May 2026"
+    introCallout={
+      <>
+        <strong>Before we begin:</strong> We built Diet By RD because we believe healthcare deserves honesty. That principle applies here too. This Privacy Policy is not a wall of legal text designed to confuse you — it is a clear, honest explanation of what information we collect, why we need it, who can see it, and the complete control you have over it. We have written it to be read, not just scrolled past.
+      </>
+    }
+  >
     <div className="legal-page">
       <h2>1. Who We Are</h2>
       <p>Diet By RD is India's first clinical nutrition platform where every single consultation is exclusively with a Registered Dietitian — a licensed professional whose title is legally protected by the Indian Dietetic Association. We are not a wellness app. We are a clinical service, and we treat your health information with the seriousness that entails.</p>
