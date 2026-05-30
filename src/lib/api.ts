@@ -280,6 +280,26 @@ export const getConsultations = (filters?: { rd_id?: number; patient_id?: number
   return request<Consultation[]>(`/consultations?${params.toString()}`);
 };
 
+// Consultation preview for payment page
+export const getConsultationPreview = (consultationId: number) =>
+  request<{
+    consultation_id: number;
+    patient_id: number;
+    patient_name: string;
+    patient_phone: string;
+    doctor_name?: string | null;
+    diagnosis?: string | null;
+    amount: number;
+    currency: string;
+    status: string;
+  }>(`/consultations/${consultationId}/preview`);
+
+export const resendPaymentLink = (consultationId: number) =>
+  request<{ sent: boolean; payment_link?: string; message_result?: any }>(`/consultations/${consultationId}/resend-payment-link`, {
+    method: "POST",
+    headers: getStoredAuthHeaders(),
+  });
+
 // ─── Diet Plans ───────────────────────────────────────────────────────────────
 export interface DietPlan {
   id: number;

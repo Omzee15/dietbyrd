@@ -42,6 +42,7 @@ import PatientProfile from "./pages/patient/PatientProfile";
 import PatientDietPlans from "./pages/patient/PatientDietPlans";
 import PatientAppointments from "./pages/patient/PatientAppointments";
 import PatientSupport from "./pages/patient/PatientSupport";
+import Pay from "./pages/Pay";
 
 // Admin Pages
 import AdminDashboard from "./pages/AdminDashboard";
@@ -160,6 +161,7 @@ const App = () => (
             </Route>
 
             {/* 404 */}
+            <Route path="/pay" element={<Pay />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

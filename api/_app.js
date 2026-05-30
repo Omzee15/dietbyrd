@@ -3779,6 +3779,107 @@ app.get("/api/consultations", async (req, res) => {
   }
 });
 
+// Get consultation preview for payment page
+app.get("/api/consultations/:id(\\d+)/preview", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      `SELECT c.id AS consultation_id, c.status,
+              rp.id AS registered_patient_id, p.id AS patient_id, p.name AS patient_name, p.phone AS patient_phone, p.diagnosis,
+              d.name AS doctor_name
+       FROM dietbyrd_consultations c
+       LEFT JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
+       LEFT JOIN dietbyrd_patients p ON rp.patient_id = p.id
+       LEFT JOIN dietbyrd_doctors d ON c.referred_by_doctor_id = d.id
+       WHERE c.id = $1 LIMIT 1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Consultation not found' });
+    const row = result.rows[0];
+
+    // Find default package price (best-effort)
+    let amount = 99900; // default in paise
+    try {
+      const pkgRes = await query(`SELECT price FROM dietbyrd_consultation_packages WHERE is_active = true ORDER BY num_consultations ASC LIMIT 1`);
+      if (pkgRes.rows.length > 0) amount = Number(pkgRes.rows[0].price) || amount;
+    } catch (err) {
+      // ignore and use default
+    }
+
+    res.json({ success: true, data: {
+      consultation_id: row.consultation_id,
+      patient_id: row.patient_id,
+      patient_name: row.patient_name,
+      patient_phone: row.patient_phone,
+      doctor_name: row.doctor_name || null,
+      diagnosis: row.diagnosis || null,
+      amount,
+      currency: 'INR',
+      status: row.status
+    }});
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Resend payment link for a consultation (doctor/assistant)
+app.post("/api/consultations/:id(\\d+)/resend-payment-link", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (!['doctor', 'assistant'].includes(auth.role)) return res.status(403).json({ success: false, error: 'Forbidden' });
+
+    const { id } = req.params;
+    const result = await query(
+      `SELECT c.id AS consultation_id, rp.id AS registered_patient_id, p.id AS patient_id, p.name AS patient_name, p.phone AS patient_phone, d.name AS doctor_name
+       FROM dietbyrd_consultations c
+       LEFT JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
+       LEFT JOIN dietbyrd_patients p ON rp.patient_id = p.id
+       LEFT JOIN dietbyrd_doctors d ON c.referred_by_doctor_id = d.id
+       WHERE c.id = $1 LIMIT 1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Consultation not found' });
+    const row = result.rows[0];
+
+    const paymentLink = `${process.env.PUBLIC_SITE_URL || process.env.FRONTEND_URL || 'http://localhost:5173'}/pay?ref=${row.consultation_id}`;
+
+    let messageResult = { sent: false };
+    try {
+      messageResult = await sendReferralWhatsApp({
+        patientId: row.patient_id,
+        patientName: row.patient_name,
+        phone: formatPhoneE164(row.patient_phone),
+        doctorName: row.doctor_name || auth.user?.name || 'your doctor',
+        registrationLink: paymentLink
+      });
+      if (!messageResult || !messageResult.sent) {
+        messageResult = await sendReferralRegistrationSms({
+          patientId: row.patient_id,
+          patientName: row.patient_name,
+          phone: formatPhoneE164(row.patient_phone),
+          doctorName: row.doctor_name || auth.user?.name || 'your doctor',
+          registrationLink: paymentLink
+        });
+      }
+    } catch (err) {
+      messageResult = { sent: false, reason: 'exception', error: err?.message || String(err) };
+    }
+
+    // Best-effort log
+    try {
+      await query(`INSERT INTO doctor_referrals_log (doctor_id, patient_id, consultation_id, phone, sent_at, channel, message, metadata) VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP,$5,$6,$7)`,
+        [auth.userId, row.patient_id, row.consultation_id, formatPhoneE164(row.patient_phone), messageResult?.channel || (messageResult?.sent ? 'whatsapp_or_sms' : 'none'), messageResult?.reason || 'resent', JSON.stringify(messageResult || {})]);
+    } catch (e) { }
+
+    res.json({ success: true, data: { sent: !!messageResult?.sent, message_result: messageResult, payment_link: paymentLink } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ─── Plans ────────────────────────────────────────────────────────────────────
 app.get("/api/plans", async (req, res) => {
   try {
