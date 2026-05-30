@@ -202,7 +202,10 @@ const PatientAppointments = () => {
   // Group slots by date
   const slotsByDate = useMemo(() => {
     if (!availableSlots) return {};
+    const seen = new Set<string>();
     return availableSlots.reduce((acc, slot) => {
+      if (seen.has(slot.datetime)) return acc;
+      seen.add(slot.datetime);
       if (!acc[slot.date]) acc[slot.date] = [];
       acc[slot.date].push(slot);
       return acc;
@@ -234,7 +237,6 @@ const PatientAppointments = () => {
 
     bookAppointmentMutation.mutate({
       scheduled_at: selectedSlot.datetime,
-      rd_id: selectedSlot.rd_id ?? patient?.assigned_rd_id ?? null,
       patient_notes: appointmentNotes || undefined,
     });
   };
@@ -294,7 +296,6 @@ const PatientAppointments = () => {
     const notesToSave = appointmentNotes;
     const patientId = user?.profileId;
     const couponSnapshot = appliedCoupon;
-    const rdId = slotToBook?.rd_id ?? patient?.assigned_rd_id ?? null;
     const patientName = patient?.name || "";
     const patientPhone = patient?.phone || user?.phone || "";
 
@@ -860,7 +861,7 @@ const PatientAppointments = () => {
                             <div className="flex flex-wrap gap-2">
                               {slots.map((slot) => (
                                 <Button
-                                  key={slot.datetime + (slot.rd_id ?? "")}
+                                  key={slot.datetime}
                                   variant="outline"
                                   size="sm"
                                   onClick={() => setSelectedSlot(slot)}
@@ -868,11 +869,6 @@ const PatientAppointments = () => {
                                   disabled={slot.is_booked}
                                 >
                                   <span>{formatTime12(slot.start_time)}</span>
-                                  {!hasAssignedRD && slot.dietician_name && (
-                                    <span className="text-[10px] text-muted-foreground font-normal leading-tight">
-                                      {slot.dietician_name}
-                                    </span>
-                                  )}
                                 </Button>
                               ))}
                             </div>
@@ -902,7 +898,7 @@ const PatientAppointments = () => {
                 {/* Appointment Summary Card */}
                 <div className="border rounded-xl p-5 space-y-4 bg-gradient-to-br from-primary/5 to-primary/10">
                   {/* Dietician */}
-                  {(patient?.assigned_dietician_name || selectedSlot?.dietician_name) && (
+                  {patient?.assigned_dietician_name && (
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
                         <UtensilsCrossed className="w-7 h-7 text-green-600 dark:text-green-400" />
@@ -910,7 +906,7 @@ const PatientAppointments = () => {
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Your Dietician</p>
                         <p className="text-lg font-semibold">
-                          {patient?.assigned_dietician_name || selectedSlot?.dietician_name}
+                          {patient.assigned_dietician_name}
                         </p>
                       </div>
                     </div>
