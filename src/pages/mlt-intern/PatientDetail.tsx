@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, LogOut, User, Phone, Stethoscope, Activity, Scale, Ruler, Wheat, Dumbbell, MessageSquare, CheckCircle, XCircle, Clock, Calendar, Users, UtensilsCrossed, UserPlus, Apple } from "lucide-react";
+import { ArrowLeft, LogOut, User, Phone, Stethoscope, Activity, Scale, Ruler, Wheat, Dumbbell, MessageSquare, CheckCircle, XCircle, Clock, Calendar, Users, UtensilsCrossed, UserPlus, Apple, FileText } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getPatient, getPatientMessages, getPatientAppointments, PatientMessage, Appointment } from "@/lib/api";
+import { getPatient, getPatientDocumentsForCareTeam, getPatientMessages, getPatientAppointments, PatientMessage, Appointment } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 const MLTInternPatientDetail = () => {
@@ -30,6 +30,12 @@ const MLTInternPatientDetail = () => {
   const { data: appointments = [], isLoading: appointmentsLoading } = useQuery({
     queryKey: ["patientAppointments", patientId],
     queryFn: () => getPatientAppointments(patientId),
+    enabled: !!patientId,
+  });
+
+  const { data: documents = [] } = useQuery({
+    queryKey: ["patient-documents-care-team", patientId],
+    queryFn: () => getPatientDocumentsForCareTeam(patientId),
     enabled: !!patientId,
   });
 
@@ -226,6 +232,34 @@ const MLTInternPatientDetail = () => {
                   </CardContent>
                 </Card>
               </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <FileText className="w-4 h-4" />
+                    Documents
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {documents.length === 0 ? (
+                    <p className="text-sm text-gray-500">No documents uploaded yet.</p>
+                  ) : (
+                    documents.map((doc) => (
+                      <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <p className="font-medium">{doc.original_filename}</p>
+                          <p className="text-xs text-gray-500">{doc.kind.replace("_", " ")} · {new Date(doc.created_at).toLocaleDateString()}</p>
+                        </div>
+                        {doc.signed_url && (
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={doc.signed_url} target="_blank" rel="noreferrer">View</a>
+                          </Button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
 
               <Card>
                 <CardHeader>

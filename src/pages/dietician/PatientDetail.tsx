@@ -45,6 +45,7 @@ import {
   getPatientDietPlans,
   createDietPlan,
   getDietician,
+  getPatientDocumentsForCareTeam,
   type Patient,
   type DietPlan,
 } from "@/lib/api";
@@ -124,6 +125,12 @@ const PatientDetail = () => {
   const { data: dietPlans, isLoading: plansLoading } = useQuery({
     queryKey: ["patient-diet-plans", patientId],
     queryFn: () => getPatientDietPlans(patientId),
+    enabled: !!patientId,
+  });
+
+  const { data: documents = [] } = useQuery({
+    queryKey: ["patient-documents-care-team", patientId],
+    queryFn: () => getPatientDocumentsForCareTeam(patientId),
     enabled: !!patientId,
   });
 
@@ -719,6 +726,36 @@ const PatientDetail = () => {
                   <div className="mt-4 p-4 bg-muted/30 rounded-lg">
                     <p className="text-sm text-muted-foreground mb-1">Diagnosis Details</p>
                     <p className="text-sm">{patient.diagnosis_description}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Documents
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {documents.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No patient documents uploaded yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {documents.map((doc) => (
+                      <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <p className="font-medium">{doc.original_filename}</p>
+                          <p className="text-xs text-muted-foreground">{doc.kind.replace("_", " ")} · {new Date(doc.created_at).toLocaleDateString()}</p>
+                        </div>
+                        {doc.signed_url && (
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={doc.signed_url} target="_blank" rel="noreferrer">View</a>
+                          </Button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
