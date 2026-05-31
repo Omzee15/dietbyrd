@@ -195,6 +195,21 @@ const Landing = () => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const scrollToFooterPlatform = () => {
+    document.getElementById('footer-platform')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const handleContactClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const contactTarget = document.getElementById('contact') || document.getElementById('trust');
+    if (contactTarget) {
+      contactTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    // TODO: confirm support email for contact CTA.
+    window.location.href = 'mailto:support@dietbyrd.com';
+  };
+
   return (
     <div className="landing-page">
       <style>{`
@@ -321,48 +336,43 @@ const Landing = () => {
 
         /* Hero */
         .hero {
-          min-height: 100vh; background: var(--navy);
+          background: var(--cream);
           display: flex; align-items: center;
           position: relative; overflow: hidden;
         }
-        .hero-bg {
-          position: absolute; inset: 0;
-          background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(11,110,79,.18) 0%, transparent 70%);
-          pointer-events: none;
-        }
+        .hero-bg,
         .hero-grid {
-          position: absolute; inset: 0;
-          background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
-                            linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
-          background-size: 60px 60px; pointer-events: none;
+          display: none;
         }
         .hero-content {
-          max-width: 1100px; margin: 0 auto; padding: 120px 5% 80px;
+          max-width: 800px; margin: 0 auto; padding: 120px 5% 80px;
           position: relative; z-index: 2; text-align: center;
           display: flex; flex-direction: column; align-items: center;
         }
         .hero-badge {
-          display: inline-flex; align-items: center; gap: 8px;
-          background: rgba(201,149,42,.15); border: 1px solid rgba(201,149,42,.3);
-          border-radius: 100px; padding: 6px 16px; font-size: 13px; font-weight: 500;
-          color: var(--gold); margin-bottom: 28px; letter-spacing: 0.02em;
+          display: inline-flex; align-items: center; gap: 10px;
+          font-size: 13px; font-weight: 600;
+          letter-spacing: 0.1em; text-transform: uppercase;
+          color: var(--teal); margin-bottom: 28px;
         }
-        .hero-badge::before { content: '★'; font-size: 11px; }
+        .hero-badge::before { content: '★'; font-size: 12px; color: var(--gold); }
         .hero-h1 {
           font-family: 'Playfair Display', serif;
-          font-size: clamp(2.8rem, 5.5vw, 5rem); font-weight: 900; color: #fff;
-          line-height: 1.08; letter-spacing: -0.03em; margin-bottom: 22px;
+          font-size: clamp(2.4rem, 5vw, 4rem); font-weight: 800; color: var(--text);
+          line-height: 1.15; letter-spacing: -0.02em; margin-bottom: 22px;
+          text-align: center;
         }
-        .hero-h1 em { font-style: italic; color: var(--gold); }
+        .hero-h1 em { font-style: italic; color: var(--teal); }
         .hero-sub {
-          font-size: clamp(1rem, 1.8vw, 1.2rem); color: rgba(255,255,255,.65);
-          max-width: 580px; line-height: 1.75; margin-bottom: 40px;
-          font-weight: 300; text-align: center;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 16.5px; color: var(--text2);
+          max-width: 600px; line-height: 1.7; margin: 24px auto 40px;
+          font-weight: 400; text-align: center;
         }
-        .hero-sub strong { color: #fff; font-weight: 600; }
+        .hero-sub strong { color: var(--navy); font-weight: 700; }
         .hero-actions {
           display: flex; align-items: center; justify-content: center;
-          gap: 12px; flex-wrap: wrap;
+          gap: 16px; flex-wrap: wrap;
         }
         .btn-primary {
           display: inline-flex; align-items: center; gap: 10px;
@@ -395,14 +405,14 @@ const Landing = () => {
         .btn-outline:hover { background: var(--teal-l); color: var(--teal); border-color: rgba(11,110,79,0.3); }
         .hero-stats {
           display: flex; gap: 40px; margin-top: 56px; padding-top: 40px;
-          border-top: 1px solid rgba(255,255,255,.1);
+          border-top: 1px solid rgba(10,22,40,0.1);
           flex-wrap: wrap; justify-content: center;
         }
         .hero-stat .num {
           font-family: 'Playfair Display', serif;
-          font-size: 2rem; font-weight: 700; color: #fff; line-height: 1;
+          font-size: 2rem; font-weight: 700; color: var(--navy); line-height: 1;
         }
-        .hero-stat .lbl { font-size: 13px; color: rgba(255,255,255,.5); margin-top: 4px; font-weight: 400; }
+        .hero-stat .lbl { font-size: 13px; color: var(--text3); margin-top: 4px; font-weight: 400; }
 
         /* Sections */
         .section { padding: 96px 5%; }
@@ -425,41 +435,61 @@ const Landing = () => {
 
         /* CTA section */
         .cta-section {
-          background: var(--navy);
-          text-align: center; padding: 100px 5%;
-          min-height: 100vh; display: flex; align-items: center; justify-content: center;
+          background: var(--cream);
+          text-align: center; padding: 120px 5% 90px;
+          display: flex; align-items: center; justify-content: center;
           position: relative; overflow: hidden;
         }
-        .cta-section::before {
-          content: ''; position: absolute; inset: 0; pointer-events: none;
-          background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(11,110,79,.18) 0%, transparent 70%);
-        }
+        .cta-section::before,
         .cta-section::after {
-          content: ''; position: absolute; inset: 0; pointer-events: none;
-          background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
-                            linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
-          background-size: 60px 60px;
+          content: none;
         }
-        .cta-inner { max-width: 700px; margin: 0 auto; position: relative; z-index: 1; }
+        .cta-inner { max-width: 800px; margin: 0 auto; position: relative; z-index: 1; }
         .cta-eyebrow {
-          display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500;
-          letter-spacing: 0.02em; text-transform: uppercase;
-          color: var(--gold); margin-bottom: 28px;
-          background: rgba(201,149,42,.15); border: 1px solid rgba(201,149,42,.3);
-          border-radius: 100px; padding: 6px 16px;
+          display: inline-flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600;
+          letter-spacing: 0.1em; text-transform: uppercase;
+          color: var(--teal); margin-bottom: 28px;
         }
-        .cta-eyebrow::before { content: '★'; font-size: 11px; }
+        .cta-eyebrow-star { color: var(--gold); font-size: 12px; }
         .cta-headline {
           font-family: 'Playfair Display', serif;
-          font-size: clamp(2.8rem, 5.5vw, 5rem); font-weight: 900; color: #fff;
-          line-height: 1.08; letter-spacing: -0.03em; margin-bottom: 22px;
+          font-size: clamp(2.4rem, 5vw, 4rem); font-weight: 800; color: var(--text);
+          line-height: 1.15; letter-spacing: -0.02em; margin-bottom: 18px;
         }
-        .cta-headline em { font-style: italic; color: var(--gold); }
+        .cta-headline em { font-style: italic; color: var(--teal); }
         .cta-body {
-          font-size: clamp(1rem, 1.8vw, 1.2rem); color: rgba(255,255,255,.65); line-height: 1.75;
-          max-width: 580px; margin: 0 auto 40px; font-weight: 300;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 16.5px; color: var(--text2); line-height: 1.7;
+          max-width: 600px; margin: 24px auto 40px; font-weight: 400;
         }
-        .cta-body strong { color: #fff; font-weight: 600; }
+        .cta-body strong { color: var(--navy); font-weight: 700; }
+        .cta-actions {
+          display: flex; align-items: center; justify-content: center;
+          gap: 16px; flex-wrap: wrap;
+        }
+        .cta-primary {
+          display: inline-flex; align-items: center; justify-content: center;
+          background: var(--teal); color: #fff; padding: 14px 28px;
+          border-radius: 8px; font-size: 15px; font-weight: 600;
+          border: none; cursor: pointer; font-family: 'DM Sans', sans-serif;
+          transition: background 0.2s;
+        }
+        .cta-primary:hover { background: var(--teal-m); }
+        .cta-secondary {
+          display: inline-flex; align-items: center; justify-content: center;
+          background: transparent; color: var(--navy); padding: 14px 28px;
+          border-radius: 8px; font-size: 15px; font-weight: 600;
+          border: 1.5px solid var(--navy); cursor: pointer;
+          font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+        }
+        .cta-secondary:hover { background: var(--navy); color: #fff; }
+        .cta-ghost {
+          display: inline-flex; align-items: center; justify-content: center;
+          background: transparent; color: var(--teal); padding: 14px 16px;
+          font-size: 15px; font-weight: 500; border: none; cursor: pointer;
+          font-family: 'DM Sans', sans-serif; text-decoration: none;
+        }
+        .cta-ghost:hover { text-decoration: underline; }
         .cta-price-badge {
           display: inline-flex; align-items: center; justify-content: center;
           background: var(--teal-l); border: 1px solid rgba(11,110,79,0.15);
@@ -959,8 +989,10 @@ const Landing = () => {
         @media (max-width: 600px) {
           .hero-content { padding: 110px 5% 60px; }
           .cta-section { padding: 110px 5% 60px; }
-          .cta-section .btn-primary { width: 100%; justify-content: center; }
-          .cta-price-badge { width: 100%; }
+          .cta-actions { flex-direction: column; }
+          .cta-primary,
+          .cta-secondary,
+          .cta-ghost { width: 100%; justify-content: center; }
           .vision-section { padding: 0 5% 64px; }
           .vision-card { padding: 32px 24px; }
           .founder-card-wrap { margin: 48px auto; }
@@ -1025,25 +1057,31 @@ const Landing = () => {
       {/* CTA — Page 1 */}
       <section className="cta-section">
         <div className="cta-inner">
-          <span ref={addToRefs} className="cta-eyebrow reveal">YOUR HEALTH DESERVES BETTER</span>
+          <span ref={addToRefs} className="cta-eyebrow reveal">
+            <span className="cta-eyebrow-star">★</span>
+            YOUR HEALTH DESERVES BETTER
+          </span>
           <h1 ref={addToRefs} className="cta-headline reveal reveal-delay-1">
-            Your health deserves a<br /><em>Registered Dietitian</em>,<br />not an Instagram influencer.
+            Your health deserves
+            <em> clinical expertise</em>
+            <br />
+            — not a certificate course.
           </h1>
           <p ref={addToRefs} className="cta-body reveal reveal-delay-2">
-            One consultation changes the direction. An RD who understands your food, your condition, and your life — not a generic PDF, not a supplement upsell. <strong>Real clinical nutrition, personalised for you.</strong>
+            India's First RD - Only Platform for Clinical Nutrition Consultations.
+            <strong>Registered Dietitian</strong> — the only clinically credentialed nutrition professionals in India. Not coaches. Not influencers. <strong>The real thing.</strong>
           </p>
-          <div ref={addToRefs} className="reveal reveal-delay-2">
-            <div className="cta-price-badge">
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                <span className="pb-text">Honest pricing · Absolutely No hidden charges</span>
-                <span className="pb-price">₹999</span>
-              </div>
-            </div>
+          <div ref={addToRefs} className="cta-actions reveal reveal-delay-3">
+            <button onClick={() => setIsBookingModalOpen(true)} className="cta-primary">
+              Book Your Consultation
+            </button>
+            <button onClick={scrollToFooterPlatform} className="cta-secondary">
+              Are you a Doctor / Dietitian
+            </button>
+            <button onClick={handleContactClick} className="cta-ghost">
+              Contact / Support →
+            </button>
           </div>
-          <button ref={addToRefs} onClick={() => setIsBookingModalOpen(true)} className="btn-primary reveal reveal-delay-3" style={{ fontSize: '18px', padding: '18px 40px' }}>
-            Book Your Consultation Now →
-          </button>
-          <p ref={addToRefs} className="cta-disclaimer reveal reveal-delay-3">100% Registered Dietitians · IDA Certified · Evidence-Based</p>
           <div ref={addToRefs} className="hero-stats reveal reveal-delay-3">
             <div className="hero-stat">
               <div className="num">RD</div>
@@ -1443,19 +1481,25 @@ const Landing = () => {
         <div className="hero-content">
           <div ref={addToRefs} className="hero-badge reveal">YOUR HEALTH DESERVES BETTER</div>
           <h1 ref={addToRefs} className="hero-h1 reveal reveal-delay-1">
-            Your health deserves<br />
-            <em>clinical expertise —</em><br />
-            not a certificate course.
+            Your health deserves
+            <em> clinical expertise</em>
+            <br />
+            — not a certificate course.
           </h1>
           <p ref={addToRefs} className="hero-sub reveal reveal-delay-2">
-            India's first platform where every single consultation is exclusively with a <strong>Registered Dietitian</strong> — the only clinically credentialed nutrition professionals in India. Not coaches. Not influencers. The real thing.
+            India's First RD - Only Platform for Clinical Nutrition Consultations.
+            <strong>Registered Dietitian</strong> — the only clinically credentialed nutrition professionals in India. Not coaches. Not influencers. <strong>The real thing.</strong>
           </p>
           <div ref={addToRefs} className="hero-actions reveal reveal-delay-3">
-            <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
+            <button onClick={() => setIsBookingModalOpen(true)} className="cta-primary">
               Book Your Consultation
             </button>
-            <button onClick={() => navigate('/login')} className="btn-outline">Join as Doctor / Dietitian</button>
-            <a href="#trust" className="btn-ghost" onClick={scrollTo('trust')}>Contact / Support →</a>
+            <button onClick={scrollToFooterPlatform} className="cta-secondary">
+              Are you a Doctor / Dietitian
+            </button>
+            <button onClick={handleContactClick} className="cta-ghost">
+              Contact / Support →
+            </button>
           </div>
           <div ref={addToRefs} className="hero-stats reveal reveal-delay-3">
             <div className="hero-stat">
@@ -1490,7 +1534,7 @@ const Landing = () => {
               <a href="#approach" onClick={scrollTo('approach')}>How It Works</a>
               <a href="#trust" onClick={scrollTo('trust')}>Conditions</a>
             </div>
-            <div className="footer-col">
+            <div className="footer-col" id="footer-platform">
               <h5>Company</h5>
               <a href="#rd-section" onClick={scrollTo('rd-section')}>Why RD?</a>
               <a href="/login">For Doctors</a>
