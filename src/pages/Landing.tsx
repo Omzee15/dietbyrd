@@ -1302,7 +1302,7 @@ const Landing = () => {
             <div className="founder-card-role">Founder, Diet By RD</div>
             <div className="founder-card-location">Darbhanga, Bihar</div>
           </div>
-          <div ref={addToRefs} className="founder-purpose-pill reveal reveal-delay-1">🌱 Built with purpose</div>
+          <div ref={addToRefs} className="founder-purpose-pill reveal reveal-delay-1">🎯 Built with purpose</div>
         </div>
       </section>
 
