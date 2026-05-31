@@ -19,5 +19,4 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
   included_files = ["api/**"]
-  external_node_modules = ["serverless-http"]
 
