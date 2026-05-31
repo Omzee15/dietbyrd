@@ -15,8 +15,11 @@
 [build.environment]
   NODE_VERSION = "20"
 
+[dev]
+  targetPort = 8080
+
 [functions]
   directory = "netlify/functions"
-  node_bundler = "esbuild"
+  node_bundler = "nft"
   included_files = ["api/**"]
 

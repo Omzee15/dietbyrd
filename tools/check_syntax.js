@@ -1,5 +1,5 @@
 import fs from 'fs';
-const s = fs.readFileSync('api/_app.js','utf8');
+const s = fs.readFileSync('api/_app.mjs','utf8');
 function count(ch){return (s.match(new RegExp(escapeRegExp(ch),'g'))||[]).length}
 function escapeRegExp(s){return s.replace(/[.*+?^${}()|[\\]\\]/g,'\\$&')}
 console.log('length', s.length);

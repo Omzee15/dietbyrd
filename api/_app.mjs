@@ -6708,7 +6708,7 @@ c.id,
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
-            await query("DELETE FROM dietbyrd_join_requests WHERE user_id = $1", [userId]);
+});
 
 // ─── Core auto-assign logic (shared by scheduler and HTTP endpoint) ────────────
 async function runAutoAssign() {
@@ -6809,7 +6809,7 @@ rd.id,
   } catch (err) {
     console.error('[migration] plain_password column error:', err.message);
   }
-        await query("DELETE FROM dietbyrd_join_requests WHERE user_id = $1", [userId]);
+})();
 
 // ─── Join request about_yourself column migration ─────────────────────────────
 (async () => {

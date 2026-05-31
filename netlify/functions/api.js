@@ -1,12 +1,6 @@
-const serverless = require("serverless-http");
+import serverless from "serverless-http";
+import app from "../../api/_app.mjs";
 
-let cachedHandler;
+const handler = serverless(app, { basePath: "/.netlify/functions/api" });
 
-exports.handler = async (event, context) => {
-  if (!cachedHandler) {
-    const { default: app } = await import("../../api/_app.js");
-    cachedHandler = serverless(app, { basePath: "/.netlify/functions/api" });
-  }
-
-  return cachedHandler(event, context);
-};
+export { handler };

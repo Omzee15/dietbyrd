@@ -9,7 +9,7 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: resolve(__dirname, "../.env"), override: true });
 
 // Dynamic import so env vars are loaded first
-const { default: app } = await import("../api/_app.js");
+const { default: app } = await import("../api/_app.mjs");
 
 const PORT = process.env.PORT || 3001;
 const APP_ENV = process.env.APP_ENV || "production";

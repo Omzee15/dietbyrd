@@ -1,4 +1,4 @@
-import app from "./_app.js";
+import app from "./_app.mjs";
 
 // For Vercel serverless functions
 export default function handler(req, res) {
