@@ -118,6 +118,25 @@ const Index = () => {
     setStep("phone");
   };
 
+  const startOtpFlow = async (normalizedPhone: string, digits: string, userName?: string | null) => {
+    if (digits.length < 10) {
+      setError("Please enter a 10-digit phone number to receive OTP");
+      return false;
+    }
+
+    const otpResult = await sendOtp(normalizedPhone);
+    if (!otpResult.success) {
+      setError(otpResult.error || "Failed to send OTP");
+      return false;
+    }
+
+    setStep("otp-verify");
+    setOtp("");
+    setOtpTimer(otpResult.expiresIn || 120);
+    setSuccess(userName ? `Welcome back, ${userName}! OTP sent to your phone.` : "OTP sent to your phone.");
+    return true;
+  };
+
   const handleLookupPhone = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -140,10 +159,15 @@ const Index = () => {
         body: JSON.stringify({ phone: normalizedPhone }),
       });
 
-      const data: CheckPhoneResponse = await res.json();
+      let data: CheckPhoneResponse | null = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
 
       if (!res.ok || !data?.success) {
-        setError(data?.error || "Failed to lookup phone number");
+        await startOtpFlow(normalizedPhone, digits);
         return;
       }
 
@@ -155,27 +179,14 @@ const Index = () => {
       setResolvedRole(userRole);
 
       if (!exists || authFlow === "phone-signin" || authFlow === "otp" || userRole === "patient") {
-        if (digits.length < 10) {
-          setError("Please enter a 10-digit phone number to receive OTP");
-          return;
-        }
-
-        const otpResult = await sendOtp(normalizedPhone);
-        if (!otpResult.success) {
-          setError(otpResult.error || "Failed to send OTP");
-          return;
-        }
-        setStep("otp-verify");
-        setOtp("");
-        setOtpTimer(otpResult.expiresIn || 120);
-        setSuccess(userName ? `Welcome back, ${userName}! OTP sent to your phone.` : "OTP sent to your phone.");
+        await startOtpFlow(normalizedPhone, digits, userName);
         return;
       }
 
       setStep("password");
       setSuccess(userName ? `Welcome Back ${userName}` : "Welcome Back");
     } catch {
-      setError("Network error. Please try again.");
+      await startOtpFlow(normalizedPhone, digits);
     } finally {
       setCheckingPhone(false);
     }

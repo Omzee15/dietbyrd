@@ -690,14 +690,20 @@ const verifyRegistrationToken = (token) => {
 };
 
 // Database connection (lazy initialization for serverless)
+const DATABASE_URL = process.env.DATABASE_URL || "";
+const isDatabaseConfigured = Boolean(DATABASE_URL);
+
 let pool;
 const getPool = () => {
   if (!pool) {
-    const dbUrl = process.env.DATABASE_URL || '';
-    const useSSL = dbUrl.includes('sslmode=require') || dbUrl.includes('.neon.tech');
+    if (!DATABASE_URL) {
+      throw new Error("DATABASE_URL is not configured");
+    }
+
+    const useSSL = DATABASE_URL.includes('sslmode=require') || DATABASE_URL.includes('.neon.tech');
 
     pool = new Pool({
-      connectionString: dbUrl,
+      connectionString: DATABASE_URL,
       ssl: useSSL ? { rejectUnauthorized: false } : false,
       max: 3,
       idleTimeoutMillis: 10000,
@@ -1230,6 +1236,20 @@ app.post("/api/auth/check-phone", async (req, res) => {
       return res.status(400).json({ success: false, error: "Phone is required" });
     }
 
+    if (!isDatabaseConfigured) {
+      return res.json({
+        success: true,
+        data: {
+          exists: false,
+          user_role: null,
+          auth_flow: "phone-signin",
+          is_referred_patient: false,
+          referred_by_doctor_name: null,
+        },
+        warning: "db_not_configured",
+      });
+    }
+
     const variants = buildPhoneVariants(phone);
 
     const existing = await query(
@@ -1283,7 +1303,18 @@ app.post("/api/auth/check-phone", async (req, res) => {
       },
     });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    console.log(`[Auth] check-phone fallback: ${err?.message || "unknown error"}`);
+    return res.json({
+      success: true,
+      data: {
+        exists: false,
+        user_role: null,
+        auth_flow: "phone-signin",
+        is_referred_patient: false,
+        referred_by_doctor_name: null,
+      },
+      warning: "lookup_failed",
+    });
   }
 });
 
@@ -1416,32 +1447,39 @@ app.post("/api/auth/send-otp-registration", async (req, res) => {
       });
     }
 
-    // Check if user already exists
-    const variants = buildPhoneVariants(input);
+    // If account already exists, we should not send a registration OTP
+    const variants = buildPhoneVariants(phone);
+    const existing = await query(
+      "SELECT id FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [variants]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ success: false, error: "Account already exists for this phone" });
+    }
+
+    // Send OTP using Twilio Verify (or mock in dev mode)
     try {
       const result = await sendOtpViaTwilio(phone, channel);
       const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
 
-      // In dev mode, store the OTP for verification
+      // In dev mode, store the OTP for verification under 'registration'
       if (IS_DEV && devOtp) {
-        await storeOtp(phone, devOtp, 'login');
+        await storeOtp(phone, devOtp, 'registration');
       }
-      const variants = buildPhoneVariants(input);
-      userResult = await query(
-        "SELECT id, phone, email FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
-        [variants]
-      );
-      message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
+
+      return res.json({
+        success: true,
+        message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
         to: toNumber,
-          expiresIn: 120
-    });
+        expiresIn: 120,
+      });
     } catch (twilioErr) {
-  console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
-  return res.status(500).json({ success: false, error: "Failed to send OTP. Please try again." });
-}
+      console.error("[OTP] Twilio Verify error:", twilioErr?.message || twilioErr, twilioErr?.code);
+      return res.status(500).json({ success: false, error: "Failed to send OTP. Please try again." });
+    }
   } catch (err) {
-  res.status(500).json({ success: false, error: err.message });
-}
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Verify OTP and login
@@ -5741,12 +5779,12 @@ app.post("/api/payments/create-order", async (req, res) => {
     }
 
     // Store payment record
-    const patientResult = await query(
+    const paymentRow = await query(
       `INSERT INTO dietbyrd_razorpay_payments
        (patient_id, razorpay_order_id, amount, currency, consultations_purchased, status)
-       VALUES ($1, $2, $3, 'INR', $4, 'created')
-      [userId, normalizedPhone, name]
-      [patient_id, razorpayOrderId, chargeAmount, pkg.num_consultations]
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [patient_id, razorpayOrderId, chargeAmount, 'INR', pkg.num_consultations || 1, 'created']
     );
 
     res.json({
