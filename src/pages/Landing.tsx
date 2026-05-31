@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth, getDashboardPath } from "@/contexts/AuthContext";
 import { PublicBookingModal } from "@/components/PublicBookingModal";
@@ -122,6 +122,7 @@ const Landing = () => {
   const [approvedTestimonials, setApprovedTestimonials] = useState<typeof fallbackTestimonials>([]);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
   const statsRef = useRef<HTMLDivElement | null>(null);
   const revealRefs = useRef<(HTMLElement | null)[]>([]);
@@ -172,11 +173,12 @@ const Landing = () => {
   const testimonialItems = approvedTestimonials.length > 0 ? approvedTestimonials : fallbackTestimonials;
 
   useEffect(() => {
+    if (isCarouselPaused || testimonialItems.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentTestimonial((prev) => (prev + 1) % testimonialItems.length);
-    }, 5000);
+    }, 7000);
     return () => clearInterval(interval);
-  }, [testimonialItems.length]);
+  }, [testimonialItems.length, isCarouselPaused]);
 
   useEffect(() => {
     getApprovedReviews(6)
@@ -218,6 +220,20 @@ const Landing = () => {
   const scrollTo = (id: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const scrollToFooterPlatform = () => {
+    document.getElementById('footer-platform')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const handleContactClick = () => {
+    const contactTarget = document.getElementById('contact') ?? document.getElementById('trust');
+    if (contactTarget) {
+      contactTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    // TODO: confirm support email with client
+    window.location.href = 'mailto:support@dietbyrd.com';
   };
 
   return (
@@ -357,37 +373,38 @@ const Landing = () => {
           pointer-events: none;
         }
         .hero-content {
-          max-width: 1100px; margin: 0 auto; padding: 0;
+          max-width: 800px; margin: 0 auto; padding: 0;
           position: relative; z-index: 2; text-align: center;
           display: flex; flex-direction: column; align-items: center;
         }
         .hero-badge {
-          display: inline-flex; align-items: center; gap: 8px;
-          background: rgba(201,149,42,.15); border: 1px solid rgba(201,149,42,.3);
-          border-radius: 100px; padding: 6px 16px; font-size: 13px; font-weight: 500;
-          color: var(--gold); margin-bottom: 28px; letter-spacing: 0.02em;
+          display: inline-flex; align-items: center; gap: 6px;
+          background: transparent; border: none; padding: 0;
+          font-size: 13px; font-weight: 600; letter-spacing: 0.1em;
+          text-transform: uppercase; color: var(--teal);
+          margin-bottom: 28px;
         }
-        .hero-badge::before { content: '★'; font-size: 11px; }
+        .hero-badge .hero-star { color: var(--gold); font-size: 12px; }
         .hero-h1 {
           font-family: 'Playfair Display', serif;
-          font-size: clamp(2.8rem, 5.5vw, 5rem); font-weight: 900; color: var(--text);
-          line-height: 1.08; letter-spacing: -0.03em; margin-bottom: 22px;
+          font-size: clamp(2.4rem, 5vw, 4rem); font-weight: 800; color: var(--text);
+          line-height: 1.15; letter-spacing: -0.03em; margin-bottom: 22px;
         }
         .hero-h1 em { font-style: italic; color: var(--teal); }
         .hero-sub {
-          font-size: clamp(1rem, 1.8vw, 1.2rem); color: var(--text2);
-          max-width: 580px; line-height: 1.75; margin-bottom: 40px;
-          font-weight: 300; text-align: center;
+          font-size: 16px; color: var(--text2);
+          max-width: 600px; line-height: 1.7; margin: 24px auto 40px;
+          font-weight: 400; text-align: center;
         }
         .hero-sub strong { color: var(--text); font-weight: 600; }
         .hero-actions {
           display: flex; align-items: center; justify-content: center;
-          gap: 12px; flex-wrap: wrap;
+          gap: 16px; flex-wrap: wrap;
         }
         .btn-primary {
           display: inline-flex; align-items: center; gap: 10px;
-          background: var(--teal); color: #fff; padding: 16px 32px;
-          border-radius: 10px; font-size: 16px; font-weight: 600;
+          background: var(--teal); color: #fff; padding: 14px 28px;
+          border-radius: 8px; font-size: 15px; font-weight: 600;
           text-decoration: none; transition: all 0.2s; border: none;
           cursor: pointer; font-family: 'DM Sans', sans-serif;
         }
@@ -396,23 +413,24 @@ const Landing = () => {
           background: rgba(255,255,255,0.2); padding: 3px 10px;
           border-radius: 5px; font-size: 14px; font-weight: 700;
         }
-        .btn-ghost {
+        .btn-ghost-link {
           display: inline-flex; align-items: center; gap: 8px;
-          color: var(--text2); font-size: 15px; text-decoration: none;
+          color: var(--teal); font-size: 15px; text-decoration: none;
           font-weight: 500; transition: color 0.2s; background: none;
           border: none; cursor: pointer; font-family: 'DM Sans', sans-serif;
+          padding: 14px 16px;
         }
-        .btn-ghost:hover { color: var(--teal); }
-        .btn-outline {
+        .btn-ghost-link:hover { text-decoration: underline; }
+        .btn-outline-navy {
           display: inline-flex; align-items: center; gap: 8px;
-          color: var(--text2); font-size: 14px; text-decoration: none;
-          font-weight: 500; transition: all 0.2s;
-          background: #fff;
-          border: 1px solid var(--border);
+          color: var(--navy); font-size: 15px; text-decoration: none;
+          font-weight: 600; transition: all 0.2s;
+          background: transparent;
+          border: 1.5px solid var(--navy);
           cursor: pointer; font-family: 'DM Sans', sans-serif;
-          padding: 13px 22px; border-radius: 10px;
+          padding: 14px 28px; border-radius: 8px;
         }
-        .btn-outline:hover { background: var(--teal-l); color: var(--teal); border-color: rgba(11,110,79,0.3); }
+        .btn-outline-navy:hover { background: var(--navy); color: #fff; }
         .hero-stats {
           display: flex; gap: 40px; margin-top: 56px; padding-top: 40px;
           border-top: 1px solid var(--border);
@@ -452,24 +470,90 @@ const Landing = () => {
         .cta-section::before {
           content: none;
         }
-        .cta-inner { max-width: 700px; margin: 0 auto; position: relative; z-index: 1; }
+        .cta-inner { max-width: 800px; margin: 0 auto; position: relative; z-index: 1; }
         .cta-eyebrow {
-          display: inline-block; font-size: 13px; font-weight: 600;
+          display: inline-flex; align-items: center; gap: 6px;
+          font-size: 13px; font-weight: 600;
           letter-spacing: 0.1em; text-transform: uppercase;
-          color: var(--teal); margin-bottom: 28px;
+          color: var(--teal); margin-bottom: 16px;
         }
-        .cta-eyebrow::before { content: none; }
+        .cta-eyebrow .cta-star { color: var(--gold); font-size: 12px; }
         .cta-headline {
           font-family: 'Playfair Display', serif;
-          font-size: clamp(2.8rem, 5.5vw, 5rem); font-weight: 900; color: var(--text);
-          line-height: 1.08; letter-spacing: -0.03em; margin-bottom: 22px;
+          font-size: clamp(2.4rem, 5vw, 4rem); font-weight: 800; color: var(--text);
+          line-height: 1.15; letter-spacing: -0.03em; margin-bottom: 0;
         }
         .cta-headline em { font-style: italic; color: var(--teal); }
-        .cta-body {
-          font-size: clamp(1rem, 1.8vw, 1.2rem); color: var(--text2); line-height: 1.75;
-          max-width: 580px; margin: 0 auto 40px; font-weight: 300;
+        .cta-actions {
+          display: flex; align-items: center; justify-content: center;
+          gap: 16px; flex-wrap: wrap;
         }
-        .cta-body strong { color: var(--text); font-weight: 600; }
+
+        /* Pricing section */
+        .pricing-section {
+          background: var(--cream);
+          padding: 96px 24px;
+          text-align: center;
+        }
+        .pricing-eyebrow {
+          display: block;
+          font-size: 12px; font-weight: 600;
+          letter-spacing: 0.12em; text-transform: uppercase;
+          color: var(--teal); margin-bottom: 12px;
+        }
+        .pricing-title {
+          font-family: 'Playfair Display', serif;
+          font-size: clamp(3rem, 6vw, 4.5rem);
+          font-weight: 700; color: var(--text);
+          margin-bottom: 8px;
+        }
+        .pricing-tagline {
+          font-family: 'Playfair Display', serif;
+          font-style: italic;
+          font-size: clamp(1.1rem, 2vw, 1.4rem);
+          color: var(--teal);
+          max-width: 680px; margin: 0 auto 32px;
+        }
+        .pricing-desc {
+          font-family: 'DM Sans', sans-serif;
+          font-size: 16px; line-height: 1.75;
+          color: var(--text2);
+          max-width: 640px; margin: 0 auto 40px;
+        }
+        .pricing-card {
+          max-width: 480px; margin: 0 auto;
+          background: #fff; border: 1px solid var(--border);
+          border-radius: 16px; padding: 32px 40px;
+          box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+          text-align: center;
+        }
+        .pricing-card-label {
+          font-size: 13px; color: var(--text3);
+          text-transform: uppercase; letter-spacing: 0.08em;
+        }
+        .pricing-card-price {
+          font-family: 'Playfair Display', serif;
+          font-size: 48px; font-weight: 700;
+          color: var(--teal);
+          margin: 8px 0 16px;
+        }
+        .pricing-card-sub {
+          font-size: 14px; color: var(--text2);
+        }
+        .pricing-card-cta {
+          margin-top: 20px;
+          display: inline-flex; align-items: center; justify-content: center;
+          background: var(--teal); color: #fff;
+          border: none; border-radius: 999px;
+          padding: 12px 26px; font-size: 15px; font-weight: 600;
+          cursor: pointer; font-family: 'DM Sans', sans-serif;
+          transition: background 0.2s ease;
+        }
+        .pricing-card-cta:hover { background: var(--teal-m); }
+        .pricing-footnote {
+          font-size: 13px; color: var(--text3);
+          margin-top: 16px;
+        }
         .cta-price-badge {
           display: inline-flex; align-items: center; justify-content: center; gap: 16px;
           background: #fff; border: 1px solid var(--border);
@@ -582,27 +666,30 @@ const Landing = () => {
 
         /* Testimonial */
         .testimonials-section { padding: 96px 24px; }
-        .testimonials-inner { max-width: 680px; margin: 0 auto; }
-        .testimonial-card {
-          background: #FFF; border-radius: 16px; padding: 32px;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid var(--border);
-          transition: opacity 0.3s, transform 0.3s;
+        .testimonials-inner { max-width: 900px; margin: 0 auto; }
+        .testimonial-carousel {
+          position: relative;
+          min-height: 320px;
         }
-        .testimonial-quote { color: var(--teal); width: 24px; height: 24px; margin-bottom: 16px; }
-        .testimonial-text { font-size: 16px; color: var(--text); line-height: 1.7; margin: 0; font-weight: 400; }
+        .testimonial-card {
+          background: #FFF; border-radius: 16px; padding: 40px;
+          box-shadow: 0 4px 24px rgba(0,0,0,0.06); border: 1px solid var(--border);
+        }
+        .testimonial-quote { color: var(--teal); width: 28px; height: 28px; margin-bottom: 16px; }
+        .testimonial-text { font-size: 18px; color: var(--text); line-height: 1.7; margin: 0 0 32px; font-weight: 400; }
         .testimonial-text strong { font-weight: 600; color: var(--text); }
-        .testimonial-author { display: flex; align-items: center; gap: 12px; margin-top: 24px; }
-        .testimonial-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--teal-l); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
-        .testimonial-name { font-weight: 700; font-size: 15px; color: var(--text); }
+        .testimonial-author { display: flex; align-items: center; gap: 16px; }
+        .testimonial-avatar { width: 48px; height: 48px; border-radius: 50%; background: var(--teal-l); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+        .testimonial-name { font-weight: 700; font-size: 16px; color: var(--text); }
         .testimonial-detail { font-size: 13px; color: var(--text3); margin-top: 2px; }
-        .testimonial-condition { display: inline-block; background: rgba(11,110,79,0.10); color: var(--teal); font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 6px; margin-top: 6px; }
-        .carousel-nav { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
-        .carousel-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; color: var(--text); }
+        .testimonial-condition { margin-left: auto; background: rgba(11,110,79,0.10); color: var(--teal); font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: 100px; }
+        .carousel-controls { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 24px; }
+        .carousel-btn { width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; color: var(--text); }
         .carousel-btn:hover:not(:disabled) { border-color: var(--teal); color: var(--teal); }
         .carousel-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .carousel-dots { display: flex; align-items: center; gap: 8px; margin-top: 20px; justify-content: center; }
+        .carousel-dots { display: flex; align-items: center; gap: 8px; }
         .carousel-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); cursor: pointer; transition: all 0.2s; border: none; padding: 0; }
-        .carousel-dot.active { background: var(--teal); width: 16px; height: 6px; border-radius: 999px; }
+        .carousel-dot.active { background: var(--teal); width: 24px; height: 6px; border-radius: 999px; }
 
         /* Stats grid */
         .stats-bar-inner {
@@ -663,48 +750,48 @@ const Landing = () => {
         .vision-card {
           background: var(--navy);
           border-radius: 20px;
-          padding: 48px;
+          padding: 56px;
           max-width: 1100px;
           margin: 0 auto;
         }
         .vision-title {
           font-family: 'Playfair Display', serif;
-          font-size: 32px;
+          font-size: 40px;
           font-weight: 700;
           color: #fff;
-          margin-bottom: 32px;
+          margin-bottom: 40px;
         }
         .vision-pillars {
           display: flex;
           flex-direction: column;
-          gap: 24px;
+          gap: 32px;
         }
         .vision-pillar {
           display: flex;
-          gap: 16px;
+          gap: 20px;
           align-items: flex-start;
         }
         .vision-icon {
-          width: 40px;
-          height: 40px;
-          border-radius: 8px;
+          width: 56px;
+          height: 56px;
+          border-radius: 12px;
           background: rgba(255,255,255,0.06);
           display: flex;
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
-          font-size: 20px;
+          font-size: 28px;
         }
         .vision-pillar h3 {
-          font-size: 17px;
+          font-size: 22px;
           font-weight: 700;
           color: #fff;
           margin-bottom: 6px;
         }
         .vision-pillar p {
-          font-size: 14px;
+          font-size: 17px;
           font-weight: 400;
-          color: rgba(255,255,255,0.75);
+          color: rgba(255,255,255,0.78);
           line-height: 1.7;
         }
 
@@ -953,8 +1040,9 @@ const Landing = () => {
           .hero { padding: 64px 24px; }
           .hero-content { padding: 0; }
           .cta-section { padding: 64px 24px; }
-          .cta-section .btn-primary { width: 100%; justify-content: center; }
-          .cta-price-badge { width: 100%; }
+          .cta-actions > * { width: 100%; justify-content: center; }
+          .pricing-section { padding: 64px 24px; }
+          .pricing-card { padding: 28px 24px; }
           .privacy-section,
           .testimonials-section,
           .about-section,
@@ -1031,23 +1119,53 @@ const Landing = () => {
       {/* CTA — Page 1 */}
       <section className="cta-section" style={{ background: 'var(--cream)' }}>
         <div className="cta-inner">
-          <span ref={addToRefs} className="cta-eyebrow reveal">YOUR HEALTH DESERVES BETTER</span>
+          <span ref={addToRefs} className="cta-eyebrow reveal">
+            <span className="cta-star">★</span>
+            YOUR HEALTH DESERVES BETTER
+          </span>
           <h1 ref={addToRefs} className="cta-headline reveal reveal-delay-1">
-            Your health deserves a<br /><em>Registered Dietitian</em>,<br />not an Instagram influencer.
+            Your health deserves
+            <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}> clinical expertise</em>
+            <br />
+            — not a certificate course.
           </h1>
-          <p ref={addToRefs} className="cta-body reveal reveal-delay-2">
-            One consultation changes the direction. An RD who understands your food, your condition, and your life — not a generic PDF, not a supplement upsell. <strong>Real clinical nutrition, personalised for you.</strong>
+          <p ref={addToRefs} className="hero-sub reveal reveal-delay-2">
+            India's First RD - Only Platform for Clinical Nutrition Consultations.
+            <strong>Registered Dietitian</strong> — the only clinically credentialed nutrition professionals in India. Not coaches. Not influencers. <strong>The real thing.</strong>
           </p>
-          <div ref={addToRefs} className="reveal reveal-delay-2">
-            <div className="cta-price-badge">
-              <span className="pb-text">Monthly subscription</span>
-              <span className="pb-price">₹999 / month</span>
-            </div>
+          <div ref={addToRefs} className="cta-actions reveal reveal-delay-3">
+            <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
+              Book Your Consultation
+            </button>
+            <button onClick={scrollToFooterPlatform} className="btn-outline-navy">
+              Are you a Doctor / Dietitian
+            </button>
+            <button onClick={handleContactClick} className="btn-ghost-link">
+              Contact / Support →
+            </button>
           </div>
-          <button ref={addToRefs} onClick={() => setIsBookingModalOpen(true)} className="btn-primary reveal reveal-delay-3" style={{ fontSize: '18px', padding: '18px 40px' }}>
+        </div>
+      </section>
+
+      <section className="pricing-section">
+        <span ref={addToRefs} className="pricing-eyebrow reveal">HONEST PRICING</span>
+        <h2 ref={addToRefs} className="pricing-title reveal reveal-delay-1">₹999</h2>
+        <p ref={addToRefs} className="pricing-tagline reveal reveal-delay-1">
+          Highly Empathetic, skilled and Scientifically Rigorous Registered Dietitian
+        </p>
+        <p ref={addToRefs} className="pricing-desc reveal reveal-delay-2">
+          One consultation changes the direction. An RD who understands your food, your condition, and you — not a generic PDF, Never a supplement upsell. Real clinical nutrition, personalised for you.
+        </p>
+        <div ref={addToRefs} className="pricing-card reveal reveal-delay-2">
+          <div className="pricing-card-label">One-time consultation</div>
+          <div className="pricing-card-price">₹999</div>
+          <div className="pricing-card-sub">Absolutely no hidden charges · No subscription · No lock-in</div>
+          <button onClick={() => setIsBookingModalOpen(true)} className="pricing-card-cta">
             Book Your Consultation Now →
           </button>
-          <p ref={addToRefs} className="cta-disclaimer reveal reveal-delay-3">Cancel anytime · No lock-in · 100% Registered Dietitians</p>
+        </div>
+        <div ref={addToRefs} className="pricing-footnote reveal reveal-delay-3">
+          100% Registered Dietitians · IDA Certified · Evidence-Based
         </div>
       </section>
 
@@ -1216,29 +1334,74 @@ const Landing = () => {
       </section>
 
       {/* Testimonials */}
-      <section className="testimonials-section" style={{ background: '#fff' }}>
+      <section className="testimonials-section" style={{ background: 'var(--cream)' }}>
         <div className="testimonials-inner">
-          <div ref={addToRefs} className="testimonial-wrap reveal reveal-delay-2">
-            <div className="testimonial-card">
-              <Quote className="testimonial-quote" aria-hidden="true" />
-              <p className="testimonial-text" dangerouslySetInnerHTML={{ __html: testimonialItems[currentTestimonial]?.text || "" }} />
-              <div className="testimonial-author">
-                <div className="testimonial-avatar">{testimonialItems[currentTestimonial]?.avatar}</div>
-                <div>
-                  <div className="testimonial-name">{testimonialItems[currentTestimonial]?.name}</div>
-                  <div className="testimonial-detail">{testimonialItems[currentTestimonial]?.detail}</div>
+          <div
+            ref={addToRefs}
+            className="testimonial-carousel reveal reveal-delay-2"
+            role="region"
+            aria-label="Patient testimonials"
+            tabIndex={0}
+            onMouseEnter={() => setIsCarouselPaused(true)}
+            onMouseLeave={() => setIsCarouselPaused(false)}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowLeft") {
+                setCurrentTestimonial((prev) => Math.max(prev - 1, 0));
+              }
+              if (e.key === "ArrowRight") {
+                setCurrentTestimonial((prev) => Math.min(prev + 1, testimonialItems.length - 1));
+              }
+            }}
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentTestimonial}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.35 }}
+                className="testimonial-card"
+              >
+                <Quote className="testimonial-quote" aria-hidden="true" />
+                <p className="testimonial-text" dangerouslySetInnerHTML={{ __html: testimonialItems[currentTestimonial]?.text || "" }} />
+                <div className="testimonial-author">
+                  <div className="testimonial-avatar">{testimonialItems[currentTestimonial]?.avatar}</div>
+                  <div>
+                    <div className="testimonial-name">{testimonialItems[currentTestimonial]?.name}</div>
+                    <div className="testimonial-detail">{testimonialItems[currentTestimonial]?.detail}</div>
+                  </div>
                   <div className="testimonial-condition">{testimonialItems[currentTestimonial]?.condition}</div>
                 </div>
+              </motion.div>
+            </AnimatePresence>
+            <div className="carousel-controls">
+              <button
+                className="carousel-btn"
+                disabled={currentTestimonial === 0}
+                onClick={() => setCurrentTestimonial((prev) => Math.max(prev - 1, 0))}
+                aria-label="Previous testimonial"
+              >
+                ←
+              </button>
+              <div className="carousel-dots" role="tablist">
+                {testimonialItems.map((_, i) => (
+                  <button
+                    key={i}
+                    className={`carousel-dot ${i === currentTestimonial ? 'active' : ''}`}
+                    onClick={() => setCurrentTestimonial(i)}
+                    aria-label={`Go to testimonial ${i + 1}`}
+                    aria-pressed={i === currentTestimonial}
+                  />
+                ))}
               </div>
-            </div>
-            <div className="carousel-nav">
-              <button className="carousel-btn" disabled={testimonialItems.length <= 1} onClick={() => setCurrentTestimonial((prev) => (prev - 1 + testimonialItems.length) % testimonialItems.length)}>←</button>
-              <button className="carousel-btn" disabled={testimonialItems.length <= 1} onClick={() => setCurrentTestimonial((prev) => (prev + 1) % testimonialItems.length)}>→</button>
-            </div>
-            <div className="carousel-dots">
-              {testimonialItems.map((_, i) => (
-                <button key={i} className={`carousel-dot ${i === currentTestimonial ? 'active' : ''}`} onClick={() => setCurrentTestimonial(i)} />
-              ))}
+              <button
+                className="carousel-btn"
+                disabled={currentTestimonial >= testimonialItems.length - 1}
+                onClick={() => setCurrentTestimonial((prev) => Math.min(prev + 1, testimonialItems.length - 1))}
+                aria-label="Next testimonial"
+              >
+                →
+              </button>
             </div>
             <div style={{ textAlign: 'center', marginTop: '20px' }}>
               <Link to="/reviews" style={{ color: 'var(--teal)', fontWeight: 600 }}>Read all reviews →</Link>
@@ -1248,8 +1411,35 @@ const Landing = () => {
       </section>
 
       {/* About Us & Our Vision — Page 4 */}
-      <section id="about" className="about-section reveal" style={{ background: 'var(--cream)' }}>
-        <div className="section-inner">
+      <section
+        id="about"
+        className="about-section reveal"
+        style={{ background: 'var(--cream)', padding: '96px 24px' }}
+      >
+        <style>
+          {`@media (max-width: 900px) {
+  .about-vision-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .about-vision-card {
+    position: static;
+    top: auto;
+  }
+}`}
+        </style>
+        <div
+          className="about-vision-grid"
+          style={{
+            maxWidth: '1200px',
+            margin: '0 auto',
+            display: 'grid',
+            gridTemplateColumns: '1fr 1.1fr',
+            gap: '64px',
+            alignItems: 'start'
+          }}
+        >
           <div className="about-inner">
             <span ref={addToRefs} className="section-eyebrow reveal">WHO WE ARE</span>
             <h2 ref={addToRefs} className="section-title reveal reveal-delay-1">About Us &amp; Our Vision</h2>
@@ -1263,39 +1453,32 @@ const Landing = () => {
               <p>But we are not just about affordability or credibility. <span className="bold">We are about vision.</span></p>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="vision-section" style={{ background: '#fff' }}>
-        <div className="vision-card reveal">
-          <h2 ref={addToRefs} className="vision-title reveal">Our Vision</h2>
-          <div className="vision-pillars">
-            <div ref={addToRefs} className="vision-pillar reveal reveal-delay-1">
-              <div className="vision-icon">🎯</div>
-              <div>
-                <h3>Set a new standard</h3>
-                <p>Make clinical credibility the baseline expectation — not a premium add-on — for nutrition care in India.</p>
+          <div
+            className="vision-card reveal about-vision-card"
+            style={{ position: 'sticky', top: '96px', alignSelf: 'start' }}
+          >
+            <h2 ref={addToRefs} className="vision-title reveal">Our Vision</h2>
+            <div className="vision-pillars">
+              <div ref={addToRefs} className="vision-pillar reveal reveal-delay-1">
+                <div className="vision-icon">🛡️</div>
+                <div>
+                  <h3>Rooted in integrity</h3>
+                  <p>Recommend what is right for the patient, even when it isn't the most profitable choice.</p>
+                </div>
               </div>
-            </div>
-            <div ref={addToRefs} className="vision-pillar reveal reveal-delay-1">
-              <div className="vision-icon">🔬</div>
-              <div>
-                <h3>Science over noise</h3>
-                <p>In a world drowning in health content, be the one voice that always chooses evidence over engagement.</p>
+              <div ref={addToRefs} className="vision-pillar reveal reveal-delay-1">
+                <div className="vision-icon">🎯</div>
+                <div>
+                  <h3>Set the New Industry Standards</h3>
+                  <p>Make clinical credibility the baseline expectation — not a premium add-on — for nutrition care in India.</p>
+                </div>
               </div>
-            </div>
-            <div ref={addToRefs} className="vision-pillar reveal reveal-delay-2">
-              <div className="vision-icon">🤝</div>
-              <div>
-                <h3>Access for everyone</h3>
-                <p>Expert nutrition care should not be available only to those who can afford premium clinics. ₹999 is a statement of intent.</p>
-              </div>
-            </div>
-            <div ref={addToRefs} className="vision-pillar reveal reveal-delay-2">
-              <div className="vision-icon">🌱</div>
-              <div>
-                <h3>Trust that compounds</h3>
-                <p>Build relationships with patients who stay because results speak — not because they're locked in.</p>
+              <div ref={addToRefs} className="vision-pillar reveal reveal-delay-2">
+                <div className="vision-icon">🤝</div>
+                <div>
+                  <h3>Science over noise</h3>
+                  <p>In a world drowning in health content, be the one voice that always chooses evidence over engagement.</p>
+                </div>
               </div>
             </div>
           </div>
@@ -1303,42 +1486,144 @@ const Landing = () => {
       </section>
 
       {/* The Story Behind Diet By RD — Page 5 */}
-      <section className="founder-section reveal" style={{ background: 'var(--cream)' }}>
-        <div className="section-inner">
-          <div className="founder-inner">
-            <p ref={addToRefs} className="founder-label reveal">THE PEOPLE BEHIND THIS</p>
-            <h2 ref={addToRefs} className="founder-title reveal reveal-delay-1">The Story Behind Diet By RD</h2>
-            <div ref={addToRefs} className="founder-profile-grid reveal reveal-delay-2">
-              <div className="founder-photo-card">
-                <img src="/aryan-bhagat-founder.png" alt="Aryan Bhagat, Founder" />
+      <section className="founder-section reveal" style={{ background: 'var(--cream)', padding: '96px 24px' }}>
+        <style>
+          {`@media (max-width: 900px) {
+  .story-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .story-card-image {
+    padding: 24px 24px 0 24px;
+  }
+}`}
+        </style>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+            <p
+              ref={addToRefs}
+              className="founder-label reveal"
+              style={{ fontSize: '12px', fontWeight: 600, letterSpacing: '0.12em', color: 'var(--teal)' }}
+            >
+              THE PEOPLE BEHIND THIS
+            </p>
+            <h2
+              ref={addToRefs}
+              className="founder-title reveal reveal-delay-1"
+              style={{ color: 'var(--navy)', fontSize: 'clamp(2rem,4vw,3rem)', fontWeight: 700 }}
+            >
+              The Story Behind Diet By RD
+            </h2>
+          </div>
+          <div
+            ref={addToRefs}
+            className="story-card-grid reveal reveal-delay-2"
+            style={{
+              background: 'var(--teal-l)',
+              borderRadius: '24px',
+              padding: 0,
+              overflow: 'hidden',
+              maxWidth: '1100px',
+              margin: '0 auto',
+              display: 'grid',
+              gridTemplateColumns: '0.9fr 1.1fr',
+              alignItems: 'stretch'
+            }}
+          >
+            <div className="story-card-image" style={{ display: 'flex', alignItems: 'stretch' }}>
+              <img
+                src="/aryan-bhagat-founder.png"
+                alt="Aryan Bhagat, Founder of Diet By RD"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  objectPosition: 'bottom center',
+                  padding: '24px 0 0 24px'
+                }}
+              />
+            </div>
+            <div style={{ padding: '48px 48px 48px 32px' }}>
+              <div
+                style={{
+                  fontFamily: '"Playfair Display", serif',
+                  fontSize: '22px',
+                  fontWeight: 700,
+                  color: 'var(--navy)',
+                  marginBottom: '16px'
+                }}
+              >
+                Diet By <span style={{ color: 'var(--gold)' }}>RD</span>
               </div>
-              <div className="founder-brand-card">
-                <div className="founder-brand-line">Diet By <span>RD</span></div>
-                <h3>Aryan Bhagat</h3>
-                <div className="founder-info-role">Founder, Diet By RD</div>
-                <div className="founder-info-location">Darbhanga, Bihar</div>
-                <div className="founder-card-divider" />
-                <div className="founder-story-quote">
-                  "Everything in this world can be learnt." — the belief that started it all.
-                </div>
-                <div className="founder-purpose-pill">🌱 Built with purpose</div>
+              <div
+                style={{
+                  fontFamily: '"Playfair Display", serif',
+                  fontSize: '30px',
+                  fontWeight: 700,
+                  color: 'var(--navy)'
+                }}
+              >
+                Aryan Bhagat
+              </div>
+              <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text2)' }}>Founder, Diet By RD</div>
+              <div style={{ fontSize: '13px', color: 'var(--text3)' }}>Darbhanga, Bihar</div>
+              <div style={{ height: '1px', background: 'rgba(11,110,79,0.2)', margin: '24px 0' }} />
+              <blockquote
+                style={{
+                  borderLeft: '3px solid var(--teal)',
+                  paddingLeft: '16px',
+                  fontFamily: '"Playfair Display", serif',
+                  fontStyle: 'italic',
+                  fontSize: '17px',
+                  color: 'var(--text)',
+                  lineHeight: 1.6
+                }}
+              >
+                "Everything in this world can be learnt." — the belief that started it all.
+              </blockquote>
+              <p style={{ marginTop: '20px', color: 'var(--text)' }}>
+                Coming from a lower-middle-class family, Aryan grew up knowing the weight of money. Super-earned — and how unfair it is when people lose it so easily. He saw how easily people were misled into spending it on false promises and pseudoscience.
+              </p>
+              <p style={{ color: 'var(--text)' }}>
+                He watched families trust 'health experts' who were nothing more than confident content creators. He saw diabetic patients follow advice from coaches with no clinical training. He saw people spending money they didn't have on products they didn't need.
+              </p>
+              <p style={{ color: 'var(--text)', fontWeight: 600 }}>
+                That's the problem Diet By RD exists to solve. Not with more content — but with the <strong>right credentials, the right professionals, and the right price.</strong>
+              </p>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  background: 'rgba(11,110,79,0.10)',
+                  color: 'var(--teal)',
+                  padding: '6px 14px',
+                  borderRadius: '100px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  marginTop: '16px'
+                }}
+              >
+                🌱 Built with purpose
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="road-ahead-section reveal" style={{ background: '#fff' }}>
-        <div className="road-ahead-inner">
-          <p ref={addToRefs} className="road-ahead-copy reveal">
-            He watched families trust 'health experts' who were nothing more than confident content creators. He saw diabetic patients follow advice from coaches with no clinical training. He saw people spending money they didn't have on products they didn't need.
-          </p>
-          <p ref={addToRefs} className="road-ahead-copy reveal reveal-delay-1">
-            That's the problem Diet By RD exists to solve. Not with more content — but with the <strong>right credentials, the right professionals, and the right price.</strong>
-          </p>
-          <div ref={addToRefs} className="road-ahead-card reveal reveal-delay-2">
-            <h3>The Road Ahead</h3>
-            <p>Diet By RD is rooted in India but built for the world. From Delhi to global shores — this journey is about creating something larger than one city, one founder, or one team. It's about giving people everywhere a chance to take control of their health, without being exploited.</p>
+          <div style={{ maxWidth: '900px', margin: '48px auto 0' }}>
+            <div style={{ background: 'var(--navy)', borderRadius: '16px', padding: '36px 40px' }}>
+              <h3
+                style={{
+                  fontFamily: '"Playfair Display", serif',
+                  fontSize: '24px',
+                  fontWeight: 700,
+                  color: '#fff',
+                  marginBottom: '12px'
+                }}
+              >
+                The Road Ahead
+              </h3>
+              <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.78)', lineHeight: 1.75 }}>
+                Diet By RD is rooted in India but built for the world. From Delhi to global shores — this journey is about creating something larger than one city, one founder, or one team. It's about giving people everywhere a chance to take control of their health, without being exploited.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -1440,24 +1725,29 @@ const Landing = () => {
       </section>
 
       {/* Hero */}
-      <section className="hero" style={{ background: '#fff' }}>
+      <section className="hero" style={{ background: 'var(--cream)' }}>
         <div className="hero-bg" />
         <div className="hero-content">
-          <div ref={addToRefs} className="hero-badge reveal">YOUR HEALTH DESERVES BETTER</div>
+          <div ref={addToRefs} className="hero-badge reveal">
+            <span className="hero-star">★</span>
+            YOUR HEALTH DESERVES BETTER
+          </div>
           <h1 ref={addToRefs} className="hero-h1 reveal reveal-delay-1">
-            Your health deserves<br />
-            <em>clinical expertise —</em><br />
-            not a certificate course.
+            Your health deserves
+            <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}> clinical expertise</em>
+            <br />
+            — not a certificate course.
           </h1>
           <p ref={addToRefs} className="hero-sub reveal reveal-delay-2">
-            India's first platform where every single consultation is exclusively with a <strong>Registered Dietitian</strong> — the only clinically credentialed nutrition professionals in India. Not coaches. Not influencers. The real thing.
+            India's First RD - Only Platform for Clinical Nutrition Consultations.
+            <strong>Registered Dietitian</strong> — the only clinically credentialed nutrition professionals in India. Not coaches. Not influencers. <strong>The real thing.</strong>
           </p>
           <div ref={addToRefs} className="hero-actions reveal reveal-delay-3">
             <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
               Book Your Consultation
             </button>
-            <button onClick={() => navigate('/login')} className="btn-outline">Join as Doctor / Dietitian</button>
-            <a href="#trust" className="btn-ghost" onClick={scrollTo('trust')}>Contact / Support →</a>
+            <button onClick={scrollToFooterPlatform} className="btn-outline-navy">Are you a Doctor / Dietitian</button>
+            <button onClick={handleContactClick} className="btn-ghost-link">Contact / Support →</button>
           </div>
           <div ref={addToRefs} className="hero-stats reveal reveal-delay-3">
             <div className="hero-stat">
@@ -1486,7 +1776,7 @@ const Landing = () => {
               <p>India's first clinical nutrition platform where every consultation is exclusively with a Registered Dietitian. Evidence-based. Affordable. Honest.</p>
               <a href="mailto:hello@dietbyrd.com" className="footer-email">✉️ hello@dietbyrd.com</a>
             </div>
-            <div className="footer-col">
+            <div id="footer-platform" className="footer-col">
               <h5>Platform</h5>
               <a href="#" onClick={(e) => { e.preventDefault(); setIsBookingModalOpen(true); }}>Book Consultation</a>
               <a href="#approach" onClick={scrollTo('approach')}>How It Works</a>
