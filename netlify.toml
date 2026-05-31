@@ -20,6 +20,6 @@
 
 [functions]
   directory = "netlify/functions"
-  node_bundler = "nft"
+  node_bundler = "esbuild"
   included_files = ["api/**"]
 
