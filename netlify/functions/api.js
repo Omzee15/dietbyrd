@@ -1,13 +1,8 @@
-let cachedHandler;
+const serverless = require("serverless-http");
+const appModule = require("../../api/_app.js");
 
-exports.handler = async (event, context) => {
-  if (!cachedHandler) {
-    const [{ default: serverless }, { default: app }] = await Promise.all([
-      import("serverless-http"),
-      import("../../api/_app.js"),
-    ]);
-    cachedHandler = serverless(app, { basePath: "/.netlify/functions/api" });
-  }
+const app = appModule?.default || appModule;
 
-  return cachedHandler(event, context);
-};
+exports.handler = serverless(app, {
+  basePath: "/.netlify/functions/api",
+});
