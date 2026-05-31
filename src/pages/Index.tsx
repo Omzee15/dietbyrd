@@ -10,7 +10,6 @@ import {
   Leaf,
   Loader2,
   Lock,
-  MessageSquare,
   Pencil,
   Phone,
 } from "lucide-react";
@@ -22,8 +21,6 @@ import { JoinRequestForm } from "@/components/JoinRequestForm";
 type AuthStep =
   | "phone"
   | "password"
-  | "otp-send"
-  | "otp-verify"
   | "welcome-form"
   | "join-form"
   | "pending";
@@ -64,8 +61,6 @@ const Index = () => {
   const navigate = useNavigate();
   const {
     login,
-    sendOtp,
-    verifyOtp,
     isAuthenticated,
     user,
     isLoading: authLoading,
@@ -75,11 +70,7 @@ const Index = () => {
   const [step, setStep] = useState<AuthStep>("phone");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [otp, setOtp] = useState("");
-  const [otpTimer, setOtpTimer] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
-  const [resolvedRole, setResolvedRole] = useState<string | null>(null);
-  const [authTab, setAuthTab] = useState<"login" | "signup">("login");
 
   const [nameInput, setNameInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -94,18 +85,8 @@ const Index = () => {
     }
   }, [authLoading, isAuthenticated, navigate, user]);
 
-  useEffect(() => {
-    if (otpTimer > 0) {
-      const timer = setTimeout(() => setOtpTimer((prev) => prev - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [otpTimer]);
-
   const resetStepState = () => {
     setPassword("");
-    setOtp("");
-    setOtpTimer(0);
-    setResolvedRole(null);
     setError("");
     setSuccess("");
     setShowPassword(false);
@@ -116,25 +97,6 @@ const Index = () => {
   const handleChangePhone = () => {
     resetStepState();
     setStep("phone");
-  };
-
-  const startOtpFlow = async (normalizedPhone: string, digits: string, userName?: string | null) => {
-    if (digits.length < 10) {
-      setError("Please enter a 10-digit phone number to receive OTP");
-      return false;
-    }
-
-    const otpResult = await sendOtp(normalizedPhone);
-    if (!otpResult.success) {
-      setError(otpResult.error || "Failed to send OTP");
-      return false;
-    }
-
-    setStep("otp-verify");
-    setOtp("");
-    setOtpTimer(otpResult.expiresIn || 120);
-    setSuccess(userName ? `Welcome back, ${userName}! OTP sent to your phone.` : "OTP sent to your phone.");
-    return true;
   };
 
   const handleLookupPhone = async (e: React.FormEvent) => {
@@ -152,6 +114,8 @@ const Index = () => {
 
     setCheckingPhone(true);
 
+    let userName: string | null = null;
+
     try {
       const res = await fetch("/api/auth/check-phone", {
         method: "POST",
@@ -166,30 +130,17 @@ const Index = () => {
         data = null;
       }
 
-      if (!res.ok || !data?.success) {
-        await startOtpFlow(normalizedPhone, digits);
-        return;
+      if (res.ok && data?.success) {
+        userName = data?.data?.user_name || null;
       }
-
-      const exists = Boolean(data?.data?.exists);
-      const authFlow = data?.data?.auth_flow;
-      const userRole = data?.data?.user_role || null;
-      const userName = data?.data?.user_name || null;
-
-      setResolvedRole(userRole);
-
-      if (!exists || authFlow === "phone-signin" || authFlow === "otp" || userRole === "patient") {
-        await startOtpFlow(normalizedPhone, digits, userName);
-        return;
-      }
-
-      setStep("password");
-      setSuccess(userName ? `Welcome Back ${userName}` : "Welcome Back");
     } catch {
-      await startOtpFlow(normalizedPhone, digits);
+      userName = null;
     } finally {
       setCheckingPhone(false);
     }
+
+    setStep("password");
+    setSuccess(userName ? `Welcome Back ${userName}` : "Enter your password to continue.");
   };
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
@@ -214,62 +165,6 @@ const Index = () => {
       } else {
         setError(result.error || "Invalid credentials");
       }
-    }
-
-    setIsLoading(false);
-  };
-
-  const handleSendOtp = async () => {
-    setError("");
-    setSuccess("");
-    setIsLoading(true);
-
-    const digits = getPhoneDigits(phone);
-    if (digits.length < 10) {
-      setError("Please enter a 10-digit phone number to receive OTP");
-      setIsLoading(false);
-      return;
-    }
-
-    const normalizedPhone = normalizePhoneForAuth(phone);
-    const result = await sendOtp(normalizedPhone);
-    if (!result.success) {
-      setError(result.error || "Failed to send OTP");
-    } else {
-      setStep("otp-verify");
-      setOtp("");
-      setOtpTimer(result.expiresIn || 120);
-      setSuccess("OTP sent to your phone.");
-    }
-
-    setIsLoading(false);
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-    setIsLoading(true);
-
-    const digits = getPhoneDigits(phone);
-    if (digits.length < 10) {
-      setError("Please enter a 10-digit phone number to verify OTP");
-      setIsLoading(false);
-      return;
-    }
-
-    const normalizedPhone = normalizePhoneForAuth(phone);
-    const result = await verifyOtp(normalizedPhone, otp);
-    if (!result.success) {
-      setError(result.error || "Invalid OTP");
-      setIsLoading(false);
-      return;
-    }
-
-    // Check if this is a new patient who needs to complete the welcome form
-    if (result.data?.isNewPatient || result.data?.requiresWelcomeForm) {
-      setSuccess("OTP verified! Please complete your profile.");
-      setStep("welcome-form");
     }
 
     setIsLoading(false);
@@ -521,135 +416,8 @@ const Index = () => {
             >
               {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : "Sign In"}
             </Button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                setSuccess("");
-                setOtp("");
-                setStep("otp-send");
-              }}
-              className="w-full text-center text-emerald-600 hover:text-emerald-700 font-medium text-sm"
-            >
-              Use OTP instead
-            </button>
-
           </form>
         )}
-
-        {(step === "otp-send" || step === "otp-verify") && (
-          <form onSubmit={handleVerifyOtp} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-base font-medium text-slate-700">Phone Number</label>
-              <div className="relative">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <Input
-                  type="tel"
-                  value={phone}
-                  className="pl-12 pr-12 h-14 rounded-xl border-slate-200 bg-slate-100 text-slate-600"
-                  disabled
-                />
-                <button
-                  type="button"
-                  onClick={handleChangePhone}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/70 transition"
-                  aria-label="Edit phone number"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {step === "otp-verify" && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-base font-medium text-slate-700">Enter OTP</label>
-                  {otpTimer > 0 && (
-                    <span className="text-sm text-slate-500">
-                      Expires in {Math.floor(otpTimer / 60)}:{(otpTimer % 60).toString().padStart(2, "0")}
-                    </span>
-                  )}
-                </div>
-                <div className="relative">
-                  <MessageSquare className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={6}
-                    placeholder="Enter 6-digit OTP"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                    className="pl-12 h-14 rounded-xl border-slate-200 bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-all text-base tracking-widest font-mono"
-                    required
-                  />
-                </div>
-              </div>
-            )}
-
-            {step === "otp-send" ? (
-              <Button
-                type="button"
-                onClick={handleSendOtp}
-                disabled={isLoading}
-                className="w-full h-14 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-base shadow-lg shadow-emerald-500/25 transition-all duration-300 group"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : (
-                  <>
-                    Send OTP
-                    <MessageSquare className="w-5 h-5 ml-2 group-hover:scale-110 transition-transform" />
-                  </>
-                )}
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                disabled={isLoading || otp.length !== 6}
-                className="w-full h-14 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-base shadow-lg shadow-emerald-500/25 transition-all duration-300 group"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : (
-                  <>
-                    Verify OTP
-                    <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                  </>
-                )}
-              </Button>
-            )}
-
-            {step === "otp-verify" && otpTimer === 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setOtp("");
-                  handleSendOtp();
-                }}
-                disabled={isLoading}
-                className="w-full text-center text-emerald-600 hover:text-emerald-700 font-medium text-sm disabled:opacity-50"
-              >
-                Resend OTP
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                setSuccess("");
-                setStep("password");
-              }}
-              className="w-full text-center text-slate-500 hover:text-slate-700 font-medium text-sm"
-            >
-              Use password instead
-            </button>
-
-          </form>
-        )}
-
       </>
     );
   };

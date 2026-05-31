@@ -1242,7 +1242,7 @@ app.post("/api/auth/check-phone", async (req, res) => {
         data: {
           exists: false,
           user_role: null,
-          auth_flow: "phone-signin",
+          auth_flow: "password",
           is_referred_patient: false,
           referred_by_doctor_name: null,
         },
@@ -1309,7 +1309,7 @@ app.post("/api/auth/check-phone", async (req, res) => {
       data: {
         exists: false,
         user_role: null,
-        auth_flow: "phone-signin",
+        auth_flow: "password",
         is_referred_patient: false,
         referred_by_doctor_name: null,
       },
