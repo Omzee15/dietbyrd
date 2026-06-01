@@ -115,6 +115,14 @@ const DieticianCalendarSchedule = ({
     onError: (err: Error) => toast.error(err.message || "Failed to remove leave"),
   });
 
+  const handleAddLeave = () => {
+    if (!leaveReason.trim()) {
+      toast.error("Please enter a reason for the leave");
+      return;
+    }
+    addLeaveMutation.mutate();
+  };
+
   const isBlocked = (date: Date) => blockedDateSet.has(date.toISOString().split("T")[0]);
 
   // Calculate week dates
@@ -656,6 +664,30 @@ const DieticianCalendarSchedule = ({
             <DialogDescription>Block a day so patients cannot book appointments.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            <div className="flex gap-8 mb-12">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const t = new Date();
+                  t.setDate(t.getDate() + 1);
+                  setLeaveDate(t.toISOString().split("T")[0]);
+                }}
+              >
+                Tomorrow
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const t = new Date();
+                  t.setDate(t.getDate() + 2);
+                  setLeaveDate(t.toISOString().split("T")[0]);
+                }}
+              >
+                Day after tomorrow
+              </Button>
+            </div>
             <div className="space-y-2">
               <Label>Date <span className="text-red-500">*</span></Label>
               <Input
@@ -666,9 +698,10 @@ const DieticianCalendarSchedule = ({
               />
             </div>
             <div className="space-y-2">
-              <Label>Reason (optional)</Label>
+              <Label>Reason <span style={{ color: "var(--red)" }}>*</span></Label>
               <Input
                 placeholder="e.g. Personal, Travel, Sick leave"
+                required
                 value={leaveReason}
                 onChange={(e) => setLeaveReason(e.target.value)}
               />
@@ -677,9 +710,9 @@ const DieticianCalendarSchedule = ({
           <DialogFooter>
             <Button variant="outline" onClick={() => setLeaveDialog(false)}>Cancel</Button>
             <Button
-              disabled={!leaveDate || addLeaveMutation.isPending}
+              disabled={!leaveDate || !leaveReason.trim() || addLeaveMutation.isPending}
               className="bg-orange-600 hover:bg-orange-700 text-white"
-              onClick={() => addLeaveMutation.mutate()}
+              onClick={handleAddLeave}
             >
               {addLeaveMutation.isPending ? "Saving..." : "Mark Leave"}
             </Button>

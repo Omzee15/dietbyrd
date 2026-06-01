@@ -5666,6 +5666,12 @@ app.post("/api/dieticians/:id/blocked-slots", async (req, res) => {
       });
     }
 
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({
+        error: "Reason is required"
+      });
+    }
+
     const result = await query(
       `INSERT INTO dietbyrd_dietician_blocked_slots 
        (rd_id, blocked_date, start_time, end_time, reason)
