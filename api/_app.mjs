@@ -2958,7 +2958,9 @@ app.post("/api/patients/:id(\\d+)/assign-dietician", async (req, res) => {
 
     // Block assignment if patient has not paid
     const paymentCheck = await query(
-      `SELECT COUNT(*) AS cnt FROM dietbyrd_payments WHERE patient_id = $1 AND status = 'success'`,
+      `SELECT COUNT(*) AS cnt
+       FROM dietbyrd_razorpay_payments
+       WHERE patient_id = $1 AND status IN ('paid', 'captured', 'success')`,
       [id]
     );
     if (parseInt(paymentCheck.rows[0]?.cnt || "0") === 0) {
