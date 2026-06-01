@@ -754,3 +754,23 @@ export const getDieticianAppointments = (
   if (options?.status) params.set("status", options.status);
   return request<DieticianAppointment[]>(`/dieticians/${dieticianId}/appointments?${params.toString()}`);
 };
+
+export type StoredUser = {
+  id: string;
+  name?: string;
+  role?: string;
+  phone?: string;
+  email?: string;
+  [key: string]: any;
+};
+
+export function getMe(): StoredUser | null {
+  try {
+    const raw = localStorage.getItem('dietbyrd_user');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? (parsed as StoredUser) : null;
+  } catch {
+    return null;
+  }
+}

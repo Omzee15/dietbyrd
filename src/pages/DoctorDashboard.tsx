@@ -95,17 +95,10 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
       if (!cancelled) setUserChip("error");
     }, 5000);
 
-    getMe()
-      .then((me) => {
-        if (cancelled) return;
-        clearTimeout(timeout);
-        setUserChip(me);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        clearTimeout(timeout);
-        setUserChip("error");
-      });
+    const me = getMe();
+    if (cancelled) return;
+    clearTimeout(timeout);
+    setUserChip(me ?? "error");
 
     return () => {
       cancelled = true;
