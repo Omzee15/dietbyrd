@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
@@ -24,8 +24,8 @@ const isValidIndianPhone = (phone: string): boolean => {
 };
 
 const formatPhoneForDisplay = (value: string): string => {
-  // Only allow digits, limit to 10
-  return value.replace(/\D/g, '').slice(0, 10);
+  const digits = value.replace(/\D/g, '');
+  return digits.length > 10 ? digits.slice(-10) : digits;
 };
 
 const getReferralDateValue = (referral: Referral): string | undefined => {
@@ -164,9 +164,6 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
       setNewAssistantPassword("");
       setShowAddAssistant(false);
     },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to create assistant account");
-    },
   });
 
   // Delete assistant mutation
@@ -181,12 +178,16 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
     },
   });
 
-  const handleAddAssistant = () => {
-    if (!newAssistantName || !newAssistantPhone || !newAssistantPassword) {
+  const handleAddAssistant = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    const assistantName = newAssistantName.trim();
+    const assistantPhone = formatPhoneForDisplay(newAssistantPhone);
+
+    if (!assistantName || !assistantPhone || !newAssistantPassword) {
       toast.error("Please fill all fields");
       return;
     }
-    if (!isValidIndianPhone(newAssistantPhone)) {
+    if (!isValidIndianPhone(assistantPhone)) {
       toast.error("Please enter a valid phone number");
       return;
     }
@@ -194,12 +195,22 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
       toast.error("Password must be at least 6 characters");
       return;
     }
-    createAssistantMutation.mutate({
-      doctor_id: currentDoctor!.id,
-      name: newAssistantName,
-      phone: newAssistantPhone,
-      password: newAssistantPassword,
-    });
+    if (!currentDoctor?.id) {
+      toast.error("Doctor profile is still loading. Please try again.");
+      return;
+    }
+
+    try {
+      await createAssistantMutation.mutateAsync({
+        doctor_id: currentDoctor.id,
+        name: assistantName,
+        phone: assistantPhone,
+        password: newAssistantPassword,
+      });
+    } catch (error) {
+      console.error("[create assistant] Error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to create assistant account");
+    }
   };
 
   const handleNavClick = (view: ActiveView) => {
@@ -589,12 +600,13 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
 
                 {/* Add Assistant Form */}
                 {showAddAssistant && (
-                  <div className="bg-card rounded-xl border p-6 space-y-4">
+                  <form className="bg-card rounded-xl border p-6 space-y-4" onSubmit={handleAddAssistant}>
                     <h3 className="text-sm font-semibold">Create Assistant Account</h3>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Name *</label>
                         <Input
+                          autoFocus
                           placeholder="e.g. Priya Sharma"
                           className="mt-1.5"
                           value={newAssistantName}
@@ -604,6 +616,8 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                       <div>
                         <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Phone *</label>
                         <Input
+                          type="tel"
+                          inputMode="numeric"
                           placeholder="9876543210"
                           className="mt-1.5"
                           value={newAssistantPhone}
@@ -622,19 +636,19 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button onClick={handleAddAssistant} disabled={createAssistantMutation.isPending}>
+                      <Button type="submit" disabled={createAssistantMutation.isPending}>
                         {createAssistantMutation.isPending ? (
                           <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating...</>
                         ) : "Create Assistant Account"}
                       </Button>
-                      <Button variant="outline" onClick={() => {
+                      <Button type="button" variant="outline" onClick={() => {
                         setShowAddAssistant(false);
                         setNewAssistantName("");
                         setNewAssistantPhone("");
                         setNewAssistantPassword("");
                       }}>Cancel</Button>
                     </div>
-                  </div>
+                  </form>
                 )}
 
                 {/* Assistants List */}
