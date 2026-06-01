@@ -6021,6 +6021,7 @@ app.post("/api/payments/create-order", async (req, res) => {
     let razorpayOrderId;
 
     if (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET) {
+      console.log("[razorpay] creating order with key prefix:", RAZORPAY_KEY_ID.slice(0, 8));
       // Real Razorpay integration
       const Razorpay = (await import("razorpay")).default;
       const razorpay = new Razorpay({
@@ -6080,6 +6081,8 @@ app.post("/api/payments/verify", async (req, res) => {
         error: "razorpay_order_id, razorpay_payment_id, and razorpay_signature are required",
       });
     }
+
+    console.log("[razorpay] verifying payment:", { razorpay_order_id, razorpay_payment_id });
     
     // Get payment record
     const paymentResult = await query(
@@ -6099,7 +6102,7 @@ app.post("/api/payments/verify", async (req, res) => {
     if (RAZORPAY_KEY_SECRET && !razorpay_order_id.startsWith("demo_")) {
       const expectedSignature = crypto
         .createHmac("sha256", RAZORPAY_KEY_SECRET)
-        .update(`${ razorpay_order_id } | ${ razorpay_payment_id }`)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
         .digest("hex");
       
       isValidSignature = expectedSignature === razorpay_signature;
@@ -6107,6 +6110,8 @@ app.post("/api/payments/verify", async (req, res) => {
       // Demo mode - accept any signature
       isValidSignature = true;
     }
+
+    console.log("[razorpay] signature match:", isValidSignature);
     
     if (!isValidSignature) {
       await query(

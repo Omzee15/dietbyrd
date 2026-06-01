@@ -330,8 +330,22 @@ const PatientAppointments = () => {
         ...(discountedPaise ? { discounted_amount: discountedPaise } : {}),
       });
 
+      const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+      if (!razorpayKey) {
+        toast.error("Payment configuration missing. Please contact support.");
+        setIsPaymentProcessing(false);
+        setTimeout(() => {
+          if (slotToBook) {
+            setSelectedSlot(slotToBook);
+            setAppointmentNotes(notesToSave);
+            setIsBookingModalOpen(true);
+          }
+        }, 300);
+        return;
+      }
+
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_demo",
+        key: razorpayKey,
         amount: order.amount,
         currency: order.currency,
         name: "DietByRD",

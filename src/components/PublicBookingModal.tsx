@@ -266,8 +266,15 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
         amount: selectedPackage.price,
       });
 
+      const razorpayKey = (import.meta as any).env.VITE_RAZORPAY_KEY_ID;
+      if (!razorpayKey) {
+        toast.error("Payment configuration missing. Please contact support.");
+        setIsPaymentProcessing(false);
+        return;
+      }
+
       const options = {
-        key: (import.meta as any).env.VITE_RAZORPAY_KEY_ID || "rzp_test_demo",
+        key: razorpayKey,
         amount: order.amount,
         currency: order.currency,
         name: "DietByRD",
