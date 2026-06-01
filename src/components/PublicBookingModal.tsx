@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CalendarDays,
@@ -30,6 +30,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatTime12 } from "@/lib/utils";
+import { isValidIndianMobile, normalizeIndianMobileInput } from "@/lib/validation";
 
 interface MergedSlot {
   date: string;
@@ -150,13 +151,16 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
     return () => clearTimeout(t);
   }, [otpTimer]);
 
+  const handlePhoneChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setPhone(normalizeIndianMobileInput(e.target.value));
+  };
+
   const handleSendOtp = async () => {
     if (!name.trim()) { setError("Please enter your name"); return; }
-    const digits = phone.replace(/\D/g, "").slice(-10);
-    if (digits.length < 10) { setError("Please enter a valid 10-digit phone number"); return; }
+    if (!isValidIndianMobile(phone)) { setError("Please enter a valid Indian mobile number"); return; }
     setError("");
     setIsLoading(true);
-    const result = await sendOtp(digits);
+    const result = await sendOtp(phone);
     if (!result.success) {
       setError(result.error || "Failed to send OTP");
     } else {
@@ -171,7 +175,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
     setError("");
     setIsLoading(true);
 
-    const digits = phone.replace(/\D/g, "").slice(-10);
+    const digits = normalizeIndianMobileInput(phone);
     const result = await verifyOtp(digits, otp);
 
     if (!result.success) {
@@ -529,13 +533,24 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     type="tel"
+                    inputMode="numeric"
                     placeholder="10-digit mobile number"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                    onChange={handlePhoneChange}
                     className="pl-9"
                     maxLength={10}
                   />
                 </div>
+                {phone.length > 0 && phone.length < 10 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter your 10-digit mobile number
+                  </p>
+                )}
+                {phone.length === 10 && !isValidIndianMobile(phone) && (
+                  <p className="text-xs text-red-600 mt-1">
+                    Indian mobile numbers start with 6, 7, 8, or 9
+                  </p>
+                )}
               </div>
             </div>
 
@@ -546,7 +561,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
               <Button
                 type="submit"
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                disabled={isLoading}
+                disabled={!isValidIndianMobile(phone) || isLoading}
               >
                 {isLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                 Send OTP →
@@ -561,7 +576,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               We sent a 6-digit OTP to{" "}
-              <strong>+91 {phone.replace(/\D/g, "").slice(-10)}</strong>. Enter it below.
+              <strong>+91 {phone}</strong>. Enter it below.
             </p>
 
             {error && (

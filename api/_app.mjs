@@ -1342,6 +1342,11 @@ function checkOtpRateLimit(phone) {
 // Send OTP via Twilio Verify (for login)
 app.post("/api/auth/send-otp", async (req, res) => {
   try {
+    const phoneForValidation = String(req.body?.phone || "").replace(/\D/g, "");
+    if (!/^[6-9]\d{9}$/.test(phoneForValidation)) {
+      return res.status(400).json({ success: false, error: "Invalid Indian mobile number" });
+    }
+
     const { phone, channel = "sms" } = req.body; // channel: "sms" or "whatsapp"
 
     if (!phone) {
