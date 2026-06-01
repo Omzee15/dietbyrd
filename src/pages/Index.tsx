@@ -301,6 +301,15 @@ const Index = () => {
     return (
       <>
         <div className="mb-8">
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors mb-4"
+            aria-label="Back to home"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="text-sm">Back to home</span>
+          </button>
           <h2 className="text-3xl font-bold text-slate-900">Welcome to DietbyRD</h2>
           <p className="text-slate-500 mt-2 text-base">Enter your Phone number</p>
         </div>
