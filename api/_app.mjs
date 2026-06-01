@@ -6322,7 +6322,7 @@ app.get("/api/doctor/me/patients", async (req, res) => {
       [doctorId]
     );
 
-    return res.json(patientsResult.rows);
+    return res.json({ success: true, data: patientsResult.rows });
   } catch (err) {
     console.error("[doctor/me/patients] Error:", err);
     return res.status(500).json({ error: "Failed to fetch doctor patients" });
@@ -6391,7 +6391,7 @@ app.get("/doctor/me/patients", async (req, res) => {
       [doctorId]
     );
 
-    return res.json(patientsResult.rows);
+    return res.json({ success: true, data: patientsResult.rows });
   } catch (err) {
     console.error("[doctor/me/patients] Error:", err);
     return res.status(500).json({ error: "Failed to fetch doctor patients" });
@@ -7904,7 +7904,7 @@ app.get("/api/rd/patients/:patientId/documents", async (req, res) => {
 });
 
 // Update patient improvement score
-app.patch("/api/dietitians/patients/:patientId/improvement-score", async (req, res) => {
+const updatePatientImprovementScoreHandler = async (req, res) => {
   try {
     const auth = await getAuthContextFromHeaders(req);
     if (auth.error) {
@@ -7922,14 +7922,23 @@ app.patch("/api/dietitians/patients/:patientId/improvement-score", async (req, r
       return res.status(400).json({ error: "Score must be an integer between 1 and 10" });
     }
 
-    // Verify assigned RD
+    const rdResult = await query(
+      "SELECT id FROM dietbyrd_registered_dietitians WHERE user_id = $1 LIMIT 1",
+      [auth.userId]
+    );
+    if (rdResult.rows.length === 0) {
+      return res.status(403).json({ error: "You are not the assigned dietitian for this patient" });
+    }
+
+    const rdId = rdResult.rows[0].id;
+
     const verifyResult = await query(
       `SELECT 1 FROM dietbyrd_consultations 
        WHERE registered_patient_id = $1 
-       AND rd_id = (SELECT id FROM dietbyrd_registered_dietitians WHERE user_id = $2 LIMIT 1) 
+       AND rd_id = $2 
        AND status IN ('confirmed', 'in_progress', 'completed') 
        LIMIT 1`,
-      [patientId, auth.userId]
+      [patientId, rdId]
     );
 
     if (verifyResult.rows.length === 0) {
@@ -7943,12 +7952,22 @@ app.patch("/api/dietitians/patients/:patientId/improvement-score", async (req, r
       [score, auth.userId, patientId]
     );
 
-    res.json({ success: true, data: updateResult.rows[0] });
+    const updated = updateResult.rows[0];
+    res.json({
+      success: true,
+      data: {
+        score: updated.improvement_score,
+        updated_at: updated.improvement_updated_at,
+      },
+    });
   } catch (err) {
     console.error("[PATCH /dietitian/patients/:id/improvement-score] Error:", err);
     res.status(500).json({ error: "Failed to update improvement score" });
   }
-});
+};
+
+app.patch("/api/dietitian/patients/:patientId/improvement-score", updatePatientImprovementScoreHandler);
+app.patch("/api/dietitians/patients/:patientId/improvement-score", updatePatientImprovementScoreHandler);
 
 // 404 handler
 app.use((_req, res) => {

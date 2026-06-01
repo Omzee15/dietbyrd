@@ -779,9 +779,8 @@ const PatientDetail = () => {
                     try {
                       await updatePatientImprovementScore(patient.id, Number(value));
                       queryClient.invalidateQueries({ queryKey: ["patient", patient.id] });
-                      toast.success('Improvement score updated');
                     } catch (err) {
-                      toast.error('Failed to update score');
+                      console.error("Failed to update improvement score", err);
                     }
                   }}
                 >

@@ -94,8 +94,8 @@ export const updatePatient = (id: number, data: Partial<Patient>) =>
   request<Patient>(`/patients/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 
 export const updatePatientImprovementScore = (patientId: number, score: number) =>
-  request<{ success: boolean; data: { improvement_score: number; improvement_updated_at: string } }>(
-    `/dietitians/patients/${patientId}/improvement-score`,
+  request<{ score: number; updated_at: string }>(
+    `/dietitian/patients/${patientId}/improvement-score`,
     { 
       method: "PATCH", 
       headers: { ...getStoredAuthHeaders(), "Content-Type": "application/json" },
@@ -117,6 +117,7 @@ export interface DoctorPatientSummary {
   payment_status: "paid" | "unpaid" | string;
   consultation_status: "booked" | "completed" | "not_yet" | string;
   improvement_score?: number;
+  improvement_updated_at?: string;
 }
 
 export const getDoctorPatients = () =>
