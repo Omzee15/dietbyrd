@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,9 @@ const DieticianCalendarSchedule = ({
   const [leaveDialog, setLeaveDialog] = useState(false);
   const [leaveDate, setLeaveDate] = useState("");
   const [leaveReason, setLeaveReason] = useState("");
+  const [leaveType, setLeaveType] = useState<"full_day" | "time_slot">("full_day");
+  const [leaveStartTime, setLeaveStartTime] = useState("");
+  const [leaveEndTime, setLeaveEndTime] = useState("");
   const [showLeaveList, setShowLeaveList] = useState(false);
   const queryClient = useQueryClient();
 
@@ -95,13 +99,22 @@ const DieticianCalendarSchedule = ({
   }, [blockedSlots]);
 
   const addLeaveMutation = useMutation({
-    mutationFn: () => addBlockedSlot(dieticianId!, { blocked_date: leaveDate, reason: leaveReason || undefined }),
+    mutationFn: () =>
+      addBlockedSlot(dieticianId!, {
+        blocked_date: leaveDate,
+        reason: leaveReason || undefined,
+        start_time: leaveType === "time_slot" ? leaveStartTime : undefined,
+        end_time: leaveType === "time_slot" ? leaveEndTime : undefined,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dietician-blocked-slots", dieticianId] });
       toast.success("Leave marked successfully");
       setLeaveDialog(false);
       setLeaveDate("");
       setLeaveReason("");
+      setLeaveType("full_day");
+      setLeaveStartTime("");
+      setLeaveEndTime("");
     },
     onError: (err: Error) => toast.error(err.message || "Failed to mark leave"),
   });
@@ -119,6 +132,16 @@ const DieticianCalendarSchedule = ({
     if (!leaveReason.trim()) {
       toast.error("Please enter a reason for the leave");
       return;
+    }
+    if (leaveType === "time_slot") {
+      if (!leaveStartTime || !leaveEndTime) {
+        toast.error("Please select both start and end times");
+        return;
+      }
+      if (leaveStartTime >= leaveEndTime) {
+        toast.error("End time must be after start time");
+        return;
+      }
     }
     addLeaveMutation.mutate();
   };
@@ -245,12 +268,19 @@ const DieticianCalendarSchedule = ({
             <CalendarDays className="w-4 h-4 mr-2" />
             Calendar
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-orange-600 border-orange-200 hover:bg-orange-50"
-            onClick={() => { setLeaveDate(""); setLeaveReason(""); setLeaveDialog(true); }}
-          >
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-orange-600 border-orange-200 hover:bg-orange-50"
+              onClick={() => {
+                setLeaveDate("");
+                setLeaveReason("");
+                setLeaveType("full_day");
+                setLeaveStartTime("");
+                setLeaveEndTime("");
+                setLeaveDialog(true);
+              }}
+            >
             <BanIcon className="w-4 h-4 mr-2" />
             Mark Leave
           </Button>
@@ -709,6 +739,45 @@ const DieticianCalendarSchedule = ({
               />
             </div>
             <div className="space-y-2">
+              <Label>Leave Type</Label>
+              <RadioGroup value={leaveType} onValueChange={(value) => setLeaveType(value as "full_day" | "time_slot")}>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="full_day" id="leave_full_day" />
+                  <Label htmlFor="leave_full_day">Full day</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="time_slot" id="leave_time_slot" />
+                  <Label htmlFor="leave_time_slot">Specific time slot</Label>
+                </div>
+              </RadioGroup>
+            </div>
+            {leaveType === "time_slot" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>
+                    From <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    type="time"
+                    value={leaveStartTime}
+                    onChange={(e) => setLeaveStartTime(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>
+                    To <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    type="time"
+                    value={leaveEndTime}
+                    onChange={(e) => setLeaveEndTime(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            )}
+            <div className="space-y-2">
               <Label>Reason <span style={{ color: "var(--red)" }}>*</span></Label>
               <Input
                 placeholder="e.g. Personal, Travel, Sick leave"
@@ -749,6 +818,13 @@ const DieticianCalendarSchedule = ({
                 <div key={slot.id} className="flex items-center justify-between p-3 bg-orange-50 border border-orange-100 rounded-lg">
                   <div>
                     <p className="text-sm font-medium">{dateLabel}</p>
+                    {slot.start_time && slot.end_time ? (
+                      <p className="text-xs text-muted-foreground">
+                        {slot.start_time} – {slot.end_time}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Full day</p>
+                    )}
                     {slot.reason && <p className="text-xs text-muted-foreground">{slot.reason}</p>}
                   </div>
                   <Button

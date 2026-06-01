@@ -3329,7 +3329,9 @@ app.get("/api/dieticians/all-available-slots", async (req, res) => {
         const dayOfWeek = currentDate.getDay();
         const dateStr = formatDateStr(currentDate);
 
-        const dayBlocked = blockedResult.rows.find((b) => b.blocked_date_str === dateStr && !b.start_time);
+        const dayBlocked = blockedResult.rows.find(
+          (b) => b.blocked_date_str === dateStr && !b.start_time && !b.end_time
+        );
         if (dayBlocked) { currentDate.setDate(currentDate.getDate() + 1); continue; }
 
         const dayAvailability = availabilityResult.rows.filter((a) => a.day_of_week === dayOfWeek);
@@ -3354,7 +3356,7 @@ app.get("/api/dieticians/all-available-slots", async (req, res) => {
             if (bookedSlots.has(slotDatetime)) { slotMinutes += slotDuration; continue; }
 
             const timeBlocked = blockedResult.rows.find((b) => {
-              if (b.blocked_date_str !== dateStr || !b.start_time) return false;
+              if (b.blocked_date_str !== dateStr || !b.start_time || !b.end_time) return false;
               const blockStart = b.start_time.split(":").map(Number);
               const blockEnd = b.end_time.split(":").map(Number);
               const slotTimeNum = slotHour * 60 + slotMin;
@@ -5263,7 +5265,7 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
 
       // Check if this day is completely blocked
       const dayBlocked = blockedResult.rows.find(
-        b => b.blocked_date_str === dateStr && !b.start_time
+        b => b.blocked_date_str === dateStr && !b.start_time && !b.end_time
       );
       if (dayBlocked) {
         currentDate.setDate(currentDate.getDate() + 1);
@@ -5306,7 +5308,7 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
           // Check if slot is in a blocked time range for this specific date
           const timeBlocked = blockedResult.rows.find(b => {
             if (b.blocked_date_str !== dateStr) return false;
-            if (!b.start_time) return false;
+            if (!b.start_time || !b.end_time) return false;
             const blockStart = b.start_time.split(":").map(Number);
             const blockEnd = b.end_time.split(":").map(Number);
             const slotTimeNum = slotHour * 60 + slotMin;
@@ -5720,6 +5722,19 @@ app.post("/api/dieticians/:id/blocked-slots", async (req, res) => {
     if (!reason || !reason.trim()) {
       return res.status(400).json({
         error: "Reason is required"
+      });
+    }
+
+    const hasStart = !!start_time;
+    const hasEnd = !!end_time;
+    if (hasStart !== hasEnd) {
+      return res.status(400).json({
+        error: "Both start_time and end_time are required for a time slot leave"
+      });
+    }
+    if (hasStart && hasEnd && start_time >= end_time) {
+      return res.status(400).json({
+        error: "end_time must be after start_time"
       });
     }
 
