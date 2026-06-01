@@ -2757,83 +2757,197 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
 });
 
 app.delete("/api/patients/:id(\\d+)", async (req, res) => {
+  let client;
   try {
     const { id } = req.params;
 
-    const patient = await query(
-      "SELECT user_id FROM dietbyrd_patients WHERE id = $1",
+    client = await getPool().connect();
+    const tableExists = async (tableName) => {
+      const result = await client.query("SELECT to_regclass($1) AS table_name", [tableName]);
+      return Boolean(result.rows[0]?.table_name);
+    };
+    const columnExists = async (tableName, columnName) => {
+      const result = await client.query(
+        `SELECT 1
+         FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = $1
+           AND column_name = $2`,
+        [tableName, columnName]
+      );
+      return result.rows.length > 0;
+    };
+    const queryIfTableExists = async (tableName, text, params = []) => {
+      if (await tableExists(tableName)) {
+        await client.query(text, params);
+      }
+    };
+
+    await client.query("BEGIN");
+
+    const patient = await client.query(
+      "SELECT user_id, phone FROM dietbyrd_patients WHERE id = $1 FOR UPDATE",
       [id]
     );
     if (patient.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ success: false, error: "Patient not found" });
     }
     const userId = patient.rows[0].user_id;
+    const patientPhone = patient.rows[0].phone;
 
-    // Get registered_patient row (may not exist)
-    const regResult = await query(
+    const regResult = await client.query(
       "SELECT id FROM dietbyrd_registered_patients WHERE patient_id = $1",
       [id]
     );
     const regId = regResult.rows[0]?.id ?? null;
 
+    await queryIfTableExists(
+      "patient_documents",
+      `DELETE FROM patient_documents
+       WHERE patient_profile_id = $1 OR patient_id = $2 OR uploaded_by = $2`,
+      [id, userId]
+    );
+
+    await queryIfTableExists(
+      "reviews",
+      "DELETE FROM reviews WHERE patient_id = $1",
+      [userId]
+    );
+
+    await queryIfTableExists(
+      "dietbyrd_doctor_commissions",
+      "DELETE FROM dietbyrd_doctor_commissions WHERE patient_id = $1",
+      [userId]
+    );
+
+    await queryIfTableExists(
+      "dietbyrd_appointments",
+      "DELETE FROM dietbyrd_appointments WHERE patient_id = $1",
+      [id]
+    );
+
     if (regId) {
       // Delete consultation notes first (deepest child)
-      await query(
+      await client.query(
         `DELETE FROM dietbyrd_consultation_notes
          WHERE consultation_id IN (
            SELECT id FROM dietbyrd_consultations WHERE registered_patient_id = $1
          )`,
         [regId]
       );
-      // Delete consultations
-      await query(
-        "DELETE FROM dietbyrd_consultations WHERE registered_patient_id = $1",
+      await queryIfTableExists(
+        "dietbyrd_documents",
+        "DELETE FROM dietbyrd_documents WHERE registered_patient_id = $1",
         [regId]
       );
       // Delete diet plans
-      await query(
+      await client.query(
         "DELETE FROM dietbyrd_diet_plans WHERE registered_patient_id = $1",
         [regId]
       );
+      // Delete consultations
+      await client.query(
+        "DELETE FROM dietbyrd_consultations WHERE registered_patient_id = $1",
+        [regId]
+      );
       // Delete subscriptions if table exists
-      await query(
+      await queryIfTableExists(
+        "dietbyrd_subscriptions",
         "DELETE FROM dietbyrd_subscriptions WHERE registered_patient_id = $1",
         [regId]
-      ).catch(() => { }); // ignore if table doesn't exist
+      );
+      await queryIfTableExists(
+        "dietbyrd_payments",
+        `UPDATE dietbyrd_payments
+         SET patient_id = NULL,
+             registered_patient_id = NULL,
+             subscription_id = NULL
+         WHERE patient_id = $1 OR registered_patient_id = $2`,
+        [id, regId]
+      );
     }
 
-    // Delete ticket comments → tickets
-    await query(
+    // Delete ticket comments before tickets.
+    await queryIfTableExists(
+      "dietbyrd_ticket_comments",
       `DELETE FROM dietbyrd_ticket_comments
-       WHERE ticket_id IN (SELECT id FROM dietbyrd_tickets WHERE patient_id = $1)`,
-      [id]
+       WHERE user_id = $2
+          OR ticket_id IN (
+            SELECT id FROM dietbyrd_tickets
+            WHERE patient_id = $1 OR created_by = $2
+          )`,
+      [id, userId]
     );
-    await query("DELETE FROM dietbyrd_tickets WHERE patient_id = $1", [id]);
+    await queryIfTableExists(
+      "dietbyrd_tickets",
+      "DELETE FROM dietbyrd_tickets WHERE patient_id = $1 OR created_by = $2",
+      [id, userId]
+    );
 
     // Delete referrals
-    await query("DELETE FROM dietbyrd_referrals WHERE patient_id = $1", [id]);
+    await client.query("DELETE FROM dietbyrd_referrals WHERE patient_id = $1", [id]);
 
-    // Delete coupon usage (payments table itself is kept — it has ON DELETE SET NULL)
-    await query("DELETE FROM dietbyrd_coupon_usage WHERE patient_id = $1", [id]).catch(() => { });
+    // Delete coupon usage; payment rows are kept with patient FKs cleared.
+    await queryIfTableExists(
+      "dietbyrd_razorpay_payments",
+      "DELETE FROM dietbyrd_razorpay_payments WHERE patient_id = $1",
+      [id]
+    );
+
+    await queryIfTableExists(
+      "dietbyrd_coupon_usage",
+      "DELETE FROM dietbyrd_coupon_usage WHERE patient_id = $1 OR user_id = $2",
+      [id, userId]
+    );
 
     // Delete registered_patient row (payments FK already SET NULL)
     if (regId) {
-      await query("DELETE FROM dietbyrd_registered_patients WHERE id = $1", [regId]);
+      await client.query("DELETE FROM dietbyrd_registered_patients WHERE id = $1", [regId]);
     }
 
     // Delete patient (payments FK already SET NULL)
-    await query("DELETE FROM dietbyrd_patients WHERE id = $1", [id]);
+    await client.query("DELETE FROM dietbyrd_patients WHERE id = $1", [id]);
 
     // Delete OTPs and user account
     if (userId) {
-      await query("DELETE FROM dietbyrd_otps WHERE user_id = $1", [userId]);
-      await query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
+      if (await tableExists("dietbyrd_otps")) {
+        const hasOtpPhone = await columnExists("dietbyrd_otps", "phone");
+        const hasOtpUserId = await columnExists("dietbyrd_otps", "user_id");
+        if (hasOtpPhone && patientPhone) {
+          await client.query("DELETE FROM dietbyrd_otps WHERE phone = $1", [patientPhone]);
+        }
+        if (hasOtpUserId) {
+          await client.query("DELETE FROM dietbyrd_otps WHERE user_id = $1", [userId]);
+        }
+      }
+      await queryIfTableExists(
+        "dietbyrd_join_request_messages",
+        "DELETE FROM dietbyrd_join_request_messages WHERE recipient_user_id = $1 OR sender_id = $1",
+        [userId]
+      );
+      await queryIfTableExists(
+        "dietbyrd_join_requests",
+        "UPDATE dietbyrd_join_requests SET user_id = NULL WHERE user_id = $1",
+        [userId]
+      );
+      await client.query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
     }
 
+    await client.query("COMMIT");
     res.json({ success: true, message: "Patient deleted successfully" });
   } catch (err) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("[delete patient] Rollback error:", rollbackErr.message);
+      }
+    }
     console.error("[delete patient] Error:", err.message);
     res.status(500).json({ success: false, error: err.message });
+  } finally {
+    if (client) client.release();
   }
 });
 
