@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { getPatients, getDoctors, getDieticians, getAnalytics, getReferrals, assignDietician, getJoinRequests, Patient, Doctor, Dietician, Referral } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +21,17 @@ interface PatientWithReferral extends Patient {
   referredBy?: string;
   dietician?: string;
   dieticianId?: number | null;
+}
+
+interface AdminDoctorAssistant {
+  id: number;
+  user_id: number | null;
+  doctor_id: number;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  is_active: boolean;
+  created_at: string;
 }
 
 const PATIENT_PROGRESS_STEPS = [
@@ -57,6 +69,7 @@ const AdminDashboard = () => {
   const [dieticianSearch, setDieticianSearch] = useState("");
   const [commissionDrafts, setCommissionDrafts] = useState<Record<number, string>>({});
   const [savingCommissionId, setSavingCommissionId] = useState<number | null>(null);
+  const [selectedAssistantDoctorId, setSelectedAssistantDoctorId] = useState<number | null>(null);
 
   // Patient list filter state
   const [referredByFilter, setReferredByFilter] = useState<string>("all");
@@ -107,6 +120,28 @@ const AdminDashboard = () => {
   const { data: doctors = [], isLoading: doctorsLoading } = useQuery({
     queryKey: ["doctors"],
     queryFn: getDoctors,
+  });
+
+  const { data: selectedDoctorAssistants = [], isLoading: assistantsLoading, isError: assistantsError } = useQuery({
+    queryKey: ["adminDoctorAssistants", selectedAssistantDoctorId],
+    queryFn: async () => {
+      if (!user || !selectedAssistantDoctorId) return [];
+
+      const response = await fetch(`/api/admin/doctors/${selectedAssistantDoctorId}/assistants`, {
+        headers: {
+          "x-user-id": String(user.id),
+          "x-user-role": String(user.role),
+        },
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || "Failed to load doctor assistants");
+      }
+
+      return data.data as AdminDoctorAssistant[];
+    },
+    enabled: !!user && !!selectedAssistantDoctorId,
   });
 
   const { data: dieticians = [], isLoading: dieticiansLoading } = useQuery({
@@ -723,7 +758,10 @@ const AdminDashboard = () => {
                           d.qualification.toLowerCase().includes(s)
                         );
                       }).map((d) => (
-                        <div key={d.id} className="bg-card border rounded-2xl p-5">
+                        <div
+                          key={d.id}
+                          className={`bg-card border rounded-2xl p-5 ${selectedAssistantDoctorId === d.id ? "md:col-span-2 lg:col-span-3" : ""}`}
+                        >
                           <div className="flex items-start gap-3">
                             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
                               {d.name.split(" ").slice(0, 2).map((n) => n[0]).join("")}
@@ -783,6 +821,69 @@ const AdminDashboard = () => {
                                 </Button>
                               </div>
                             </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[11px]">Assistants</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-[11px]"
+                                onClick={() =>
+                                  setSelectedAssistantDoctorId((current) => current === d.id ? null : d.id)
+                                }
+                              >
+                                {selectedAssistantDoctorId === d.id ? "Hide" : "View"}
+                              </Button>
+                            </div>
+                            {selectedAssistantDoctorId === d.id && (
+                              <div className="mt-3 rounded-lg border bg-background p-3">
+                                <div className="mb-3">
+                                  <div className="text-sm font-semibold text-foreground">Assistants</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    People who have access to this doctor's portal
+                                  </div>
+                                </div>
+                                {assistantsLoading ? (
+                                  <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Loading assistants...
+                                  </div>
+                                ) : assistantsError ? (
+                                  <p className="py-4 text-sm text-destructive">Failed to load assistants.</p>
+                                ) : selectedDoctorAssistants.length === 0 ? (
+                                  <p className="py-4 text-sm text-muted-foreground">No assistants assigned</p>
+                                ) : (
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Name</TableHead>
+                                        <TableHead>Phone</TableHead>
+                                        <TableHead>Email</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>Joined</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {selectedDoctorAssistants.map((assistant) => (
+                                        <TableRow key={assistant.id}>
+                                          <TableCell className="font-medium">{assistant.name}</TableCell>
+                                          <TableCell>{assistant.phone || "Not provided"}</TableCell>
+                                          <TableCell>{assistant.email || "Not provided"}</TableCell>
+                                          <TableCell>
+                                            <Badge
+                                              variant="outline"
+                                              className={assistant.is_active ? "text-success border-success/30" : "text-muted-foreground"}
+                                            >
+                                              {assistant.is_active ? "Active" : "Inactive"}
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell>{new Date(assistant.created_at).toLocaleDateString()}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}

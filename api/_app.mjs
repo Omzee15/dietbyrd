@@ -720,6 +720,7 @@ const query = async (text, params) => {
 
 const ADMIN_JOIN_REQUEST_ROLES = ["ops_manager", "mlt_intern", "founder", "tech_lead"];
 const ADMIN_COMMISSION_ROLES = ["ops_manager", "founder", "tech_lead"];
+const ADMIN_DOCTOR_ASSISTANT_ROLES = ["admin", "ops_manager", "founder", "tech_lead", "mlt_intern"];
 const JOIN_REQUEST_RECIPIENT_ROLES = ["doctor", "rd"];
 
 const getAuthContextFromHeaders = async (req) => {
@@ -4339,6 +4340,51 @@ app.get("/api/doctors/:id/assistants", async (req, res) => {
     );
     res.json({ success: true, data: result.rows });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/admin/doctors/:doctorId/assistants", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    if (!ADMIN_DOCTOR_ASSISTANT_ROLES.includes(auth.role)) {
+      return res.status(403).json({ success: false, error: "Not authorized" });
+    }
+
+    const doctorId = parseInt(String(req.params.doctorId), 10);
+    if (!Number.isInteger(doctorId)) {
+      return res.status(400).json({ success: false, error: "Invalid doctor id" });
+    }
+
+    const doctorResult = await query("SELECT id FROM dietbyrd_doctors WHERE id = $1", [doctorId]);
+    if (doctorResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Doctor not found" });
+    }
+
+    const result = await query(
+      `SELECT
+        a.id,
+        a.user_id,
+        a.doctor_id,
+        COALESCE(u.name, a.name) AS name,
+        u.phone,
+        u.email,
+        COALESCE(u.is_active, true) AS is_active,
+        a.created_at
+      FROM dietbyrd_assistants a
+      LEFT JOIN dietbyrd_users u ON a.user_id = u.id
+      WHERE a.doctor_id = $1
+      ORDER BY a.created_at DESC`,
+      [doctorId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("[admin/doctors/assistants] Error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
