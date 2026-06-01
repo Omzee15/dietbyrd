@@ -3244,6 +3244,7 @@ app.get("/api/dieticians", async (req, res) => {
       FROM dietbyrd_registered_dietitians rd
       LEFT JOIN dietbyrd_users u ON rd.user_id = u.id
       LEFT JOIN dietbyrd_registered_patients rp ON rp.assigned_rd_id = rd.id
+      WHERE rd.is_active = true
       GROUP BY rd.id, u.phone, u.is_active
       ORDER BY rd.created_at DESC`
     );
@@ -3397,40 +3398,132 @@ app.get("/api/dieticians/:id", async (req, res) => {
 });
 
 app.delete("/api/dieticians/:id", async (req, res) => {
+  let client;
   try {
     const { id } = req.params;
-    const dietician = await query(
-      "SELECT user_id FROM dietbyrd_registered_dietitians WHERE id = $1",
+
+    client = await getPool().connect();
+    const tableExists = async (tableName) => {
+      const result = await client.query("SELECT to_regclass($1) AS table_name", [tableName]);
+      return Boolean(result.rows[0]?.table_name);
+    };
+    const columnIsNullable = async (tableName, columnName) => {
+      const result = await client.query(
+        `SELECT is_nullable
+         FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = $1
+           AND column_name = $2`,
+        [tableName, columnName]
+      );
+      return result.rows[0]?.is_nullable === "YES";
+    };
+    const queryIfTableExists = async (tableName, text, params = []) => {
+      if (await tableExists(tableName)) {
+        await client.query(text, params);
+      }
+    };
+
+    await client.query("BEGIN");
+
+    const dietician = await client.query(
+      "SELECT user_id FROM dietbyrd_registered_dietitians WHERE id = $1 FOR UPDATE",
       [id]
     );
     if (dietician.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ success: false, error: "Dietician not found" });
     }
     const userId = dietician.rows[0].user_id;
-    await query("BEGIN");
-    // Unassign from pending consultations before deleting
-    await query(
-      "UPDATE dietbyrd_consultations SET rd_id = NULL WHERE rd_id = $1 AND status = 'scheduled'",
+
+    await queryIfTableExists(
+      "dietbyrd_registered_patients",
+      "UPDATE dietbyrd_registered_patients SET assigned_rd_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE assigned_rd_id = $1",
       [id]
     );
-    await query("DELETE FROM dietbyrd_registered_dietitians WHERE id = $1", [id]);
+
+    await queryIfTableExists(
+      "dietbyrd_dietician_blocked_slots",
+      "DELETE FROM dietbyrd_dietician_blocked_slots WHERE rd_id = $1",
+      [id]
+    );
+    await queryIfTableExists(
+      "dietbyrd_dietician_availability",
+      "DELETE FROM dietbyrd_dietician_availability WHERE rd_id = $1",
+      [id]
+    );
+
+    if (await tableExists("dietbyrd_consultations") && await columnIsNullable("dietbyrd_consultations", "rd_id")) {
+      await client.query(
+        "UPDATE dietbyrd_consultations SET rd_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE rd_id = $1",
+        [id]
+      );
+    }
+    if (await tableExists("dietbyrd_diet_plans") && await columnIsNullable("dietbyrd_diet_plans", "rd_id")) {
+      await client.query(
+        "UPDATE dietbyrd_diet_plans SET rd_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE rd_id = $1",
+        [id]
+      );
+    }
+
+    let deletedDietician = false;
+    await client.query("SAVEPOINT delete_dietician_row");
+    try {
+      const deleteResult = await client.query(
+        "DELETE FROM dietbyrd_registered_dietitians WHERE id = $1",
+        [id]
+      );
+      deletedDietician = deleteResult.rowCount > 0;
+      await client.query("RELEASE SAVEPOINT delete_dietician_row");
+    } catch (deleteErr) {
+      if (deleteErr.code !== "23503") {
+        throw deleteErr;
+      }
+      await client.query("ROLLBACK TO SAVEPOINT delete_dietician_row");
+      await client.query(
+        "UPDATE dietbyrd_registered_dietitians SET is_active = false, user_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+        [id]
+      );
+      await client.query("RELEASE SAVEPOINT delete_dietician_row");
+    }
+
     if (userId) {
-      await query(
+      await queryIfTableExists(
+        "dietbyrd_join_request_messages",
         "DELETE FROM dietbyrd_join_request_messages WHERE recipient_user_id = $1 OR sender_id = $1",
         [userId]
       );
-      await query("DELETE FROM dietbyrd_join_requests WHERE user_id = $1", [userId]);
-      await query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
+      await queryIfTableExists(
+        "dietbyrd_join_requests",
+        "UPDATE dietbyrd_join_requests SET user_id = NULL WHERE user_id = $1",
+        [userId]
+      );
+      await queryIfTableExists(
+        "dietbyrd_tickets",
+        "UPDATE dietbyrd_tickets SET assigned_to = NULL WHERE assigned_to = $1",
+        [userId]
+      );
+      await client.query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
     }
-    await query("COMMIT");
-    res.json({ success: true, message: "Dietician deleted successfully" });
+
+    await client.query("COMMIT");
+    res.json({
+      success: true,
+      message: "Dietician deleted successfully",
+      deleted: deletedDietician,
+    });
   } catch (err) {
-    try {
-      await query("ROLLBACK");
-    } catch {
-      // Ignore rollback errors
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("[delete dietician] Rollback error:", rollbackErr.message);
+      }
     }
+    console.error("[delete dietician] Error:", err.message);
     res.status(500).json({ success: false, error: err.message });
+  } finally {
+    if (client) client.release();
   }
 });
 
