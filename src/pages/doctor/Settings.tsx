@@ -20,7 +20,7 @@ const DoctorSettings = () => {
     {
       title: "Workspace",
       items: [
-        { label: "Refer Patient", href: "/doctor", icon: UserPlus },
+        { label: "Help a Patient", href: "/doctor", icon: UserPlus },
         { label: "My Patients", href: "/doctor/patients", icon: Users },
         { label: "Analytics", href: "/doctor/analytics", icon: BarChart3 },
       ],
@@ -82,7 +82,7 @@ const DoctorSettings = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-medium text-sm">Referral Updates</div>
+                  <div className="font-medium text-sm">Patient Help Updates</div>
                   <div className="text-xs text-muted-foreground">Get notified when patients are assigned</div>
                 </div>
                 <Switch defaultChecked />

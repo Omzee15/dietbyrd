@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { UserPlus, Users, BarChart3, MessageCircle, FileText, Send, Search, ArrowLeft, X, IndianRupee, TrendingUp, Loader2, LogOut, Settings, ChevronDown, UserCheck, Plus, Trash2, Shield } from "lucide-react";
+import { UserPlus, Users, BarChart3, MessageCircle, FileText, Search, ArrowLeft, X, IndianRupee, TrendingUp, Loader2, LogOut, Settings, ChevronDown, UserCheck, Plus, Trash2, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,12 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { getDoctorReferrals, getDoctor, getDoctorStats, getDoctorAssistants, createAssistant, deleteAssistant, createReferral, lookupPhoneNumber, getDoctorPatients, Referral, DoctorPatientSummary } from "@/lib/api";
+import { getDoctorReferrals, getDoctor, getDoctorStats, getDoctorAssistants, createAssistant, deleteAssistant, getDoctorPatients, getMe, MeUser, Referral, DoctorPatientSummary } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-
-const diagnosisOptions = [
-  "diabetes", "pcos", "thyroid", "hypertension", "obesity", "other"
-];
 
 // Phone validation: 10 digits, starts with 6-9 (Indian mobile format)
 const isValidIndianPhone = (phone: string): boolean => {
@@ -50,32 +46,10 @@ const formatDateValue = (value?: string | null): string => {
   return Number.isNaN(parsedDate.getTime()) ? "—" : parsedDate.toLocaleDateString();
 };
 
-const formatCommissionDate = (value?: string | null): string => formatDateValue(value);
-
-const formatRupees = (value: number | string | null | undefined): string => {
-  const numeric = Number(value || 0);
-  if (!Number.isFinite(numeric)) return "₹0.00";
-  return `₹${numeric.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
-
 type ActiveView = "refer" | "patients" | "admin" | "assistants";
 
 interface DoctorDashboardProps {
   defaultTab?: ActiveView;
-}
-
-interface DoctorCommission {
-  id: number;
-  doctor_id: number;
-  patient_id: number;
-  patient_name?: string | null;
-  payment_id: string;
-  payment_amount: number;
-  commission_percent: number;
-  commission_amount: number;
-  status: "pending" | "paid" | "void" | string;
-  created_at: string;
-  paid_at?: string | null;
 }
 
 const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
@@ -83,19 +57,14 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
-  const [diagnosis, setDiagnosis] = useState(diagnosisOptions[0]);
   const [activeView, setActiveView] = useState<ActiveView>(defaultTab);
   const [selectedPatient, setSelectedPatient] = useState<Referral | null>(null);
   const [patientSearch, setPatientSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "unpaid">("all");
+  const [userChip, setUserChip] = useState<MeUser | "loading" | "error">("loading");
   
   // Check if current user is an assistant (not a doctor)
   const isAssistant = user?.role === "assistant";
-  
-  // Form state
-  const [patientName, setPatientName] = useState("");
-  const [patientPhone, setPatientPhone] = useState("");
-  const [clinicalNotes, setClinicalNotes] = useState("");
   
   // Assistant management state (only for doctors)
   const [newAssistantName, setNewAssistantName] = useState("");
@@ -105,20 +74,6 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
   
   // For assistants, get the doctor ID from user.doctorId, for doctors use profileId
   const doctorId = isAssistant ? user?.doctorId : user?.profileId;
-
-  const { data: phoneSuggestions = [] } = useQuery({
-    queryKey: ["phone-lookup", patientPhone],
-    queryFn: () => lookupPhoneNumber(patientPhone),
-    enabled: patientPhone.length === 10 && isValidIndianPhone(patientPhone),
-    staleTime: 30000,
-  });
-
-  const isExistingPatient = phoneSuggestions.some((patient) => patient.phone === patientPhone);
-  
-  const handlePhoneChange = (value: string) => {
-    const formatted = formatPhoneForDisplay(value);
-    setPatientPhone(formatted);
-  };
 
   // Sync activeView with URL
   useEffect(() => {
@@ -133,6 +88,31 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
     }
   }, [location.pathname]);
 
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const timeout = setTimeout(() => {
+      if (!cancelled) setUserChip("error");
+    }, 5000);
+
+    getMe()
+      .then((me) => {
+        if (cancelled) return;
+        clearTimeout(timeout);
+        setUserChip(me);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        clearTimeout(timeout);
+        setUserChip("error");
+      });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [user]);
+
   // Get current doctor from auth (for assistants, use doctorId to get their linked doctor)
   const { data: currentDoctor, isLoading: doctorLoading } = useQuery({
     queryKey: ["doctor", doctorId],
@@ -140,7 +120,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
     enabled: !!doctorId,
   });
 
-  // Fetch stats for the doctor (total referred, onboarded, commission)
+  // Fetch stats for the doctor (Patients Helped, onboarded, commission)
   const { data: doctorStats } = useQuery({
     queryKey: ["doctorStats", currentDoctor?.id],
     queryFn: () => getDoctorStats(currentDoctor!.id),
@@ -166,88 +146,6 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
     queryFn: getDoctorPatients,
     enabled: !!user,
   });
-
-  const { data: commissions = [], isLoading: commissionsLoading } = useQuery({
-    queryKey: ["doctorCommissions"],
-    queryFn: async (): Promise<DoctorCommission[]> => {
-      const response = await fetch("/api/me/commissions?status=all", {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || "Failed to load commissions");
-      }
-      const data = await response.json();
-      if (Array.isArray(data)) return data as DoctorCommission[];
-      if (Array.isArray(data?.commissions)) return data.commissions as DoctorCommission[];
-      return [];
-    },
-    enabled: !!user && !isAssistant,
-  });
-
-  const commissionTotals = useMemo(() => {
-    let pending = 0;
-    let paid = 0;
-    commissions.forEach((commission) => {
-      const amount = Number(commission.commission_amount || 0);
-      if (!Number.isFinite(amount)) return;
-      const status = (commission.status || "").toLowerCase();
-      if (status === "paid") {
-        paid += amount;
-      } else if (status === "pending") {
-        pending += amount;
-      }
-    });
-    return { pending, paid };
-  }, [commissions]);
-
-  const recentCommissions = useMemo(() => commissions.slice(0, 10), [commissions]);
-
-  // Create referral mutation
-  const createReferralMutation = useMutation({
-    mutationFn: createReferral,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["doctorReferrals"] });
-      queryClient.invalidateQueries({ queryKey: ["referrals"] });
-      queryClient.invalidateQueries({ queryKey: ["patients"] });
-
-      if (data?.referral_sms?.sent) {
-        const referredPatientName = data.patient_name?.trim() || patientName.trim() || "patient";
-        toast.success(`Onboarding message to the ${referredPatientName} sent.`);
-      }
-      
-      if (data?.is_new_patient) {
-        toast.success("New patient referred! Registration link has been sent.");
-      } else {
-        toast.success("Patient referred successfully!");
-      }
-      
-      setPatientName("");
-      setPatientPhone("");
-      setClinicalNotes("");
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to create referral");
-    },
-  });
-
-  const handleSubmitReferral = () => {
-    if (!patientPhone || !currentDoctor?.id) {
-      toast.error("Please enter patient phone number");
-      return;
-    }
-    if (!isValidIndianPhone(patientPhone)) {
-      toast.error("Please enter a valid 10-digit Indian mobile number starting with 6-9");
-      return;
-    }
-    createReferralMutation.mutate({
-      patient_name: patientName,
-      phone: patientPhone,
-      diagnosis,
-      diagnosis_description: clinicalNotes,
-      doctor_id: currentDoctor.id,
-    });
-  };
 
   const filteredDoctorPatients = useMemo(() => {
     const query = patientSearch.trim().toLowerCase();
@@ -332,7 +230,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
     {
       title: "Workspace",
       items: [
-        { label: "Refer Patient", href: "/doctor", icon: UserPlus },
+        { label: "Help a Patient", href: "/doctor", icon: UserPlus },
         { label: "My Patients", href: "/doctor/patients", icon: Users, badge: referrals.length },
         // Only show for doctors, not assistants
         ...(!isAssistant ? [
@@ -422,9 +320,22 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 hover:bg-muted rounded-lg px-2 py-1.5 transition-colors">
                 <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
-                  {(isAssistant ? user?.name : currentDoctor?.name)?.split(" ").slice(0, 2).map((n: string) => n[0]).join("") || "DR"}
+                  {userChip === "loading" || userChip === "error"
+                    ? "DR"
+                    : (userChip.name || "")
+                        .split(" ")
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map((n) => n[0])
+                        .join("") || "DR"}
                 </div>
-                <span className="text-sm font-medium">{isAssistant ? user?.name : currentDoctor?.name || "Loading..."}</span>
+                <span className="text-sm font-medium">
+                  {userChip === "loading"
+                    ? "Loading..."
+                    : userChip === "error"
+                      ? "—"
+                      : userChip.name || userChip.email || userChip.phone || "—"}
+                </span>
                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
               </button>
             </DropdownMenuTrigger>
@@ -466,7 +377,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                           {selectedPatient.patient_phone} · {selectedPatient.age || "?"} yrs · {selectedPatient.gender || "Unknown"}
                         </div>
                         <Badge variant="outline" className="mt-1 bg-info/10 text-info border-info/20">
-                          Referred
+                          Helped
                         </Badge>
                       </div>
                     </div>
@@ -477,7 +388,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     {[
                       { label: "Diagnosis", value: selectedPatient.diagnosis || "Not specified" },
-                      { label: "Referred On", value: formatReferralDate(selectedPatient) },
+                      { label: "Helped On", value: formatReferralDate(selectedPatient) },
                       { label: "Source", value: selectedPatient.source || "Doctor Portal" },
                     ].map((item) => (
                       <div key={item.label} className="bg-muted/50 rounded-xl p-4">
@@ -496,7 +407,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
               </div>
             )}
 
-            {/* Refer Patient view */}
+            {/* Help Patient view */}
             {!selectedPatient && activeView === "refer" && (
               <div className="p-6 space-y-6">
                 {/* Stats Summary Cards */}
@@ -539,165 +450,11 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                   )}
                 </div>
 
-                {!isAssistant && (
-                  <div className="bg-card rounded-xl border p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-lg font-semibold">Earnings</h2>
-                        <p className="text-sm text-muted-foreground mt-1">Last 10 commission entries</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-6 mt-4">
-                      <div
-                        className="text-[32px] font-bold tracking-tight"
-                        style={{ fontFamily: "'Playfair Display', serif" }}
-                      >
-                        Pending: {formatRupees(commissionTotals.pending)}
-                      </div>
-                      <div
-                        className="text-[32px] font-bold tracking-tight"
-                        style={{ fontFamily: "'Playfair Display', serif" }}
-                      >
-                        Paid: {formatRupees(commissionTotals.paid)}
-                      </div>
-                    </div>
-                    <div className="mt-6 border rounded-lg overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
-                            <th className="text-left p-3 font-semibold">Patient</th>
-                            <th className="text-left p-3 font-semibold">Payment date</th>
-                            <th className="text-right p-3 font-semibold">Amount</th>
-                            <th className="text-right p-3 font-semibold">Commission %</th>
-                            <th className="text-right p-3 font-semibold">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {commissionsLoading && (
-                            <tr>
-                              <td colSpan={5} className="p-6 text-center text-muted-foreground">
-                                Loading earnings...
-                              </td>
-                            </tr>
-                          )}
-                          {!commissionsLoading && recentCommissions.map((commission) => {
-                            const status = (commission.status || "pending").toLowerCase();
-                            const badgeLabel = status.charAt(0).toUpperCase() + status.slice(1);
-                            const badgeClass = status === "paid"
-                              ? "bg-teal-50 text-teal-700 border-teal-200"
-                              : status === "void"
-                                ? "bg-red-50 text-red-700 border-red-200"
-                                : "border-transparent";
-                            const badgeStyle = status === "pending"
-                              ? { backgroundColor: "var(--gold-l)", color: "var(--gold)" }
-                              : undefined;
-                            const paymentDate = commission.paid_at || commission.created_at;
-
-                            return (
-                              <tr key={commission.id} className="border-b last:border-0">
-                                <td className="p-3 font-medium">{commission.patient_name || "Unknown"}</td>
-                                <td className="p-3 text-muted-foreground">{formatCommissionDate(paymentDate)}</td>
-                                <td className="p-3 text-right">{formatRupees(commission.payment_amount)}</td>
-                                <td className="p-3 text-right">{commission.commission_percent || 0}%</td>
-                                <td className="p-3 text-right">
-                                  <Badge
-                                    variant="outline"
-                                    className={`text-xs capitalize ${badgeClass}`}
-                                    style={badgeStyle}
-                                  >
-                                    {badgeLabel}
-                                  </Badge>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                          {!commissionsLoading && recentCommissions.length === 0 && (
-                            <tr>
-                              <td colSpan={5} className="p-6 text-center text-muted-foreground">
-                                No earnings yet.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="px-0"
-                        onClick={() => navigate("/doctor/earnings")}
-                      >
-                        View all
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="bg-card rounded-xl p-6 border">
-                  <h2 className="text-lg font-semibold">Refer a Patient</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Enter patient details to create a referral. We'll handle the rest.</p>
-                  <div className="grid grid-cols-3 gap-4 mt-5">
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Patient Name</label>
-                      <Input 
-                        placeholder="e.g. Ananya Rao" 
-                        className="mt-1.5" 
-                        value={patientName}
-                        onChange={(e) => setPatientName(e.target.value.replace(/[^a-zA-Z\s.\-']/g, ""))}
-                      />
-                    </div>
-                    <div className="relative">
-                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Mobile Number *</label>
-                      <Input 
-                        placeholder="9876543210" 
-                        className={`mt-1.5 ${patientPhone && !isValidIndianPhone(patientPhone) ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                        value={patientPhone}
-                        onChange={(e) => handlePhoneChange(e.target.value)}
-                        maxLength={10}
-                      />
-                      {/* Validation */}
-                      {patientPhone && !isValidIndianPhone(patientPhone) && (
-                        <p className="text-xs text-red-500 mt-1">Enter valid 10-digit number starting with 6-9</p>
-                      )}
-                      {patientPhone.length === 10 && isValidIndianPhone(patientPhone) && isExistingPatient && (
-                        <p className="text-xs text-amber-600 mt-1">This number already exists</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Primary Diagnosis</label>
-                      <select value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} className="mt-1.5 w-full h-10 rounded-md border border-input bg-background px-3 text-sm capitalize">
-                        {diagnosisOptions.map((d) => (<option key={d} value={d} className="capitalize">{d}</option>))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex gap-4 mt-4 items-end">
-                    <div className="flex-1">
-                      <Input 
-                        placeholder="Optional: clinical notes for the dietician..." 
-                        value={clinicalNotes}
-                        onChange={(e) => setClinicalNotes(e.target.value)}
-                      />
-                    </div>
-                    <Button 
-                      className="gap-2 px-6" 
-                      onClick={handleSubmitReferral}
-                      disabled={createReferralMutation.isPending}
-                    >
-                      {createReferralMutation.isPending ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>Send Referral <Send className="w-4 h-4" /></>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Recent referrals */}
+                {/* Recent patients helped */}
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold">Recent Referrals</h2>
-                    <span className="text-sm text-muted-foreground">{referrals.length} referrals</span>
+                    <h2 className="text-lg font-semibold">Recent Patients Helped</h2>
+                    <span className="text-sm text-muted-foreground">{referrals.length} patients helped</span>
                   </div>
                   <div className="bg-card rounded-xl border overflow-hidden">
                     <table className="w-full text-sm">
@@ -727,8 +484,8 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                           <tr>
                             <td colSpan={4} className="p-12 text-center">
                               <div className="text-3xl mb-2">🌱</div>
-                              <p className="font-medium text-foreground">No referrals yet</p>
-                              <p className="text-sm text-muted-foreground mt-1">Your first referral is one step away. Every patient journey starts here.</p>
+                              <p className="font-medium text-foreground">No patients helped yet</p>
+                              <p className="text-sm text-muted-foreground mt-1">Your first patient help is one step away. Every patient journey starts here.</p>
                             </td>
                           </tr>
                         )}
@@ -767,7 +524,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                       <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
                         <th className="text-left p-4 font-semibold">Patient</th>
                         <th className="text-left p-4 font-semibold">Phone</th>
-                        <th className="text-left p-4 font-semibold">Referral date</th>
+                        <th className="text-left p-4 font-semibold">Helped on</th>
                         <th className="text-left p-4 font-semibold">Payment status</th>
                         <th className="text-left p-4 font-semibold">Consultation status</th>
                       </tr>
@@ -829,7 +586,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold">My Assistants</h2>
-                    <p className="text-sm text-muted-foreground mt-1">Assistants can refer patients on your behalf but cannot view your commission or analytics.</p>
+                    <p className="text-sm text-muted-foreground mt-1">Assistants can help patients on your behalf but cannot view your fees or analytics.</p>
                   </div>
                   <Button size="sm" onClick={() => setShowAddAssistant(true)} className="gap-1">
                     <Plus className="w-4 h-4" />
@@ -923,7 +680,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                       <div className="text-center text-muted-foreground py-12">
                         <Users className="w-12 h-12 mx-auto mb-3 opacity-20" />
                         <p className="text-sm font-medium">No assistants yet</p>
-                        <p className="text-xs mt-1">Add an assistant to help manage patient referrals</p>
+                        <p className="text-xs mt-1">Add an assistant to help manage patient help requests</p>
                         <Button size="sm" className="mt-4 gap-1" onClick={() => setShowAddAssistant(true)}>
                           <Plus className="w-4 h-4" /> Add First Assistant
                         </Button>
@@ -943,14 +700,14 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                 <div className="bg-sidebar text-sidebar-foreground rounded-xl p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-sidebar-foreground/60">Clinical collaboration income — per patient you refer</p>
+                      <p className="text-sm text-sidebar-foreground/60">Clinical collaboration fees — per patient you help</p>
                       <p className="text-3xl font-bold mt-1 text-primary">up to ₹1,490</p>
                       <p className="text-xs text-sidebar-foreground/50 mt-1">₹500 when they book + ₹90 per session · up to 12 sessions</p>
                     </div>
                     <div className="flex gap-8 text-center">
                       <div>
                         <div className="text-2xl font-bold text-primary">{doctorStats?.total_referred || referrals.length}</div>
-                        <div className="text-xs text-sidebar-foreground/50">total referrals</div>
+                        <div className="text-xs text-sidebar-foreground/50">Patients Helped</div>
                       </div>
                       <div>
                         <div className="text-2xl font-bold text-primary">{doctorStats?.total_onboarded || 0}</div>
@@ -963,9 +720,9 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                 {/* Stats Summary */}
                 <div className="grid grid-cols-3 gap-4">
                   {[
-                    { label: "Patients helped", value: doctorStats?.total_referred || referrals.length, icon: Users, color: "text-primary" },
+                    { label: "Patients Helped", value: doctorStats?.total_referred || referrals.length, icon: Users, color: "text-primary" },
                     { label: "Onboarded Patients", value: doctorStats?.total_onboarded || 0, icon: UserCheck, color: "text-success" },
-                    { label: "Commission Earned", value: `₹${(doctorStats?.total_commission || 0).toLocaleString()}`, icon: IndianRupee, color: "text-info" },
+                    { label: "Fees Earned", value: `₹${(doctorStats?.total_commission || 0).toLocaleString()}`, icon: IndianRupee, color: "text-info" },
                   ].map((s) => (
                     <div key={s.label} className="bg-card rounded-xl border p-5 flex items-center gap-4">
                       <div className={`w-12 h-12 rounded-xl bg-muted flex items-center justify-center ${s.color}`}>
@@ -981,7 +738,7 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
 
                 {/* Recent referrals list */}
                 <div className="bg-card rounded-xl border p-6">
-                  <h3 className="text-sm font-semibold mb-4">Recent Referrals</h3>
+                  <h3 className="text-sm font-semibold mb-4">Recent Patients Helped</h3>
                   <div className="space-y-3">
                     {referrals.slice(0, 5).map((r) => (
                       <div key={r.id} className="flex items-center justify-between py-3 border-b last:border-0">
@@ -996,8 +753,8 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                     ))}
                     {referrals.length === 0 && (
                       <div className="text-center py-8">
-                        <p className="text-sm font-medium text-foreground">No referrals yet</p>
-                        <p className="text-xs text-muted-foreground mt-1">Refer your first patient to get started.</p>
+                        <p className="text-sm font-medium text-foreground">No patients helped yet</p>
+                        <p className="text-xs text-muted-foreground mt-1">Help your first patient to get started.</p>
                       </div>
                     )}
                   </div>
