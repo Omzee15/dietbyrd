@@ -251,10 +251,12 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
         <MessageCircle className="w-[18px] h-[18px] shrink-0" />
         <span>Contact Support</span>
       </a>
-      <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-primary-foreground transition-all duration-150">
-        <FileText className="w-[18px] h-[18px] shrink-0" />
-        <span>MOU / Agreement</span>
-      </a>
+      {!isAssistant && (
+        <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-primary-foreground transition-all duration-150">
+          <FileText className="w-[18px] h-[18px] shrink-0" />
+          <span>MOU / Agreement</span>
+        </a>
+      )}
       <button
         onClick={handleLogout}
         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-red-400 hover:bg-red-500/10 transition-all duration-150"
