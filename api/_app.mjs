@@ -6050,11 +6050,11 @@ app.get("/api/doctor/me/patients", async (req, res) => {
   try {
     const auth = await getAuthContextFromHeaders(req);
     if (auth.error) {
-      return res.status(401).json({ success: false, error: auth.error });
+      return res.status(401).json({ error: auth.error });
     }
 
     if (!["doctor", "assistant"].includes(auth.role)) {
-      return res.status(403).json({ success: false, error: "Not authorized" });
+      return res.status(403).json({ error: "Not authorized" });
     }
 
     let doctorId = null;
@@ -6064,7 +6064,7 @@ app.get("/api/doctor/me/patients", async (req, res) => {
         [auth.userId]
       );
       if (doctorResult.rows.length === 0) {
-        return res.status(404).json({ success: false, error: "Doctor not found" });
+        return res.status(404).json({ error: "Doctor not found" });
       }
       doctorId = doctorResult.rows[0].id;
     } else {
@@ -6073,53 +6073,109 @@ app.get("/api/doctor/me/patients", async (req, res) => {
         [auth.userId]
       );
       if (assistantResult.rows.length === 0) {
-        return res.status(404).json({ success: false, error: "Assistant not found" });
+        return res.status(404).json({ error: "Assistant not found" });
       }
       doctorId = assistantResult.rows[0].doctor_id;
     }
 
     const patientsResult = await query(
-      `SELECT * FROM(
-        SELECT DISTINCT ON(p.id)
-          p.id,
+      `SELECT
+        p.id,
         p.name,
-        p.phone,
-        COALESCE(r.referred_at, r.created_at) AS referred_at,
-        COALESCE(payment_summary.payment_status, 'unpaid') AS payment_status,
-        COALESCE(consult_summary.consultation_status, 'not_yet') AS consultation_status
-        FROM dietbyrd_referrals r
-        JOIN dietbyrd_patients p ON r.patient_id = p.id
-        LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id
-        LEFT JOIN LATERAL(
-          SELECT
-            CASE
-              WHEN COUNT(*) FILTER(WHERE pay.status = 'success') > 0 OR rp.dietary_preference IS NOT NULL THEN 'paid'
-              ELSE 'unpaid'
-            END AS payment_status
-          FROM dietbyrd_razorpay_payments pay
-          WHERE pay.patient_id = p.id
-        ) AS payment_summary ON true
-        LEFT JOIN LATERAL(
-          SELECT
-            CASE
-              WHEN COUNT(*) FILTER(WHERE c.status = 'completed') > 0 THEN 'completed'
-              WHEN COUNT(*) FILTER(WHERE c.status IN('scheduled', 'confirmed', 'documents_pending')) > 0 THEN 'booked'
-              ELSE 'not_yet'
-            END AS consultation_status
-          FROM dietbyrd_consultations c
-          WHERE rp.id IS NOT NULL AND c.registered_patient_id = rp.id
-        ) AS consult_summary ON true
-        WHERE r.doctor_id = $1
-        ORDER BY p.id, r.referred_at DESC NULLS LAST, r.created_at DESC
-      ) AS doctor_patients
-      ORDER BY referred_at DESC NULLS LAST`,
+        p.phone                       AS phone,
+        r.referred_at                 AS referral_date,
+        COALESCE(c.status, 'pending') AS consultation_status,
+        CASE WHEN pay.id IS NOT NULL THEN 'paid' ELSE 'unpaid' END AS payment_status,
+        c.scheduled_at                AS next_consultation_at,
+        rd.name                       AS assigned_dietitian_name
+      FROM dietbyrd_referrals r
+      JOIN dietbyrd_patients p ON p.id = r.patient_id
+      LEFT JOIN LATERAL (
+        SELECT id, status, scheduled_at, rd_id
+        FROM dietbyrd_consultations
+        WHERE registered_patient_id = p.id
+        ORDER BY scheduled_at DESC NULLS LAST, created_at DESC
+        LIMIT 1
+      ) c ON true
+      LEFT JOIN dietbyrd_registered_dietitians rd ON rd.id = c.rd_id
+      LEFT JOIN dietbyrd_payments pay
+        ON pay.patient_id = p.id AND pay.status = 'paid'
+      WHERE r.doctor_id = $1
+      ORDER BY r.referred_at DESC`,
       [doctorId]
     );
 
-    res.json({ success: true, data: patientsResult.rows });
+    return res.json(patientsResult.rows);
   } catch (err) {
     console.error("[doctor/me/patients] Error:", err);
-    res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ error: "Failed to fetch doctor patients" });
+  }
+});
+
+// Get patients referred by the current doctor (no /api prefix)
+app.get("/doctor/me/patients", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ error: auth.error });
+    }
+
+    if (!["doctor", "assistant"].includes(auth.role)) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    let doctorId = null;
+    if (auth.role === "doctor") {
+      const doctorResult = await query(
+        "SELECT id FROM dietbyrd_doctors WHERE user_id = $1",
+        [auth.userId]
+      );
+      if (doctorResult.rows.length === 0) {
+        return res.status(404).json({ error: "Doctor not found" });
+      }
+      doctorId = doctorResult.rows[0].id;
+    } else {
+      const assistantResult = await query(
+        "SELECT doctor_id FROM dietbyrd_assistants WHERE user_id = $1",
+        [auth.userId]
+      );
+      if (assistantResult.rows.length === 0) {
+        return res.status(404).json({ error: "Assistant not found" });
+      }
+      doctorId = assistantResult.rows[0].doctor_id;
+    }
+
+    const patientsResult = await query(
+      `SELECT
+        p.id,
+        p.name,
+        p.phone                       AS phone,
+        r.referred_at                 AS referral_date,
+        COALESCE(c.status, 'pending') AS consultation_status,
+        CASE WHEN pay.id IS NOT NULL THEN 'paid' ELSE 'unpaid' END AS payment_status,
+        c.scheduled_at                AS next_consultation_at,
+        rd.name                       AS assigned_dietitian_name
+      FROM dietbyrd_referrals r
+      JOIN dietbyrd_patients p ON p.id = r.patient_id
+      LEFT JOIN LATERAL (
+        SELECT id, status, scheduled_at, rd_id
+        FROM dietbyrd_consultations
+        WHERE registered_patient_id = p.id
+        ORDER BY scheduled_at DESC NULLS LAST, created_at DESC
+        LIMIT 1
+      ) c ON true
+      LEFT JOIN dietbyrd_registered_dietitians rd ON rd.id = c.rd_id
+      LEFT JOIN dietbyrd_payments pay
+        ON pay.patient_id = p.id AND pay.status = 'paid'
+      WHERE r.doctor_id = $1
+      ORDER BY r.referred_at DESC`,
+      [doctorId]
+    );
+
+    return res.json(patientsResult.rows);
+  } catch (err) {
+    console.error("[doctor/me/patients] Error:", err);
+    return res.status(500).json({ error: "Failed to fetch doctor patients" });
   }
 });
 
