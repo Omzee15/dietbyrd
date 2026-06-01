@@ -5741,7 +5741,7 @@ app.get("/api/dieticians/:id/blocked-slots", async (req, res) => {
     const { id } = req.params;
     const { start_date, end_date } = req.query;
 
-    let sql = `SELECT * FROM dietbyrd_dietician_blocked_slots WHERE rd_id = $1`;
+    let sql = `SELECT *, TO_CHAR(blocked_date, 'YYYY-MM-DD') as blocked_date_str FROM dietbyrd_dietician_blocked_slots WHERE rd_id = $1`;
     const params = [id];
 
     if (start_date) {

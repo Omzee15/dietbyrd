@@ -195,6 +195,17 @@ const DieticianCalendarSchedule = ({
     });
   };
 
+  const formatLeaveDate = (value?: string | null) => {
+    if (!value) return "Date unavailable";
+
+    const datePart = String(value).split("T")[0];
+    const parsed = new Date(`${datePart}T00:00:00`);
+
+    return Number.isNaN(parsed.getTime())
+      ? String(value)
+      : parsed.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+  };
+
   const isToday = (date: Date) => {
     const today = new Date();
     return date.toDateString() === today.toDateString();
@@ -733,7 +744,7 @@ const DieticianCalendarSchedule = ({
             )}
             {blockedSlots.map((slot) => {
               const d = slot.blocked_date_str || slot.blocked_date;
-              const dateLabel = new Date(d + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+              const dateLabel = formatLeaveDate(d);
               return (
                 <div key={slot.id} className="flex items-center justify-between p-3 bg-orange-50 border border-orange-100 rounded-lg">
                   <div>
