@@ -6297,6 +6297,8 @@ app.get("/api/doctor/me/patients", async (req, res) => {
       `SELECT
         p.id,
         p.name,
+        p.improvement_score,
+        p.improvement_updated_at,
         p.phone                       AS phone,
         r.referred_at                 AS referral_date,
         COALESCE(c.status, 'pending') AS consultation_status,
@@ -6364,6 +6366,8 @@ app.get("/doctor/me/patients", async (req, res) => {
       `SELECT
         p.id,
         p.name,
+        p.improvement_score,
+        p.improvement_updated_at,
         p.phone                       AS phone,
         r.referred_at                 AS referral_date,
         COALESCE(c.status, 'pending') AS consultation_status,
@@ -7896,6 +7900,53 @@ app.get("/api/rd/patients/:patientId/documents", async (req, res) => {
     res.json({ success: true, data: await attachDocumentUrls(result.rows) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Update patient improvement score
+app.patch("/api/dietitians/patients/:patientId/improvement-score", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ error: auth.error });
+    }
+
+    if (auth.role !== "rd") {
+      return res.status(403).json({ error: "Only dietitians can update improvement scores" });
+    }
+
+    const { patientId } = req.params;
+    const { score } = req.body;
+
+    if (!Number.isInteger(score) || score < 1 || score > 10) {
+      return res.status(400).json({ error: "Score must be an integer between 1 and 10" });
+    }
+
+    // Verify assigned RD
+    const verifyResult = await query(
+      `SELECT 1 FROM dietbyrd_consultations 
+       WHERE registered_patient_id = $1 
+       AND rd_id = (SELECT id FROM dietbyrd_registered_dietitians WHERE user_id = $2 LIMIT 1) 
+       AND status IN ('confirmed', 'in_progress', 'completed') 
+       LIMIT 1`,
+      [patientId, auth.userId]
+    );
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(403).json({ error: "You are not the assigned dietitian for this patient" });
+    }
+
+    const updateResult = await query(
+      `UPDATE dietbyrd_patients 
+       SET improvement_score = $1, improvement_updated_by = $2, improvement_updated_at = NOW() 
+       WHERE id = $3 RETURNING improvement_score, improvement_updated_at`,
+      [score, auth.userId, patientId]
+    );
+
+    res.json({ success: true, data: updateResult.rows[0] });
+  } catch (err) {
+    console.error("[PATCH /dietitian/patients/:id/improvement-score] Error:", err);
+    res.status(500).json({ error: "Failed to update improvement score" });
   }
 });
 

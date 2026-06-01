@@ -531,12 +531,13 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                         <th className="text-left p-4 font-semibold">Helped on</th>
                         <th className="text-left p-4 font-semibold">Payment status</th>
                         <th className="text-left p-4 font-semibold">Consultation status</th>
+                        <th className="text-left p-4 font-semibold">Improvement</th>
                       </tr>
                     </thead>
                     <tbody>
                       {doctorPatientsLoading && (
                         <tr>
-                          <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                          <td colSpan={6} className="p-8 text-center text-muted-foreground">
                             Loading patients...
                           </td>
                         </tr>
@@ -570,12 +571,21 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                             <td className="p-4">
                               <Badge variant="outline" className={`text-xs ${consultationBadgeClass}`}>{consultationLabel}</Badge>
                             </td>
+                            <td className="p-4">
+                              {patient.improvement_score ? (
+                                <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-sm">
+                                  {patient.improvement_score}/10
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">Not rated yet</span>
+                              )}
+                            </td>
                           </tr>
                         );
                       })}
                       {!doctorPatientsLoading && filteredDoctorPatients.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="p-8 text-center text-muted-foreground">No patients found</td>
+                          <td colSpan={6} className="p-8 text-center text-muted-foreground">No patients found</td>
                         </tr>
                       )}
                     </tbody>

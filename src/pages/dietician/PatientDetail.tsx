@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
+import { formatRelative } from "date-fns";
 import { jsPDF } from "jspdf";
 import {
   ArrowLeft,
@@ -28,6 +29,7 @@ import {
   Check,
   X,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +44,7 @@ import {
 import AppSidebar from "@/components/AppSidebar";
 import {
   getPatient,
+  updatePatientImprovementScore,
   getPatientDietPlans,
   createDietPlan,
   getDietician,
@@ -757,6 +760,45 @@ const PatientDetail = () => {
                       </div>
                     ))}
                   </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="w-5 h-5" />
+                  Patient Improvement
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">How is this patient progressing? (1 = no progress, 10 = excellent)</p>
+                <Select 
+                  value={patient.improvement_score ? String(patient.improvement_score) : ''} 
+                  onValueChange={async (value) => {
+                    try {
+                      await updatePatientImprovementScore(patient.id, Number(value));
+                      queryClient.invalidateQueries({ queryKey: ["patient", patient.id] });
+                      toast.success('Improvement score updated');
+                    } catch (err) {
+                      toast.error('Failed to update score');
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select score" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({length: 10}, (_, i) => i + 1).map(n => (
+                      <SelectItem key={n} value={String(n)}>{n} / 10</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {patient.improvement_score && (
+                  <p className="text-sm text-muted-foreground">
+                    Current: {patient.improvement_score} / 10
+                    {patient.improvement_updated_at && ` (updated ${formatRelative(new Date(patient.improvement_updated_at), new Date())})`}
+                  </p>
                 )}
               </CardContent>
             </Card>

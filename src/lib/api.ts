@@ -55,6 +55,8 @@ export interface Patient {
   diagnosis_description: string | null;
   referral_source: string;
   created_at: string;
+  improvement_score?: number;
+  improvement_updated_at?: string;
   dietary_preference?: string;
   assigned_rd_id?: number | null;
   assigned_dietician_name?: string | null;
@@ -90,6 +92,17 @@ export const createPatient = (data: Partial<Patient>) =>
   request<Patient>("/patients", { method: "POST", body: JSON.stringify(data) });
 export const updatePatient = (id: number, data: Partial<Patient>) =>
   request<Patient>(`/patients/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+
+export const updatePatientImprovementScore = (patientId: number, score: number) =>
+  request<{ success: boolean; data: { improvement_score: number; improvement_updated_at: string } }>(
+    `/dietitians/patients/${patientId}/improvement-score`,
+    { 
+      method: "PATCH", 
+      headers: { ...getStoredAuthHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ score })
+    }
+  );
+
 export const assignDietician = (patientId: number, dieticianId: number) =>
   request<{ dietician_name: string }>(`/patients/${patientId}/assign-dietician`, {
     method: "POST",
@@ -103,6 +116,7 @@ export interface DoctorPatientSummary {
   referred_at: string | null;
   payment_status: "paid" | "unpaid" | string;
   consultation_status: "booked" | "completed" | "not_yet" | string;
+  improvement_score?: number;
 }
 
 export const getDoctorPatients = () =>

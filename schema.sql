@@ -284,6 +284,9 @@ CREATE TABLE dietbyrd_patients (
     weight DECIMAL(5,2) NULL,                    -- Weight in kg
     workout_frequency INT NULL CHECK (workout_frequency >= 0 AND workout_frequency <= 7),  -- 0-7 times per week
     patient_messages JSONB DEFAULT '[]'::jsonb,  -- Array of message history
+    improvement_score SMALLINT NULL CHECK (improvement_score >= 1 AND improvement_score <= 10),
+    improvement_updated_by INT NULL REFERENCES dietbyrd_users(id) ON DELETE SET NULL,
+    improvement_updated_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
