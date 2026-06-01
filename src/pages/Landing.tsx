@@ -11,9 +11,12 @@ import {
   Heart,
   LogOut,
   MessageSquare,
+  Microscope,
   Quote,
+  Scale,
   ShieldCheck,
   UtensilsCrossed,
+  Award,
   User,
   UserRoundCheck,
 } from "lucide-react";
@@ -1460,21 +1463,27 @@ const Landing = () => {
             <h2 ref={addToRefs} className="vision-title reveal">Our Vision</h2>
             <div className="vision-pillars">
               <div ref={addToRefs} className="vision-pillar reveal reveal-delay-1">
-                <div className="vision-icon">🛡️</div>
+                <div className="vision-icon">
+                  <Scale size={28} strokeWidth={2} className="text-white" />
+                </div>
                 <div>
                   <h3>Rooted in integrity</h3>
                   <p>Recommend what is right for the patient, even when it isn't the most profitable choice.</p>
                 </div>
               </div>
               <div ref={addToRefs} className="vision-pillar reveal reveal-delay-1">
-                <div className="vision-icon">🎯</div>
+                <div className="vision-icon">
+                  <Award size={28} strokeWidth={2} className="text-white" />
+                </div>
                 <div>
                   <h3>Set the New Industry Standards</h3>
                   <p>Make clinical credibility the baseline expectation — not a premium add-on — for nutrition care in India.</p>
                 </div>
               </div>
               <div ref={addToRefs} className="vision-pillar reveal reveal-delay-2">
-                <div className="vision-icon">🤝</div>
+                <div className="vision-icon">
+                  <Microscope size={28} strokeWidth={2} className="text-white" />
+                </div>
                 <div>
                   <h3>Science over noise</h3>
                   <p>In a world drowning in health content, be the one voice that always chooses evidence over engagement.</p>
