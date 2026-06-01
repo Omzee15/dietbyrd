@@ -121,11 +121,10 @@ type AddFoodTab = 'target' | 'weight' | 'quantity';
 type TargetNutrient = 'protein' | 'carbs' | 'fat';
 
 const createDefaultMealSlots = (): MealSlot[] => [
-  { name: "Breakfast", items: [] },
-  { name: "Mid-Morning", items: [] },
-  { name: "Lunch", items: [] },
-  { name: "Evening Snack", items: [] },
-  { name: "Dinner", items: [] },
+  { name: "Meal 1", items: [] },
+  { name: "Meal 2", items: [] },
+  { name: "snacks", items: [] },
+  { name: "Meal 3", items: [] },
 ];
 
 const cloneMeals = (sourceMeals: MealSlot[]): MealSlot[] =>
@@ -185,7 +184,7 @@ const CreateDiet = () => {
   });
 
   // UI State
-  const [activeMeal, setActiveMeal] = useState("Breakfast");
+  const [activeMeal, setActiveMeal] = useState("Meal 1");
   const [searchTerm, setSearchTerm] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [prototypes, setPrototypes] = useState<DietPrototype[]>([
@@ -209,10 +208,6 @@ const CreateDiet = () => {
   const bmi = calculateBMI(currentWeight, height);
 
   // New meal state
-  const [showAddMeal, setShowAddMeal] = useState(false);
-  const [newMealName, setNewMealName] = useState<string>("");
-  const [editingMealName, setEditingMealName] = useState<string | null>(null);
-  const [editMealNameInput, setEditMealNameInput] = useState("");
   const [showMicros, setShowMicros] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -929,41 +924,16 @@ const CreateDiet = () => {
   }, [pdfUrl]);
 
   const handleAddNewMeal = () => {
-    const trimmedName = newMealName.trim();
-    if (!trimmedName) return;
-    
-    // Check if meal already exists
-    if (meals.some(m => m.name.toLowerCase() === trimmedName.toLowerCase())) {
-      toast.error("A meal with this name already exists");
-      return;
-    }
-    
-    setActivePrototypeMeals((previousMeals) => [...previousMeals, { name: trimmedName, items: [] }]);
-    setActiveMeal(trimmedName);
-    setNewMealName("");
-    setShowAddMeal(false);
-    toast.success(`"${trimmedName}" meal added`);
-  };
+    const mealNumbers = meals
+      .map((meal) => meal.name?.match(/^Meal (\d+)$/i))
+      .filter(Boolean)
+      .map((match) => parseInt(match![1], 10));
+    const nextNumber = mealNumbers.length > 0 ? Math.max(...mealNumbers) + 1 : 1;
+    const newMealName = `Meal ${nextNumber}`;
 
-  const startEditMealName = (mealName: string) => {
-    setEditingMealName(mealName);
-    setEditMealNameInput(mealName);
-  };
-
-  const saveEditMealName = (originalMealName: string) => {
-    const trimmedName = editMealNameInput.trim();
-    if (!trimmedName) { setEditingMealName(null); setEditMealNameInput(""); return; }
-    if (trimmedName !== originalMealName && meals.some((m) => m.name.toLowerCase() === trimmedName.toLowerCase())) {
-      toast.error("A meal with this name already exists");
-      return;
-    }
-    setActivePrototypeMeals((previousMeals) =>
-      previousMeals.map((meal) => (meal.name === originalMealName ? { ...meal, name: trimmedName } : meal)),
-    );
-    if (activeMeal === originalMealName) setActiveMeal(trimmedName);
-    setEditingMealName(null);
-    setEditMealNameInput("");
-    toast.success("Meal name updated");
+    setActivePrototypeMeals((previousMeals) => [...previousMeals, { name: newMealName, items: [] }]);
+    setActiveMeal(newMealName);
+    toast.success(`"${newMealName}" meal added`);
   };
 
   const handleRemoveMeal = (mealName: string) => {
@@ -1630,7 +1600,7 @@ const CreateDiet = () => {
                     Daily Meals
                   </div>
                   <button
-                    onClick={() => setShowAddMeal(true)}
+                    onClick={handleAddNewMeal}
                     className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1"
                   >
                     <Plus className="w-3 h-3" />
@@ -1638,43 +1608,10 @@ const CreateDiet = () => {
                   </button>
                 </div>
                 
-                {/* Add new meal input */}
-                {showAddMeal && (
-                  <div className="mb-3 p-2 bg-muted/50 rounded-lg space-y-2">
-                    <Input
-                      placeholder="Meal name (e.g. Pre-Workout)"
-                      value={newMealName}
-                      onChange={(e) => setNewMealName(e.target.value)}
-                      className="h-8 text-sm"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAddNewMeal();
-                        if (e.key === 'Escape') {
-                          setShowAddMeal(false);
-                          setNewMealName("");
-                        }
-                      }}
-                    />
-                    <div className="flex gap-2">
-                      <Button size="sm" className="h-7 text-xs flex-1" onClick={handleAddNewMeal}>
-                        <Plus className="w-3 h-3 mr-1" /> Add Meal
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="h-7 text-xs" 
-                        onClick={() => { setShowAddMeal(false); setNewMealName(""); }}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                
                 {meals.map((meal) => {
                   const cal = Math.round(getMealCalories(meal));
                   const itemCount = meal.items.length;
-                  const isDefaultMeal = ["Breakfast", "Lunch", "Dinner"].includes(meal.name);
+                  const isDefaultMeal = ["Meal 1", "Meal 2", "snacks", "Meal 3"].includes(meal.name);
                   return (
                     <div key={meal.name} className="group flex items-center gap-0.5">
                       <button
@@ -1685,39 +1622,17 @@ const CreateDiet = () => {
                             : "hover:bg-muted text-foreground"
                         }`}
                       >
-                        {editingMealName === meal.name ? (
-                          <Input
-                            value={editMealNameInput}
-                            onChange={(e) => setEditMealNameInput(e.target.value)}
-                            onBlur={() => saveEditMealName(meal.name)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") saveEditMealName(meal.name);
-                              if (e.key === "Escape") { setEditingMealName(null); setEditMealNameInput(""); }
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="h-7 text-xs font-semibold"
-                            autoFocus
-                          />
-                        ) : (
-                          <div>
-                            <div className="flex items-center gap-1">
-                              <span className="truncate">{meal.name}</span>
-                              {itemCount > 0 && (
-                                <Badge variant="secondary" className="text-[10px] h-5 shrink-0">
-                                  {itemCount}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-0.5">{cal} kcal</div>
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <h3 className="truncate font-semibold">{meal.name}</h3>
+                            {itemCount > 0 && (
+                              <Badge variant="secondary" className="text-[10px] h-5 shrink-0">
+                                {itemCount}
+                              </Badge>
+                            )}
                           </div>
-                        )}
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); startEditMealName(meal.name); }}
-                        className="shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-opacity"
-                        title="Edit meal name"
-                      >
-                        <SquarePen className="w-3 h-3" />
+                          <div className="text-xs text-muted-foreground mt-0.5">{cal} kcal</div>
+                        </div>
                       </button>
                       {!isDefaultMeal && (
                         <button
