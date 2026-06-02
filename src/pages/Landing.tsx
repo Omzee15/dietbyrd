@@ -592,9 +592,9 @@ const Landing = () => {
         .approach-features { display: flex; flex-direction: column; gap: 28px; }
         .feature-item { display: flex; gap: 18px; align-items: flex-start; }
         .feature-icon {
-          width: 48px; height: 48px; background: rgba(11,110,79,0.08);
+          width: 48px; height: 48px; background: var(--teal-l); color: var(--teal);
           border-radius: 12px; display: flex; align-items: center; justify-content: center;
-          font-size: 22px; flex-shrink: 0; border: 1px solid rgba(11,110,79,0.18);
+          font-size: 22px; flex-shrink: 0; border: none;
         }
         .feature-text h4 { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
         .feature-text p { font-size: 14px; color: var(--text2); line-height: 1.7; }
@@ -1194,7 +1194,7 @@ const Landing = () => {
             <div>
               <span ref={addToRefs} className="section-eyebrow reveal">How we work</span>
               <h2 ref={addToRefs} className="section-title reveal reveal-delay-1">
-                Nutrition science meets<br /><em style={{ fontStyle: 'italic', color: '#5FCC99' }}>your food language.</em>
+                Nutrition science meets<br /><em style={{ fontStyle: 'italic', color: 'var(--teal)' }}>your food language.</em>
               </h2>
               <p ref={addToRefs} className="section-sub reveal reveal-delay-2" style={{ marginBottom: '36px' }}>
                 Work with Registered Dietitians who provide evidence-based, deeply personalised diet plans after a comprehensive one-on-one consultation — tailored to your schedule, your city, your budget, and your culture.

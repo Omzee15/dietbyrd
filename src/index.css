@@ -9,6 +9,13 @@
     /* Diet By RD — Landing page colour palette */
     /* --navy: #0A1628  --teal: #0B6E4F  --teal-m: #0F8A63  --gold: #C9952A */
 
+    --teal: #0B6E4F;
+    --teal-l: #E8F5F0;
+    --teal-m: #0F8A63;
+    --navy: #0A1628;
+    --gold: #C9952A;
+    --cream: #FDFAF5;
+
     --background: 38 60% 98%;        /* near-white cream */
     --foreground: 222 20% 10%;
 
