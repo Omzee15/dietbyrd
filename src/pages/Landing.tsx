@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth, getDashboardPath } from "@/contexts/AuthContext";
 import { PublicBookingModal } from "@/components/PublicBookingModal";
@@ -121,11 +121,9 @@ const Landing = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuth();
   const [scrolled, setScrolled] = useState(false);
-  const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const [approvedTestimonials, setApprovedTestimonials] = useState<typeof fallbackTestimonials>([]);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
   const statsRef = useRef<HTMLDivElement | null>(null);
   const revealRefs = useRef<(HTMLElement | null)[]>([]);
@@ -174,14 +172,7 @@ const Landing = () => {
   }, []);
 
   const testimonialItems = approvedTestimonials.length > 0 ? approvedTestimonials : fallbackTestimonials;
-
-  useEffect(() => {
-    if (isCarouselPaused || testimonialItems.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrentTestimonial((prev) => (prev + 1) % testimonialItems.length);
-    }, 7000);
-    return () => clearInterval(interval);
-  }, [testimonialItems.length, isCarouselPaused]);
+  const inlineTestimonials = testimonialItems.slice(0, 3);
 
   useEffect(() => {
     getApprovedReviews(6)
@@ -195,7 +186,6 @@ const Landing = () => {
             avatar: "★",
           }))
         );
-        setCurrentTestimonial(0);
       })
       .catch(() => {});
   }, []);
@@ -492,71 +482,6 @@ const Landing = () => {
           gap: 16px; flex-wrap: wrap;
         }
 
-        /* Pricing section */
-        .pricing-section {
-          background: var(--cream);
-          padding: 96px 24px;
-          text-align: center;
-        }
-        .pricing-eyebrow {
-          display: block;
-          font-size: 12px; font-weight: 600;
-          letter-spacing: 0.12em; text-transform: uppercase;
-          color: var(--teal); margin-bottom: 12px;
-        }
-        .pricing-title {
-          font-family: 'Playfair Display', serif;
-          font-size: clamp(3rem, 6vw, 4.5rem);
-          font-weight: 700; color: var(--text);
-          margin-bottom: 8px;
-        }
-        .pricing-tagline {
-          font-family: 'Playfair Display', serif;
-          font-style: italic;
-          font-size: clamp(1.1rem, 2vw, 1.4rem);
-          color: var(--teal);
-          max-width: 680px; margin: 0 auto 32px;
-        }
-        .pricing-desc {
-          font-family: 'DM Sans', sans-serif;
-          font-size: 16px; line-height: 1.75;
-          color: var(--text2);
-          max-width: 640px; margin: 0 auto 40px;
-        }
-        .pricing-card {
-          max-width: 480px; margin: 0 auto;
-          background: #fff; border: 1px solid var(--border);
-          border-radius: 16px; padding: 32px 40px;
-          box-shadow: 0 4px 24px rgba(0,0,0,0.06);
-          text-align: center;
-        }
-        .pricing-card-label {
-          font-size: 13px; color: var(--text3);
-          text-transform: uppercase; letter-spacing: 0.08em;
-        }
-        .pricing-card-price {
-          font-family: 'Playfair Display', serif;
-          font-size: 48px; font-weight: 700;
-          color: var(--teal);
-          margin: 8px 0 16px;
-        }
-        .pricing-card-sub {
-          font-size: 14px; color: var(--text2);
-        }
-        .pricing-card-cta {
-          margin-top: 20px;
-          display: inline-flex; align-items: center; justify-content: center;
-          background: var(--teal); color: #fff;
-          border: none; border-radius: 999px;
-          padding: 12px 26px; font-size: 15px; font-weight: 600;
-          cursor: pointer; font-family: 'DM Sans', sans-serif;
-          transition: background 0.2s ease;
-        }
-        .pricing-card-cta:hover { background: var(--teal-m); }
-        .pricing-footnote {
-          font-size: 13px; color: var(--text3);
-          margin-top: 16px;
-        }
         .cta-price-badge {
           display: inline-flex; align-items: center; justify-content: center; gap: 16px;
           background: #fff; border: 1px solid var(--border);
@@ -656,7 +581,7 @@ const Landing = () => {
         .approach-section .section-eyebrow { color: var(--teal); }
         .approach-section .section-title { color: var(--navy); }
         .approach-section .section-sub { color: var(--text2); }
-        .approach-grid { display: grid; grid-template-columns: minmax(0, 760px); justify-content: center; gap: 64px; align-items: center; margin-top: 48px; }
+        .approach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: start; margin-top: 48px; }
         .approach-features { display: flex; flex-direction: column; gap: 28px; }
         .feature-item { display: flex; gap: 18px; align-items: flex-start; }
         .feature-icon {
@@ -668,31 +593,24 @@ const Landing = () => {
         .feature-text p { font-size: 14px; color: var(--text2); line-height: 1.7; }
 
         /* Testimonial */
-        .testimonials-section { padding: 96px 24px; }
-        .testimonials-inner { max-width: 900px; margin: 0 auto; }
-        .testimonial-carousel {
-          position: relative;
-          min-height: 320px;
-        }
+        .testimonials-stack { display: flex; flex-direction: column; gap: 24px; }
         .testimonial-card {
-          background: #FFF; border-radius: 16px; padding: 40px;
-          box-shadow: 0 4px 24px rgba(0,0,0,0.06); border: 1px solid var(--border);
+          position: relative; overflow: hidden;
+          background: #FFF; border-radius: 16px; padding: 32px 36px;
+          box-shadow: 0 4px 24px rgba(0,0,0,0.04); border: 1px solid var(--border);
         }
-        .testimonial-quote { color: var(--teal); width: 28px; height: 28px; margin-bottom: 16px; }
-        .testimonial-text { font-size: 18px; color: var(--text); line-height: 1.7; margin: 0 0 32px; font-weight: 400; }
-        .testimonial-text strong { font-weight: 600; color: var(--text); }
-        .testimonial-author { display: flex; align-items: center; gap: 16px; }
-        .testimonial-avatar { width: 48px; height: 48px; border-radius: 50%; background: var(--teal-l); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
-        .testimonial-name { font-weight: 700; font-size: 16px; color: var(--text); }
-        .testimonial-detail { font-size: 13px; color: var(--text3); margin-top: 2px; }
+        .testimonial-card::before {
+          content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+          background: var(--teal);
+        }
+        .testimonial-quote { color: var(--teal); width: 24px; height: 24px; margin-bottom: 16px; }
+        .testimonial-text { font-family: 'Playfair Display', serif; font-size: 17px; font-style: italic; color: var(--text); line-height: 1.7; margin: 0 0 24px; font-weight: 400; }
+        .testimonial-text strong, .testimonial-text b { font-weight: 700; color: var(--teal); }
+        .testimonial-author { display: flex; align-items: center; gap: 12px; }
+        .testimonial-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--teal-l); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+        .testimonial-name { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 16px; color: var(--navy); }
+        .testimonial-detail { font-size: 13px; color: var(--text3); margin-top: 2px; font-weight: 400; }
         .testimonial-condition { margin-left: auto; background: rgba(11,110,79,0.10); color: var(--teal); font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: 100px; }
-        .carousel-controls { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 24px; }
-        .carousel-btn { width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 16px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; color: var(--text); }
-        .carousel-btn:hover:not(:disabled) { border-color: var(--teal); color: var(--teal); }
-        .carousel-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .carousel-dots { display: flex; align-items: center; gap: 8px; }
-        .carousel-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); cursor: pointer; transition: all 0.2s; border: none; padding: 0; }
-        .carousel-dot.active { background: var(--teal); width: 24px; height: 6px; border-radius: 999px; }
 
         /* Stats grid */
         .stats-bar-inner {
@@ -1033,6 +951,7 @@ const Landing = () => {
         /* Responsive */
         @media (max-width: 900px) {
           .compare-grid, .approach-grid { grid-template-columns: 1fr; }
+          .approach-grid { gap: 48px; }
           .founder-profile-grid { grid-template-columns: 1fr; gap: 24px; }
           .stats-bar-inner { grid-template-columns: 1fr 1fr; }
           .footer-top { grid-template-columns: 1fr 1fr; }
@@ -1044,10 +963,7 @@ const Landing = () => {
           .hero-content { padding: 0; }
           .cta-section { padding: 64px 24px; }
           .cta-actions > * { width: 100%; justify-content: center; }
-          .pricing-section { padding: 64px 24px; }
-          .pricing-card { padding: 28px 24px; }
           .privacy-section,
-          .testimonials-section,
           .about-section,
           .vision-section,
           .clinician-referral-section,
@@ -1147,28 +1063,6 @@ const Landing = () => {
               Contact / Support →
             </button>
           </div>
-        </div>
-      </section>
-
-      <section className="pricing-section">
-        <span ref={addToRefs} className="pricing-eyebrow reveal">HONEST PRICING</span>
-        <h2 ref={addToRefs} className="pricing-title reveal reveal-delay-1">₹999</h2>
-        <p ref={addToRefs} className="pricing-tagline reveal reveal-delay-1">
-          Highly Empathetic, skilled and Scientifically Rigorous Registered Dietitian
-        </p>
-        <p ref={addToRefs} className="pricing-desc reveal reveal-delay-2">
-          One consultation changes the direction. An RD who understands your food, your condition, and you — not a generic PDF, Never a supplement upsell. Real clinical nutrition, personalised for you.
-        </p>
-        <div ref={addToRefs} className="pricing-card reveal reveal-delay-2">
-          <div className="pricing-card-label">One-time consultation</div>
-          <div className="pricing-card-price">₹999</div>
-          <div className="pricing-card-sub">Absolutely no hidden charges · No subscription · No lock-in</div>
-          <button onClick={() => setIsBookingModalOpen(true)} className="pricing-card-cta">
-            Book Your Consultation Now →
-          </button>
-        </div>
-        <div ref={addToRefs} className="pricing-footnote reveal reveal-delay-3">
-          100% Registered Dietitians · IDA Certified · Evidence-Based
         </div>
       </section>
 
@@ -1332,82 +1226,21 @@ const Landing = () => {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="testimonials-section" style={{ background: 'var(--cream)' }}>
-        <div className="testimonials-inner">
-          <div
-            ref={addToRefs}
-            className="testimonial-carousel reveal reveal-delay-2"
-            role="region"
-            aria-label="Patient testimonials"
-            tabIndex={0}
-            onMouseEnter={() => setIsCarouselPaused(true)}
-            onMouseLeave={() => setIsCarouselPaused(false)}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowLeft") {
-                setCurrentTestimonial((prev) => Math.max(prev - 1, 0));
-              }
-              if (e.key === "ArrowRight") {
-                setCurrentTestimonial((prev) => Math.min(prev + 1, testimonialItems.length - 1));
-              }
-            }}
-          >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentTestimonial}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.35 }}
-                className="testimonial-card"
-              >
-                <Quote className="testimonial-quote" aria-hidden="true" />
-                <p className="testimonial-text" dangerouslySetInnerHTML={{ __html: testimonialItems[currentTestimonial]?.text || "" }} />
-                <div className="testimonial-author">
-                  <div className="testimonial-avatar">{testimonialItems[currentTestimonial]?.avatar}</div>
-                  <div>
-                    <div className="testimonial-name">{testimonialItems[currentTestimonial]?.name}</div>
-                    <div className="testimonial-detail">{testimonialItems[currentTestimonial]?.detail}</div>
+            <div ref={addToRefs} className="testimonials-stack reveal reveal-delay-2" aria-label="Patient testimonials">
+              {inlineTestimonials.map((testimonial, index) => (
+                <div className="testimonial-card" key={`${testimonial.name}-${index}`}>
+                  <Quote className="testimonial-quote" aria-hidden="true" />
+                  <p className="testimonial-text" dangerouslySetInnerHTML={{ __html: testimonial.text || "" }} />
+                  <div className="testimonial-author">
+                    <div className="testimonial-avatar">{testimonial.avatar}</div>
+                    <div>
+                      <div className="testimonial-name">{testimonial.name}</div>
+                      <div className="testimonial-detail">{testimonial.detail}</div>
+                    </div>
+                    <div className="testimonial-condition">{testimonial.condition || "General Wellness"}</div>
                   </div>
-                  <div className="testimonial-condition">{testimonialItems[currentTestimonial]?.condition}</div>
                 </div>
-              </motion.div>
-            </AnimatePresence>
-            <div className="carousel-controls">
-              <button
-                className="carousel-btn"
-                disabled={currentTestimonial === 0}
-                onClick={() => setCurrentTestimonial((prev) => Math.max(prev - 1, 0))}
-                aria-label="Previous testimonial"
-              >
-                ←
-              </button>
-              <div className="carousel-dots" role="tablist">
-                {testimonialItems.map((_, i) => (
-                  <button
-                    key={i}
-                    className={`carousel-dot ${i === currentTestimonial ? 'active' : ''}`}
-                    onClick={() => setCurrentTestimonial(i)}
-                    aria-label={`Go to testimonial ${i + 1}`}
-                    aria-pressed={i === currentTestimonial}
-                  />
-                ))}
-              </div>
-              <button
-                className="carousel-btn"
-                disabled={currentTestimonial >= testimonialItems.length - 1}
-                onClick={() => setCurrentTestimonial((prev) => Math.min(prev + 1, testimonialItems.length - 1))}
-                aria-label="Next testimonial"
-              >
-                →
-              </button>
-            </div>
-            <div style={{ textAlign: 'center', marginTop: '20px' }}>
-              <Link to="/reviews" style={{ color: 'var(--teal)', fontWeight: 600 }}>Read all reviews →</Link>
+              ))}
             </div>
           </div>
         </div>
