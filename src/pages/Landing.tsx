@@ -75,6 +75,13 @@ const patientNavItems = [
   { label: "Help / Support", href: "/patient/support", icon: MessageSquare },
 ];
 
+const trustBadges = [
+  { key: 'ida', label: 'IDA Verified RDs', Icon: BadgeCheck },
+  { key: 'nda', label: 'Strict NDA Policy', Icon: FileLock2 },
+  { key: 'anon', label: 'Anonymous Consultations Available', Icon: UserRoundCheck },
+  { key: 'dpdpa', label: 'DPDPA Compliant', Icon: ShieldCheck },
+];
+
 const logoChars = ["D", "i", "e", "t", " ", "B", "y", " "];
 
 const Logo = () => {
@@ -585,7 +592,7 @@ const Landing = () => {
         .approach-features { display: flex; flex-direction: column; gap: 28px; }
         .feature-item { display: flex; gap: 18px; align-items: flex-start; }
         .feature-icon {
-          width: 48px; height: 48px; background: rgba(11,110,79,0.1);
+          width: 48px; height: 48px; background: rgba(11,110,79,0.08);
           border-radius: 12px; display: flex; align-items: center; justify-content: center;
           font-size: 22px; flex-shrink: 0; border: 1px solid rgba(11,110,79,0.18);
         }
@@ -787,6 +794,8 @@ const Landing = () => {
         }
         .founder-purpose-pill {
           display: inline-flex;
+          align-items: center;
+          gap: 6px;
           width: fit-content;
           background: rgba(11,110,79,0.10);
           color: var(--teal);
@@ -1098,15 +1107,10 @@ const Landing = () => {
               <div className="stat-item-lbl">Personalised consultation</div>
             </div>
           </div>
-          <div className="privacy-marquee-wrap" style={{ marginTop: '48px' }}>
-            <div className="privacy-marquee-track">
-              {[
-                { key: 'ida', label: 'IDA Verified RDs', Icon: BadgeCheck },
-                { key: 'nda', label: 'Strict NDA Policy', Icon: FileLock2 },
-                { key: 'anon', label: 'Anonymous Consultations Available', Icon: UserRoundCheck },
-                { key: 'dpdpa', label: 'DPDPA Compliant', Icon: ShieldCheck },
-              ].map(({ key, label, Icon }) => (
-                <div key={key} className="privacy-badge">
+          <div className="trust-marquee" style={{ marginTop: '48px' }}>
+            <div className="trust-marquee__track">
+              {[...trustBadges, ...trustBadges].map(({ key, label, Icon }, index) => (
+                <div key={`${key}-${index}`} className="privacy-badge">
                   <Icon
                     aria-hidden="true"
                     className="privacy-badge-icon"
@@ -1418,6 +1422,10 @@ const Landing = () => {
                 }}
               >
                 Darbhanga, Bihar
+              </div>
+              <div className="founder-purpose-pill">
+                <Heart size={14} strokeWidth={2.5} style={{ color: 'var(--teal)' }} />
+                <span>Built with intent and Soul</span>
               </div>
               <blockquote
                 style={{
