@@ -6,8 +6,10 @@ import { PublicBookingModal } from "@/components/PublicBookingModal";
 import { getApprovedReviews } from "@/lib/api";
 import {
   BadgeCheck,
+  BookOpen,
   CalendarDays,
   FileLock2,
+  Gem,
   Heart,
   LogOut,
   MessageSquare,
@@ -180,6 +182,8 @@ const Landing = () => {
 
   const testimonialItems = approvedTestimonials.length > 0 ? approvedTestimonials : fallbackTestimonials;
   const inlineTestimonials = testimonialItems.slice(0, 3);
+  const [approachActiveIdx, setApproachActiveIdx] = useState(0);
+  const [isApproachPaused, setIsApproachPaused] = useState(false);
 
   useEffect(() => {
     getApprovedReviews(6)
@@ -196,6 +200,20 @@ const Landing = () => {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    setApproachActiveIdx(0);
+  }, [testimonialItems.length]);
+
+  useEffect(() => {
+    if (testimonialItems.length <= 1) return;
+    const intervalId = window.setInterval(() => {
+      setApproachActiveIdx((idx) =>
+        isApproachPaused ? idx : (idx + 1) % testimonialItems.length
+      );
+    }, 7000);
+    return () => window.clearInterval(intervalId);
+  }, [testimonialItems.length, isApproachPaused]);
 
   useEffect(() => {
     if (!isProfileMenuOpen) return;
@@ -235,6 +253,8 @@ const Landing = () => {
     // TODO: confirm support email with client
     window.location.href = 'mailto:support@dietbyrd.com';
   };
+
+  const approachTestimonial = testimonialItems[approachActiveIdx] ?? testimonialItems[0];
 
   return (
     <div className="landing-page">
@@ -1230,21 +1250,64 @@ const Landing = () => {
                 </div>
               </div>
             </div>
-            <div ref={addToRefs} className="testimonials-stack reveal reveal-delay-2" aria-label="Patient testimonials">
-              {inlineTestimonials.map((testimonial, index) => (
-                <div className="testimonial-card" key={`${testimonial.name}-${index}`}>
+            <div ref={addToRefs} className="testimonial-carousel reveal reveal-delay-2" aria-label="Patient testimonials">
+              {approachTestimonial && (
+                <div
+                  className="testimonial-card fade-in"
+                  onMouseEnter={() => setIsApproachPaused(true)}
+                  onMouseLeave={() => setIsApproachPaused(false)}
+                >
                   <Quote className="testimonial-quote" aria-hidden="true" />
-                  <p className="testimonial-text" dangerouslySetInnerHTML={{ __html: testimonial.text || "" }} />
+                  <p className="testimonial-text" dangerouslySetInnerHTML={{ __html: approachTestimonial.text || "" }} />
                   <div className="testimonial-author">
-                    <div className="testimonial-avatar">{testimonial.avatar}</div>
+                    <div className="testimonial-avatar">{approachTestimonial.avatar}</div>
                     <div>
-                      <div className="testimonial-name">{testimonial.name}</div>
-                      <div className="testimonial-detail">{testimonial.detail}</div>
+                      <div className="testimonial-name">{approachTestimonial.name}</div>
+                      <div className="testimonial-detail">{approachTestimonial.detail}</div>
                     </div>
-                    <div className="testimonial-condition">{testimonial.condition || "General Wellness"}</div>
+                    <div className="testimonial-condition">{approachTestimonial.condition || "General Wellness"}</div>
                   </div>
                 </div>
-              ))}
+              )}
+              <div className="testimonial-controls">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setApproachActiveIdx(
+                      (approachActiveIdx - 1 + testimonialItems.length) % testimonialItems.length
+                    )
+                  }
+                  aria-label="Previous testimonial"
+                >
+                  ←
+                </button>
+                <div className="testimonial-dots" role="tablist" aria-label="Testimonial pagination">
+                  {testimonialItems.map((_, i) => (
+                    <span
+                      key={`testimonial-dot-${i}`}
+                      className={i === approachActiveIdx ? "active" : ""}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setApproachActiveIdx(i)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setApproachActiveIdx(i);
+                        }
+                      }}
+                      aria-label={`Go to testimonial ${i + 1}`}
+                      aria-pressed={i === approachActiveIdx}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setApproachActiveIdx((approachActiveIdx + 1) % testimonialItems.length)}
+                  aria-label="Next testimonial"
+                >
+                  →
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1332,169 +1395,156 @@ const Landing = () => {
       </section>
 
       {/* The Story Behind Diet By RD — Page 5 */}
-      <section className="founder-section reveal" style={{ background: 'var(--cream)', padding: '96px 24px' }}>
+      <section className="founder-section reveal" style={{ background: 'var(--cream)' }}>
         <style>
-          {`@media (max-width: 768px) {
-  .founder-grid {
-    grid-template-columns: 1fr;
-    padding: 64px 20px;
-  }
+          {`@media (max-width: 900px) {
+  .founder-section { padding: 64px 24px; }
+  .story-grid { grid-template-columns: 1fr; gap: 32px; }
+}
 
-  .founder-photo {
-    margin: 0 auto;
-  }
-}`}
+@media (max-width: 700px) {
+  .story-feature-grid { grid-template-columns: 1fr; }
+}
+
+.founder-section { padding: 96px 24px; }
+.story-inner { max-width: 1200px; margin: 0 auto; }
+.story-eyebrow {
+  font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--teal);
+  margin-bottom: 12px;
+}
+.story-title {
+  font-family: 'Playfair Display', serif; font-size: clamp(2.2rem, 4vw, 3rem);
+  font-weight: 700; color: var(--navy); margin-bottom: 48px;
+}
+.story-grid {
+  display: grid; grid-template-columns: 1fr 1.2fr; gap: 48px; align-items: start;
+}
+.story-card {
+  background: #fff; border-radius: 24px; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04); border: 1px solid var(--border);
+}
+.story-monogram {
+  height: 220px; background: linear-gradient(135deg, var(--navy) 0%, #1a3a5c 100%);
+  display: flex; align-items: center; justify-content: center;
+}
+.story-monogram-text {
+  font-family: 'Playfair Display', serif; font-size: 96px; font-weight: 700;
+  color: rgba(255,255,255,0.15); letter-spacing: 0.05em;
+}
+.story-card-body { padding: 36px 32px; }
+.story-name {
+  font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700;
+  color: var(--navy); margin-bottom: 4px;
+}
+.story-role {
+  font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
+  color: var(--teal); margin-bottom: 2px;
+}
+.story-location {
+  font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 400;
+  color: var(--text3); margin-bottom: 24px;
+}
+.story-quote {
+  background: rgba(11,110,79,0.04); border-left: 3px solid var(--teal);
+  padding: 16px 20px; border-radius: 0 8px 8px 0;
+  font-family: 'Playfair Display', serif; font-style: italic; font-size: 15px;
+  color: var(--text); line-height: 1.6;
+}
+.story-bio { display: flex; flex-direction: column; gap: 16px; }
+.story-bio-text {
+  font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 400;
+  color: var(--text); line-height: 1.75; margin: 0;
+}
+.story-road-card {
+  margin-top: 24px; background: var(--navy); border-radius: 16px; padding: 32px 36px;
+}
+.story-road-title {
+  font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700;
+  color: #fff; margin-bottom: 12px;
+}
+.story-road-body {
+  font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 400;
+  color: rgba(255,255,255,0.78); line-height: 1.7; margin: 0;
+}
+.story-feature-grid {
+  margin-top: 64px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+}
+.story-feature-card {
+  background: #fff; border: 1px solid var(--border); border-radius: 16px;
+  padding: 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.story-feature-title {
+  font-family: 'DM Sans', sans-serif; font-size: 17px; font-weight: 700;
+  color: var(--navy);
+}
+.story-feature-body {
+  font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 400;
+  color: var(--text2); line-height: 1.6; margin: 0;
+}
+`}
         </style>
-        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
-            <p
-              ref={addToRefs}
-              className="founder-label reveal"
-              style={{ fontSize: '12px', fontWeight: 600, letterSpacing: '0.12em', color: 'var(--teal)' }}
-            >
-              THE PEOPLE BEHIND THIS
-            </p>
-            <h2
-              ref={addToRefs}
-              className="founder-title reveal reveal-delay-1"
-              style={{ color: 'var(--navy)', fontSize: 'clamp(2rem,4vw,3rem)', fontWeight: 700 }}
-            >
-              The Story Behind Diet By RD
-            </h2>
+        <div className="story-inner">
+          <div>
+            <p ref={addToRefs} className="story-eyebrow reveal">THE PEOPLE BEHIND THIS</p>
+            <h2 ref={addToRefs} className="story-title reveal reveal-delay-1">The Story Behind Diet By RD</h2>
           </div>
-          <div
-            ref={addToRefs}
-            className="founder-grid reveal reveal-delay-2"
-            style={{
-              maxWidth: '1100px',
-              margin: '0 auto',
-              display: 'grid',
-              gridTemplateColumns: '1fr 1.1fr',
-              gap: '48px',
-              alignItems: 'center',
-              padding: '80px 24px'
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <img
-                className="founder-photo"
-                src="/aryan-bhagat-founder.png"
-                alt="Aryan Bhagat, Founder of Diet By RD"
-                style={{
-                  width: '100%',
-                  maxWidth: '520px',
-                  aspectRatio: '4 / 5',
-                  objectFit: 'contain',
-                  objectPosition: 'bottom center',
-                  display: 'block'
-                }}
-              />
+          <div ref={addToRefs} className="story-grid reveal reveal-delay-2">
+            <div className="story-card">
+              <div className="story-monogram">
+                <div className="story-monogram-text">AB</div>
+              </div>
+              <div className="story-card-body">
+                <div className="story-name">Aryan Bhagat</div>
+                <div className="story-role">Founder, Diet By RD</div>
+                <div className="story-location">Darbhanga, Bihar</div>
+                <div className="story-quote">
+                  "Everything in this world can be learnt." — the belief that started it all.
+                </div>
+              </div>
             </div>
-            <div>
-              <div
-                style={{
-                  fontFamily: '"Playfair Display", serif',
-                  fontSize: '32px',
-                  fontWeight: 700,
-                  color: 'var(--navy)'
-                }}
-              >
-                Aryan Bhagat
-              </div>
-              <div
-                style={{
-                  fontFamily: '"DM Sans", sans-serif',
-                  fontSize: '15px',
-                  fontWeight: 600,
-                  color: 'var(--teal)',
-                  marginTop: '4px'
-                }}
-              >
-                Founder, Diet By RD
-              </div>
-              <div
-                style={{
-                  fontFamily: '"DM Sans", sans-serif',
-                  fontSize: '13px',
-                  fontWeight: 400,
-                  color: 'var(--text3)',
-                  marginTop: '2px'
-                }}
-              >
-                Darbhanga, Bihar
-              </div>
-              <div className="founder-purpose-pill">
-                <Heart size={14} strokeWidth={2.5} style={{ color: 'var(--teal)' }} />
-                <span>Built with intent and Soul</span>
-              </div>
-              <blockquote
-                style={{
-                  borderLeft: '3px solid var(--teal)',
-                  paddingLeft: '16px',
-                  marginTop: '28px',
-                  fontFamily: '"Playfair Display", serif',
-                  fontStyle: 'italic',
-                  fontSize: '16px',
-                  color: 'var(--text)',
-                  lineHeight: 1.6
-                }}
-              >
-                "Everything in this world can be learnt." — the belief that started it all.
-              </blockquote>
-              <p
-                style={{
-                  marginTop: '28px',
-                  fontFamily: '"DM Sans", sans-serif',
-                  fontSize: '15px',
-                  fontWeight: 400,
-                  color: 'var(--text)',
-                  lineHeight: 1.75
-                }}
-              >
+            <div className="story-bio">
+              <p className="story-bio-text">
+                Diet By RD was founded by <strong style={{ color: 'var(--navy)' }}>Aryan Bhagat</strong>, a young mind from Darbhanga, Bihar, with a simple but powerful belief: <em>"Everything in this world can be learnt."</em>
+              </p>
+              <p className="story-bio-text">
                 Coming from a lower-middle-class family, Aryan grew up knowing the weight of every rupee earned — and how unfair it is when misinformation in healthcare makes people lose it so easily. He saw how easily people were misled into spending it on false promises and pseudoscience.
               </p>
-              <p
-                style={{
-                  marginTop: '16px',
-                  fontFamily: '"DM Sans", sans-serif',
-                  fontSize: '15px',
-                  fontWeight: 400,
-                  color: 'var(--text)',
-                  lineHeight: 1.75
-                }}
-              >
+              <p className="story-bio-text">
                 He watched families trust 'health experts' who were nothing more than confident content creators. He saw diabetic patients follow advice from coaches with no clinical training. He saw people spending money they didn't have on products they didn't need.
               </p>
-              <p
-                style={{
-                  marginTop: '16px',
-                  fontFamily: '"DM Sans", sans-serif',
-                  fontSize: '15px',
-                  fontWeight: 400,
-                  color: 'var(--text)',
-                  lineHeight: 1.75
-                }}
-              >
-                That's the problem Diet By RD exists to solve. Not with more content — but with the <strong>right credentials, the right professionals, and the right price.</strong>
+              <p className="story-bio-text">
+                That's the problem Diet By RD exists to solve. Not with more content — but with the <strong style={{ color: 'var(--navy)' }}>right credentials, the right professionals, and the right price.</strong>
               </p>
+              <div className="story-road-card">
+                <div className="story-road-title">The Road Ahead</div>
+                <p className="story-road-body">
+                  Diet By RD is rooted in India but built for the world. From Delhi to global shores — this journey is about creating something larger than one city, one founder, or one team. It's about giving people everywhere a chance to take control of their health, without being exploited.
+                </p>
+              </div>
             </div>
           </div>
-          <div style={{ maxWidth: '900px', margin: '48px auto 0' }}>
-            <div style={{ background: 'var(--navy)', borderRadius: '16px', padding: '36px 40px' }}>
-              <h3
-                style={{
-                  fontFamily: '"Playfair Display", serif',
-                  fontSize: '24px',
-                  fontWeight: 700,
-                  color: '#fff',
-                  marginBottom: '12px'
-                }}
-              >
-                The Road Ahead
-              </h3>
-              <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.78)', lineHeight: 1.75 }}>
-                Diet By RD is rooted in India but built for the world. From Delhi to global shores — this journey is about creating something larger than one city, one founder, or one team. It's about giving people everywhere a chance to take control of their health, without being exploited.
-              </p>
+          <div className="story-feature-grid" ref={addToRefs}>
+            <div className="story-feature-card">
+              <Gem size={24} strokeWidth={2} style={{ color: 'var(--teal)' }} />
+              <div className="story-feature-title">Affordability without compromise</div>
+              <p className="story-feature-body">Expert care at ₹999. Because quality should not be a privilege.</p>
+            </div>
+            <div className="story-feature-card">
+              <Microscope size={24} strokeWidth={2} style={{ color: 'var(--teal)' }} />
+              <div className="story-feature-title">Science over pseudoscience</div>
+              <p className="story-feature-body">Evidence-led, not influencer-led. Always.</p>
+            </div>
+            <div className="story-feature-card">
+              <ShieldCheck size={24} strokeWidth={2} style={{ color: 'var(--teal)' }} />
+              <div className="story-feature-title">Transparency &amp; Trust</div>
+              <p className="story-feature-body">Honest pricing, clear policies, and zero hidden agendas. Healthcare without games.</p>
+            </div>
+            <div className="story-feature-card">
+              <BookOpen size={24} strokeWidth={2} style={{ color: 'var(--teal)' }} />
+              <div className="story-feature-title">Education First</div>
+              <p className="story-feature-body">We don't just hand out diet charts. We help you understand why every choice matters.</p>
             </div>
           </div>
         </div>

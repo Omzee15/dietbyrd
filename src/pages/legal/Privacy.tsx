@@ -13,10 +13,9 @@ const Privacy = () => (
     <div className="legal-page">
       <h2>1. Who We Are</h2>
       <p>Diet By RD is India's first clinical nutrition platform where every single consultation is exclusively with a Registered Dietitian — a licensed professional whose title is legally protected by the Indian Dietetic Association. We are not a wellness app. We are a clinical service, and we treat your health information with the seriousness that entails.</p>
-      <p><strong>Legal Entity:</strong> [Diet By RD Private Limited — to be inserted after incorporation]</p>
-      <p><strong>Registered Address:</strong> [Registered Address], New Delhi, India</p>
-      <p><strong>Contact:</strong> <a href="mailto:privacy@dietbyrd.com">privacy@dietbyrd.com</a></p>
-      <p><strong>Grievance Officer:</strong> Aryan Bhagat, Founder — <a href="mailto:grievance@dietbyrd.com">grievance@dietbyrd.com</a></p>
+      <p><strong>Legal Entity:</strong> Diet By RD Private Limited</p>
+      <p><strong>Contact:</strong> <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a></p>
+      <p><strong>Grievance Officer:</strong> Aryan Bhagat, Founder — <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a></p>
       <p>We operate exclusively within India and serve only Indian residents.</p>
 
       <h2>2. The Information We Collect — And Why</h2>
@@ -105,16 +104,16 @@ const Privacy = () => (
       <p>Under India's Digital Personal Data Protection Act 2023, you have rights over your data. We respect these rights and have built tools to help you exercise them without friction.</p>
       <ul>
         <li><strong>Right to Access:</strong> Request a complete export of everything we hold about you. Available from your profile in the app — verified by OTP, delivered to your WhatsApp within 24 hours</li>
-        <li><strong>Right to Correction:</strong> Ask us to correct any inaccurate information in your profile. Email us at <a href="mailto:privacy@dietbyrd.com">privacy@dietbyrd.com</a></li>
+        <li><strong>Right to Correction:</strong> Ask us to correct any inaccurate information in your profile. Email us at <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a></li>
         <li><strong>Right to Erasure:</strong> Request deletion of your account and personal data. Some records — clinical notes and payment records — may need to be retained by law. We will tell you exactly what we can and cannot delete, and why</li>
-        <li><strong>Right to Withdraw Marketing Consent:</strong> Stop receiving marketing or non-essential communications at any time by replying STOP to any WhatsApp message or emailing <a href="mailto:privacy@dietbyrd.com">privacy@dietbyrd.com</a></li>
+        <li><strong>Right to Withdraw Marketing Consent:</strong> Stop receiving marketing or non-essential communications at any time by replying STOP to any WhatsApp message or emailing <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a></li>
       </ul>
 
       <h3>Our Grievance Officer</h3>
       <p>If you have a concern about how we have handled your data — or anything at all about your privacy — contact our Grievance Officer directly:</p>
       <p>Aryan<br />
       Founder, Diet By RD Private Limited<br />
-      Email: <a href="mailto:grievance@dietbyrd.com">grievance@dietbyrd.com</a></p>
+      Email: <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a></p>
       <p><strong>Response commitment:</strong> We will acknowledge your concern within 3 business days and resolve it within 30 days. This is not a legal formality — it is a personal commitment.</p>
 
       <h2>9. Not an Emergency Service</h2>
