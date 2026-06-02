@@ -1425,8 +1425,9 @@ const Landing = () => {
   box-shadow: 0 1px 3px rgba(0,0,0,0.04); border: 1px solid var(--border);
 }
 .story-monogram {
-  height: 220px; background: linear-gradient(135deg, var(--navy) 0%, #1a3a5c 100%);
+  height: 360px; background: linear-gradient(135deg, var(--navy) 0%, #1a3a5c 100%);
   display: flex; align-items: center; justify-content: center;
+  overflow: hidden; position: relative;
 }
 .story-monogram-text {
   font-family: 'Playfair Display', serif; font-size: 96px; font-weight: 700;
@@ -1493,7 +1494,26 @@ const Landing = () => {
           <div ref={addToRefs} className="story-grid reveal reveal-delay-2">
             <div className="story-card">
               <div className="story-monogram">
-                <div className="story-monogram-text">AB</div>
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'radial-gradient(ellipse at center bottom, rgba(255,255,255,0.06) 0%, transparent 60%)',
+                    pointerEvents: 'none'
+                  }}
+                />
+                <img
+                  src="/aryan-bhagat-founder.png"
+                  alt="Aryan Bhagat, Founder of Diet By RD"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    objectPosition: 'bottom center',
+                    display: 'block',
+                    filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.25))'
+                  }}
+                />
               </div>
               <div className="story-card-body">
                 <div className="story-name">Aryan Bhagat</div>
