@@ -346,6 +346,7 @@ const Index = () => {
           placeholder="Enter your phone number"
           value={phone}
           onChange={(e) => setPhone(normalizeIndianMobileInput(e.target.value))}
+          autoFocus={!readOnly}
           className={`pl-12 h-14 rounded-xl border-slate-200 transition-all text-base ${
             readOnly
               ? "pr-12 bg-slate-100 text-slate-600"
@@ -361,6 +362,7 @@ const Index = () => {
             onClick={handleEditPhone}
             className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/70 transition"
             aria-label="Edit phone number"
+            tabIndex={-1}
           >
             <Pencil className="w-4 h-4" />
           </button>
@@ -376,6 +378,7 @@ const Index = () => {
           to="/"
           className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors mb-4"
           aria-label="Back to home"
+          tabIndex={-1}
         >
           <ArrowLeft className="h-4 w-4" />
           <span className="text-sm">Back to home</span>

@@ -1497,13 +1497,14 @@ const Landing = () => {
       {/* The Story Behind Diet By RD — Page 5 */}
       <section className="founder-section reveal" style={{ background: 'var(--cream)', padding: '96px 24px' }}>
         <style>
-          {`@media (max-width: 900px) {
-  .story-card-grid {
+          {`@media (max-width: 768px) {
+  .founder-grid {
     grid-template-columns: 1fr;
+    padding: 64px 20px;
   }
 
-  .story-card-image {
-    padding: 24px 24px 0 24px;
+  .founder-photo {
+    margin: 0 auto;
   }
 }`}
         </style>
@@ -1526,94 +1527,115 @@ const Landing = () => {
           </div>
           <div
             ref={addToRefs}
-            className="story-card-grid reveal reveal-delay-2"
+            className="founder-grid reveal reveal-delay-2"
             style={{
-              background: 'var(--teal-l)',
-              borderRadius: '24px',
-              padding: 0,
-              overflow: 'hidden',
               maxWidth: '1100px',
               margin: '0 auto',
               display: 'grid',
-              gridTemplateColumns: '0.9fr 1.1fr',
-              alignItems: 'stretch'
+              gridTemplateColumns: '1fr 1.1fr',
+              gap: '48px',
+              alignItems: 'center',
+              padding: '80px 24px'
             }}
           >
-            <div className="story-card-image" style={{ display: 'flex', alignItems: 'stretch' }}>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
               <img
+                className="founder-photo"
                 src="/aryan-bhagat-founder.png"
                 alt="Aryan Bhagat, Founder of Diet By RD"
                 style={{
                   width: '100%',
-                  height: '100%',
+                  maxWidth: '520px',
+                  aspectRatio: '4 / 5',
                   objectFit: 'contain',
                   objectPosition: 'bottom center',
-                  padding: '24px 0 0 24px'
+                  display: 'block'
                 }}
               />
             </div>
-            <div style={{ padding: '48px 48px 48px 32px' }}>
+            <div>
               <div
                 style={{
                   fontFamily: '"Playfair Display", serif',
-                  fontSize: '22px',
-                  fontWeight: 700,
-                  color: 'var(--navy)',
-                  marginBottom: '16px'
-                }}
-              >
-                Diet By <span style={{ color: 'var(--gold)' }}>RD</span>
-              </div>
-              <div
-                style={{
-                  fontFamily: '"Playfair Display", serif',
-                  fontSize: '30px',
+                  fontSize: '32px',
                   fontWeight: 700,
                   color: 'var(--navy)'
                 }}
               >
                 Aryan Bhagat
               </div>
-              <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text2)' }}>Founder, Diet By RD</div>
-              <div style={{ fontSize: '13px', color: 'var(--text3)' }}>Darbhanga, Bihar</div>
-              <div style={{ height: '1px', background: 'rgba(11,110,79,0.2)', margin: '24px 0' }} />
+              <div
+                style={{
+                  fontFamily: '"DM Sans", sans-serif',
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  color: 'var(--teal)',
+                  marginTop: '4px'
+                }}
+              >
+                Founder, Diet By RD
+              </div>
+              <div
+                style={{
+                  fontFamily: '"DM Sans", sans-serif',
+                  fontSize: '13px',
+                  fontWeight: 400,
+                  color: 'var(--text3)',
+                  marginTop: '2px'
+                }}
+              >
+                Darbhanga, Bihar
+              </div>
               <blockquote
                 style={{
                   borderLeft: '3px solid var(--teal)',
                   paddingLeft: '16px',
+                  marginTop: '28px',
                   fontFamily: '"Playfair Display", serif',
                   fontStyle: 'italic',
-                  fontSize: '17px',
+                  fontSize: '16px',
                   color: 'var(--text)',
                   lineHeight: 1.6
                 }}
               >
                 "Everything in this world can be learnt." — the belief that started it all.
               </blockquote>
-              <p style={{ marginTop: '20px', color: 'var(--text)' }}>
-                Coming from a lower-middle-class family, Aryan grew up knowing the weight of money. Super-earned — and how unfair it is when people lose it so easily. He saw how easily people were misled into spending it on false promises and pseudoscience.
-              </p>
-              <p style={{ color: 'var(--text)' }}>
-                He watched families trust 'health experts' who were nothing more than confident content creators. He saw diabetic patients follow advice from coaches with no clinical training. He saw people spending money they didn't have on products they didn't need.
-              </p>
-              <p style={{ color: 'var(--text)', fontWeight: 600 }}>
-                That's the problem Diet By RD exists to solve. Not with more content — but with the <strong>right credentials, the right professionals, and the right price.</strong>
-              </p>
-              <div
+              <p
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  background: 'rgba(11,110,79,0.10)',
-                  color: 'var(--teal)',
-                  padding: '6px 14px',
-                  borderRadius: '100px',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  marginTop: '16px'
+                  marginTop: '28px',
+                  fontFamily: '"DM Sans", sans-serif',
+                  fontSize: '15px',
+                  fontWeight: 400,
+                  color: 'var(--text)',
+                  lineHeight: 1.75
                 }}
               >
-                🌱 Built with purpose
-              </div>
+                Coming from a lower-middle-class family, Aryan grew up knowing the weight of every rupee earned — and how unfair it is when misinformation in healthcare makes people lose it so easily. He saw how easily people were misled into spending it on false promises and pseudoscience.
+              </p>
+              <p
+                style={{
+                  marginTop: '16px',
+                  fontFamily: '"DM Sans", sans-serif',
+                  fontSize: '15px',
+                  fontWeight: 400,
+                  color: 'var(--text)',
+                  lineHeight: 1.75
+                }}
+              >
+                He watched families trust 'health experts' who were nothing more than confident content creators. He saw diabetic patients follow advice from coaches with no clinical training. He saw people spending money they didn't have on products they didn't need.
+              </p>
+              <p
+                style={{
+                  marginTop: '16px',
+                  fontFamily: '"DM Sans", sans-serif',
+                  fontSize: '15px',
+                  fontWeight: 400,
+                  color: 'var(--text)',
+                  lineHeight: 1.75
+                }}
+              >
+                That's the problem Diet By RD exists to solve. Not with more content — but with the <strong>right credentials, the right professionals, and the right price.</strong>
+              </p>
             </div>
           </div>
           <div style={{ maxWidth: '900px', margin: '48px auto 0' }}>
