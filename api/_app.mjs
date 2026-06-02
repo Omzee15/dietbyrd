@@ -590,6 +590,68 @@ const normalizePhoneForStorage = (value) => {
   return digits.length > 10 ? digits.slice(-10) : digits;
 };
 
+const normalizeIndianMobileForAuth = (value) => {
+  const digits = normalizePhoneDigits(value);
+  const lastTenDigits = digits.length >= 10 ? digits.slice(-10) : digits;
+  if (!/^[6-9]\d{9}$/.test(lastTenDigits)) {
+    return null;
+  }
+  return {
+    digits: lastTenDigits,
+    e164: `+91${lastTenDigits}`,
+    variants: buildPhoneVariants(lastTenDigits),
+  };
+};
+
+const EMPLOYEE_AUTH_ROLES = [
+  "doctor",
+  "rd",
+  "mlt_intern",
+  "support",
+  "support_intern",
+  "assistant",
+  "ops_manager",
+  "founder",
+  "tech_lead",
+];
+
+const getAuthProfileIds = async (user) => {
+  let profileId = null;
+  let doctorId = null;
+
+  if (user.role === "doctor") {
+    const doctorResult = await query("SELECT id FROM dietbyrd_doctors WHERE user_id = $1", [user.id]);
+    if (doctorResult.rows.length > 0) profileId = doctorResult.rows[0].id;
+  } else if (user.role === "assistant") {
+    const assistantResult = await query("SELECT id, doctor_id FROM dietbyrd_assistants WHERE user_id = $1", [user.id]);
+    if (assistantResult.rows.length > 0) {
+      profileId = assistantResult.rows[0].id;
+      doctorId = assistantResult.rows[0].doctor_id;
+    }
+  } else if (user.role === "rd") {
+    const rdResult = await query("SELECT id FROM dietbyrd_registered_dietitians WHERE user_id = $1", [user.id]);
+    if (rdResult.rows.length > 0) profileId = rdResult.rows[0].id;
+  } else if (user.role === "patient") {
+    const patientResult = await query("SELECT id FROM dietbyrd_patients WHERE user_id = $1", [user.id]);
+    if (patientResult.rows.length > 0) profileId = patientResult.rows[0].id;
+  }
+
+  return { profileId, doctorId };
+};
+
+const buildAuthUserPayload = async (user) => {
+  const { profileId, doctorId } = await getAuthProfileIds(user);
+  return {
+    id: user.id,
+    phone: user.phone,
+    role: user.role,
+    name: user.name,
+    profileId,
+    doctorId,
+    isVerified: user.is_verified ?? true,
+  };
+};
+
 // Format phone number for E.164 (assumes Indian numbers if no country code)
 const formatPhoneE164 = (phone) => {
   // Remove all non-digit characters
@@ -1232,90 +1294,131 @@ app.post("/api/auth/signup", async (req, res) => {
 
 app.post("/api/auth/check-phone", async (req, res) => {
   try {
-    const { phone } = req.body;
-    if (!phone) {
-      return res.status(400).json({ success: false, error: "Phone is required" });
+    const parsedPhone = normalizeIndianMobileForAuth(req.body?.phone);
+    if (!parsedPhone) {
+      return res.json({ success: true, exists: false, track: "invalid_phone" });
     }
 
     if (!isDatabaseConfigured) {
       return res.json({
         success: true,
-        data: {
-          exists: false,
-          user_role: null,
-          auth_flow: "password",
-          is_referred_patient: false,
-          referred_by_doctor_name: null,
-        },
+        exists: false,
+        track: "new_patient",
+        data: { exists: false, track: "new_patient", auth_flow: "otp" },
         warning: "db_not_configured",
       });
     }
 
-    const variants = buildPhoneVariants(phone);
-
-    const existing = await query(
-      "SELECT id, role, name FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
-      [variants]
+    const employeeResult = await query(
+      `SELECT id, role
+       FROM dietbyrd_users
+       WHERE phone = ANY($1::text[])
+         AND role::text = ANY($2::text[])
+         AND COALESCE(is_active, true) = true
+       LIMIT 1`,
+      [parsedPhone.variants, EMPLOYEE_AUTH_ROLES]
     );
 
-    if (existing.rows.length === 0) {
+    if (employeeResult.rows.length > 0) {
+      const role = employeeResult.rows[0].role;
       return res.json({
         success: true,
-        data: {
-          exists: false,
-          user_role: null,
-          auth_flow: "phone-signin",
-          is_referred_patient: false,
-          referred_by_doctor_name: null,
-        },
+        exists: true,
+        track: "employee",
+        role,
+        data: { exists: true, track: "employee", role, auth_flow: "password", user_role: role },
       });
     }
 
-    const userId = existing.rows[0].id;
-    const userRole = existing.rows[0].role;
-    const userName = existing.rows[0].name || null;
+    const patientResult = await query(
+      `SELECT p.id
+       FROM dietbyrd_patients p
+       LEFT JOIN dietbyrd_users u ON u.id = p.user_id
+       WHERE p.phone = ANY($1::text[])
+          OR u.phone = ANY($1::text[])
+       LIMIT 1`,
+      [parsedPhone.variants]
+    );
 
-    let referredByDoctorName = null;
-    try {
-      const referralInfo = await query(
-        `SELECT d.name AS doctor_name
-         FROM dietbyrd_patients p
-         INNER JOIN dietbyrd_referrals r ON r.patient_id = p.id
-         INNER JOIN dietbyrd_doctors d ON d.id = r.doctor_id
-         WHERE p.user_id = $1 OR p.phone = ANY($2::text[])
-         ORDER BY r.referred_at DESC
-         LIMIT 1`,
-        [userId, variants]
-      );
-      referredByDoctorName = referralInfo.rows[0]?.doctor_name || null;
-    } catch (err) {
-      console.log(`[Auth] Referral lookup skipped: ${err?.message || "unknown error"}`);
-    }
+    const track = patientResult.rows.length > 0 ? "patient" : "new_patient";
 
     return res.json({
       success: true,
-      data: {
-        exists: true,
-        user_role: userRole,
-        user_name: userName,
-        auth_flow: userRole === "patient" ? "otp" : "password",
-        is_referred_patient: Boolean(referredByDoctorName),
-        referred_by_doctor_name: referredByDoctorName,
-      },
+      exists: patientResult.rows.length > 0,
+      track,
+      data: { exists: patientResult.rows.length > 0, track, auth_flow: "otp" },
     });
   } catch (err) {
     console.log(`[Auth] check-phone fallback: ${err?.message || "unknown error"}`);
     return res.json({
       success: true,
-      data: {
-        exists: false,
-        user_role: null,
-        auth_flow: "password",
-        is_referred_patient: false,
-        referred_by_doctor_name: null,
-      },
+      exists: false,
+      track: "new_patient",
+      data: { exists: false, track: "new_patient", auth_flow: "otp" },
       warning: "lookup_failed",
     });
+  }
+});
+
+app.post("/api/auth/employee/login", async (req, res) => {
+  try {
+    const { password } = req.body || {};
+    const parsedPhone = normalizeIndianMobileForAuth(req.body?.phone);
+
+    if (!parsedPhone || !password) {
+      return res.status(401).json({ success: false, error: "Invalid phone number or password" });
+    }
+
+    const userResult = await query(
+      `SELECT id, phone, role, name, password, is_active, is_verified
+       FROM dietbyrd_users
+       WHERE phone = ANY($1::text[])
+         AND role::text = ANY($2::text[])
+       LIMIT 1`,
+      [parsedPhone.variants, EMPLOYEE_AUTH_ROLES]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ success: false, error: "Invalid phone number or password" });
+    }
+
+    const user = userResult.rows[0];
+    if (!user.is_active) {
+      return res.status(401).json({ success: false, error: "Invalid phone number or password" });
+    }
+
+    if (!user.password || !/^\$2[aby]\$/.test(user.password)) {
+      console.error(`[Auth] Refusing employee login for user ${user.id}: password is not a bcrypt hash`);
+      return res.status(401).json({ success: false, error: "Invalid phone number or password" });
+    }
+
+    const isValidPassword = await bcrypt.compare(String(password), user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ success: false, error: "Invalid phone number or password" });
+    }
+
+    if (!user.is_verified) {
+      const jrResult = await query(
+        "SELECT admin_message FROM dietbyrd_join_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1",
+        [user.id]
+      );
+      const adminMessage = jrResult.rows[0]?.admin_message || null;
+      return res.status(403).json({
+        success: false,
+        error: "Your account is pending approval",
+        data: { pending: true, admin_message: adminMessage },
+      });
+    }
+
+    await query("UPDATE dietbyrd_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
+
+    return res.json({
+      success: true,
+      data: await buildAuthUserPayload(user),
+    });
+  } catch (err) {
+    console.error("[Auth] employee login error:", err);
+    return res.status(500).json({ success: false, error: "Something went wrong. Please try again." });
   }
 });
 
@@ -1338,6 +1441,166 @@ function checkOtpRateLimit(phone) {
   otpRateLimitMap.set(phone, timestamps);
   return { allowed: true };
 }
+
+const findPatientAuthUser = async (phoneVariants) => {
+  const userResult = await query(
+    `SELECT u.id, u.phone, u.role, u.name, u.is_active, u.is_verified
+     FROM dietbyrd_users u
+     WHERE u.phone = ANY($1::text[])
+       AND u.role = 'patient'
+     LIMIT 1`,
+    [phoneVariants]
+  );
+
+  if (userResult.rows.length > 0) {
+    return userResult.rows[0];
+  }
+
+  const patientResult = await query(
+    `SELECT p.id AS patient_id, p.user_id, p.phone, p.name, u.id AS uid, u.phone AS user_phone,
+            u.role, u.is_active, u.is_verified
+     FROM dietbyrd_patients p
+     LEFT JOIN dietbyrd_users u ON u.id = p.user_id
+     WHERE p.phone = ANY($1::text[])
+     LIMIT 1`,
+    [phoneVariants]
+  );
+
+  if (patientResult.rows.length === 0) {
+    return null;
+  }
+
+  const patient = patientResult.rows[0];
+  if (patient.uid) {
+    return {
+      id: patient.uid,
+      phone: patient.user_phone || patient.phone,
+      role: patient.role || "patient",
+      name: patient.name || "Patient",
+      is_active: patient.is_active ?? true,
+      is_verified: patient.is_verified ?? true,
+    };
+  }
+
+  const normalizedPhone = normalizePhoneForStorage(patient.phone);
+  const newUserResult = await query(
+    `INSERT INTO dietbyrd_users (phone, role, name, is_active, is_verified)
+     VALUES ($1, 'patient', $2, true, true)
+     RETURNING id, phone, role, name, is_active, is_verified`,
+    [normalizedPhone, patient.name || "Patient"]
+  );
+  const newUser = newUserResult.rows[0];
+
+  await query("UPDATE dietbyrd_patients SET user_id = $1 WHERE id = $2", [newUser.id, patient.patient_id]);
+  return newUser;
+};
+
+const ensurePatientAuthUser = async (parsedPhone) => {
+  const existingUser = await findPatientAuthUser(parsedPhone.variants);
+  if (existingUser) {
+    return existingUser;
+  }
+
+  const newUserResult = await query(
+    `INSERT INTO dietbyrd_users (phone, role, name, is_active, is_verified)
+     VALUES ($1, 'patient', 'Patient', true, true)
+     RETURNING id, phone, role, name, is_active, is_verified`,
+    [parsedPhone.digits]
+  );
+  const newUser = newUserResult.rows[0];
+
+  await query(
+    `INSERT INTO dietbyrd_patients (user_id, phone, name, referral_source)
+     VALUES ($1, $2, 'Patient', 'self_signup')
+     ON CONFLICT DO NOTHING`,
+    [newUser.id, parsedPhone.digits]
+  );
+
+  return newUser;
+};
+
+app.post("/api/auth/patient/send-otp", async (req, res) => {
+  try {
+    const parsedPhone = normalizeIndianMobileForAuth(req.body?.phone);
+    const channel = req.body?.channel || "sms";
+
+    if (!parsedPhone) {
+      return res.status(400).json({ success: false, error: "Please enter a valid mobile number" });
+    }
+
+    const rateCheck = checkOtpRateLimit(parsedPhone.e164);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: `Too many OTP requests. Please wait ${rateCheck.retryAfterSec} seconds before trying again.`,
+      });
+    }
+
+    const result = await sendOtpViaTwilio(parsedPhone.e164, channel);
+    const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
+
+    if (IS_DEV && devOtp) {
+      await storeOtp(parsedPhone.e164, devOtp, "patient_login");
+    }
+
+    console.log(`[OTP] Patient auth OTP sent, SID: ${verification.sid}, Status: ${verification.status}`);
+    return res.json({
+      success: true,
+      sent: true,
+      message: normalizedChannel === "whatsapp" ? "OTP sent to your WhatsApp" : "OTP sent via SMS",
+      to: toNumber,
+      expiresIn: 120,
+      expiresInSec: 120,
+    });
+  } catch (err) {
+    console.error("[OTP] Patient send error:", err?.message || err);
+    return res.status(500).json({ success: false, error: "Failed to send OTP. Please try again." });
+  }
+});
+
+app.post("/api/auth/patient/verify-otp", async (req, res) => {
+  try {
+    const { otp } = req.body || {};
+    const parsedPhone = normalizeIndianMobileForAuth(req.body?.phone);
+
+    if (!parsedPhone || !otp) {
+      return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+    }
+
+    if (IS_DEV) {
+      const verifyResult = await verifyOtpFromDb(parsedPhone.e164, otp, "patient_login");
+      if (!verifyResult.valid) {
+        return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+      }
+      await clearOtp(parsedPhone.e164, "patient_login");
+    } else {
+      try {
+        const verificationCheck = await verifyOtpViaTwilio(parsedPhone.e164, otp);
+        if (verificationCheck.status !== "approved") {
+          return res.status(401).json({ success: false, error: "Invalid OTP. Please try again." });
+        }
+      } catch (twilioErr) {
+        console.error("[OTP] Patient verify error:", twilioErr.message, twilioErr.code);
+        return res.status(401).json({ success: false, error: "Invalid OTP. Please try again." });
+      }
+    }
+
+    const user = await ensurePatientAuthUser(parsedPhone);
+    if (!user.is_active) {
+      return res.status(401).json({ success: false, error: "Account is deactivated" });
+    }
+
+    await query("UPDATE dietbyrd_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
+
+    return res.json({
+      success: true,
+      data: await buildAuthUserPayload(user),
+    });
+  } catch (err) {
+    console.error("[OTP] Patient verify route error:", err);
+    return res.status(500).json({ success: false, error: "Invalid OTP. Please try again." });
+  }
+});
 
 // Send OTP via Twilio Verify (for login)
 app.post("/api/auth/send-otp", async (req, res) => {
@@ -2669,7 +2932,14 @@ app.get("/api/patients", async (req, res) => {
       LEFT JOIN LATERAL (
         SELECT
           CASE
-            WHEN COUNT(*) FILTER (WHERE pay.status = 'success') > 0 OR rp.dietary_preference IS NOT NULL THEN 'paid'
+            WHEN COUNT(*) FILTER (WHERE pay.status = 'success') > 0
+              OR EXISTS (
+                SELECT 1
+                FROM dietbyrd_payments dp
+                WHERE (dp.patient_id = p.id OR dp.registered_patient_id = rp.id)
+                  AND dp.status IN ('paid', 'success')
+              )
+              OR rp.dietary_preference IS NOT NULL THEN 'paid'
             ELSE 'unpaid'
           END AS payment_status,
           COALESCE(
@@ -2719,7 +2989,22 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
         d.qualification AS referring_doctor_qualification,
         d.clinic_name AS referring_doctor_clinic,
         COALESCE(payment_summary.payment_status, 'unpaid') AS payment_status,
-        COALESCE(payment_summary.payment_history, '[]'::json) AS payment_history
+        COALESCE(payment_summary.payment_history, '[]'::json) AS payment_history,
+        true AS registration_completed,
+        COALESCE(payment_summary.payment_status, 'unpaid') = 'paid' AS payment_completed,
+        EXISTS (
+          SELECT 1
+          FROM dietbyrd_consultations c
+          WHERE c.registered_patient_id = rp.id
+            AND c.scheduled_at > NOW()
+            AND c.status IN ('scheduled', 'confirmed')
+        ) AS appointment_completed,
+        EXISTS (
+          SELECT 1
+          FROM dietbyrd_consultations c
+          WHERE c.registered_patient_id = rp.id
+            AND c.status = 'completed'
+        ) AS consultation_completed
       FROM dietbyrd_patients p
       LEFT JOIN dietbyrd_users u ON p.user_id = u.id
       LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id
@@ -2729,7 +3014,14 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
       LEFT JOIN LATERAL (
         SELECT
           CASE
-            WHEN COUNT(*) FILTER (WHERE pay.status = 'success') > 0 OR rp.dietary_preference IS NOT NULL THEN 'paid'
+            WHEN COUNT(*) FILTER (WHERE pay.status = 'success') > 0
+              OR EXISTS (
+                SELECT 1
+                FROM dietbyrd_payments dp
+                WHERE (dp.patient_id = p.id OR dp.registered_patient_id = rp.id)
+                  AND dp.status IN ('paid', 'success')
+              )
+              OR rp.dietary_preference IS NOT NULL THEN 'paid'
             ELSE 'unpaid'
           END AS payment_status,
           COALESCE(
