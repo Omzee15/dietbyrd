@@ -7,10 +7,14 @@ const getStoredAuthHeaders = (): Record<string, string> => {
     if (!stored) return {};
     const user = JSON.parse(stored);
     if (!user?.id || !user?.role) return {};
-    return {
+    const headers: Record<string, string> = {
       "x-user-id": String(user.id),
       "x-user-role": String(user.role),
     };
+    if (user.profileId) {
+      headers["x-patient-id"] = String(user.profileId);
+    }
+    return headers;
   } catch {
     return {};
   }

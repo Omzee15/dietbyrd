@@ -85,6 +85,7 @@ const PatientSupport = () => {
         headers: {
           "x-user-id": String(user.id),
           "x-user-role": String(user.role),
+          ...(user.profileId ? { "x-patient-id": String(user.profileId) } : {}),
         },
       });
       const data = await res.json();
@@ -102,6 +103,7 @@ const PatientSupport = () => {
         headers: {
           "x-user-id": String(user.id),
           "x-user-role": String(user.role),
+          ...(user.profileId ? { "x-patient-id": String(user.profileId) } : {}),
         },
       });
       const data = await res.json();

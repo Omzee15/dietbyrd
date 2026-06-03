@@ -788,8 +788,10 @@ const JOIN_REQUEST_RECIPIENT_ROLES = ["doctor", "rd"];
 const getAuthContextFromHeaders = async (req) => {
   const rawId = req.headers["x-user-id"];
   const rawRole = req.headers["x-user-role"];
+  const rawPatientId = req.headers["x-patient-id"];
   const idValue = Array.isArray(rawId) ? rawId[0] : rawId;
   const roleValue = Array.isArray(rawRole) ? rawRole[0] : rawRole;
+  const patientIdValue = Array.isArray(rawPatientId) ? rawPatientId[0] : rawPatientId;
 
   if (!idValue || !roleValue) {
     return { error: "Missing auth headers" };
@@ -816,7 +818,14 @@ const getAuthContextFromHeaders = async (req) => {
     return { error: "Role mismatch" };
   }
 
-  return { userId, role, user };
+  const patientProfileId = patientIdValue ? parseInt(String(patientIdValue), 10) : null;
+
+  return {
+    userId,
+    role,
+    user,
+    patientProfileId: Number.isInteger(patientProfileId) ? patientProfileId : null,
+  };
 };
 
 const sendJoinRequestMessageEmail = async ({ recipientEmail, recipientName, senderName, message, subject }) => {
@@ -5828,16 +5837,12 @@ app.get("/api/patient/me/appointments", async (req, res) => {
       return res.status(403).json({ success: false, error: "Not authorized" });
     }
 
-    const patientResult = await query(
-      "SELECT id FROM dietbyrd_patients WHERE user_id = $1 LIMIT 1",
-      [auth.userId]
-    );
-
-    if (patientResult.rows.length === 0) {
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient) {
       return res.status(404).json({ success: false, error: "Patient profile not found" });
     }
 
-    const patientId = patientResult.rows[0].id;
+    const patientId = patient.id;
     const { status, upcoming_only } = req.query;
 
     let sql = `
@@ -7086,16 +7091,12 @@ app.get("/api/patient/me/tickets", async (req, res) => {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
 
-    const patientResult = await query(
-      "SELECT id FROM dietbyrd_patients WHERE user_id = $1",
-      [auth.userId]
-    );
-
-    if (patientResult.rows.length === 0) {
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient) {
       return res.status(404).json({ success: false, error: "Patient not found" });
     }
 
-    const patientId = patientResult.rows[0].id;
+    const patientId = patient.id;
 
     const result = await query(
       `SELECT t.*,
@@ -7134,16 +7135,12 @@ app.get("/api/patient/me/tickets/:id", async (req, res) => {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
 
-    const patientResult = await query(
-      "SELECT id FROM dietbyrd_patients WHERE user_id = $1",
-      [auth.userId]
-    );
-
-    if (patientResult.rows.length === 0) {
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient) {
       return res.status(404).json({ success: false, error: "Patient not found" });
     }
 
-    const patientId = patientResult.rows[0].id;
+    const patientId = patient.id;
     const { id } = req.params;
 
     const ticketResult = await query(
@@ -7988,12 +7985,76 @@ app.post("/api/appointments/trigger-auto-assign", async (_req, res) => {
   }
 });
 
+const getPatientProfileForAuth = async (auth) => {
+  if (!auth || auth.role !== "patient") return null;
+
+  if (auth.patientProfileId) {
+    const byProfileId = await query(
+      `SELECT id, phone, name, user_id
+       FROM dietbyrd_patients
+       WHERE id = $1
+       LIMIT 1`,
+      [auth.patientProfileId]
+    );
+
+    const patient = byProfileId.rows[0];
+    if (patient) {
+      if (!patient.user_id) {
+        await query("UPDATE dietbyrd_patients SET user_id = $1 WHERE id = $2", [auth.userId, patient.id]);
+      }
+      if (!patient.user_id || patient.user_id === auth.userId) {
+        return { ...patient, user_id: auth.userId };
+      }
+    }
+  }
+
+  const byUserId = await query(
+    "SELECT id, phone, name, user_id FROM dietbyrd_patients WHERE user_id = $1 LIMIT 1",
+    [auth.userId]
+  );
+  if (byUserId.rows[0]) return byUserId.rows[0];
+
+  const phoneVariants = buildPhoneVariants(auth.user?.phone || "");
+  if (phoneVariants.length > 0) {
+    const byPhone = await query(
+      `SELECT id, phone, name, user_id
+       FROM dietbyrd_patients
+       WHERE phone = ANY($1::text[])
+       ORDER BY CASE WHEN user_id IS NULL THEN 0 ELSE 1 END, id DESC
+       LIMIT 1`,
+      [phoneVariants]
+    );
+
+    const patient = byPhone.rows[0];
+    if (patient) {
+      if (!patient.user_id) {
+        await query("UPDATE dietbyrd_patients SET user_id = $1 WHERE id = $2", [auth.userId, patient.id]);
+      }
+      return { ...patient, user_id: auth.userId };
+    }
+  }
+
+  const normalizedPhone = normalizePhoneForStorage(auth.user?.phone || "");
+  if (!normalizedPhone) return null;
+
+  const created = await query(
+    `INSERT INTO dietbyrd_patients (user_id, phone, name, referral_source)
+     VALUES ($1, $2, $3, 'content')
+     RETURNING id, phone, name, user_id`,
+    [auth.userId, normalizedPhone, auth.user?.name || "Patient"]
+  );
+
+  return created.rows[0] || null;
+};
+
 const getPatientProfileForUser = async (userId) => {
-  const result = await query(
-    "SELECT id, phone, name FROM dietbyrd_patients WHERE user_id = $1 LIMIT 1",
+  const userResult = await query(
+    "SELECT id, role, email, phone, name FROM dietbyrd_users WHERE id = $1 LIMIT 1",
     [userId]
   );
-  return result.rows[0] || null;
+  const user = userResult.rows[0];
+  if (!user) return null;
+  return getPatientProfileForAuth({ userId: user.id, role: user.role, user, patientProfileId: null });
 };
 
 const hasCompletedPaidConsultation = async (patientProfileId) => {
@@ -8042,7 +8103,7 @@ app.get("/api/reviews/me/status", async (req, res) => {
     if (auth.error) return res.status(401).json({ success: false, error: auth.error });
     if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Only patients can review." });
 
-    const patient = await getPatientProfileForUser(auth.userId);
+    const patient = await getPatientProfileForAuth(auth);
     const completed = patient ? await hasCompletedPaidConsultation(patient.id) : false;
     const phone = formatPhoneE164(auth.user.phone || patient?.phone || "");
     const existing = await query("SELECT 1 FROM reviews WHERE phone_e164 = $1 LIMIT 1", [phone]);
@@ -8270,9 +8331,11 @@ app.get("/api/patient/me/documents", async (req, res) => {
     const auth = await getAuthContextFromHeaders(req);
     if (auth.error) return res.status(401).json({ success: false, error: auth.error });
     if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Only patients can view their documents." });
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient) return res.status(404).json({ success: false, error: "Patient profile not found" });
     const result = await query(
-      "SELECT * FROM patient_documents WHERE patient_id = $1 ORDER BY created_at DESC",
-      [auth.userId]
+      "SELECT * FROM patient_documents WHERE patient_id = $1 OR patient_profile_id = $2 ORDER BY created_at DESC",
+      [auth.userId, patient.id]
     );
     res.json({ success: true, data: await attachDocumentUrls(result.rows) });
   } catch (err) {
@@ -8285,9 +8348,11 @@ app.delete("/api/patient/me/documents/:id", async (req, res) => {
     const auth = await getAuthContextFromHeaders(req);
     if (auth.error) return res.status(401).json({ success: false, error: auth.error });
     if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Only patients can delete documents." });
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient) return res.status(404).json({ success: false, error: "Patient profile not found" });
     const result = await query(
-      "DELETE FROM patient_documents WHERE id = $1 AND patient_id = $2 RETURNING id",
-      [req.params.id, auth.userId]
+      "DELETE FROM patient_documents WHERE id = $1 AND (patient_id = $2 OR patient_profile_id = $3) RETURNING id",
+      [req.params.id, auth.userId, patient.id]
     );
     res.json({ success: true, data: result.rows[0] || { id: req.params.id } });
   } catch (err) {
