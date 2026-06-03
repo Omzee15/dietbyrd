@@ -1511,7 +1511,7 @@ const ensurePatientAuthUser = async (parsedPhone) => {
 
   await query(
     `INSERT INTO dietbyrd_patients (user_id, phone, name, referral_source)
-     VALUES ($1, $2, 'Patient', 'self_signup')
+     VALUES ($1, $2, 'Patient', 'content')
      ON CONFLICT DO NOTHING`,
     [newUser.id, parsedPhone.digits]
   );
@@ -5814,6 +5814,62 @@ app.get("/api/patients/:id/appointments", async (req, res) => {
     res.json({ success: true, data: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/patient/me/appointments", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    if (auth.role !== "patient") {
+      return res.status(403).json({ success: false, error: "Not authorized" });
+    }
+
+    const patientResult = await query(
+      "SELECT id FROM dietbyrd_patients WHERE user_id = $1 LIMIT 1",
+      [auth.userId]
+    );
+
+    if (patientResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Patient profile not found" });
+    }
+
+    const patientId = patientResult.rows[0].id;
+    const { status, upcoming_only } = req.query;
+
+    let sql = `
+      SELECT
+        c.*,
+        rd.name AS dietician_name,
+        rd.qualification AS dietician_qualification,
+        p.name AS patient_name
+      FROM dietbyrd_consultations c
+      LEFT JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
+      LEFT JOIN dietbyrd_patients p ON rp.patient_id = p.id
+      LEFT JOIN dietbyrd_registered_dietitians rd ON c.rd_id = rd.id
+      WHERE rp.patient_id = $1
+    `;
+    const params = [patientId];
+
+    if (status) {
+      params.push(status);
+      sql += ` AND c.status = $${params.length}`;
+    }
+
+    if (upcoming_only === "true") {
+      sql += ` AND c.scheduled_at >= NOW() AND c.status NOT IN ('cancelled', 'no_show', 'completed')`;
+    }
+
+    sql += ` ORDER BY c.scheduled_at DESC`;
+
+    const result = await query(sql, params);
+    return res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("[patient/me/appointments] Error:", err);
+    return res.status(500).json({ success: false, error: "Failed to fetch appointments" });
   }
 });
 

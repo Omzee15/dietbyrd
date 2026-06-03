@@ -35,12 +35,27 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+const isUsableStoredUser = (value: unknown): value is AuthUser => {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<AuthUser>;
+  if (!candidate.id || !candidate.role) return false;
+  if (candidate.role === "patient" && !candidate.profileId) return false;
+  return true;
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
 
   const saveSession = (authUser: AuthUser) => {
+    if (!isUsableStoredUser(authUser)) {
+      setUser(null);
+      localStorage.removeItem("dietbyrd_user");
+      localStorage.removeItem("dietbyrd_login_at");
+      return;
+    }
+
     setUser(authUser);
     localStorage.setItem("dietbyrd_user", JSON.stringify(authUser));
     localStorage.setItem("dietbyrd_login_at", String(Date.now()));
@@ -58,7 +73,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem("dietbyrd_login_at");
           setSessionExpired(true);
         } else {
-          setUser(JSON.parse(stored));
+          const parsedUser = JSON.parse(stored);
+          if (isUsableStoredUser(parsedUser)) {
+            setUser(parsedUser);
+          } else {
+            localStorage.removeItem("dietbyrd_user");
+            localStorage.removeItem("dietbyrd_login_at");
+          }
         }
       } catch {
         localStorage.removeItem("dietbyrd_user");
