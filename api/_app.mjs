@@ -2928,7 +2928,7 @@ app.get("/api/patients", async (req, res) => {
             SELECT 1
             FROM dietbyrd_payments dp
             WHERE (dp.patient_id = p.id OR dp.registered_patient_id = rp.id)
-              AND dp.status IN ('paid', 'success')
+              AND dp.status IN ('success')
           )
           OR rp.dietary_preference IS NOT NULL THEN 'paid'
           ELSE 'unpaid'
@@ -2995,7 +2995,7 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
                 SELECT 1
                 FROM dietbyrd_payments dp
                 WHERE (dp.patient_id = p.id OR dp.registered_patient_id = rp.id)
-                  AND dp.status IN ('paid', 'success')
+                  AND dp.status IN ('success')
               )
               OR rp.dietary_preference IS NOT NULL THEN 'paid'
             ELSE 'unpaid'
@@ -6655,7 +6655,7 @@ app.get("/api/doctor/me/patients", async (req, res) => {
       ) c ON true
       LEFT JOIN dietbyrd_registered_dietitians rd ON rd.id = c.rd_id
       LEFT JOIN dietbyrd_payments pay
-        ON pay.patient_id = p.id AND pay.status = 'paid'
+        ON pay.patient_id = p.id AND pay.status = 'success'
       WHERE r.doctor_id = $1
       ORDER BY r.referred_at DESC`,
       [doctorId]
@@ -6724,7 +6724,7 @@ app.get("/doctor/me/patients", async (req, res) => {
       ) c ON true
       LEFT JOIN dietbyrd_registered_dietitians rd ON rd.id = c.rd_id
       LEFT JOIN dietbyrd_payments pay
-        ON pay.patient_id = p.id AND pay.status = 'paid'
+        ON pay.patient_id = p.id AND pay.status = 'success'
       WHERE r.doctor_id = $1
       ORDER BY r.referred_at DESC`,
       [doctorId]
