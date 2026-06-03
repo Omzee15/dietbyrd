@@ -767,9 +767,9 @@ const getPool = () => {
     pool = new Pool({
       connectionString: DATABASE_URL,
       ssl: useSSL ? { rejectUnauthorized: false } : false,
-      max: 3,
+      max: Number(process.env.PGPOOL_MAX || 1),
       idleTimeoutMillis: 10000,
-      connectionTimeoutMillis: 5000,
+      connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || 10000),
     });
   }
   return pool;
@@ -2923,7 +2923,7 @@ app.get("/api/patients", async (req, res) => {
         rp.city,
         rp.assigned_rd_id,
         rd.name AS assigned_dietician_name,
-        CASE
+        (CASE
           WHEN EXISTS (
             SELECT 1
             FROM dietbyrd_payments dp
@@ -2932,7 +2932,7 @@ app.get("/api/patients", async (req, res) => {
           )
           OR rp.dietary_preference IS NOT NULL THEN 'paid'
           ELSE 'unpaid'
-        END AS payment_status,
+        END)::text AS payment_status,
         '[]'::json AS payment_history
       FROM dietbyrd_patients p
       LEFT JOIN dietbyrd_users u ON p.user_id = u.id
@@ -2964,10 +2964,10 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
         d.name AS referring_doctor_name,
         d.qualification AS referring_doctor_qualification,
         d.clinic_name AS referring_doctor_clinic,
-        COALESCE(payment_summary.payment_status, 'unpaid') AS payment_status,
+        COALESCE(payment_summary.payment_status, 'unpaid'::text) AS payment_status,
         COALESCE(payment_summary.payment_history, '[]'::json) AS payment_history,
         true AS registration_completed,
-        COALESCE(payment_summary.payment_status, 'unpaid') = 'paid' AS payment_completed,
+        COALESCE(payment_summary.payment_status, 'unpaid'::text) = 'paid' AS payment_completed,
         EXISTS (
           SELECT 1
           FROM dietbyrd_consultations c
@@ -2989,7 +2989,7 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
       LEFT JOIN dietbyrd_doctors d ON ref.doctor_id = d.id
       LEFT JOIN LATERAL (
         SELECT
-          CASE
+          (CASE
             WHEN COUNT(*) FILTER (WHERE pay.status = 'success') > 0
               OR EXISTS (
                 SELECT 1
@@ -2999,7 +2999,7 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
               )
               OR rp.dietary_preference IS NOT NULL THEN 'paid'
             ELSE 'unpaid'
-          END AS payment_status,
+          END)::text AS payment_status,
           COALESCE(
             json_agg(
               json_build_object(
@@ -6641,7 +6641,7 @@ app.get("/api/doctor/me/patients", async (req, res) => {
         p.phone                       AS phone,
         r.referred_at                 AS referral_date,
         COALESCE(c.status, 'pending') AS consultation_status,
-        CASE WHEN pay.id IS NOT NULL THEN 'paid' ELSE 'unpaid' END AS payment_status,
+        (CASE WHEN pay.id IS NOT NULL THEN 'paid' ELSE 'unpaid' END)::text AS payment_status,
         c.scheduled_at                AS next_consultation_at,
         rd.name                       AS assigned_dietitian_name
       FROM dietbyrd_referrals r
@@ -6710,7 +6710,7 @@ app.get("/doctor/me/patients", async (req, res) => {
         p.phone                       AS phone,
         r.referred_at                 AS referral_date,
         COALESCE(c.status, 'pending') AS consultation_status,
-        CASE WHEN pay.id IS NOT NULL THEN 'paid' ELSE 'unpaid' END AS payment_status,
+        (CASE WHEN pay.id IS NOT NULL THEN 'paid' ELSE 'unpaid' END)::text AS payment_status,
         c.scheduled_at                AS next_consultation_at,
         rd.name                       AS assigned_dietitian_name
       FROM dietbyrd_referrals r
@@ -7416,37 +7416,37 @@ rd.id,
 }
 
 // ─── Staff plain_password column migration ────────────────────────────────────
-(async () => {
+const ensureStaffPlainPasswordColumn = async () => {
   try {
     await query(`ALTER TABLE dietbyrd_users ADD COLUMN IF NOT EXISTS plain_password TEXT`);
     console.log('[migration] plain_password column ready');
   } catch (err) {
     console.error('[migration] plain_password column error:', err.message);
   }
-})();
+};
 
 // ─── Join request about_yourself column migration ─────────────────────────────
-(async () => {
+const ensureJoinRequestAboutYourselfColumn = async () => {
   try {
     await query(`ALTER TABLE dietbyrd_join_requests ADD COLUMN IF NOT EXISTS about_yourself TEXT`);
     console.log('[migration] about_yourself column ready');
   } catch (err) {
     console.error('[migration] about_yourself column error:', err.message);
   }
-})();
+};
 
 // ─── Doctor commission_rate column migration ──────────────────────────────────
-(async () => {
+const ensureDoctorCommissionRateColumn = async () => {
   try {
     await query(`ALTER TABLE dietbyrd_doctors ADD COLUMN IF NOT EXISTS commission_rate NUMERIC(5, 2) DEFAULT 0`);
     console.log('[migration] commission_rate column ready');
   } catch (err) {
     console.error('[migration] commission_rate column error:', err.message);
   }
-})();
+};
 
 // ─── Dietician clinic_address / clinic_name column migration ──────────────────
-(async () => {
+const ensureDieticianClinicColumns = async () => {
   try {
     await query(`ALTER TABLE dietbyrd_registered_dietitians ADD COLUMN IF NOT EXISTS clinic_address TEXT`);
     await query(`ALTER TABLE dietbyrd_registered_dietitians ADD COLUMN IF NOT EXISTS clinic_name TEXT`);
@@ -7454,10 +7454,10 @@ rd.id,
   } catch (err) {
     console.error('[migration] dietician clinic columns error:', err.message);
   }
-})();
+};
 
 // ─── Patient diagnoses array column migration ─────────────────────────────────
-(async () => {
+const ensurePatientDiagnosesColumn = async () => {
   try {
     await query(`ALTER TABLE dietbyrd_patients ADD COLUMN IF NOT EXISTS diagnoses JSONB DEFAULT '[]'`);
     // Back-fill from existing diagnosis column
@@ -7471,16 +7471,21 @@ AND(diagnoses IS NULL OR diagnoses = '[]':: jsonb)
   } catch (err) {
     console.error('[migration] diagnoses column error:', err.message);
   }
-})();
+};
 
 // ─── Food library modulator columns migration ─────────────────────────────────
-(async () => {
+const ensureFoodLibraryModulatorColumns = async () => {
   try {
     await query(`
       ALTER TABLE dietbyrd_food_library
         ADD COLUMN IF NOT EXISTS oxalate_eee NUMERIC DEFAULT 0,
   ADD COLUMN IF NOT EXISTS phytate_eee NUMERIC DEFAULT 0
     `);
+
+    if (process.env.RUN_FOOD_LIBRARY_SEED_ON_STARTUP !== "true") {
+      console.log('[migration] oxalate_eee / phytate_eee columns ready; seed skipped');
+      return;
+    }
 
     // Batch update existing items by ID with correct modulator values
     const modulatorUpdates = [
@@ -7874,26 +7879,48 @@ FROM(VALUES ${ valuesList }) AS v(id, ox, ph)
   } catch (err) {
     console.error('[migration] modulator columns error:', err.message);
   }
-})();
+};
 
-// Run once on startup, then every hour
-runAutoAssign()
-  .then(({ assigned, total_pending }) => {
-    if (total_pending > 0) {
-      console.log(`[auto - assign] startup run: assigned ${ assigned }/${total_pending}`);
-    }
-  })
-  .catch ((err) => console.error("[auto-assign] startup error:", err.message));
+let startupMaintenancePromise = null;
+const runStartupMaintenance = () => {
+  if (!isDatabaseConfigured) return Promise.resolve();
+  if (!startupMaintenancePromise) {
+    startupMaintenancePromise = (async () => {
+      await ensureStaffPlainPasswordColumn();
+      await ensureJoinRequestAboutYourselfColumn();
+      await ensureDoctorCommissionRateColumn();
+      await ensureDieticianClinicColumns();
+      await ensurePatientDiagnosesColumn();
+      await ensureFoodLibraryModulatorColumns();
+    })();
+  }
+  return startupMaintenancePromise;
+};
 
-setInterval(() => {
+if (process.env.RUN_STARTUP_MAINTENANCE === "true" || IS_DEV) {
+  runStartupMaintenance().catch((err) => console.error("[startup-maintenance] error:", err.message));
+}
+
+// Scheduler is opt-in for long-lived local/worker processes; Netlify functions should stay request-driven.
+if (process.env.ENABLE_AUTO_ASSIGN_SCHEDULER === "true" || IS_DEV) {
   runAutoAssign()
     .then(({ assigned, total_pending }) => {
       if (total_pending > 0) {
-        console.log(`[auto-assign] hourly run: assigned ${assigned}/${total_pending}`);
+        console.log(`[auto-assign] startup run: assigned ${assigned}/${total_pending}`);
       }
     })
-    .catch((err) => console.error("[auto-assign] hourly error:", err.message));
-}, 60 * 60 * 1000);
+    .catch((err) => console.error("[auto-assign] startup error:", err.message));
+
+  setInterval(() => {
+    runAutoAssign()
+      .then(({ assigned, total_pending }) => {
+        if (total_pending > 0) {
+          console.log(`[auto-assign] hourly run: assigned ${assigned}/${total_pending}`);
+        }
+      })
+      .catch((err) => console.error("[auto-assign] hourly error:", err.message));
+  }, 60 * 60 * 1000);
+}
 
 // ─── Manual trigger endpoint (for the dashboard "Auto-Assign Now" button) ──────
 app.post("/api/appointments/trigger-auto-assign", async (_req, res) => {
