@@ -20,6 +20,63 @@ import { useAuth } from "@/contexts/AuthContext";
 
 type JoinRequestWithUserId = JoinRequest & { user_id?: number };
 
+const INDIAN_CITIES = [
+  "All Locations",
+  "Mumbai",
+  "Delhi",
+  "Bengaluru",
+  "Hyderabad",
+  "Chennai",
+  "Kolkata",
+  "Pune",
+  "Ahmedabad",
+  "Jaipur",
+  "Surat",
+  "Lucknow",
+  "Kanpur",
+  "Nagpur",
+  "Indore",
+  "Thane",
+  "Bhopal",
+  "Visakhapatnam",
+  "Pimpri-Chinchwad",
+  "Patna",
+  "Vadodara",
+  "Ghaziabad",
+  "Ludhiana",
+  "Agra",
+  "Nashik",
+  "Ranchi",
+  "Faridabad",
+  "Meerut",
+  "Rajkot",
+  "Varanasi",
+  "Srinagar",
+  "Aurangabad",
+  "Dhanbad",
+  "Amritsar",
+  "Allahabad",
+  "Coimbatore",
+  "Jabalpur",
+  "Gwalior",
+  "Vijayawada",
+  "Jodhpur",
+  "Madurai",
+  "Raipur",
+  "Kochi",
+  "Chandigarh",
+  "Guwahati",
+  "Solapur",
+  "Hubli-Dharwad",
+  "Bareilly",
+  "Moradabad",
+  "Mysore",
+  "Gurgaon",
+  "Noida",
+  "New Delhi",
+  "Darbhanga",
+];
+
 const JoinRequests = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -27,7 +84,7 @@ const JoinRequests = () => {
   
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("pending");
-  const [locationFilter, setLocationFilter] = useState<string>("all");
+  const [locationFilter, setLocationFilter] = useState<string>("All Locations");
   const [selectedRequest, setSelectedRequest] = useState<JoinRequest | null>(null);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
@@ -238,8 +295,6 @@ const JoinRequests = () => {
     }
   };
 
-  const uniqueLocations = Array.from(new Set(requests.map(r => r.clinic_address).filter(Boolean))) as string[];
-
   const filteredRequests = requests.filter(r => {
     const matchesSearch = !search || (() => {
       const s = search.toLowerCase();
@@ -251,7 +306,7 @@ const JoinRequests = () => {
         (r.clinic_name || "").toLowerCase().includes(s)
       );
     })();
-    const matchesLocation = locationFilter === "all" || r.clinic_address === locationFilter;
+    const matchesLocation = locationFilter === "All Locations" || r.clinic_address === locationFilter;
     return matchesSearch && matchesLocation;
   });
 
@@ -338,12 +393,11 @@ const JoinRequests = () => {
               <MapPin className="w-4 h-4 text-muted-foreground" />
               <Select value={locationFilter} onValueChange={setLocationFilter}>
                 <SelectTrigger className="w-44">
-                  <SelectValue placeholder="All locations" />
+                  <SelectValue placeholder="All Locations" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Locations</SelectItem>
-                  {uniqueLocations.map((loc) => (
-                    <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                  {INDIAN_CITIES.map((city) => (
+                    <SelectItem key={city} value={city}>{city}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

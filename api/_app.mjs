@@ -2923,45 +2923,21 @@ app.get("/api/patients", async (req, res) => {
         rp.city,
         rp.assigned_rd_id,
         rd.name AS assigned_dietician_name,
-        COALESCE(payment_summary.payment_status, 'unpaid') AS payment_status,
-        COALESCE(payment_summary.payment_history, '[]'::json) AS payment_history
+        CASE
+          WHEN EXISTS (
+            SELECT 1
+            FROM dietbyrd_payments dp
+            WHERE (dp.patient_id = p.id OR dp.registered_patient_id = rp.id)
+              AND dp.status IN ('paid', 'success')
+          )
+          OR rp.dietary_preference IS NOT NULL THEN 'paid'
+          ELSE 'unpaid'
+        END AS payment_status,
+        '[]'::json AS payment_history
       FROM dietbyrd_patients p
       LEFT JOIN dietbyrd_users u ON p.user_id = u.id
       LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id
       LEFT JOIN dietbyrd_registered_dietitians rd ON rp.assigned_rd_id = rd.id
-      LEFT JOIN LATERAL (
-        SELECT
-          CASE
-            WHEN COUNT(*) FILTER (WHERE pay.status = 'success') > 0
-              OR EXISTS (
-                SELECT 1
-                FROM dietbyrd_payments dp
-                WHERE (dp.patient_id = p.id OR dp.registered_patient_id = rp.id)
-                  AND dp.status IN ('paid', 'success')
-              )
-              OR rp.dietary_preference IS NOT NULL THEN 'paid'
-            ELSE 'unpaid'
-          END AS payment_status,
-          COALESCE(
-            json_agg(
-              json_build_object(
-                'payment_id', pay.id,
-                'amount', pay.amount,
-                'currency', pay.currency,
-                'status', pay.status,
-                'consultations_purchased', pay.consultations_purchased,
-                'payment_method', pay.payment_method,
-                'razorpay_payment_id', pay.razorpay_payment_id,
-                'paid_at', pay.updated_at,
-                'created_at', pay.created_at
-              )
-              ORDER BY pay.created_at DESC
-            ) FILTER (WHERE pay.id IS NOT NULL),
-            '[]'::json
-          ) AS payment_history
-        FROM dietbyrd_razorpay_payments pay
-        WHERE pay.patient_id = p.id
-      ) AS payment_summary ON true
       ORDER BY p.created_at DESC
       LIMIT 100`
     );
