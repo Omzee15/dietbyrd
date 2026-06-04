@@ -1484,24 +1484,19 @@ const Landing = () => {
           <div ref={addToRefs} className="story-grid reveal reveal-delay-2">
             <div className="story-card">
               <div className="story-monogram">
-                <div
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'radial-gradient(ellipse at center bottom, rgba(255,255,255,0.06) 0%, transparent 60%)',
-                    pointerEvents: 'none'
-                  }}
-                />
                 <img
                   src="/aryan-bhagat-founder.png"
                   alt="Aryan Bhagat, Founder of Diet By RD"
                   style={{
-                    width: '100%',
-                    height: '100%',
+                    width: '112%',
+                    height: '112%',
                     objectFit: 'contain',
                     objectPosition: 'bottom center',
                     display: 'block',
-                    filter: 'none'
+                    filter: 'none',
+                    mixBlendMode: 'multiply',
+                    transform: 'scale(1.08)',
+                    transformOrigin: 'bottom center'
                   }}
                 />
               </div>
