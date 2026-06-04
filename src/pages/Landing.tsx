@@ -240,10 +240,6 @@ const Landing = () => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const scrollToFooterPlatform = () => {
-    document.getElementById('footer-platform')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
-
   const handleContactClick = () => {
     const contactTarget = document.getElementById('contact') ?? document.getElementById('trust');
     if (contactTarget) {
@@ -1021,8 +1017,8 @@ const Landing = () => {
             <a href="#approach" className="nav-mid" onClick={scrollTo('approach')}>How It Works</a>
             <a href="#conditions" className="nav-mid" onClick={scrollTo('conditions')}>Conditions</a>
             <a href="#about" className="nav-mid" onClick={scrollTo('about')}>About Us</a>
-            <a href="#reviews" className="nav-mid" onClick={scrollTo('reviews')}>Reviews</a>
-            <a href="#trust" className="nav-mid" onClick={scrollTo('trust')}>Contact Us</a>
+            <a href="/reviews" className="nav-mid">Reviews</a>
+            <a href="#contact" className="nav-mid" onClick={scrollTo('contact')}>Contact Us</a>
             <a href="/privacy" target="_blank" rel="noopener" className="nav-link">Privacy Policy</a>
             {isAuthenticated ? (
               <div className="profile-menu-wrap">
@@ -1669,7 +1665,7 @@ const Landing = () => {
             <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
               Book Your Consultation
             </button>
-            <button onClick={scrollToFooterPlatform} className="btn-outline-navy">Are you a Doctor / Dietitian</button>
+            <button onClick={() => navigate('/join')} className="btn-outline-navy">Are you a Doctor / Dietitian</button>
             <button onClick={handleContactClick} className="btn-ghost-link">Contact / Support →</button>
           </div>
           <div ref={addToRefs} className="hero-stats reveal reveal-delay-3">
@@ -1708,8 +1704,8 @@ const Landing = () => {
             <div className="footer-col">
               <h5>Company</h5>
               <a href="#rd-section" onClick={scrollTo('rd-section')}>Why RD?</a>
-              <a href="/login">For Doctors</a>
-              <a href="/login">Join as Dietitian</a>
+              <a href="/join">For Doctors</a>
+              <a href="/join">Join as Dietitian</a>
             </div>
             <div className="footer-col">
               <h4>Legal</h4>
@@ -1720,11 +1716,11 @@ const Landing = () => {
                 <li><a href="/cancellation" target="_blank" rel="noopener">Cancellation Policy</a></li>
               </ul>
             </div>
-            <div className="footer-col">
+            <div id="contact" className="footer-col">
               <h5>Legal & Support</h5>
-              <a href="#">Privacy Policy</a>
-              <a href="#">Terms of Service</a>
-              <a href="/patient/support">Contact / Support</a>
+              <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>
+              <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
+              <a href="mailto:hello@dietbyrd.com">Contact / Support</a>
               <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a>
               <div style={{ fontSize: '13.5px', color: 'var(--text3)', marginBottom: '10px' }}>
                 Grievance: <a href="mailto:grievance@dietbyrd.com" style={{ color: 'var(--teal)' }}>grievance@dietbyrd.com</a>
