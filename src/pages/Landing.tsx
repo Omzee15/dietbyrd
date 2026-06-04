@@ -1067,10 +1067,6 @@ const Landing = () => {
       {/* CTA — Page 1 */}
       <section className="cta-section" style={{ background: 'var(--cream)' }}>
         <div className="cta-inner">
-          <span ref={addToRefs} className="cta-eyebrow reveal">
-            <span className="cta-star">★</span>
-            YOUR HEALTH DESERVES BETTER
-          </span>
           <h1 ref={addToRefs} className="cta-headline reveal reveal-delay-1">
             Your health deserves
             <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}> clinical expertise</em>
@@ -1084,12 +1080,6 @@ const Landing = () => {
           <div ref={addToRefs} className="cta-actions reveal reveal-delay-3">
             <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
               Book Your Consultation
-            </button>
-            <button onClick={scrollToFooterPlatform} className="btn-outline-navy">
-              Are you a Doctor / Dietitian
-            </button>
-            <button onClick={handleContactClick} className="btn-ghost-link">
-              Contact / Support →
             </button>
           </div>
         </div>
