@@ -1411,13 +1411,13 @@ const Landing = () => {
   display: grid; grid-template-columns: 1fr 1.2fr; gap: 48px; align-items: start;
 }
 .story-card {
-  background: #fff; border-radius: 24px; overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04); border: 1px solid var(--border);
+  background: transparent; border-radius: 0; overflow: visible;
+  box-shadow: none; border: 0;
 }
 .story-monogram {
-  height: 420px; width: 100%; background: linear-gradient(135deg, #0A1628 0%, #1a3a5c 100%);
-  border-radius: 16px; display: flex; align-items: flex-end; justify-content: center;
-  overflow: hidden; position: relative;
+  min-height: 560px; height: min(72vh, 720px); width: 100%; background: transparent;
+  border-radius: 0; display: flex; align-items: flex-end; justify-content: center;
+  overflow: visible; position: relative;
 }
 .story-monogram-text {
   font-family: 'Playfair Display', serif; font-size: 96px; font-weight: 700;
@@ -1501,7 +1501,7 @@ const Landing = () => {
                     objectFit: 'contain',
                     objectPosition: 'bottom center',
                     display: 'block',
-                    filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.25))'
+                    filter: 'none'
                   }}
                 />
               </div>
