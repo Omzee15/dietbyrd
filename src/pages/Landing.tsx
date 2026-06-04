@@ -1515,6 +1515,8 @@ const Landing = () => {
                   }}
                 />
               </div>
+            </div>
+            <div className="story-bio">
               <div className="story-card-body">
                 <div className="story-name">Aryan Bhagat</div>
                 <div className="story-role">Founder, Diet By RD</div>
@@ -1523,8 +1525,6 @@ const Landing = () => {
                   "Everything in this world can be learnt." — the belief that started it all.
                 </div>
               </div>
-            </div>
-            <div className="story-bio">
               <p className="story-bio-text">
                 Diet By RD was founded by <strong style={{ color: 'var(--navy)' }}>Aryan Bhagat</strong>, a young mind from Darbhanga, Bihar, with a simple but powerful belief: <em>"Everything in this world can be learnt."</em>
               </p>
@@ -1670,10 +1670,6 @@ const Landing = () => {
       <section className="hero" style={{ background: 'var(--cream)' }}>
         <div className="hero-bg" />
         <div className="hero-content">
-          <div ref={addToRefs} className="hero-badge reveal">
-            <span className="hero-star">★</span>
-            YOUR HEALTH DESERVES BETTER
-          </div>
           <h1 ref={addToRefs} className="hero-h1 reveal reveal-delay-1">
             Your health deserves
             <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}> clinical expertise</em>
