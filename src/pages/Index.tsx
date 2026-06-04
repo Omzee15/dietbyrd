@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Activity,
@@ -116,6 +116,7 @@ const Index = () => {
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [joinSuccess, setJoinSuccess] = useState("");
   const [secondsRemaining, setSecondsRemaining] = useState(0);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
 
   const formattedPhone = useMemo(() => `+91 ${phone}`, [phone]);
 
@@ -124,6 +125,32 @@ const Index = () => {
       navigate(getDashboardPath(user.role), { replace: true });
     }
   }, [authLoading, isAuthenticated, navigate, user]);
+
+  useEffect(() => {
+    if (authLoading || showJoinForm || step !== "phone") return;
+    const focusTimer = window.setTimeout(() => phoneInputRef.current?.focus(), 50);
+    return () => window.clearTimeout(focusTimer);
+  }, [authLoading, showJoinForm, step]);
+
+  useEffect(() => {
+    if (authLoading || showJoinForm || step !== "phone") return;
+    const handleWindowKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter") return;
+      const target = event.target as HTMLElement | null;
+      const isEditing =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLButtonElement ||
+        target?.isContentEditable;
+      if (isEditing) return;
+      event.preventDefault();
+      phoneInputRef.current?.focus();
+      phoneInputRef.current?.select();
+    };
+    window.addEventListener("keydown", handleWindowKeyDown);
+    return () => window.removeEventListener("keydown", handleWindowKeyDown);
+  }, [authLoading, showJoinForm, step]);
 
   useEffect(() => {
     if (!otpExpiresAt) {
@@ -198,6 +225,8 @@ const Index = () => {
 
     if (!isValidIndianMobile(phone)) {
       setError("Please enter a valid mobile number");
+      phoneInputRef.current?.focus();
+      phoneInputRef.current?.select();
       return;
     }
 
@@ -250,8 +279,17 @@ const Index = () => {
         return;
       }
 
+      const responseData = data?.data as Record<string, unknown> | undefined;
+      if (res.status === 403 && responseData?.pending) {
+        const adminMessage = typeof responseData.admin_message === "string" ? responseData.admin_message : "";
+        const status = typeof responseData.status === "string" ? responseData.status : "pending";
+        const statusLabel = status === "interview_sent" ? "interview scheduled" : status;
+        setError(adminMessage || `Your application status is ${statusLabel}. Please wait for admin approval.`);
+        return;
+      }
+
       if (!res.ok || data?.success === false) {
-        setError("Something went wrong. Please try again.");
+        setError(data?.error || "Something went wrong. Please try again.");
         return;
       }
 
@@ -341,11 +379,20 @@ const Index = () => {
       <div className="relative">
         <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
         <Input
+          ref={phoneInputRef}
           type="tel"
           inputMode="numeric"
           placeholder="Enter your phone number"
           value={phone}
           onChange={(e) => setPhone(normalizeIndianMobileInput(e.target.value))}
+          onKeyDown={(e) => {
+            if (!readOnly && e.key === "Enter" && !isValidIndianMobile(phone)) {
+              e.preventDefault();
+              setError("Please enter a valid mobile number");
+              phoneInputRef.current?.focus();
+              phoneInputRef.current?.select();
+            }
+          }}
           autoFocus={!readOnly}
           className={`pl-12 h-14 rounded-xl border-slate-200 transition-all text-base ${
             readOnly

@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ArrowLeft, CheckCircle2, Stethoscope, UtensilsCrossed, Phone, MessageSquare, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { isValidIndianMobile, normalizeIndianMobileInput } from "@/lib/validation";
 
 const QUALIFICATION_OPTIONS = [
   "MBBS","MD","MS","BDS","BAMS","BHMS","BUMS",
@@ -75,25 +76,24 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
     }
   }, [otpTimer]);
 
-  useEffect(() => {
-    if (otpTimer > 0) {
-      const timer = setTimeout(() => setOtpTimer((prev) => prev - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [otpTimer]);
-
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const getValidatedPhone = () => {
+    const phoneDigits = normalizeIndianMobileInput(formData.phone);
+    if (!isValidIndianMobile(phoneDigits)) {
+      toast.error("Please enter a valid Indian mobile number");
+      return null;
+    }
+    return phoneDigits;
   };
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const phoneDigits = formData.phone.replace(/\D/g, "");
-    if (phoneDigits.length !== 10) {
-      toast.error("Please enter a valid 10-digit phone number");
-      return;
-    }
+    const phoneDigits = getValidatedPhone();
+    if (!phoneDigits) return;
 
     setIsSubmitting(true);
 
@@ -132,7 +132,9 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
     setIsSubmitting(true);
 
     try {
-      const phoneDigits = formData.phone.replace(/\D/g, "");
+      const phoneDigits = getValidatedPhone();
+      if (!phoneDigits) return;
+
       const res = await fetch("/api/auth/verify-otp-registration", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -180,11 +182,8 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
       return;
     }
 
-    const phoneDigits = formData.phone.replace(/\D/g, "");
-    if (phoneDigits.length !== 10) {
-      toast.error("Please enter a valid 10-digit phone number");
-      return;
-    }
+    const phoneDigits = getValidatedPhone();
+    if (!phoneDigits) return;
 
     if (formData.role === "doctor") {
       if (!formData.specialization || !formData.experience_years) {
@@ -208,6 +207,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
           phone: phoneDigits,
           password: formData.password,
           name: formData.name,
+          email: formData.email || null,
           role: formData.role,
           qualification: formData.qualification,
           clinic_name: formData.clinic_name || null,
@@ -281,7 +281,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
                 type="tel"
                 placeholder="Enter 10-digit phone number"
                 value={formData.phone}
-                onChange={(e) => handleChange("phone", e.target.value.replace(/\D/g, ""))}
+                onChange={(e) => handleChange("phone", normalizeIndianMobileInput(e.target.value))}
                 className="pl-11 h-12"
                 maxLength={10}
                 required
@@ -289,7 +289,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
             </div>
           </div>
 
-          <Button type="submit" disabled={isSubmitting} className="w-full h-12">
+          <Button type="submit" disabled={isSubmitting || !isValidIndianMobile(formData.phone)} className="w-full h-12">
             {isSubmitting ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending OTP...</>
             ) : (

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type ChangeEvent } from "react";
+import { useState, useMemo, useEffect, useRef, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CalendarDays,
@@ -69,6 +69,10 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
   const [selectedPackage, setSelectedPackage] = useState<ConsultationPackage | null>(null);
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
   const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
+  const otpInputRef = useRef<HTMLInputElement>(null);
+  const confirmPaymentButtonRef = useRef<HTMLButtonElement>(null);
 
   const weekDateRange = useMemo(() => {
     const today = new Date();
@@ -150,6 +154,16 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
     const t = setTimeout(() => setOtpTimer((v) => v - 1), 1000);
     return () => clearTimeout(t);
   }, [otpTimer]);
+
+  useEffect(() => {
+    if (!open) return;
+    const focusTimer = window.setTimeout(() => {
+      if (step === "contact") nameInputRef.current?.focus();
+      if (step === "otp") otpInputRef.current?.focus();
+      if (step === "payment") confirmPaymentButtonRef.current?.focus();
+    }, 50);
+    return () => window.clearTimeout(focusTimer);
+  }, [open, step]);
 
   const handlePhoneChange = (e: ChangeEvent<HTMLInputElement>) => {
     setPhone(normalizeIndianMobileInput(e.target.value));
@@ -321,6 +335,11 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
       toast.error(err.message || "Failed to initiate payment");
       setIsPaymentProcessing(false);
     }
+  };
+
+  const selectPackage = (pkg: ConsultationPackage) => {
+    setSelectedPackage(pkg);
+    window.requestAnimationFrame(() => confirmPaymentButtonRef.current?.focus());
   };
 
   const resetAndClose = () => {
@@ -527,9 +546,16 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                 <div className="relative mt-1">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
+                    ref={nameInputRef}
                     placeholder="Your full name"
                     value={name}
                     onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z\s.\-']/g, ""))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        phoneInputRef.current?.focus();
+                      }
+                    }}
                     className="pl-9"
                   />
                 </div>
@@ -539,6 +565,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                 <div className="relative mt-1">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
+                    ref={phoneInputRef}
                     type="tel"
                     inputMode="numeric"
                     placeholder="10-digit mobile number"
@@ -596,6 +623,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
             <div>
               <label className="text-sm font-medium">OTP</label>
               <Input
+                ref={otpInputRef}
                 type="tel"
                 placeholder="Enter OTP"
                 value={otp}
@@ -643,7 +671,15 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
 
         {/* ── Step 4: Payment ── */}
         {step === "payment" && (
-          <div className="space-y-4">
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!isPaymentProcessing && selectedPackage) {
+                void handlePayment();
+              }
+            }}
+          >
             {selectedSlot && (
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 text-sm">
                 <Clock className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -664,14 +700,22 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
 
             <div className="space-y-3">
               {packages.map((pkg) => (
-                <div
+                <button
+                  type="button"
                   key={pkg.id}
-                  className={`p-4 border rounded-lg cursor-pointer transition-all hover:border-emerald-400 ${
+                  className={`w-full text-left p-4 border rounded-lg cursor-pointer transition-all hover:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
                     selectedPackage?.id === pkg.id
                       ? "border-emerald-600 ring-2 ring-emerald-200 bg-emerald-50"
                       : ""
                   }`}
-                  onClick={() => setSelectedPackage(pkg)}
+                  aria-pressed={selectedPackage?.id === pkg.id}
+                  onClick={() => selectPackage(pkg)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      selectPackage(pkg);
+                    }
+                  }}
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -692,13 +736,14 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                       )}
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
 
             <Button
+              ref={confirmPaymentButtonRef}
+              type="submit"
               className="w-full bg-emerald-600 hover:bg-emerald-700"
-              onClick={handlePayment}
               disabled={!selectedPackage || isPaymentProcessing}
             >
               {isPaymentProcessing ? (
@@ -709,7 +754,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                 `Pay ₹${selectedPackage ? (selectedPackage.price / 100).toFixed(0) : "0"} & Confirm Booking`
               )}
             </Button>
-          </div>
+          </form>
         )}
 
         {/* ── Step 5: Success ── */}

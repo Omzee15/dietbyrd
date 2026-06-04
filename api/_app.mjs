@@ -1017,6 +1017,30 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(401).json({ success: false, error: "Account is deactivated" });
     }
 
+    // Pending doctor/RD applicants should see their application status even if
+    // they mistype or forget the password created during sign-up.
+    if (["doctor", "rd"].includes(user.role) && !user.is_verified) {
+      const jrResult = await query(
+        `SELECT status, admin_message, rejection_reason
+         FROM dietbyrd_join_requests
+         WHERE user_id = $1
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [user.id]
+      );
+      const joinRequest = jrResult.rows[0] || {};
+      return res.status(403).json({
+        success: false,
+        error: "Your account is pending approval",
+        data: {
+          pending: true,
+          status: joinRequest.status || "pending",
+          admin_message: joinRequest.admin_message || null,
+          rejection_reason: joinRequest.rejection_reason || null,
+        },
+      });
+    }
+
     // Compare password — supports both bcrypt hashes and legacy plain-text
     // (plain-text passwords are re-hashed on successful login for seamless migration)
     let isValidPassword = false;
@@ -1396,6 +1420,30 @@ app.post("/api/auth/employee/login", async (req, res) => {
       return res.status(401).json({ success: false, error: "Invalid phone number or password" });
     }
 
+    // Pending doctor/RD applicants should see their application status even if
+    // they mistype or forget the password created during sign-up.
+    if (["doctor", "rd"].includes(user.role) && !user.is_verified) {
+      const jrResult = await query(
+        `SELECT status, admin_message, rejection_reason
+         FROM dietbyrd_join_requests
+         WHERE user_id = $1
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [user.id]
+      );
+      const joinRequest = jrResult.rows[0] || {};
+      return res.status(403).json({
+        success: false,
+        error: "Your account is pending approval",
+        data: {
+          pending: true,
+          status: joinRequest.status || "pending",
+          admin_message: joinRequest.admin_message || null,
+          rejection_reason: joinRequest.rejection_reason || null,
+        },
+      });
+    }
+
     if (!user.password || !/^\$2[aby]\$/.test(user.password)) {
       console.error(`[Auth] Refusing employee login for user ${user.id}: password is not a bcrypt hash`);
       return res.status(401).json({ success: false, error: "Invalid phone number or password" });
@@ -1713,11 +1761,12 @@ app.post("/api/auth/send-otp-registration", async (req, res) => {
   try {
     const { phone, channel = "sms" } = req.body;
 
-    if (!phone) {
-      return res.status(400).json({ success: false, error: "Phone number is required" });
+    const parsedPhone = normalizeIndianMobileForAuth(phone);
+    if (!parsedPhone) {
+      return res.status(400).json({ success: false, error: "Please enter a valid Indian mobile number" });
     }
 
-    const rateCheck = checkOtpRateLimit(phone);
+    const rateCheck = checkOtpRateLimit(parsedPhone.digits);
     if (!rateCheck.allowed) {
       return res.status(429).json({
         success: false,
@@ -1725,24 +1774,50 @@ app.post("/api/auth/send-otp-registration", async (req, res) => {
       });
     }
 
-    // If account already exists, we should not send a registration OTP
-    const variants = buildPhoneVariants(phone);
+    // If account or an active application already exists, do not send a registration OTP.
     const existing = await query(
-      "SELECT id FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
-      [variants]
+      "SELECT id, role, is_verified FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [parsedPhone.variants]
     );
     if (existing.rows.length > 0) {
+      const user = existing.rows[0];
+      if (["doctor", "rd"].includes(user.role) && !user.is_verified) {
+        return res.status(409).json({
+          success: false,
+          error: "An application already exists for this phone. Please log in to check approval status.",
+          data: { pending: true },
+        });
+      }
       return res.status(409).json({ success: false, error: "Account already exists for this phone" });
+    }
+
+    const existingRequest = await query(
+      `SELECT id, status FROM dietbyrd_join_requests
+       WHERE phone = ANY($1::text[])
+         AND status IN ('pending', 'interview_sent', 'approved')
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [parsedPhone.variants]
+    );
+    if (existingRequest.rows.length > 0) {
+      const status = existingRequest.rows[0].status;
+      return res.status(409).json({
+        success: false,
+        error: status === "approved"
+          ? "This application is already approved. Please log in with your password."
+          : "An application already exists for this phone. Please log in to check approval status.",
+        data: { status, pending: status !== "approved" },
+      });
     }
 
     // Send OTP using Twilio Verify (or mock in dev mode)
     try {
-      const result = await sendOtpViaTwilio(phone, channel);
+      const result = await sendOtpViaTwilio(parsedPhone.e164, channel);
       const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
 
       // In dev mode, store the OTP for verification under 'registration'
       if (IS_DEV && devOtp) {
-        await storeOtp(phone, devOtp, 'registration');
+        await storeOtp(parsedPhone.digits, devOtp, 'registration');
       }
 
       return res.json({
@@ -2094,20 +2169,21 @@ app.post("/api/auth/verify-otp-registration", async (req, res) => {
   try {
     const { phone, otp } = req.body;
 
-    if (!phone || !otp) {
+    const parsedPhone = normalizeIndianMobileForAuth(phone);
+    if (!parsedPhone || !otp) {
       return res.status(400).json({ success: false, error: "Phone and OTP are required" });
     }
 
     // Verify OTP - use local DB in dev mode, Twilio in production
     if (IS_DEV) {
-      const verifyResult = await verifyOtpFromDb(phone, otp, 'login');
+      const verifyResult = await verifyOtpFromDb(parsedPhone.digits, otp, 'registration');
       if (!verifyResult.valid) {
         return res.status(400).json({ success: false, error: verifyResult.error || "Invalid OTP." });
       }
-      await clearOtp(phone, 'login');
+      await clearOtp(parsedPhone.digits, 'registration');
     } else {
       try {
-        const verificationCheck = await verifyOtpViaTwilio(phone, otp);
+        const verificationCheck = await verifyOtpViaTwilio(parsedPhone.e164, otp);
 
         if (verificationCheck.status !== "approved") {
           return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
@@ -2119,7 +2195,7 @@ app.post("/api/auth/verify-otp-registration", async (req, res) => {
     }
 
     // Just return success - no account creation or checking
-    return res.json({ success: true, data: { verified: true, phone } });
+    return res.json({ success: true, data: { verified: true, phone: parsedPhone.digits } });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -2392,6 +2468,21 @@ app.post("/api/join-requests", async (req, res) => {
       });
     }
 
+    const parsedPhone = normalizeIndianMobileForAuth(phone);
+    if (!parsedPhone) {
+      return res.status(400).json({
+        success: false,
+        error: "Please enter a valid Indian mobile number"
+      });
+    }
+
+    if (String(password).length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: "Password must be at least 6 characters"
+      });
+    }
+
     if (!["doctor", "rd"].includes(role)) {
       return res.status(400).json({
         success: false,
@@ -2415,8 +2506,8 @@ app.post("/api/join-requests", async (req, res) => {
 
     // Check if user already exists
     const existingUser = await query(
-      "SELECT id, is_verified FROM dietbyrd_users WHERE phone = $1",
-      [phone]
+      "SELECT id, is_verified FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      [parsedPhone.variants]
     );
 
     if (existingUser.rows.length > 0) {
@@ -2429,8 +2520,8 @@ app.post("/api/join-requests", async (req, res) => {
 
     // Check if pending request exists (fallback check)
     const existingRequest = await query(
-      "SELECT id FROM dietbyrd_join_requests WHERE phone = $1 AND status = 'pending'",
-      [phone]
+      "SELECT id FROM dietbyrd_join_requests WHERE phone = ANY($1::text[]) AND status IN ('pending', 'interview_sent') LIMIT 1",
+      [parsedPhone.variants]
     );
 
     if (existingRequest.rows.length > 0) {
@@ -2445,7 +2536,7 @@ app.post("/api/join-requests", async (req, res) => {
       `INSERT INTO dietbyrd_users (phone, password, role, name, email, is_active, is_verified)
        VALUES ($1, $2, $3, $4, $5, true, false)
        RETURNING id`,
-      [phone, hashedJoinPw, role, name, email || null]
+      [parsedPhone.digits, hashedJoinPw, role, name, email || null]
     );
     const userId = userResult.rows[0].id;
 
@@ -2455,7 +2546,7 @@ app.post("/api/join-requests", async (req, res) => {
         (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, about_yourself, status, user_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10)
        RETURNING id, phone, name, requested_role, status, created_at`,
-      [phone, hashedJoinPw, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, about_yourself || null, userId]
+      [parsedPhone.digits, hashedJoinPw, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, about_yourself || null, userId]
     );
 
     res.status(201).json({
@@ -2489,6 +2580,10 @@ app.post("/api/join-requests", async (req, res) => {
         `);
         // Retry with original request body
         const { phone, password, name, role, qualification, clinic_name, clinic_address, specializations } = req.body;
+        const parsedPhone = normalizeIndianMobileForAuth(phone);
+        if (!parsedPhone) {
+          return res.status(400).json({ success: false, error: "Please enter a valid Indian mobile number" });
+        }
         const hashedFallbackPw = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
         // Create user
@@ -2496,7 +2591,7 @@ app.post("/api/join-requests", async (req, res) => {
           `INSERT INTO dietbyrd_users (phone, password, role, name, is_active, is_verified)
            VALUES ($1, $2, $3, $4, true, false)
            RETURNING id`,
-          [phone, hashedFallbackPw, role, name]
+          [parsedPhone.digits, hashedFallbackPw, role, name]
         );
         const userId = userResult.rows[0].id;
 
@@ -2505,7 +2600,7 @@ app.post("/api/join-requests", async (req, res) => {
             (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, status, user_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9)
            RETURNING id, phone, name, requested_role, status, created_at`,
-          [phone, hashedFallbackPw, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, userId]
+          [parsedPhone.digits, hashedFallbackPw, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, userId]
         );
         return res.status(201).json({ success: true, data: result.rows[0] });
       } catch (createErr) {
@@ -2796,13 +2891,26 @@ app.patch("/api/join-requests/:id", async (req, res) => {
 
     const joinRequest = requestResult.rows[0];
 
-    if (joinRequest.status !== "pending") {
+    if (!["pending", "interview_sent"].includes(joinRequest.status)) {
       return res.status(400).json({ success: false, error: "Request has already been processed" });
+    }
+
+    const parsedPhone = normalizeIndianMobileForAuth(joinRequest.phone);
+    if (!parsedPhone) {
+      return res.status(400).json({
+        success: false,
+        error: "This request has an invalid phone number. Please reject it and ask the applicant to apply with a valid Indian mobile number."
+      });
     }
 
     if (action === "reject") {
       // Reject the request - also deactivate/delete the unverified user
       if (joinRequest.user_id) {
+        // Unlink first to avoid FK violations in environments without ON DELETE SET NULL
+        await query(
+          "UPDATE dietbyrd_join_requests SET user_id = NULL WHERE id = $1 AND user_id = $2",
+          [id, joinRequest.user_id]
+        );
         await query("DELETE FROM dietbyrd_users WHERE id = $1 AND is_verified = false", [joinRequest.user_id]);
       }
       await query(
@@ -2820,18 +2928,35 @@ app.patch("/api/join-requests/:id", async (req, res) => {
     if (userId) {
       // User was created at join request time - just verify them
       await query(
-        "UPDATE dietbyrd_users SET is_verified = true WHERE id = $1",
-        [userId]
+        `UPDATE dietbyrd_users
+         SET phone = $1, role = $2, name = $3, is_active = true, is_verified = true, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $4`,
+        [parsedPhone.digits, joinRequest.requested_role, joinRequest.name, userId]
       );
     } else {
-      // Legacy: user wasn't created at join time, create now (for old requests)
-      const userResult = await query(
-        `INSERT INTO dietbyrd_users (phone, password, role, name, is_active, is_verified)
-         VALUES ($1, $2, $3, $4, true, true)
-         RETURNING id`,
-        [joinRequest.phone, joinRequest.password, joinRequest.requested_role, joinRequest.name]
+      const existingUser = await query(
+        "SELECT id FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+        [parsedPhone.variants]
       );
-      userId = userResult.rows[0].id;
+
+      if (existingUser.rows.length > 0) {
+        userId = existingUser.rows[0].id;
+        await query(
+          `UPDATE dietbyrd_users
+           SET phone = $1, role = $2, name = $3, password = COALESCE(password, $4), is_active = true, is_verified = true, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $5`,
+          [parsedPhone.digits, joinRequest.requested_role, joinRequest.name, joinRequest.password, userId]
+        );
+      } else {
+        // Legacy: user wasn't created at join time, create now (for old requests)
+        const userResult = await query(
+          `INSERT INTO dietbyrd_users (phone, password, role, name, is_active, is_verified)
+           VALUES ($1, $2, $3, $4, true, true)
+           RETURNING id`,
+          [parsedPhone.digits, joinRequest.password, joinRequest.requested_role, joinRequest.name]
+        );
+        userId = userResult.rows[0].id;
+      }
 
       // Link user to join request
       await query("UPDATE dietbyrd_join_requests SET user_id = $1 WHERE id = $2", [userId, id]);
@@ -2841,7 +2966,15 @@ app.patch("/api/join-requests/:id", async (req, res) => {
       const commissionValue = commission_rate != null ? parseFloat(commission_rate) : 0;
       await query(
         `INSERT INTO dietbyrd_doctors (user_id, name, qualification, clinic_name, clinic_address, is_verified, commission_rate)
-         VALUES ($1, $2, $3, $4, $5, true, $6)`,
+         VALUES ($1, $2, $3, $4, $5, true, $6)
+         ON CONFLICT (user_id) DO UPDATE SET
+           name = EXCLUDED.name,
+           qualification = EXCLUDED.qualification,
+           clinic_name = EXCLUDED.clinic_name,
+           clinic_address = EXCLUDED.clinic_address,
+           is_verified = true,
+           commission_rate = EXCLUDED.commission_rate,
+           updated_at = CURRENT_TIMESTAMP`,
         [userId, joinRequest.name, joinRequest.qualification, joinRequest.clinic_name, joinRequest.clinic_address, commissionValue]
       );
     } else if (joinRequest.requested_role === "rd") {
@@ -2855,6 +2988,14 @@ app.patch("/api/join-requests/:id", async (req, res) => {
       const rdResult = await query(
         `INSERT INTO dietbyrd_registered_dietitians (user_id, name, qualification, specializations, clinic_name, clinic_address, is_active)
          VALUES ($1, $2, $3, $4::jsonb, $5, $6, true)
+         ON CONFLICT (user_id) DO UPDATE SET
+           name = EXCLUDED.name,
+           qualification = EXCLUDED.qualification,
+           specializations = EXCLUDED.specializations,
+           clinic_name = EXCLUDED.clinic_name,
+           clinic_address = EXCLUDED.clinic_address,
+           is_active = true,
+           updated_at = CURRENT_TIMESTAMP
          RETURNING id`,
         [userId, joinRequest.name, joinRequest.qualification, specializationsValue, joinRequest.clinic_name || null, joinRequest.clinic_address || null]
       );
@@ -2867,7 +3008,11 @@ app.patch("/api/join-requests/:id", async (req, res) => {
         defaultAvailability.push(
           query(
             `INSERT INTO dietbyrd_dietician_availability (rd_id, day_of_week, start_time, end_time, slot_duration_minutes, is_active)
-             VALUES ($1, $2, '09:00', '17:00', 60, true)`,
+             SELECT $1, $2, '09:00', '17:00', 60, true
+             WHERE NOT EXISTS (
+               SELECT 1 FROM dietbyrd_dietician_availability
+               WHERE rd_id = $1 AND day_of_week = $2
+             )`,
             [rdId, day]
           )
         );
@@ -2881,9 +3026,9 @@ app.patch("/api/join-requests/:id", async (req, res) => {
     // Update the join request
     await query(
       `UPDATE dietbyrd_join_requests
-       SET status = 'approved', reviewed_by = $1, reviewed_at = CURRENT_TIMESTAMP, admin_message = $2, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3`,
-      [reviewed_by || null, admin_message || null, id]
+       SET phone = $1, status = 'approved', reviewed_by = $2, reviewed_at = CURRENT_TIMESTAMP, admin_message = $3, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4`,
+      [parsedPhone.digits, reviewed_by || null, admin_message || null, id]
     );
 
     // Notify the applicant — best effort, never blocks the response

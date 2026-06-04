@@ -401,7 +401,7 @@ export interface JoinRequest {
   about_yourself?: string | null;
   experience_years?: number | null;
   medical_license_number?: string | null;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "interview_sent" | "approved" | "rejected";
   rejection_reason?: string | null;
   admin_message?: string | null;
   reviewed_by?: number | null;
