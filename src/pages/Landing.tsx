@@ -1425,8 +1425,8 @@ const Landing = () => {
   box-shadow: 0 1px 3px rgba(0,0,0,0.04); border: 1px solid var(--border);
 }
 .story-monogram {
-  height: 360px; background: linear-gradient(135deg, var(--navy) 0%, #1a3a5c 100%);
-  display: flex; align-items: center; justify-content: center;
+  height: 420px; width: 100%; background: linear-gradient(135deg, #0A1628 0%, #1a3a5c 100%);
+  border-radius: 16px; display: flex; align-items: flex-end; justify-content: center;
   overflow: hidden; position: relative;
 }
 .story-monogram-text {
