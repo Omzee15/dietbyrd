@@ -7152,7 +7152,10 @@ app.get("/api/support/patients", async (req, res) => {
       p.gender,
       u.is_active,
       p.created_at,
-      (SELECT COUNT(*) FROM dietbyrd_appointments WHERE patient_id = p.id) as appointment_count
+      (SELECT COUNT(*)
+       FROM dietbyrd_consultations c
+       JOIN dietbyrd_registered_patients rp2 ON rp2.id = c.registered_patient_id
+       WHERE rp2.patient_id = p.id) as appointment_count
        FROM dietbyrd_patients p
        JOIN dietbyrd_users u ON u.id = p.user_id
        ${whereSql}
@@ -8340,10 +8343,9 @@ app.get("/api/reviews", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit || "20", 10), 50);
     const offset = Math.max(parseInt(req.query.offset || "0", 10), 0);
     const result = await query(
-      `SELECT r.id, r.patient_id, u.name AS patient_name, r.rating, r.body, r.condition_tag,
+      `SELECT r.id, r.patient_id, 'Anonymous patient' AS patient_name, r.rating, r.body, r.condition_tag,
               r.is_approved, r.created_at, r.approved_at
        FROM reviews r
-       LEFT JOIN dietbyrd_users u ON u.id = r.patient_id
        WHERE ($1::boolean = false OR r.is_approved = true)
        ORDER BY r.created_at DESC
        LIMIT $2 OFFSET $3`,
@@ -8397,6 +8399,21 @@ app.post("/api/reviews", async (req, res) => {
     const conditionTag = req.body.condition_tag ? String(req.body.condition_tag).trim() : null;
     if (!Number.isInteger(rating) || rating < 1 || rating > 5 || body.length < 20 || body.length > 2000) {
       return res.status(400).json({ success: false, error: "Please provide a 1-5 rating and a review between 20 and 2000 characters." });
+    }
+
+    const blockedReviewPatterns = [
+      /\b(fuck|shit|bitch|asshole|bastard|slut|whore)\b/i,
+      /\b(kill|suicide|self[-\s]?harm|rape|molest)\b/i,
+      /\b\d{10}\b/,
+      /https?:\/\//i,
+      /www\./i,
+      /@[a-z0-9_.-]+\.[a-z]{2,}/i,
+    ];
+    if (blockedReviewPatterns.some((pattern) => pattern.test(body))) {
+      return res.status(400).json({
+        success: false,
+        error: "This review violates our community guidelines and cannot be submitted.",
+      });
     }
 
     const phone = formatPhoneE164(auth.user.phone || patient.phone || "");

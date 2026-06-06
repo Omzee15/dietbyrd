@@ -587,6 +587,11 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                         phoneInputRef.current?.focus();
                       }
                     }}
+                    onKeyUp={(e) => {
+                      if (e.key === "Enter") {
+                        phoneInputRef.current?.focus();
+                      }
+                    }}
                     className="pl-9"
                   />
                 </div>
@@ -744,7 +749,11 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      selectPackage(pkg);
+                      if (selectedPackage?.id === pkg.id && !isPaymentProcessing) {
+                        void handlePayment();
+                      } else {
+                        selectPackage(pkg);
+                      }
                     }
                   }}
                 >

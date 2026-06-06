@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { UserPlus, Users, BarChart3, MessageCircle, FileText, Search, ArrowLeft, X, IndianRupee, TrendingUp, Loader2, LogOut, Settings, ChevronDown, UserCheck, Plus, Trash2, Shield } from "lucide-react";
+import { UserPlus, Users, BarChart3, MessageCircle, Search, ArrowLeft, X, IndianRupee, TrendingUp, Loader2, LogOut, Settings, ChevronDown, UserCheck, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -234,7 +234,8 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
     {
       title: "Workspace",
       items: [
-        { label: "Help a Patient", href: "/doctor", icon: UserPlus },
+        { label: "Refer Patient", href: "/doctor/referrals", icon: UserPlus },
+        { label: "Overview", href: "/doctor", icon: BarChart3 },
         { label: "My Patients", href: "/doctor/patients", icon: Users, badge: referrals.length },
         // Only show for doctors, not assistants
         ...(!isAssistant ? [
@@ -251,12 +252,6 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
         <MessageCircle className="w-[18px] h-[18px] shrink-0" />
         <span>Contact Support</span>
       </a>
-      {!isAssistant && (
-        <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-primary-foreground transition-all duration-150">
-          <FileText className="w-[18px] h-[18px] shrink-0" />
-          <span>MOU / Agreement</span>
-        </a>
-      )}
       <button
         onClick={handleLogout}
         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-red-400 hover:bg-red-500/10 transition-all duration-150"
@@ -634,6 +629,8 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                           className="mt-1.5"
                           value={newAssistantPhone}
                           onChange={(e) => setNewAssistantPhone(formatPhoneForDisplay(e.target.value))}
+                          maxLength={10}
+                          pattern="[6-9][0-9]{9}"
                         />
                       </div>
                       <div>

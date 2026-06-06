@@ -326,7 +326,6 @@ const SupportDashboard = () => {
   );
 
   const selectedTicket = ticketDetail?.ticket;
-  const isAssignedToMe = selectedTicket?.assigned_to === user?.id;
   const commentsEnabled = false;
 
   return (
@@ -714,23 +713,6 @@ const SupportDashboard = () => {
                         </SelectContent>
                       </Select>
 
-                      {!isAssignedToMe ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 text-xs"
-                          disabled={updateTicketMutation.isPending}
-                          onClick={() => updateTicketMutation.mutate({ assigned_to: user?.id })}
-                        >
-                          <UserCheck className="w-3.5 h-3.5 mr-1" />
-                          Assign to me
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                          <UserCheck className="w-3.5 h-3.5" />
-                          Assigned to you
-                        </span>
-                      )}
                     </div>
                   </div>
 

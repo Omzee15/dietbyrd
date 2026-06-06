@@ -1,130 +1,208 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Star } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, Loader2, ShieldCheck, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { getApprovedReviews, getReviewEligibility, submitReview } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
-const conditionOptions = ["PCOS", "Diabetes", "Thyroid Disorders", "Obesity", "High Cholesterol", "Hypertension", "Gut Health", "Sports Nutrition"];
+const reviewGuidelinePatterns = [
+  /\b(fuck|shit|bitch|asshole|bastard|slut|whore)\b/i,
+  /\b(kill|suicide|self[-\s]?harm|rape|molest)\b/i,
+  /\b\d{10}\b/,
+  /https?:\/\//i,
+  /www\./i,
+  /@[a-z0-9_.-]+\.[a-z]{2,}/i,
+];
+
+const violatesGuidelines = (value: string) =>
+  reviewGuidelinePatterns.some((pattern) => pattern.test(value));
 
 const Reviews = () => {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { user, isAuthenticated } = useAuth();
-  const [open, setOpen] = useState(false);
+  const queryClient = useQueryClient();
   const [rating, setRating] = useState(5);
-  const [condition, setCondition] = useState("");
   const [body, setBody] = useState("");
+  const [conditionTag, setConditionTag] = useState("");
 
-  const { data: reviews = [] } = useQuery({
+  const { data: reviews = [], isLoading: reviewsLoading } = useQuery({
     queryKey: ["approved-reviews"],
-    queryFn: () => getApprovedReviews(50),
+    queryFn: () => getApprovedReviews(30, 0),
   });
 
-  const { data: eligibility } = useQuery({
+  const { data: eligibility, isLoading: eligibilityLoading } = useQuery({
     queryKey: ["review-eligibility", user?.id],
     queryFn: getReviewEligibility,
     enabled: isAuthenticated && user?.role === "patient",
   });
 
+  const guidelineError = useMemo(() => {
+    if (!body.trim()) return "";
+    if (body.trim().length < 20) return "Write at least 20 characters.";
+    if (violatesGuidelines(body)) {
+      return "Remove personal contact details, links, abusive words, or unsafe content.";
+    }
+    return "";
+  }, [body]);
+
   const submitMutation = useMutation({
-    mutationFn: () => submitReview({ rating, body: body.trim(), condition_tag: condition || undefined }),
+    mutationFn: () =>
+      submitReview({
+        rating,
+        body: body.trim(),
+        condition_tag: conditionTag.trim() || undefined,
+      }),
     onSuccess: () => {
-      toast.success("Submitted! It will be public after admin approval.");
-      setOpen(false);
+      toast.success("Review submitted for approval");
       setBody("");
-      queryClient.invalidateQueries({ queryKey: ["review-eligibility"] });
+      setConditionTag("");
+      setRating(5);
+      queryClient.invalidateQueries({ queryKey: ["approved-reviews"] });
+      queryClient.invalidateQueries({ queryKey: ["review-eligibility", user?.id] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => {
+      toast.error(error.message || "Could not submit review");
+    },
   });
 
-  const cta = () => {
-    if (!isAuthenticated || user?.role !== "patient") {
-      return <Button onClick={() => navigate("/login")}>Log in to share your experience</Button>;
-    }
-    if (!eligibility?.has_completed_paid_consultation) {
-      return <Button disabled title="Available after your first consultation">Available after your first consultation</Button>;
-    }
-    if (eligibility.has_reviewed) {
-      return <p className="text-sm text-muted-foreground">You've already shared your review. Thank you!</p>;
-    }
-    return <Button onClick={() => setOpen(true)}>Share your story</Button>;
-  };
+  const canSubmit =
+    user?.role === "patient" &&
+    eligibility?.eligible &&
+    !guidelineError &&
+    body.trim().length >= 20 &&
+    !submitMutation.isPending;
 
   return (
-    <div className="min-h-screen bg-[var(--cream)]">
-      <header className="px-6 py-5 bg-[var(--navy)] text-white">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link to="/" className="font-serif text-xl font-bold">Diet By <span className="text-[var(--gold)]">RD</span></Link>
-          <Link to="/" className="text-sm text-white/80 hover:text-white">Home</Link>
-        </div>
-      </header>
+    <main className="min-h-screen bg-background">
+      <div className="mx-auto max-w-5xl px-5 py-8">
+        <Button variant="ghost" asChild className="mb-5">
+          <Link to="/">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Home
+          </Link>
+        </Button>
 
-      <main className="max-w-6xl mx-auto px-6 py-16 space-y-12">
-        <section className="max-w-3xl">
-          <h1 className="font-serif text-4xl md:text-5xl font-bold text-[var(--navy)]">Real stories from real patients</h1>
-          <p className="mt-4 text-lg text-[var(--text2)]">Every review here is from a verified Diet By RD patient with a registered mobile number.</p>
+        <section className="mb-8">
+          <Badge variant="outline" className="mb-3">
+            <ShieldCheck className="w-3.5 h-3.5 mr-1" />
+            Anonymous patient reviews
+          </Badge>
+          <h1 className="text-3xl font-bold tracking-tight">Honest Reviews</h1>
+          <p className="mt-2 max-w-2xl text-muted-foreground">
+            Only onboarded patients with a completed paid consultation can submit a review. Published reviews never show patient names.
+          </p>
         </section>
 
-        <section className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {reviews.map((review) => (
-            <Card key={review.id}>
-              <CardHeader>
-                <div className="flex gap-1 text-[var(--gold)]">
-                  {Array.from({ length: review.rating }).map((_, i) => <Star key={i} className="w-4 h-4 fill-current" />)}
-                </div>
-                <CardTitle className="text-base">{review.patient_name || "Verified Patient"}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-[var(--text2)] leading-6">{review.body}</p>
-                {review.condition_tag && <p className="mt-4 text-xs font-medium text-[var(--teal)]">{review.condition_tag}</p>}
-              </CardContent>
-            </Card>
-          ))}
-        </section>
-
-        <section className="text-center bg-white border rounded-lg p-8">
-          <h2 className="font-serif text-2xl font-bold text-[var(--navy)] mb-3">Share your story</h2>
-          {cta()}
-        </section>
-      </main>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Share your story</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm font-medium mb-2">Rating</p>
-              <div className="flex gap-1">
-                {[1, 2, 3, 4, 5].map((value) => (
-                  <button key={value} type="button" onClick={() => setRating(value)} className={value <= rating ? "text-[var(--gold)]" : "text-muted-foreground"}>
-                    <Star className="w-7 h-7 fill-current" />
-                  </button>
-                ))}
+        <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-lg border bg-card p-5">
+            <h2 className="text-lg font-semibold">Drop an anonymous review</h2>
+            {!isAuthenticated || user?.role !== "patient" ? (
+              <div className="mt-4 rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
+                Please log in as a patient to submit a review.
               </div>
-            </div>
-            <Select value={condition} onValueChange={setCondition}>
-              <SelectTrigger><SelectValue placeholder="Condition tag (optional)" /></SelectTrigger>
-              <SelectContent>
-                {conditionOptions.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Textarea value={body} onChange={(e) => setBody(e.target.value)} minLength={20} maxLength={2000} rows={7} placeholder="Tell future patients what changed for you..." />
-            <Button className="w-full" disabled={body.trim().length < 20 || submitMutation.isPending} onClick={() => submitMutation.mutate()}>
-              Submit for approval
-            </Button>
+            ) : eligibilityLoading ? (
+              <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Checking eligibility...
+              </div>
+            ) : !eligibility?.eligible ? (
+              <div className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+                {eligibility?.reason || "Reviews open after your first completed paid consultation."}
+              </div>
+            ) : (
+              <form
+                className="mt-4 space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (canSubmit) submitMutation.mutate();
+                }}
+              >
+                <div>
+                  <label className="text-sm font-medium">Rating</label>
+                  <div className="mt-2 flex gap-1">
+                    {[1, 2, 3, 4, 5].map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setRating(value)}
+                        className="rounded-md p-1 text-amber-500 focus:outline-none focus:ring-2 focus:ring-ring"
+                        aria-label={`${value} star rating`}
+                      >
+                        <Star className={`w-6 h-6 ${value <= rating ? "fill-current" : ""}`} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Condition tag optional</label>
+                  <input
+                    value={conditionTag}
+                    onChange={(e) => setConditionTag(e.target.value.slice(0, 40))}
+                    placeholder="e.g. PCOS, diabetes, weight loss"
+                    className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Review</label>
+                  <Textarea
+                    value={body}
+                    onChange={(e) => setBody(e.target.value.slice(0, 2000))}
+                    rows={6}
+                    placeholder="Share what changed for you. Please avoid names, phone numbers, links, abusive language, or private medical details."
+                    className="mt-1"
+                  />
+                  <div className="mt-1 flex justify-between text-xs">
+                    <span className={guidelineError ? "text-red-600" : "text-muted-foreground"}>
+                      {guidelineError || "Your identity will not be shown publicly."}
+                    </span>
+                    <span className="text-muted-foreground">{body.length}/2000</span>
+                  </div>
+                </div>
+                <Button type="submit" disabled={!canSubmit} className="w-full">
+                  {submitMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  Submit Review
+                </Button>
+              </form>
+            )}
           </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+
+          <div className="space-y-3">
+            {reviewsLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading reviews...
+              </div>
+            ) : reviews.length === 0 ? (
+              <div className="rounded-lg border bg-card p-5 text-muted-foreground">
+                No approved reviews yet.
+              </div>
+            ) : (
+              reviews.map((review) => (
+                <article key={review.id} className="rounded-lg border bg-card p-5">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium">Anonymous patient</p>
+                      {review.condition_tag && (
+                        <p className="text-xs text-muted-foreground">{review.condition_tag}</p>
+                      )}
+                    </div>
+                    <div className="flex text-amber-500">
+                      {[1, 2, 3, 4, 5].map((value) => (
+                        <Star key={value} className={`w-4 h-4 ${value <= review.rating ? "fill-current" : ""}`} />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-sm leading-6 text-muted-foreground">{review.body}</p>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
+    </main>
   );
 };
 
