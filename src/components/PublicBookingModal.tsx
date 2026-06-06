@@ -48,7 +48,7 @@ interface PublicBookingModalProps {
 }
 
 export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalProps) {
-  const { sendOtp, verifyOtp, loginWithData } = useAuth();
+  const { user, sendOtp, verifyOtp, loginWithData } = useAuth();
   const navigate = useNavigate();
 
   const [step, setStep] = useState<BookingStep>("slots");
@@ -73,6 +73,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const otpInputRef = useRef<HTMLInputElement>(null);
   const confirmPaymentButtonRef = useRef<HTMLButtonElement>(null);
+  const isSignedInPatient = user?.role === "patient" && !!user.profileId;
 
   const weekDateRange = useMemo(() => {
     const today = new Date();
@@ -169,6 +170,37 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
     setPhone(normalizeIndianMobileInput(e.target.value));
   };
 
+  const loadPackagesForPayment = async () => {
+    const pkgs = await getConsultationPackages();
+    const normalizedPackages = pkgs.map((pkg) =>
+      pkg.num_consultations === 1 && pkg.price < 99900 ? { ...pkg, price: 99900 } : pkg
+    );
+    setPackages(normalizedPackages);
+    if (normalizedPackages.length > 0) setSelectedPackage(normalizedPackages[0]);
+  };
+
+  const handleContinueFromSlot = async () => {
+    if (!selectedSlot) return;
+    if (!isSignedInPatient) {
+      setStep("contact");
+      return;
+    }
+
+    setError("");
+    setIsLoading(true);
+    setPatientId(user.profileId!);
+    setName(user.name || "");
+    setPhone(normalizeIndianMobileInput(user.phone || ""));
+    try {
+      await loadPackagesForPayment();
+      setStep("payment");
+    } catch {
+      setError("Failed to load consultation packages. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSendOtp = async () => {
     if (!name.trim()) { setError("Please enter your name"); return; }
     if (!isValidIndianMobile(phone)) { setError("Please enter a valid Indian mobile number"); return; }
@@ -234,17 +266,15 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
         setIsLoading(false);
         return;
       }
+    } else if (authUser?.name) {
+      toast.success(`Welcome back, ${authUser.name}`);
+      setName(authUser.name);
     }
 
     setPatientId(pid);
 
     try {
-      const pkgs = await getConsultationPackages();
-      const normalizedPackages = pkgs.map((pkg) =>
-        pkg.num_consultations === 1 && pkg.price < 99900 ? { ...pkg, price: 99900 } : pkg
-      );
-      setPackages(normalizedPackages);
-      if (normalizedPackages.length > 0) setSelectedPackage(normalizedPackages[0]);
+      await loadPackagesForPayment();
     } catch {
       // non-fatal
     }
@@ -314,6 +344,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
           }
         },
         prefill: { name, contact: phone.replace(/\D/g, "").slice(-10) },
+        remember_customer: true,
         theme: { color: "#10b981" },
         modal: {
           ondismiss: () => {
@@ -499,8 +530,8 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
               )}
               <Button
                 className="w-full bg-emerald-600 hover:bg-emerald-700"
-                disabled={!selectedSlot}
-                onClick={() => setStep("contact")}
+                disabled={!selectedSlot || isLoading}
+                onClick={handleContinueFromSlot}
               >
                 Continue →
               </Button>

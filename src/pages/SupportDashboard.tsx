@@ -327,6 +327,7 @@ const SupportDashboard = () => {
 
   const selectedTicket = ticketDetail?.ticket;
   const isAssignedToMe = selectedTicket?.assigned_to === user?.id;
+  const commentsEnabled = false;
 
   return (
     <div className="flex min-h-screen">
@@ -773,7 +774,7 @@ const SupportDashboard = () => {
                     )}
 
                     {/* Comments */}
-                    {ticketDetail!.comments.length > 0 && (
+                    {commentsEnabled && (
                       <div className="space-y-3">
                         <p className="text-xs font-medium text-muted-foreground">
                           {ticketDetail!.comments.length} {ticketDetail!.comments.length === 1 ? "comment" : "comments"}
@@ -799,7 +800,7 @@ const SupportDashboard = () => {
                   </div>
 
                   {/* Comment input (pinned at bottom) */}
-                  {selectedTicket.status !== "closed" && (
+                  {commentsEnabled && (
                     <div className="px-6 py-3 border-t shrink-0">
                       <div className="flex gap-2 items-end">
                         <Textarea

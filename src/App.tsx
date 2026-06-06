@@ -90,6 +90,7 @@ const App = () => (
             <Route path="/refund" element={<Refund />} />
             <Route path="/cancellation" element={<Cancellation />} />
             <Route path="/reviews" element={<Reviews />} />
+            <Route path="/pay" element={<Pay />} />
 
             {/* Doctor routes - doctors and their assistants */}
             <Route element={<ProtectedRoute allowedRoles={["doctor", "assistant"]} />}>

@@ -38,6 +38,7 @@ import {
 } from "@/lib/api";
 import { formatDateTime12 } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { getPatientSidebarSections } from "@/lib/patient-sidebar";
 
 const PatientDietPlans = () => {
   const navigate = useNavigate();
@@ -65,7 +66,14 @@ const PatientDietPlans = () => {
     enabled: !!user?.profileId,
   });
 
+  const { data: allAppointments = [] } = useQuery({
+    queryKey: ["patient-appointments-all", user?.profileId],
+    queryFn: () => getPatientAppointments(user!.profileId!),
+    enabled: !!user?.profileId,
+  });
+
   const nextAppointment = upcomingAppointments[0] ?? null;
+  const hasBookedAnyAppointment = allAppointments.length > 0;
 
   const handleLogout = () => {
     logout();
@@ -302,18 +310,7 @@ const PatientDietPlans = () => {
     doc.save(fileName);
   };
 
-  const sidebarSections = [
-    {
-      title: "Dashboard",
-      items: [
-        { label: "Overview", href: "/patient", icon: User },
-        { label: "My Profile", href: "/patient/profile", icon: Heart },
-        { label: "Diet Plans", href: "/patient/diet-plans", icon: UtensilsCrossed },
-        { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
-        { label: "Support", href: "/patient/support", icon: MessageSquare },
-      ],
-    },
-  ];
+  const sidebarSections = getPatientSidebarSections();
 
   const bottomContent = (
     <button
@@ -679,14 +676,16 @@ const PatientDietPlans = () => {
                   <p className="text-muted-foreground max-w-md mx-auto">
                     Your personalized diet plan will appear here once your dietician creates one for you.
                   </p>
-                  <Button
-                    variant="outline"
-                    className="mt-5"
-                    onClick={() => navigate("/patient/appointments")}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Book Your First Appointment
-                  </Button>
+                  {!hasBookedAnyAppointment && (
+                    <Button
+                      variant="outline"
+                      className="mt-5"
+                      onClick={() => navigate("/patient/appointments")}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Book Appointment
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             )}

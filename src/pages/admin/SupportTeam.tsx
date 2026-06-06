@@ -46,6 +46,9 @@ const SupportTeamPage = () => {
   const [copiedPassword, setCopiedPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [listPasswordVisible, setListPasswordVisible] = useState<PasswordVisibility>({});
+  const [resetMember, setResetMember] = useState<StaffMember | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -87,6 +90,30 @@ const SupportTeamPage = () => {
     },
   });
 
+  const resetPasswordMutation = useMutation({
+    mutationFn: async (data: { userId: number; password: string }) => {
+      const res = await fetch(`/api/admin/staff/${data.userId}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_password: data.password }),
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff", "support_intern"] });
+      refetch();
+      toast.success("Password updated successfully");
+      setResetMember(null);
+      setResetPassword("");
+      setShowResetPassword(false);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to reset password");
+    },
+  });
+
   const handleCreateAccount = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -123,6 +150,20 @@ const SupportTeamPage = () => {
 
   const toggleListPassword = (id: number) => {
     setListPasswordVisible(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const generateResetPassword = () => {
+    setResetPassword(Math.floor(10000000 + Math.random() * 90000000).toString());
+  };
+
+  const handleResetPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetMember) return;
+    if (resetPassword.trim().length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    resetPasswordMutation.mutate({ userId: resetMember.id, password: resetPassword.trim() });
   };
 
   const handleCloseSuccess = () => {
@@ -215,6 +256,17 @@ const SupportTeamPage = () => {
                           <span className={`px-2 py-1 text-xs rounded-full ${member.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
                             {member.is_active ? "Active" : "Inactive"}
                           </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setResetMember(member);
+                              setResetPassword("");
+                              setShowResetPassword(false);
+                            }}
+                          >
+                            Reset Password
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -330,6 +382,62 @@ const SupportTeamPage = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!resetMember} onOpenChange={(open) => { if (!open) setResetMember(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Support Team Password</DialogTitle>
+            <DialogDescription>
+              Set a new login password for {resetMember?.name || resetMember?.phone}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleResetPassword} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">New Password</label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    type={showResetPassword ? "text" : "password"}
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    placeholder="At least 6 characters"
+                    minLength={6}
+                    required
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword((visible) => !visible)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <Button type="button" variant="outline" onClick={generateResetPassword}>
+                  Generate
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setResetMember(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={resetPasswordMutation.isPending}>
+                {resetPasswordMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Password"
+                )}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

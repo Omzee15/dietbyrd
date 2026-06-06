@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { jsPDF } from "jspdf";
@@ -74,6 +74,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatTime12, formatDateTime12, parseIST } from "@/lib/utils";
+import { getPatientSidebarSections } from "@/lib/patient-sidebar";
 
 // ─── Height Input Helpers ───────────────────────────────────────────────────────
 const heightAllowedKeys = new Set([
@@ -246,6 +247,7 @@ const PatientDashboard = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<ConsultationPackage | null>(null);
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
+  const confirmAppointmentButtonRef = useRef<HTMLButtonElement>(null);
 
   // Get patient data using the profileId from auth context
   const { data: patient, isLoading: patientLoading } = useQuery({
@@ -292,6 +294,14 @@ const PatientDashboard = () => {
   }, [weekOffset]);
 
   const hasAssignedRD = !!patient?.assigned_rd_id;
+
+  useEffect(() => {
+    if (!isBookingModalOpen || !selectedSlot) return;
+    const focusTimer = window.setTimeout(() => {
+      confirmAppointmentButtonRef.current?.focus();
+    }, 50);
+    return () => window.clearTimeout(focusTimer);
+  }, [isBookingModalOpen, selectedSlot]);
 
   // Get available slots — assigned RD's slots, or all dieticians if unassigned
   const { data: availableSlots, isLoading: slotsLoading, refetch: refetchSlots } = useQuery({
@@ -472,6 +482,7 @@ const PatientDashboard = () => {
         theme: {
           color: "#14b8a6",
         },
+        remember_customer: true,
         modal: {
           ondismiss: function () {
             setIsPaymentProcessing(false);
@@ -964,18 +975,7 @@ const PatientDashboard = () => {
     doc.save(fileName);
   };
 
-  const sidebarSections = [
-    {
-      title: "Dashboard",
-      items: [
-        { label: "Overview", href: "/patient", icon: User },
-        { label: "My Profile", href: "/patient/profile", icon: Heart },
-        { label: "Diet Plans", href: "/patient/diet-plans", icon: UtensilsCrossed },
-        { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
-        { label: "Support", href: "/patient/support", icon: MessageSquare },
-      ],
-    },
-  ];
+  const sidebarSections = getPatientSidebarSections();
 
   const bottomContent = (
     <button
@@ -1820,7 +1820,7 @@ const PatientDashboard = () => {
                       onClick={() => setIsBookingModalOpen(true)}
                     >
                       <Plus className="w-4 h-4 mr-2" />
-                      Book Your First Appointment
+                      Book Appointment
                     </Button>
                   </div>
                 )}
@@ -2144,8 +2144,15 @@ const PatientDashboard = () => {
 
             {/* View 2: Confirmation */}
             {selectedSlot && (
-              <div className="space-y-5">
+              <form
+                className="space-y-5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleBookAppointment();
+                }}
+              >
                 <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => setSelectedSlot(null)}
@@ -2211,8 +2218,9 @@ const PatientDashboard = () => {
                 </div>
 
                 <Button
+                  type="submit"
+                  ref={confirmAppointmentButtonRef}
                   className="w-full h-12 text-base"
-                  onClick={handleBookAppointment}
                   disabled={bookAppointmentMutation.isPending}
                 >
                   {bookAppointmentMutation.isPending ? (
@@ -2227,7 +2235,7 @@ const PatientDashboard = () => {
                     </>
                   )}
                 </Button>
-              </div>
+              </form>
             )}
           </div>
         </DialogContent>

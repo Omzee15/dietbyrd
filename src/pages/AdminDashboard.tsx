@@ -43,15 +43,18 @@ const PATIENT_PROGRESS_STEPS = [
 
 const getPatientCompletionSteps = (patient: PatientWithReferral) => {
   const hasRegistration = Boolean(patient.name && patient.phone);
-  const hasPayment =
-    patient.payment_status === "paid" ||
-    !!patient.dietary_preference ||
-    (patient.payment_history?.some((payment) => payment.status === "success") ?? false);
+  const hasPayment = isPatientPaid(patient);
   const hasAppointment = Boolean(patient.assigned_rd_id);
   const hasConsultation = false; // TODO: Check if patient has completed consultation
 
   return [hasRegistration, hasPayment, hasAppointment, hasConsultation];
 };
+
+const paidPaymentStatuses = new Set(["success", "paid", "captured"]);
+
+const isPatientPaid = (patient: Pick<Patient, "payment_status" | "payment_history">) =>
+  patient.payment_status === "paid" ||
+  (patient.payment_history?.some((payment) => paidPaymentStatuses.has(String(payment.status).toLowerCase())) ?? false);
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -356,15 +359,9 @@ const AdminDashboard = () => {
     // Payment status filter
     let matchesStatus = true;
     if (statusFilter === "paid") {
-      matchesStatus = 
-        p.payment_status === "paid" ||
-        p.payment_history?.some((payment) => payment.status === "success") ||
-        !!p.dietary_preference;
+      matchesStatus = isPatientPaid(p);
     } else if (statusFilter === "unpaid") {
-      matchesStatus = 
-        p.payment_status !== "paid" &&
-        !p.payment_history?.some((payment) => payment.status === "success") &&
-        !p.dietary_preference;
+      matchesStatus = !isPatientPaid(p);
     }
 
     const matchesTime = matchesTimeRange(p.created_at);
@@ -389,7 +386,7 @@ const AdminDashboard = () => {
     patientPage * patientPageSize
   );
 
-  const paidCount = patients.filter((p) => p.dietary_preference).length;
+  const paidCount = patients.filter(isPatientPaid).length;
   const unpaidCount = patients.length - paidCount;
 
   // Calculate registration status counts
@@ -458,8 +455,8 @@ const AdminDashboard = () => {
                         <div className="text-sm text-muted-foreground">
                           {selectedPatient.age || "?"} yrs · {selectedPatient.gender || "Unknown"} · {selectedPatient.phone}
                         </div>
-                        <Badge variant="outline" className={`mt-1 ${selectedPatient.dietary_preference ? "bg-success/10 text-success border-success/20" : "bg-warning/10 text-warning border-warning/20"}`}>
-                          {selectedPatient.dietary_preference ? "✓ Paid" : "⏳ Unpaid"}
+                        <Badge variant="outline" className={`mt-1 ${isPatientPaid(selectedPatient) ? "bg-success/10 text-success border-success/20" : "bg-warning/10 text-warning border-warning/20"}`}>
+                          {isPatientPaid(selectedPatient) ? "Paid" : "Unpaid"}
                         </Badge>
                       </div>
                     </div>
@@ -679,7 +676,7 @@ const AdminDashboard = () => {
                               </td>
                               <td className="p-4 text-right">
                                 <div className="flex items-center justify-end gap-2">
-                                  <Button variant="outline" size="sm" className="text-xs">{p.dietary_preference ? "View" : "Assign"}</Button>
+                                  <Button variant="outline" size="sm" className="text-xs">{isPatientPaid(p) ? "View" : "Awaiting Payment"}</Button>
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -1062,7 +1059,7 @@ const AdminDashboard = () => {
                                   acc[monthKey] = { joined: 0, paid: 0 };
                                 }
                                 acc[monthKey].joined += 1;
-                                if (p.payment_status === 'paid' || p.payment_history?.some(ph => ph.status === 'success') || p.dietary_preference) {
+                                if (isPatientPaid(p)) {
                                   acc[monthKey].paid += 1;
                                 }
                                 return acc;
@@ -1177,3 +1174,4 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+

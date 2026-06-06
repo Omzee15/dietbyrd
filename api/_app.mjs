@@ -1889,6 +1889,8 @@ app.post("/api/auth/verify-otp", async (req, res) => {
       return res.status(401).json({ success: false, error: "Account is deactivated" });
     }
 
+    let patientDisplayName = null;
+
     // For patients, check if they have completed their profile
     if (user.role === "patient") {
       const patientResult = await query(
@@ -1910,6 +1912,7 @@ app.post("/api/auth/verify-otp", async (req, res) => {
       }
 
       const patientProfile = patientResult.rows[0];
+      patientDisplayName = patientProfile.name || null;
 
       // Only prompt welcome form if patient has no name at all (truly first time)
       if (!patientProfile.name) {
@@ -1955,7 +1958,7 @@ app.post("/api/auth/verify-otp", async (req, res) => {
         id: user.id,
         phone: user.phone,
         role: user.role,
-        name: user.name,
+        name: patientDisplayName || user.name,
         profileId,
         doctorId,
         isVerified: user.is_verified ?? true,
@@ -3077,21 +3080,44 @@ app.get("/api/patients", async (req, res) => {
         rp.city,
         rp.assigned_rd_id,
         rd.name AS assigned_dietician_name,
-        (CASE
-          WHEN EXISTS (
-            SELECT 1
-            FROM dietbyrd_payments dp
-            WHERE (dp.patient_id = p.id OR dp.registered_patient_id = rp.id)
-              AND dp.status IN ('success')
-          )
-          OR rp.dietary_preference IS NOT NULL THEN 'paid'
-          ELSE 'unpaid'
-        END)::text AS payment_status,
-        '[]'::json AS payment_history
+        COALESCE(payment_summary.payment_status, 'unpaid'::text) AS payment_status,
+        COALESCE(payment_summary.payment_history, '[]'::json) AS payment_history
       FROM dietbyrd_patients p
       LEFT JOIN dietbyrd_users u ON p.user_id = u.id
       LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id
       LEFT JOIN dietbyrd_registered_dietitians rd ON rp.assigned_rd_id = rd.id
+      LEFT JOIN LATERAL (
+        SELECT
+          (CASE
+            WHEN COUNT(*) FILTER (WHERE pay.status IN ('success', 'paid', 'captured')) > 0
+              OR EXISTS (
+                SELECT 1
+                FROM dietbyrd_payments dp
+                WHERE (dp.patient_id = p.id OR dp.registered_patient_id = rp.id)
+                  AND dp.status IN ('success', 'paid', 'captured')
+              ) THEN 'paid'
+            ELSE 'unpaid'
+          END)::text AS payment_status,
+          COALESCE(
+            json_agg(
+              json_build_object(
+                'payment_id', pay.id,
+                'amount', pay.amount,
+                'currency', pay.currency,
+                'status', pay.status,
+                'consultations_purchased', pay.consultations_purchased,
+                'payment_method', pay.payment_method,
+                'razorpay_payment_id', pay.razorpay_payment_id,
+                'paid_at', pay.updated_at,
+                'created_at', pay.created_at
+              )
+              ORDER BY pay.created_at DESC
+            ) FILTER (WHERE pay.id IS NOT NULL),
+            '[]'::json
+          ) AS payment_history
+        FROM dietbyrd_razorpay_payments pay
+        WHERE pay.patient_id = p.id
+      ) AS payment_summary ON true
       ORDER BY p.created_at DESC
       LIMIT 100`
     );
@@ -3144,14 +3170,13 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
       LEFT JOIN LATERAL (
         SELECT
           (CASE
-            WHEN COUNT(*) FILTER (WHERE pay.status = 'success') > 0
+            WHEN COUNT(*) FILTER (WHERE pay.status IN ('success', 'paid', 'captured')) > 0
               OR EXISTS (
                 SELECT 1
                 FROM dietbyrd_payments dp
                 WHERE (dp.patient_id = p.id OR dp.registered_patient_id = rp.id)
-                  AND dp.status IN ('success')
-              )
-              OR rp.dietary_preference IS NOT NULL THEN 'paid'
+                  AND dp.status IN ('success', 'paid', 'captured')
+              ) THEN 'paid'
             ELSE 'unpaid'
           END)::text AS payment_status,
           COALESCE(
@@ -4484,17 +4509,19 @@ app.get("/api/consultations/:id(\\d+)/preview", async (req, res) => {
       // ignore and use default
     }
 
-    res.json({ success: true, data: {
-      consultation_id: row.consultation_id,
-      patient_id: row.patient_id,
-      patient_name: row.patient_name,
-      patient_phone: row.patient_phone,
-      doctor_name: row.doctor_name || null,
-      diagnosis: row.diagnosis || null,
-      amount,
-      currency: 'INR',
-      status: row.status
-    }});
+    res.json({
+      success: true, data: {
+        consultation_id: row.consultation_id,
+        patient_id: row.patient_id,
+        patient_name: row.patient_name,
+        patient_phone: row.patient_phone,
+        doctor_name: row.doctor_name || null,
+        diagnosis: row.diagnosis || null,
+        amount,
+        currency: 'INR',
+        status: row.status
+      }
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -6563,7 +6590,7 @@ app.post("/api/payments/create-order", async (req, res) => {
 app.post("/api/payments/verify", async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-    
+
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return res.status(400).json({
         success: false,
@@ -6572,28 +6599,28 @@ app.post("/api/payments/verify", async (req, res) => {
     }
 
     console.log("[razorpay] verifying payment:", { razorpay_order_id, razorpay_payment_id });
-    
+
     // Get payment record
     const paymentResult = await query(
       `SELECT * FROM dietbyrd_razorpay_payments WHERE razorpay_order_id = $1`,
       [razorpay_order_id]
     );
-    
+
     if (paymentResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Payment not found" });
     }
-    
+
     const payment = paymentResult.rows[0];
-    
+
     // Verify signature
     let isValidSignature = false;
-    
+
     if (RAZORPAY_KEY_SECRET && !razorpay_order_id.startsWith("demo_")) {
       const expectedSignature = crypto
         .createHmac("sha256", RAZORPAY_KEY_SECRET)
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
         .digest("hex");
-      
+
       isValidSignature = expectedSignature === razorpay_signature;
     } else {
       // Demo mode - accept any signature
@@ -6601,7 +6628,7 @@ app.post("/api/payments/verify", async (req, res) => {
     }
 
     console.log("[razorpay] signature match:", isValidSignature);
-    
+
     if (!isValidSignature) {
       await query(
         `UPDATE dietbyrd_razorpay_payments 
@@ -6611,7 +6638,7 @@ app.post("/api/payments/verify", async (req, res) => {
       );
       return res.status(400).json({ success: false, error: "Invalid payment signature" });
     }
-    
+
     // Update payment record
     await query(
       `UPDATE dietbyrd_razorpay_payments 
@@ -6623,7 +6650,7 @@ app.post("/api/payments/verify", async (req, res) => {
        WHERE id = $3`,
       [razorpay_payment_id, razorpay_signature, payment.id]
     );
-    
+
     // Add consultations to patient
     await query(
       `UPDATE dietbyrd_patients 
@@ -6638,7 +6665,7 @@ app.post("/api/payments/verify", async (req, res) => {
       { ...payment, razorpay_payment_id },
       "verify"
     );
-    
+
     res.json({
       success: true,
       data: {
@@ -6777,12 +6804,12 @@ app.get("/api/me/commissions", async (req, res) => {
     let whereSql = "doctor_id = $1";
     if (status !== "all") {
       params.push(status);
-      whereSql += ` AND status = $${ params.length }`;
+      whereSql += ` AND status = $${params.length}`;
     }
 
     const commissionsResult = await query(
       `SELECT * FROM dietbyrd_doctor_commissions
-       WHERE ${ whereSql }
+       WHERE ${whereSql}
        ORDER BY created_at DESC`,
       params
     );
@@ -6948,7 +6975,7 @@ app.get("/doctor/me/patients", async (req, res) => {
 app.get("/api/admin/staff/:role", async (req, res) => {
   try {
     const { role } = req.params;
-    
+
     // Validate role
     if (!['mlt_intern', 'support_intern'].includes(role)) {
       return res.status(400).json({ success: false, error: "Invalid role. Must be mlt_intern or support_intern" });
@@ -6973,7 +7000,7 @@ app.get("/api/admin/staff/:role", async (req, res) => {
 app.post("/api/admin/staff/create", async (req, res) => {
   try {
     const { phone, role, name } = req.body;
-    
+
     if (!phone || !role || !name) {
       return res.status(400).json({ success: false, error: "Phone, role, and name are required" });
     }
@@ -7096,19 +7123,19 @@ app.get("/api/support/patients", async (req, res) => {
     const whereClauses = [];
 
     if (rawQuery) {
-      params.push(`% ${ rawQuery } % `);
+      params.push(`% ${rawQuery} % `);
       whereClauses.push(
-        `(COALESCE(p.name, u.name) ILIKE $${ params.length } OR u.phone ILIKE $${ params.length } OR u.email ILIKE $${ params.length })`
+        `(COALESCE(p.name, u.name) ILIKE $${params.length} OR u.phone ILIKE $${params.length} OR u.email ILIKE $${params.length})`
       );
     }
 
-    const whereSql = whereClauses.length ? `WHERE ${ whereClauses.join(" AND ") }` : "";
+    const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
     const countResult = await query(
       `SELECT COUNT(*):: int AS total
        FROM dietbyrd_patients p
        JOIN dietbyrd_users u ON u.id = p.user_id
-       ${ whereSql }`,
+       ${whereSql}`,
       params
     );
     const total = countResult.rows[0]?.total || 0;
@@ -7128,9 +7155,9 @@ app.get("/api/support/patients", async (req, res) => {
       (SELECT COUNT(*) FROM dietbyrd_appointments WHERE patient_id = p.id) as appointment_count
        FROM dietbyrd_patients p
        JOIN dietbyrd_users u ON u.id = p.user_id
-       ${ whereSql }
+       ${whereSql}
        ORDER BY p.created_at DESC
-       LIMIT $${ limitParam } OFFSET $${ offsetParam } `,
+       LIMIT $${limitParam} OFFSET $${offsetParam} `,
       listParams
     );
 
@@ -7196,19 +7223,19 @@ app.get("/api/support/tickets", async (req, res) => {
     let paramIndex = 1;
 
     if (status) {
-      queryText += ` AND t.status = $${ paramIndex } `;
+      queryText += ` AND t.status = $${paramIndex} `;
       params.push(status);
       paramIndex++;
     }
 
     if (priority) {
-      queryText += ` AND t.priority = $${ paramIndex } `;
+      queryText += ` AND t.priority = $${paramIndex} `;
       params.push(priority);
       paramIndex++;
     }
 
     if (patient_id) {
-      queryText += ` AND t.patient_id = $${ paramIndex } `;
+      queryText += ` AND t.patient_id = $${paramIndex} `;
       params.push(patient_id);
       paramIndex++;
     }
@@ -7384,9 +7411,9 @@ app.post("/api/support/tickets", async (req, res) => {
     const ticketCategory = category || "general";
 
     if (!ticketTitle || !ticketDescription || !created_by) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Subject, description, and created_by are required" 
+      return res.status(400).json({
+        success: false,
+        error: "Subject, description, and created_by are required"
       });
     }
 
@@ -7416,25 +7443,25 @@ app.patch("/api/support/tickets/:id", async (req, res) => {
     let paramIndex = 1;
 
     if (status) {
-      updates.push(`status = $${ paramIndex } `);
+      updates.push(`status = $${paramIndex} `);
       params.push(status);
       paramIndex++;
     }
 
     if (priority) {
-      updates.push(`priority = $${ paramIndex } `);
+      updates.push(`priority = $${paramIndex} `);
       params.push(priority);
       paramIndex++;
     }
 
     if (assigned_to !== undefined) {
-      updates.push(`assigned_to = $${ paramIndex } `);
+      updates.push(`assigned_to = $${paramIndex} `);
       params.push(assigned_to);
       paramIndex++;
     }
 
     if (resolution_notes) {
-      updates.push(`resolution_notes = $${ paramIndex } `);
+      updates.push(`resolution_notes = $${paramIndex} `);
       params.push(resolution_notes);
       paramIndex++;
     }
@@ -7450,8 +7477,8 @@ app.patch("/api/support/tickets/:id", async (req, res) => {
     params.push(id);
     const queryText = `
       UPDATE dietbyrd_tickets 
-      SET ${ updates.join(', ') }
-      WHERE id = $${ paramIndex }
+      SET ${updates.join(', ')}
+      WHERE id = $${paramIndex}
 RETURNING *
   `;
 
@@ -7475,9 +7502,9 @@ app.post("/api/support/tickets/:id/comments", async (req, res) => {
     const { user_id, comment, is_internal } = req.body;
 
     if (!user_id || !comment) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "User ID and comment are required" 
+      return res.status(400).json({
+        success: false,
+        error: "User ID and comment are required"
       });
     }
 
@@ -7720,11 +7747,11 @@ const ensureFoodLibraryModulatorColumns = async () => {
       ['GINGER', 5, 0], ['GREEN_CHILI', 5, 0], ['TURMERIC', 5, 0],
     ];
     if (modulatorUpdates.length > 0) {
-      const valuesList = modulatorUpdates.map(([id, ox, ph]) => `('${id}', ${ ox }, ${ ph })`).join(', ');
+      const valuesList = modulatorUpdates.map(([id, ox, ph]) => `('${id}', ${ox}, ${ph})`).join(', ');
       await query(`
         UPDATE dietbyrd_food_library AS t
         SET oxalate_eee = v.ox, phytate_eee = v.ph
-FROM(VALUES ${ valuesList }) AS v(id, ox, ph)
+FROM(VALUES ${valuesList}) AS v(id, ox, ph)
         WHERE t.id = v.id
   `);
     }
@@ -7733,318 +7760,404 @@ FROM(VALUES ${ valuesList }) AS v(id, ox, ph)
     // Insert new food items (ON CONFLICT DO NOTHING for idempotency)
     const newFoods = [
       // Fruits
-      { id:'KIWI', name_en:'Kiwi', name_hi:'कीवी', category:'Fruits',
-        calories:61, protein:1.1, carbs:14.7, fat:0.5, fiber:3.0,
-        iron:0.3, calcium:34, magnesium:17, zinc:0.1, potassium:312, sodium:3, phosphorus:34, iodine:0, selenium:0.2, copper:0.1,
-        vitamin_a:4, vitamin_b1:0.02, vitamin_b2:0.04, vitamin_b3:0.3, vitamin_b6:0.06, vitamin_b9:25, vitamin_b12:0, vitamin_c:92, vitamin_d:0, vitamin_e:1.5, vitamin_k:40,
-        oxalate_eee:5, phytate_eee:0, yield_factor:0.87, food_type:'CORE', caution_level:'NONE',
-        tags:['fruit','vitamin_c','green'] },
+      {
+        id: 'KIWI', name_en: 'Kiwi', name_hi: 'कीवी', category: 'Fruits',
+        calories: 61, protein: 1.1, carbs: 14.7, fat: 0.5, fiber: 3.0,
+        iron: 0.3, calcium: 34, magnesium: 17, zinc: 0.1, potassium: 312, sodium: 3, phosphorus: 34, iodine: 0, selenium: 0.2, copper: 0.1,
+        vitamin_a: 4, vitamin_b1: 0.02, vitamin_b2: 0.04, vitamin_b3: 0.3, vitamin_b6: 0.06, vitamin_b9: 25, vitamin_b12: 0, vitamin_c: 92, vitamin_d: 0, vitamin_e: 1.5, vitamin_k: 40,
+        oxalate_eee: 5, phytate_eee: 0, yield_factor: 0.87, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['fruit', 'vitamin_c', 'green']
+      },
 
-      { id:'PEAR', name_en:'Pear', name_hi:'नाशपाती', category:'Fruits',
-        calories:57, protein:0.4, carbs:15.5, fat:0.1, fiber:3.1,
-        iron:0.2, calcium:9, magnesium:7, zinc:0.1, potassium:116, sodium:1, phosphorus:12, iodine:0, selenium:0.1, copper:0.1,
-        vitamin_a:1, vitamin_b1:0.01, vitamin_b2:0.03, vitamin_b3:0.2, vitamin_b6:0.03, vitamin_b9:7, vitamin_b12:0, vitamin_c:4.3, vitamin_d:0, vitamin_e:0.1, vitamin_k:4.5,
-        oxalate_eee:5, phytate_eee:0, yield_factor:0.9, food_type:'CORE', caution_level:'NONE',
-        tags:['fruit','fiber'] },
+      {
+        id: 'PEAR', name_en: 'Pear', name_hi: 'नाशपाती', category: 'Fruits',
+        calories: 57, protein: 0.4, carbs: 15.5, fat: 0.1, fiber: 3.1,
+        iron: 0.2, calcium: 9, magnesium: 7, zinc: 0.1, potassium: 116, sodium: 1, phosphorus: 12, iodine: 0, selenium: 0.1, copper: 0.1,
+        vitamin_a: 1, vitamin_b1: 0.01, vitamin_b2: 0.03, vitamin_b3: 0.2, vitamin_b6: 0.03, vitamin_b9: 7, vitamin_b12: 0, vitamin_c: 4.3, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 4.5,
+        oxalate_eee: 5, phytate_eee: 0, yield_factor: 0.9, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['fruit', 'fiber']
+      },
 
-      { id:'DATES_DRIED', name_en:'Dates (Khajur)', name_hi:'खजूर', category:'Fruits',
-        calories:277, protein:1.8, carbs:75.0, fat:0.2, fiber:6.7,
-        iron:0.9, calcium:64, magnesium:54, zinc:0.4, potassium:696, sodium:1, phosphorus:62, iodine:0, selenium:3.0, copper:0.4,
-        vitamin_a:7, vitamin_b1:0.05, vitamin_b2:0.07, vitamin_b3:1.6, vitamin_b6:0.2, vitamin_b9:15, vitamin_b12:0, vitamin_c:0.4, vitamin_d:0, vitamin_e:0.1, vitamin_k:2.7,
-        oxalate_eee:25, phytate_eee:0, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['fruit','dried','natural_sugar','energy'] },
+      {
+        id: 'DATES_DRIED', name_en: 'Dates (Khajur)', name_hi: 'खजूर', category: 'Fruits',
+        calories: 277, protein: 1.8, carbs: 75.0, fat: 0.2, fiber: 6.7,
+        iron: 0.9, calcium: 64, magnesium: 54, zinc: 0.4, potassium: 696, sodium: 1, phosphorus: 62, iodine: 0, selenium: 3.0, copper: 0.4,
+        vitamin_a: 7, vitamin_b1: 0.05, vitamin_b2: 0.07, vitamin_b3: 1.6, vitamin_b6: 0.2, vitamin_b9: 15, vitamin_b12: 0, vitamin_c: 0.4, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 2.7,
+        oxalate_eee: 25, phytate_eee: 0, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['fruit', 'dried', 'natural_sugar', 'energy']
+      },
 
-      { id:'FIG_DRIED', name_en:'Fig (Anjeer, dried)', name_hi:'अंजीर', category:'Fruits',
-        calories:249, protein:3.3, carbs:63.9, fat:0.9, fiber:9.8,
-        iron:2.0, calcium:162, magnesium:68, zinc:0.5, potassium:680, sodium:10, phosphorus:67, iodine:0, selenium:0.6, copper:0.3,
-        vitamin_a:0, vitamin_b1:0.1, vitamin_b2:0.08, vitamin_b3:0.6, vitamin_b6:0.1, vitamin_b9:9, vitamin_b12:0, vitamin_c:1.2, vitamin_d:0, vitamin_e:0.4, vitamin_k:15.6,
-        oxalate_eee:65, phytate_eee:0, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['fruit','dried','fiber','calcium'] },
+      {
+        id: 'FIG_DRIED', name_en: 'Fig (Anjeer, dried)', name_hi: 'अंजीर', category: 'Fruits',
+        calories: 249, protein: 3.3, carbs: 63.9, fat: 0.9, fiber: 9.8,
+        iron: 2.0, calcium: 162, magnesium: 68, zinc: 0.5, potassium: 680, sodium: 10, phosphorus: 67, iodine: 0, selenium: 0.6, copper: 0.3,
+        vitamin_a: 0, vitamin_b1: 0.1, vitamin_b2: 0.08, vitamin_b3: 0.6, vitamin_b6: 0.1, vitamin_b9: 9, vitamin_b12: 0, vitamin_c: 1.2, vitamin_d: 0, vitamin_e: 0.4, vitamin_k: 15.6,
+        oxalate_eee: 65, phytate_eee: 0, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['fruit', 'dried', 'fiber', 'calcium']
+      },
 
-      { id:'LEMON', name_en:'Lemon (Nimbu)', name_hi:'नींबू', category:'Fruits',
-        calories:29, protein:1.1, carbs:9.3, fat:0.3, fiber:2.8,
-        iron:0.6, calcium:26, magnesium:8, zinc:0.1, potassium:138, sodium:2, phosphorus:16, iodine:0, selenium:0.4, copper:0.1,
-        vitamin_a:1, vitamin_b1:0.04, vitamin_b2:0.02, vitamin_b3:0.1, vitamin_b6:0.08, vitamin_b9:11, vitamin_b12:0, vitamin_c:53, vitamin_d:0, vitamin_e:0.2, vitamin_k:0,
-        oxalate_eee:5, phytate_eee:0, yield_factor:0.55, food_type:'CORE', caution_level:'NONE',
-        tags:['fruit','vitamin_c','alkalizing'] },
+      {
+        id: 'LEMON', name_en: 'Lemon (Nimbu)', name_hi: 'नींबू', category: 'Fruits',
+        calories: 29, protein: 1.1, carbs: 9.3, fat: 0.3, fiber: 2.8,
+        iron: 0.6, calcium: 26, magnesium: 8, zinc: 0.1, potassium: 138, sodium: 2, phosphorus: 16, iodine: 0, selenium: 0.4, copper: 0.1,
+        vitamin_a: 1, vitamin_b1: 0.04, vitamin_b2: 0.02, vitamin_b3: 0.1, vitamin_b6: 0.08, vitamin_b9: 11, vitamin_b12: 0, vitamin_c: 53, vitamin_d: 0, vitamin_e: 0.2, vitamin_k: 0,
+        oxalate_eee: 5, phytate_eee: 0, yield_factor: 0.55, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['fruit', 'vitamin_c', 'alkalizing']
+      },
 
-      { id:'CHIKOO', name_en:'Chikoo (Sapodilla)', name_hi:'चीकू', category:'Fruits',
-        calories:83, protein:0.4, carbs:20.0, fat:1.1, fiber:5.3,
-        iron:0.8, calcium:21, magnesium:12, zinc:0.1, potassium:193, sodium:12, phosphorus:12, iodine:0, selenium:0.6, copper:0.1,
-        vitamin_a:3, vitamin_b1:0.0, vitamin_b2:0.02, vitamin_b3:0.2, vitamin_b6:0.04, vitamin_b9:14, vitamin_b12:0, vitamin_c:14.7, vitamin_d:0, vitamin_e:0.1, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:0, yield_factor:0.82, food_type:'CORE', caution_level:'NONE',
-        tags:['fruit','fiber','tropical'] },
+      {
+        id: 'CHIKOO', name_en: 'Chikoo (Sapodilla)', name_hi: 'चीकू', category: 'Fruits',
+        calories: 83, protein: 0.4, carbs: 20.0, fat: 1.1, fiber: 5.3,
+        iron: 0.8, calcium: 21, magnesium: 12, zinc: 0.1, potassium: 193, sodium: 12, phosphorus: 12, iodine: 0, selenium: 0.6, copper: 0.1,
+        vitamin_a: 3, vitamin_b1: 0.0, vitamin_b2: 0.02, vitamin_b3: 0.2, vitamin_b6: 0.04, vitamin_b9: 14, vitamin_b12: 0, vitamin_c: 14.7, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 0, yield_factor: 0.82, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['fruit', 'fiber', 'tropical']
+      },
 
-      { id:'STRAWBERRY', name_en:'Strawberry', name_hi:'स्ट्रॉबेरी', category:'Fruits',
-        calories:32, protein:0.7, carbs:7.7, fat:0.3, fiber:2.0,
-        iron:0.4, calcium:16, magnesium:13, zinc:0.1, potassium:153, sodium:1, phosphorus:24, iodine:0, selenium:0.4, copper:0.05,
-        vitamin_a:1, vitamin_b1:0.02, vitamin_b2:0.02, vitamin_b3:0.4, vitamin_b6:0.05, vitamin_b9:24, vitamin_b12:0, vitamin_c:58.8, vitamin_d:0, vitamin_e:0.3, vitamin_k:2.2,
-        oxalate_eee:10, phytate_eee:0, yield_factor:0.93, food_type:'CORE', caution_level:'NONE',
-        tags:['fruit','vitamin_c','antioxidant'] },
+      {
+        id: 'STRAWBERRY', name_en: 'Strawberry', name_hi: 'स्ट्रॉबेरी', category: 'Fruits',
+        calories: 32, protein: 0.7, carbs: 7.7, fat: 0.3, fiber: 2.0,
+        iron: 0.4, calcium: 16, magnesium: 13, zinc: 0.1, potassium: 153, sodium: 1, phosphorus: 24, iodine: 0, selenium: 0.4, copper: 0.05,
+        vitamin_a: 1, vitamin_b1: 0.02, vitamin_b2: 0.02, vitamin_b3: 0.4, vitamin_b6: 0.05, vitamin_b9: 24, vitamin_b12: 0, vitamin_c: 58.8, vitamin_d: 0, vitamin_e: 0.3, vitamin_k: 2.2,
+        oxalate_eee: 10, phytate_eee: 0, yield_factor: 0.93, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['fruit', 'vitamin_c', 'antioxidant']
+      },
 
-      { id:'COCONUT_FRESH', name_en:'Coconut (Fresh)', name_hi:'नारियल', category:'Fruits',
-        calories:354, protein:3.3, carbs:15.2, fat:33.5, fiber:9.0,
-        iron:2.4, calcium:14, magnesium:32, zinc:1.1, potassium:356, sodium:20, phosphorus:113, iodine:0, selenium:10.1, copper:0.4,
-        vitamin_a:0, vitamin_b1:0.07, vitamin_b2:0.02, vitamin_b3:0.5, vitamin_b6:0.05, vitamin_b9:26, vitamin_b12:0, vitamin_c:3.3, vitamin_d:0, vitamin_e:0.2, vitamin_k:0,
-        oxalate_eee:10, phytate_eee:100, yield_factor:0.53, food_type:'CORE', caution_level:'NONE',
-        tags:['fruit','fat','fiber','mcfa'] },
+      {
+        id: 'COCONUT_FRESH', name_en: 'Coconut (Fresh)', name_hi: 'नारियल', category: 'Fruits',
+        calories: 354, protein: 3.3, carbs: 15.2, fat: 33.5, fiber: 9.0,
+        iron: 2.4, calcium: 14, magnesium: 32, zinc: 1.1, potassium: 356, sodium: 20, phosphorus: 113, iodine: 0, selenium: 10.1, copper: 0.4,
+        vitamin_a: 0, vitamin_b1: 0.07, vitamin_b2: 0.02, vitamin_b3: 0.5, vitamin_b6: 0.05, vitamin_b9: 26, vitamin_b12: 0, vitamin_c: 3.3, vitamin_d: 0, vitamin_e: 0.2, vitamin_k: 0,
+        oxalate_eee: 10, phytate_eee: 100, yield_factor: 0.53, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['fruit', 'fat', 'fiber', 'mcfa']
+      },
 
       // Vegetables
-      { id:'BEETROOT', name_en:'Beetroot (Chukandar)', name_hi:'चुकंदर', category:'Vegetables',
-        calories:43, protein:1.6, carbs:9.6, fat:0.2, fiber:2.8,
-        iron:0.8, calcium:16, magnesium:23, zinc:0.3, potassium:325, sodium:78, phosphorus:40, iodine:0, selenium:0.7, copper:0.1,
-        vitamin_a:2, vitamin_b1:0.03, vitamin_b2:0.04, vitamin_b3:0.3, vitamin_b6:0.07, vitamin_b9:109, vitamin_b12:0, vitamin_c:4.9, vitamin_d:0, vitamin_e:0.0, vitamin_k:0.2,
-        oxalate_eee:85, phytate_eee:0, yield_factor:0.88, food_type:'CORE', caution_level:'NONE',
-        tags:['vegetable','folate','nitrate','oxalate'] },
+      {
+        id: 'BEETROOT', name_en: 'Beetroot (Chukandar)', name_hi: 'चुकंदर', category: 'Vegetables',
+        calories: 43, protein: 1.6, carbs: 9.6, fat: 0.2, fiber: 2.8,
+        iron: 0.8, calcium: 16, magnesium: 23, zinc: 0.3, potassium: 325, sodium: 78, phosphorus: 40, iodine: 0, selenium: 0.7, copper: 0.1,
+        vitamin_a: 2, vitamin_b1: 0.03, vitamin_b2: 0.04, vitamin_b3: 0.3, vitamin_b6: 0.07, vitamin_b9: 109, vitamin_b12: 0, vitamin_c: 4.9, vitamin_d: 0, vitamin_e: 0.0, vitamin_k: 0.2,
+        oxalate_eee: 85, phytate_eee: 0, yield_factor: 0.88, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['vegetable', 'folate', 'nitrate', 'oxalate']
+      },
 
-      { id:'BROCCOLI', name_en:'Broccoli', name_hi:'ब्रोकली', category:'Vegetables',
-        calories:34, protein:2.8, carbs:6.6, fat:0.4, fiber:2.6,
-        iron:0.7, calcium:47, magnesium:21, zinc:0.4, potassium:316, sodium:33, phosphorus:66, iodine:0, selenium:2.5, copper:0.05,
-        vitamin_a:31, vitamin_b1:0.07, vitamin_b2:0.12, vitamin_b3:0.6, vitamin_b6:0.18, vitamin_b9:63, vitamin_b12:0, vitamin_c:89.2, vitamin_d:0, vitamin_e:0.8, vitamin_k:102,
-        oxalate_eee:0, phytate_eee:0, yield_factor:0.88, food_type:'CORE', caution_level:'NONE',
-        tags:['vegetable','vitamin_c','vitamin_k','cruciferous'] },
+      {
+        id: 'BROCCOLI', name_en: 'Broccoli', name_hi: 'ब्रोकली', category: 'Vegetables',
+        calories: 34, protein: 2.8, carbs: 6.6, fat: 0.4, fiber: 2.6,
+        iron: 0.7, calcium: 47, magnesium: 21, zinc: 0.4, potassium: 316, sodium: 33, phosphorus: 66, iodine: 0, selenium: 2.5, copper: 0.05,
+        vitamin_a: 31, vitamin_b1: 0.07, vitamin_b2: 0.12, vitamin_b3: 0.6, vitamin_b6: 0.18, vitamin_b9: 63, vitamin_b12: 0, vitamin_c: 89.2, vitamin_d: 0, vitamin_e: 0.8, vitamin_k: 102,
+        oxalate_eee: 0, phytate_eee: 0, yield_factor: 0.88, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['vegetable', 'vitamin_c', 'vitamin_k', 'cruciferous']
+      },
 
-      { id:'BELL_PEPPER_RED', name_en:'Red Bell Pepper (Capsicum)', name_hi:'लाल शिमला मिर्च', category:'Vegetables',
-        calories:31, protein:1.0, carbs:6.0, fat:0.3, fiber:2.1,
-        iron:0.4, calcium:7, magnesium:12, zinc:0.3, potassium:211, sodium:4, phosphorus:26, iodine:0, selenium:0.1, copper:0.02,
-        vitamin_a:157, vitamin_b1:0.05, vitamin_b2:0.09, vitamin_b3:1.0, vitamin_b6:0.29, vitamin_b9:46, vitamin_b12:0, vitamin_c:127.7, vitamin_d:0, vitamin_e:1.6, vitamin_k:4.9,
-        oxalate_eee:5, phytate_eee:0, yield_factor:0.85, food_type:'CORE', caution_level:'NONE',
-        tags:['vegetable','vitamin_c','vitamin_a','antioxidant'] },
+      {
+        id: 'BELL_PEPPER_RED', name_en: 'Red Bell Pepper (Capsicum)', name_hi: 'लाल शिमला मिर्च', category: 'Vegetables',
+        calories: 31, protein: 1.0, carbs: 6.0, fat: 0.3, fiber: 2.1,
+        iron: 0.4, calcium: 7, magnesium: 12, zinc: 0.3, potassium: 211, sodium: 4, phosphorus: 26, iodine: 0, selenium: 0.1, copper: 0.02,
+        vitamin_a: 157, vitamin_b1: 0.05, vitamin_b2: 0.09, vitamin_b3: 1.0, vitamin_b6: 0.29, vitamin_b9: 46, vitamin_b12: 0, vitamin_c: 127.7, vitamin_d: 0, vitamin_e: 1.6, vitamin_k: 4.9,
+        oxalate_eee: 5, phytate_eee: 0, yield_factor: 0.85, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['vegetable', 'vitamin_c', 'vitamin_a', 'antioxidant']
+      },
 
-      { id:'MUSHROOM', name_en:'Mushroom (Button)', name_hi:'मशरूम', category:'Vegetables',
-        calories:22, protein:3.1, carbs:3.3, fat:0.3, fiber:1.0,
-        iron:0.5, calcium:3, magnesium:9, zinc:0.5, potassium:318, sodium:5, phosphorus:86, iodine:0, selenium:9.3, copper:0.3,
-        vitamin_a:0, vitamin_b1:0.08, vitamin_b2:0.4, vitamin_b3:3.6, vitamin_b6:0.1, vitamin_b9:17, vitamin_b12:0, vitamin_c:2.1, vitamin_d:0.2, vitamin_e:0.0, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:0, yield_factor:0.97, food_type:'CORE', caution_level:'NONE',
-        tags:['vegetable','protein','vitamin_d','selenium'] },
+      {
+        id: 'MUSHROOM', name_en: 'Mushroom (Button)', name_hi: 'मशरूम', category: 'Vegetables',
+        calories: 22, protein: 3.1, carbs: 3.3, fat: 0.3, fiber: 1.0,
+        iron: 0.5, calcium: 3, magnesium: 9, zinc: 0.5, potassium: 318, sodium: 5, phosphorus: 86, iodine: 0, selenium: 9.3, copper: 0.3,
+        vitamin_a: 0, vitamin_b1: 0.08, vitamin_b2: 0.4, vitamin_b3: 3.6, vitamin_b6: 0.1, vitamin_b9: 17, vitamin_b12: 0, vitamin_c: 2.1, vitamin_d: 0.2, vitamin_e: 0.0, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 0, yield_factor: 0.97, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['vegetable', 'protein', 'vitamin_d', 'selenium']
+      },
 
-      { id:'CORN', name_en:'Corn (Bhutta)', name_hi:'मक्का', category:'Vegetables',
-        calories:86, protein:3.3, carbs:19.0, fat:1.4, fiber:2.7,
-        iron:0.5, calcium:2, magnesium:37, zinc:0.5, potassium:270, sodium:15, phosphorus:89, iodine:0, selenium:0.6, copper:0.05,
-        vitamin_a:10, vitamin_b1:0.2, vitamin_b2:0.07, vitamin_b3:1.8, vitamin_b6:0.09, vitamin_b9:42, vitamin_b12:0, vitamin_c:6.8, vitamin_d:0, vitamin_e:0.1, vitamin_k:0.3,
-        oxalate_eee:0, phytate_eee:100, yield_factor:0.72, food_type:'CORE', caution_level:'NONE',
-        tags:['vegetable','starch','fiber'] },
+      {
+        id: 'CORN', name_en: 'Corn (Bhutta)', name_hi: 'मक्का', category: 'Vegetables',
+        calories: 86, protein: 3.3, carbs: 19.0, fat: 1.4, fiber: 2.7,
+        iron: 0.5, calcium: 2, magnesium: 37, zinc: 0.5, potassium: 270, sodium: 15, phosphorus: 89, iodine: 0, selenium: 0.6, copper: 0.05,
+        vitamin_a: 10, vitamin_b1: 0.2, vitamin_b2: 0.07, vitamin_b3: 1.8, vitamin_b6: 0.09, vitamin_b9: 42, vitamin_b12: 0, vitamin_c: 6.8, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 0.3,
+        oxalate_eee: 0, phytate_eee: 100, yield_factor: 0.72, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['vegetable', 'starch', 'fiber']
+      },
 
-      { id:'GREEN_BEANS', name_en:'Green Beans (Sem)', name_hi:'सेम', category:'Vegetables',
-        calories:31, protein:1.8, carbs:7.1, fat:0.1, fiber:3.4,
-        iron:1.0, calcium:37, magnesium:25, zinc:0.2, potassium:209, sodium:6, phosphorus:38, iodine:0, selenium:0.6, copper:0.07,
-        vitamin_a:35, vitamin_b1:0.08, vitamin_b2:0.1, vitamin_b3:0.7, vitamin_b6:0.14, vitamin_b9:33, vitamin_b12:0, vitamin_c:12.2, vitamin_d:0, vitamin_e:0.4, vitamin_k:43,
-        oxalate_eee:5, phytate_eee:0, yield_factor:0.88, food_type:'CORE', caution_level:'NONE',
-        tags:['vegetable','fiber','vitamin_k'] },
+      {
+        id: 'GREEN_BEANS', name_en: 'Green Beans (Sem)', name_hi: 'सेम', category: 'Vegetables',
+        calories: 31, protein: 1.8, carbs: 7.1, fat: 0.1, fiber: 3.4,
+        iron: 1.0, calcium: 37, magnesium: 25, zinc: 0.2, potassium: 209, sodium: 6, phosphorus: 38, iodine: 0, selenium: 0.6, copper: 0.07,
+        vitamin_a: 35, vitamin_b1: 0.08, vitamin_b2: 0.1, vitamin_b3: 0.7, vitamin_b6: 0.14, vitamin_b9: 33, vitamin_b12: 0, vitamin_c: 12.2, vitamin_d: 0, vitamin_e: 0.4, vitamin_k: 43,
+        oxalate_eee: 5, phytate_eee: 0, yield_factor: 0.88, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['vegetable', 'fiber', 'vitamin_k']
+      },
 
       // Cereals & Grains
-      { id:'QUINOA', name_en:'Quinoa', name_hi:'क्विनोआ', category:'Cereals',
-        calories:368, protein:14.1, carbs:64.2, fat:6.1, fiber:7.0,
-        iron:4.6, calcium:47, magnesium:197, zinc:3.1, potassium:563, sodium:5, phosphorus:457, iodine:0, selenium:8.5, copper:0.6,
-        vitamin_a:1, vitamin_b1:0.36, vitamin_b2:0.32, vitamin_b3:1.5, vitamin_b6:0.49, vitamin_b9:184, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:2.4, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:350, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['grain','complete_protein','gluten_free','phytate'] },
+      {
+        id: 'QUINOA', name_en: 'Quinoa', name_hi: 'क्विनोआ', category: 'Cereals',
+        calories: 368, protein: 14.1, carbs: 64.2, fat: 6.1, fiber: 7.0,
+        iron: 4.6, calcium: 47, magnesium: 197, zinc: 3.1, potassium: 563, sodium: 5, phosphorus: 457, iodine: 0, selenium: 8.5, copper: 0.6,
+        vitamin_a: 1, vitamin_b1: 0.36, vitamin_b2: 0.32, vitamin_b3: 1.5, vitamin_b6: 0.49, vitamin_b9: 184, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 2.4, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 350, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['grain', 'complete_protein', 'gluten_free', 'phytate']
+      },
 
-      { id:'BARLEY', name_en:'Barley (Jau)', name_hi:'जौ', category:'Cereals',
-        calories:354, protein:12.5, carbs:73.5, fat:2.3, fiber:17.3,
-        iron:3.6, calcium:33, magnesium:133, zinc:2.8, potassium:452, sodium:12, phosphorus:264, iodine:0, selenium:37.7, copper:0.5,
-        vitamin_a:1, vitamin_b1:0.65, vitamin_b2:0.28, vitamin_b3:4.6, vitamin_b6:0.32, vitamin_b9:19, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:0.6, vitamin_k:2.2,
-        oxalate_eee:5, phytate_eee:300, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['grain','fiber','beta_glucan','phytate'] },
+      {
+        id: 'BARLEY', name_en: 'Barley (Jau)', name_hi: 'जौ', category: 'Cereals',
+        calories: 354, protein: 12.5, carbs: 73.5, fat: 2.3, fiber: 17.3,
+        iron: 3.6, calcium: 33, magnesium: 133, zinc: 2.8, potassium: 452, sodium: 12, phosphorus: 264, iodine: 0, selenium: 37.7, copper: 0.5,
+        vitamin_a: 1, vitamin_b1: 0.65, vitamin_b2: 0.28, vitamin_b3: 4.6, vitamin_b6: 0.32, vitamin_b9: 19, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0.6, vitamin_k: 2.2,
+        oxalate_eee: 5, phytate_eee: 300, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['grain', 'fiber', 'beta_glucan', 'phytate']
+      },
 
-      { id:'BREAD_WHEAT', name_en:'Bread (Whole Wheat)', name_hi:'गेहूं की रोटी (ब्रेड)', category:'Cereals',
-        calories:247, protein:9.0, carbs:41.3, fat:3.4, fiber:6.8,
-        iron:2.7, calcium:107, magnesium:76, zinc:1.5, potassium:248, sodium:472, phosphorus:215, iodine:0, selenium:30.5, copper:0.3,
-        vitamin_a:0, vitamin_b1:0.34, vitamin_b2:0.15, vitamin_b3:4.5, vitamin_b6:0.1, vitamin_b9:43, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:0.4, vitamin_k:3.4,
-        oxalate_eee:0, phytate_eee:280, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        unit_name:'slice', unit_weight_g:30,
-        tags:['grain','fiber','wholegrain','phytate'] },
+      {
+        id: 'BREAD_WHEAT', name_en: 'Bread (Whole Wheat)', name_hi: 'गेहूं की रोटी (ब्रेड)', category: 'Cereals',
+        calories: 247, protein: 9.0, carbs: 41.3, fat: 3.4, fiber: 6.8,
+        iron: 2.7, calcium: 107, magnesium: 76, zinc: 1.5, potassium: 248, sodium: 472, phosphorus: 215, iodine: 0, selenium: 30.5, copper: 0.3,
+        vitamin_a: 0, vitamin_b1: 0.34, vitamin_b2: 0.15, vitamin_b3: 4.5, vitamin_b6: 0.1, vitamin_b9: 43, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0.4, vitamin_k: 3.4,
+        oxalate_eee: 0, phytate_eee: 280, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        unit_name: 'slice', unit_weight_g: 30,
+        tags: ['grain', 'fiber', 'wholegrain', 'phytate']
+      },
 
-      { id:'BREAD_WHITE', name_en:'Bread (White)', name_hi:'सफेद ब्रेड', category:'Cereals',
-        calories:265, protein:9.0, carbs:51.2, fat:3.2, fiber:2.3,
-        iron:2.7, calcium:182, magnesium:26, zinc:0.8, potassium:116, sodium:491, phosphorus:108, iodine:0, selenium:27.9, copper:0.2,
-        vitamin_a:0, vitamin_b1:0.31, vitamin_b2:0.19, vitamin_b3:4.8, vitamin_b6:0.04, vitamin_b9:91, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:0.3, vitamin_k:1.8,
-        oxalate_eee:0, phytate_eee:120, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        unit_name:'slice', unit_weight_g:30,
-        tags:['grain','refined'] },
+      {
+        id: 'BREAD_WHITE', name_en: 'Bread (White)', name_hi: 'सफेद ब्रेड', category: 'Cereals',
+        calories: 265, protein: 9.0, carbs: 51.2, fat: 3.2, fiber: 2.3,
+        iron: 2.7, calcium: 182, magnesium: 26, zinc: 0.8, potassium: 116, sodium: 491, phosphorus: 108, iodine: 0, selenium: 27.9, copper: 0.2,
+        vitamin_a: 0, vitamin_b1: 0.31, vitamin_b2: 0.19, vitamin_b3: 4.8, vitamin_b6: 0.04, vitamin_b9: 91, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0.3, vitamin_k: 1.8,
+        oxalate_eee: 0, phytate_eee: 120, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        unit_name: 'slice', unit_weight_g: 30,
+        tags: ['grain', 'refined']
+      },
 
-      { id:'MAKHANA', name_en:'Makhana (Fox Nuts, roasted)', name_hi:'मखाना', category:'Cereals',
-        calories:347, protein:9.7, carbs:76.9, fat:0.1, fiber:14.5,
-        iron:1.4, calcium:60, magnesium:67, zinc:0.6, potassium:500, sodium:70, phosphorus:180, iodine:0, selenium:0, copper:0.2,
-        vitamin_a:0, vitamin_b1:0.4, vitamin_b2:0.0, vitamin_b3:1.0, vitamin_b6:0.0, vitamin_b9:0, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:0, vitamin_k:0,
-        oxalate_eee:15, phytate_eee:0, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['grain','snack','low_fat','fiber'] },
+      {
+        id: 'MAKHANA', name_en: 'Makhana (Fox Nuts, roasted)', name_hi: 'मखाना', category: 'Cereals',
+        calories: 347, protein: 9.7, carbs: 76.9, fat: 0.1, fiber: 14.5,
+        iron: 1.4, calcium: 60, magnesium: 67, zinc: 0.6, potassium: 500, sodium: 70, phosphorus: 180, iodine: 0, selenium: 0, copper: 0.2,
+        vitamin_a: 0, vitamin_b1: 0.4, vitamin_b2: 0.0, vitamin_b3: 1.0, vitamin_b6: 0.0, vitamin_b9: 0, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
+        oxalate_eee: 15, phytate_eee: 0, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['grain', 'snack', 'low_fat', 'fiber']
+      },
 
-      { id:'PUFFED_RICE', name_en:'Puffed Rice (Murmura)', name_hi:'मुरमुरा', category:'Cereals',
-        calories:402, protein:6.3, carbs:89.0, fat:0.5, fiber:1.0,
-        iron:5.0, calcium:5, magnesium:35, zinc:1.2, potassium:115, sodium:12, phosphorus:130, iodine:0, selenium:15.1, copper:0.2,
-        vitamin_a:0, vitamin_b1:0.07, vitamin_b2:0.05, vitamin_b3:4.1, vitamin_b6:0.1, vitamin_b9:8, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:0, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:50, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['grain','snack','low_fat'] },
+      {
+        id: 'PUFFED_RICE', name_en: 'Puffed Rice (Murmura)', name_hi: 'मुरमुरा', category: 'Cereals',
+        calories: 402, protein: 6.3, carbs: 89.0, fat: 0.5, fiber: 1.0,
+        iron: 5.0, calcium: 5, magnesium: 35, zinc: 1.2, potassium: 115, sodium: 12, phosphorus: 130, iodine: 0, selenium: 15.1, copper: 0.2,
+        vitamin_a: 0, vitamin_b1: 0.07, vitamin_b2: 0.05, vitamin_b3: 4.1, vitamin_b6: 0.1, vitamin_b9: 8, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 50, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['grain', 'snack', 'low_fat']
+      },
 
       // Nuts & Seeds
-      { id:'PISTACHIOS', name_en:'Pistachios (Pista)', name_hi:'पिस्ता', category:'Nuts & Seeds',
-        calories:562, protein:20.2, carbs:27.5, fat:45.4, fiber:10.3,
-        iron:3.9, calcium:105, magnesium:121, zinc:2.2, potassium:1025, sodium:1, phosphorus:490, iodine:0, selenium:7.0, copper:1.3,
-        vitamin_a:26, vitamin_b1:0.87, vitamin_b2:0.16, vitamin_b3:1.3, vitamin_b6:1.7, vitamin_b9:51, vitamin_b12:0, vitamin_c:5.6, vitamin_d:0, vitamin_e:2.3, vitamin_k:13.2,
-        oxalate_eee:65, phytate_eee:280, yield_factor:0.55, food_type:'CORE', caution_level:'NONE',
-        tags:['nut','protein','fat','phytate'] },
+      {
+        id: 'PISTACHIOS', name_en: 'Pistachios (Pista)', name_hi: 'पिस्ता', category: 'Nuts & Seeds',
+        calories: 562, protein: 20.2, carbs: 27.5, fat: 45.4, fiber: 10.3,
+        iron: 3.9, calcium: 105, magnesium: 121, zinc: 2.2, potassium: 1025, sodium: 1, phosphorus: 490, iodine: 0, selenium: 7.0, copper: 1.3,
+        vitamin_a: 26, vitamin_b1: 0.87, vitamin_b2: 0.16, vitamin_b3: 1.3, vitamin_b6: 1.7, vitamin_b9: 51, vitamin_b12: 0, vitamin_c: 5.6, vitamin_d: 0, vitamin_e: 2.3, vitamin_k: 13.2,
+        oxalate_eee: 65, phytate_eee: 280, yield_factor: 0.55, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['nut', 'protein', 'fat', 'phytate']
+      },
 
-      { id:'PUMPKIN_SEEDS', name_en:'Pumpkin Seeds (Kaddu ke Beej)', name_hi:'कद्दू के बीज', category:'Nuts & Seeds',
-        calories:559, protein:30.2, carbs:10.7, fat:49.1, fiber:6.0,
-        iron:8.8, calcium:46, magnesium:592, zinc:7.8, potassium:809, sodium:7, phosphorus:1233, iodine:0, selenium:9.4, copper:1.3,
-        vitamin_a:16, vitamin_b1:0.27, vitamin_b2:0.15, vitamin_b3:4.4, vitamin_b6:0.14, vitamin_b9:57, vitamin_b12:0, vitamin_c:1.9, vitamin_d:0, vitamin_e:2.2, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:820, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['seed','protein','zinc','magnesium','phytate'] },
+      {
+        id: 'PUMPKIN_SEEDS', name_en: 'Pumpkin Seeds (Kaddu ke Beej)', name_hi: 'कद्दू के बीज', category: 'Nuts & Seeds',
+        calories: 559, protein: 30.2, carbs: 10.7, fat: 49.1, fiber: 6.0,
+        iron: 8.8, calcium: 46, magnesium: 592, zinc: 7.8, potassium: 809, sodium: 7, phosphorus: 1233, iodine: 0, selenium: 9.4, copper: 1.3,
+        vitamin_a: 16, vitamin_b1: 0.27, vitamin_b2: 0.15, vitamin_b3: 4.4, vitamin_b6: 0.14, vitamin_b9: 57, vitamin_b12: 0, vitamin_c: 1.9, vitamin_d: 0, vitamin_e: 2.2, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 820, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['seed', 'protein', 'zinc', 'magnesium', 'phytate']
+      },
 
-      { id:'SUNFLOWER_SEEDS', name_en:'Sunflower Seeds', name_hi:'सूरजमुखी के बीज', category:'Nuts & Seeds',
-        calories:584, protein:20.8, carbs:20.0, fat:51.5, fiber:8.6,
-        iron:5.3, calcium:78, magnesium:325, zinc:5.0, potassium:645, sodium:9, phosphorus:660, iodine:0, selenium:53.0, copper:1.8,
-        vitamin_a:3, vitamin_b1:1.48, vitamin_b2:0.36, vitamin_b3:8.3, vitamin_b6:1.35, vitamin_b9:227, vitamin_b12:0, vitamin_c:1.4, vitamin_d:0, vitamin_e:35.2, vitamin_k:0,
-        oxalate_eee:5, phytate_eee:500, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['seed','vitamin_e','selenium','phytate'] },
+      {
+        id: 'SUNFLOWER_SEEDS', name_en: 'Sunflower Seeds', name_hi: 'सूरजमुखी के बीज', category: 'Nuts & Seeds',
+        calories: 584, protein: 20.8, carbs: 20.0, fat: 51.5, fiber: 8.6,
+        iron: 5.3, calcium: 78, magnesium: 325, zinc: 5.0, potassium: 645, sodium: 9, phosphorus: 660, iodine: 0, selenium: 53.0, copper: 1.8,
+        vitamin_a: 3, vitamin_b1: 1.48, vitamin_b2: 0.36, vitamin_b3: 8.3, vitamin_b6: 1.35, vitamin_b9: 227, vitamin_b12: 0, vitamin_c: 1.4, vitamin_d: 0, vitamin_e: 35.2, vitamin_k: 0,
+        oxalate_eee: 5, phytate_eee: 500, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['seed', 'vitamin_e', 'selenium', 'phytate']
+      },
 
-      { id:'PEANUT_BUTTER', name_en:'Peanut Butter (unsweetened)', name_hi:'मूंगफली का मक्खन', category:'Nuts & Seeds',
-        calories:588, protein:25.1, carbs:20.0, fat:49.9, fiber:6.0,
-        iron:1.7, calcium:49, magnesium:168, zinc:2.9, potassium:558, sodium:459, phosphorus:335, iodine:0, selenium:4.1, copper:0.6,
-        vitamin_a:0, vitamin_b1:0.15, vitamin_b2:0.13, vitamin_b3:13.7, vitamin_b6:0.44, vitamin_b9:87, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:9.1, vitamin_k:0.3,
-        oxalate_eee:55, phytate_eee:300, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['nut','protein','fat','spread'] },
+      {
+        id: 'PEANUT_BUTTER', name_en: 'Peanut Butter (unsweetened)', name_hi: 'मूंगफली का मक्खन', category: 'Nuts & Seeds',
+        calories: 588, protein: 25.1, carbs: 20.0, fat: 49.9, fiber: 6.0,
+        iron: 1.7, calcium: 49, magnesium: 168, zinc: 2.9, potassium: 558, sodium: 459, phosphorus: 335, iodine: 0, selenium: 4.1, copper: 0.6,
+        vitamin_a: 0, vitamin_b1: 0.15, vitamin_b2: 0.13, vitamin_b3: 13.7, vitamin_b6: 0.44, vitamin_b9: 87, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 9.1, vitamin_k: 0.3,
+        oxalate_eee: 55, phytate_eee: 300, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['nut', 'protein', 'fat', 'spread']
+      },
 
-      { id:'COCONUT_MILK', name_en:'Coconut Milk', name_hi:'नारियल का दूध', category:'Nuts & Seeds',
-        calories:230, protein:2.3, carbs:5.5, fat:23.8, fiber:2.2,
-        iron:1.6, calcium:18, magnesium:37, zinc:0.7, potassium:263, sodium:15, phosphorus:100, iodine:0, selenium:6.2, copper:0.3,
-        vitamin_a:0, vitamin_b1:0.03, vitamin_b2:0.0, vitamin_b3:0.8, vitamin_b6:0.03, vitamin_b9:16, vitamin_b12:0, vitamin_c:2.8, vitamin_d:0, vitamin_e:0.2, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:50, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['dairy_alternative','fat','mcfa','vegan'] },
+      {
+        id: 'COCONUT_MILK', name_en: 'Coconut Milk', name_hi: 'नारियल का दूध', category: 'Nuts & Seeds',
+        calories: 230, protein: 2.3, carbs: 5.5, fat: 23.8, fiber: 2.2,
+        iron: 1.6, calcium: 18, magnesium: 37, zinc: 0.7, potassium: 263, sodium: 15, phosphorus: 100, iodine: 0, selenium: 6.2, copper: 0.3,
+        vitamin_a: 0, vitamin_b1: 0.03, vitamin_b2: 0.0, vitamin_b3: 0.8, vitamin_b6: 0.03, vitamin_b9: 16, vitamin_b12: 0, vitamin_c: 2.8, vitamin_d: 0, vitamin_e: 0.2, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 50, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['dairy_alternative', 'fat', 'mcfa', 'vegan']
+      },
 
       // Protein foods
-      { id:'TOFU', name_en:'Tofu (Soy Paneer)', name_hi:'टोफू', category:'Pulses',
-        calories:76, protein:8.1, carbs:1.9, fat:4.8, fiber:0.3,
-        iron:5.4, calcium:350, magnesium:30, zinc:0.8, potassium:121, sodium:7, phosphorus:97, iodine:0, selenium:8.9, copper:0.2,
-        vitamin_a:0, vitamin_b1:0.04, vitamin_b2:0.05, vitamin_b3:0.2, vitamin_b6:0.05, vitamin_b9:15, vitamin_b12:0, vitamin_c:0.1, vitamin_d:0, vitamin_e:0.0, vitamin_k:2.0,
-        oxalate_eee:0, phytate_eee:180, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['protein','vegan','calcium','iron','phytate'] },
+      {
+        id: 'TOFU', name_en: 'Tofu (Soy Paneer)', name_hi: 'टोफू', category: 'Pulses',
+        calories: 76, protein: 8.1, carbs: 1.9, fat: 4.8, fiber: 0.3,
+        iron: 5.4, calcium: 350, magnesium: 30, zinc: 0.8, potassium: 121, sodium: 7, phosphorus: 97, iodine: 0, selenium: 8.9, copper: 0.2,
+        vitamin_a: 0, vitamin_b1: 0.04, vitamin_b2: 0.05, vitamin_b3: 0.2, vitamin_b6: 0.05, vitamin_b9: 15, vitamin_b12: 0, vitamin_c: 0.1, vitamin_d: 0, vitamin_e: 0.0, vitamin_k: 2.0,
+        oxalate_eee: 0, phytate_eee: 180, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['protein', 'vegan', 'calcium', 'iron', 'phytate']
+      },
 
-      { id:'EGG_YOLK', name_en:'Egg Yolk', name_hi:'अंडे की जर्दी', category:'Eggs & Non-Veg',
-        calories:322, protein:15.9, carbs:3.6, fat:26.5, fiber:0.0,
-        iron:2.7, calcium:129, magnesium:5, zinc:2.3, potassium:109, sodium:48, phosphorus:390, iodine:0, selenium:25.5, copper:0.1,
-        vitamin_a:381, vitamin_b1:0.18, vitamin_b2:0.53, vitamin_b3:0.0, vitamin_b6:0.35, vitamin_b9:146, vitamin_b12:1.95, vitamin_c:0, vitamin_d:5.6, vitamin_e:2.6, vitamin_k:0.7,
-        oxalate_eee:0, phytate_eee:0, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        unit_name:'yolk', unit_weight_g:17,
-        tags:['protein','fat','vitamin_d','choline'] },
+      {
+        id: 'EGG_YOLK', name_en: 'Egg Yolk', name_hi: 'अंडे की जर्दी', category: 'Eggs & Non-Veg',
+        calories: 322, protein: 15.9, carbs: 3.6, fat: 26.5, fiber: 0.0,
+        iron: 2.7, calcium: 129, magnesium: 5, zinc: 2.3, potassium: 109, sodium: 48, phosphorus: 390, iodine: 0, selenium: 25.5, copper: 0.1,
+        vitamin_a: 381, vitamin_b1: 0.18, vitamin_b2: 0.53, vitamin_b3: 0.0, vitamin_b6: 0.35, vitamin_b9: 146, vitamin_b12: 1.95, vitamin_c: 0, vitamin_d: 5.6, vitamin_e: 2.6, vitamin_k: 0.7,
+        oxalate_eee: 0, phytate_eee: 0, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        unit_name: 'yolk', unit_weight_g: 17,
+        tags: ['protein', 'fat', 'vitamin_d', 'choline']
+      },
 
-      { id:'FISH_POMFRET', name_en:'Pomfret (Paplet)', name_hi:'पापलेट', category:'Eggs & Non-Veg',
-        calories:97, protein:20.6, carbs:0.0, fat:1.6, fiber:0.0,
-        iron:0.5, calcium:28, magnesium:27, zinc:0.4, potassium:432, sodium:74, phosphorus:210, iodine:0, selenium:36.0, copper:0.1,
-        vitamin_a:12, vitamin_b1:0.04, vitamin_b2:0.12, vitamin_b3:5.0, vitamin_b6:0.4, vitamin_b9:12, vitamin_b12:1.5, vitamin_c:0, vitamin_d:0.5, vitamin_e:0.6, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:0, yield_factor:0.62, food_type:'CORE', caution_level:'NONE',
-        tags:['protein','fish','seafood','lean'] },
+      {
+        id: 'FISH_POMFRET', name_en: 'Pomfret (Paplet)', name_hi: 'पापलेट', category: 'Eggs & Non-Veg',
+        calories: 97, protein: 20.6, carbs: 0.0, fat: 1.6, fiber: 0.0,
+        iron: 0.5, calcium: 28, magnesium: 27, zinc: 0.4, potassium: 432, sodium: 74, phosphorus: 210, iodine: 0, selenium: 36.0, copper: 0.1,
+        vitamin_a: 12, vitamin_b1: 0.04, vitamin_b2: 0.12, vitamin_b3: 5.0, vitamin_b6: 0.4, vitamin_b9: 12, vitamin_b12: 1.5, vitamin_c: 0, vitamin_d: 0.5, vitamin_e: 0.6, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 0, yield_factor: 0.62, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['protein', 'fish', 'seafood', 'lean']
+      },
 
-      { id:'SALMON', name_en:'Salmon', name_hi:'सैल्मन', category:'Eggs & Non-Veg',
-        calories:208, protein:20.4, carbs:0.0, fat:13.4, fiber:0.0,
-        iron:0.3, calcium:9, magnesium:27, zinc:0.4, potassium:363, sodium:59, phosphorus:252, iodine:0, selenium:36.5, copper:0.3,
-        vitamin_a:12, vitamin_b1:0.23, vitamin_b2:0.38, vitamin_b3:8.0, vitamin_b6:0.64, vitamin_b9:26, vitamin_b12:3.18, vitamin_c:0, vitamin_d:11.1, vitamin_e:2.5, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:0, yield_factor:0.87, food_type:'CORE', caution_level:'NONE',
-        tags:['protein','fish','omega3','vitamin_d'] },
+      {
+        id: 'SALMON', name_en: 'Salmon', name_hi: 'सैल्मन', category: 'Eggs & Non-Veg',
+        calories: 208, protein: 20.4, carbs: 0.0, fat: 13.4, fiber: 0.0,
+        iron: 0.3, calcium: 9, magnesium: 27, zinc: 0.4, potassium: 363, sodium: 59, phosphorus: 252, iodine: 0, selenium: 36.5, copper: 0.3,
+        vitamin_a: 12, vitamin_b1: 0.23, vitamin_b2: 0.38, vitamin_b3: 8.0, vitamin_b6: 0.64, vitamin_b9: 26, vitamin_b12: 3.18, vitamin_c: 0, vitamin_d: 11.1, vitamin_e: 2.5, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 0, yield_factor: 0.87, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['protein', 'fish', 'omega3', 'vitamin_d']
+      },
 
-      { id:'TUNA_CANNED', name_en:'Tuna (Canned in water)', name_hi:'ट्यूना', category:'Eggs & Non-Veg',
-        calories:116, protein:25.5, carbs:0.0, fat:0.8, fiber:0.0,
-        iron:1.3, calcium:11, magnesium:31, zinc:0.6, potassium:237, sodium:327, phosphorus:194, iodine:0, selenium:80.4, copper:0.1,
-        vitamin_a:20, vitamin_b1:0.09, vitamin_b2:0.1, vitamin_b3:13.3, vitamin_b6:0.45, vitamin_b9:4, vitamin_b12:2.5, vitamin_c:0, vitamin_d:5.4, vitamin_e:0.6, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:0, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['protein','fish','lean','omega3'] },
+      {
+        id: 'TUNA_CANNED', name_en: 'Tuna (Canned in water)', name_hi: 'ट्यूना', category: 'Eggs & Non-Veg',
+        calories: 116, protein: 25.5, carbs: 0.0, fat: 0.8, fiber: 0.0,
+        iron: 1.3, calcium: 11, magnesium: 31, zinc: 0.6, potassium: 237, sodium: 327, phosphorus: 194, iodine: 0, selenium: 80.4, copper: 0.1,
+        vitamin_a: 20, vitamin_b1: 0.09, vitamin_b2: 0.1, vitamin_b3: 13.3, vitamin_b6: 0.45, vitamin_b9: 4, vitamin_b12: 2.5, vitamin_c: 0, vitamin_d: 5.4, vitamin_e: 0.6, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 0, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['protein', 'fish', 'lean', 'omega3']
+      },
 
       // Dairy
-      { id:'GREEK_YOGURT', name_en:'Greek Yogurt (plain)', name_hi:'ग्रीक दही', category:'Dairy',
-        calories:59, protein:10.2, carbs:3.6, fat:0.4, fiber:0.0,
-        iron:0.1, calcium:110, magnesium:11, zinc:0.5, potassium:141, sodium:36, phosphorus:135, iodine:0, selenium:9.7, copper:0.0,
-        vitamin_a:0, vitamin_b1:0.02, vitamin_b2:0.28, vitamin_b3:0.2, vitamin_b6:0.06, vitamin_b9:7, vitamin_b12:0.75, vitamin_c:0, vitamin_d:0, vitamin_e:0.0, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:0, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['dairy','protein','probiotic','calcium'] },
+      {
+        id: 'GREEK_YOGURT', name_en: 'Greek Yogurt (plain)', name_hi: 'ग्रीक दही', category: 'Dairy',
+        calories: 59, protein: 10.2, carbs: 3.6, fat: 0.4, fiber: 0.0,
+        iron: 0.1, calcium: 110, magnesium: 11, zinc: 0.5, potassium: 141, sodium: 36, phosphorus: 135, iodine: 0, selenium: 9.7, copper: 0.0,
+        vitamin_a: 0, vitamin_b1: 0.02, vitamin_b2: 0.28, vitamin_b3: 0.2, vitamin_b6: 0.06, vitamin_b9: 7, vitamin_b12: 0.75, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0.0, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 0, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['dairy', 'protein', 'probiotic', 'calcium']
+      },
 
-      { id:'WHEY_PROTEIN', name_en:'Whey Protein (unflavoured)', name_hi:'व्हे प्रोटीन', category:'Dairy',
-        calories:352, protein:75.0, carbs:6.0, fat:2.0, fiber:0.0,
-        iron:0.4, calcium:500, magnesium:30, zinc:1.0, potassium:200, sodium:100, phosphorus:400, iodine:0, selenium:0, copper:0.0,
-        vitamin_a:0, vitamin_b1:0.0, vitamin_b2:0.4, vitamin_b3:0.0, vitamin_b6:0.0, vitamin_b9:0, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:0, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:0, yield_factor:1.0, food_type:'TREAT', caution_level:'NONE',
-        tags:['supplement','protein','dairy'] },
+      {
+        id: 'WHEY_PROTEIN', name_en: 'Whey Protein (unflavoured)', name_hi: 'व्हे प्रोटीन', category: 'Dairy',
+        calories: 352, protein: 75.0, carbs: 6.0, fat: 2.0, fiber: 0.0,
+        iron: 0.4, calcium: 500, magnesium: 30, zinc: 1.0, potassium: 200, sodium: 100, phosphorus: 400, iodine: 0, selenium: 0, copper: 0.0,
+        vitamin_a: 0, vitamin_b1: 0.0, vitamin_b2: 0.4, vitamin_b3: 0.0, vitamin_b6: 0.0, vitamin_b9: 0, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 0, yield_factor: 1.0, food_type: 'TREAT', caution_level: 'NONE',
+        tags: ['supplement', 'protein', 'dairy']
+      },
 
       // Prepared foods
-      { id:'RAJMA_COOKED', name_en:'Rajma (cooked)', name_hi:'राजमा (पकाया)', category:'Prepared',
-        calories:127, protein:8.7, carbs:22.8, fat:0.5, fiber:6.4,
-        iron:2.5, calcium:43, magnesium:45, zinc:1.0, potassium:403, sodium:2, phosphorus:142, iodine:0, selenium:1.2, copper:0.2,
-        vitamin_a:0, vitamin_b1:0.16, vitamin_b2:0.06, vitamin_b3:0.6, vitamin_b6:0.12, vitamin_b9:130, vitamin_b12:0, vitamin_c:1.5, vitamin_d:0, vitamin_e:0.1, vitamin_k:5.6,
-        oxalate_eee:0, phytate_eee:210, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['protein','fiber','iron','folate'] },
+      {
+        id: 'RAJMA_COOKED', name_en: 'Rajma (cooked)', name_hi: 'राजमा (पकाया)', category: 'Prepared',
+        calories: 127, protein: 8.7, carbs: 22.8, fat: 0.5, fiber: 6.4,
+        iron: 2.5, calcium: 43, magnesium: 45, zinc: 1.0, potassium: 403, sodium: 2, phosphorus: 142, iodine: 0, selenium: 1.2, copper: 0.2,
+        vitamin_a: 0, vitamin_b1: 0.16, vitamin_b2: 0.06, vitamin_b3: 0.6, vitamin_b6: 0.12, vitamin_b9: 130, vitamin_b12: 0, vitamin_c: 1.5, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 5.6,
+        oxalate_eee: 0, phytate_eee: 210, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['protein', 'fiber', 'iron', 'folate']
+      },
 
-      { id:'CHOLE_COOKED', name_en:'Chole / Chickpeas (cooked)', name_hi:'छोले', category:'Prepared',
-        calories:164, protein:8.9, carbs:27.4, fat:2.6, fiber:7.6,
-        iron:2.9, calcium:49, magnesium:48, zinc:1.5, potassium:291, sodium:24, phosphorus:168, iodine:0, selenium:3.7, copper:0.4,
-        vitamin_a:3, vitamin_b1:0.12, vitamin_b2:0.06, vitamin_b3:0.5, vitamin_b6:0.14, vitamin_b9:172, vitamin_b12:0, vitamin_c:1.3, vitamin_d:0, vitamin_e:0.4, vitamin_k:4.0,
-        oxalate_eee:0, phytate_eee:200, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['protein','fiber','folate','iron'] },
+      {
+        id: 'CHOLE_COOKED', name_en: 'Chole / Chickpeas (cooked)', name_hi: 'छोले', category: 'Prepared',
+        calories: 164, protein: 8.9, carbs: 27.4, fat: 2.6, fiber: 7.6,
+        iron: 2.9, calcium: 49, magnesium: 48, zinc: 1.5, potassium: 291, sodium: 24, phosphorus: 168, iodine: 0, selenium: 3.7, copper: 0.4,
+        vitamin_a: 3, vitamin_b1: 0.12, vitamin_b2: 0.06, vitamin_b3: 0.5, vitamin_b6: 0.14, vitamin_b9: 172, vitamin_b12: 0, vitamin_c: 1.3, vitamin_d: 0, vitamin_e: 0.4, vitamin_k: 4.0,
+        oxalate_eee: 0, phytate_eee: 200, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['protein', 'fiber', 'folate', 'iron']
+      },
 
-      { id:'POHA_COOKED', name_en:'Poha (cooked)', name_hi:'पोहा (पका हुआ)', category:'Prepared',
-        calories:130, protein:2.6, carbs:28.1, fat:1.5, fiber:0.7,
-        iron:3.0, calcium:7, magnesium:18, zinc:0.4, potassium:98, sodium:2, phosphorus:55, iodine:0, selenium:5.0, copper:0.1,
-        vitamin_a:0, vitamin_b1:0.1, vitamin_b2:0.03, vitamin_b3:1.5, vitamin_b6:0.05, vitamin_b9:5, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:0, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:50, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['grain','iron','breakfast','snack'] },
+      {
+        id: 'POHA_COOKED', name_en: 'Poha (cooked)', name_hi: 'पोहा (पका हुआ)', category: 'Prepared',
+        calories: 130, protein: 2.6, carbs: 28.1, fat: 1.5, fiber: 0.7,
+        iron: 3.0, calcium: 7, magnesium: 18, zinc: 0.4, potassium: 98, sodium: 2, phosphorus: 55, iodine: 0, selenium: 5.0, copper: 0.1,
+        vitamin_a: 0, vitamin_b1: 0.1, vitamin_b2: 0.03, vitamin_b3: 1.5, vitamin_b6: 0.05, vitamin_b9: 5, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 50, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['grain', 'iron', 'breakfast', 'snack']
+      },
 
-      { id:'PARATHA', name_en:'Paratha (plain)', name_hi:'परांठा', category:'Prepared',
-        calories:287, protein:5.9, carbs:42.3, fat:10.6, fiber:2.1,
-        iron:1.5, calcium:31, magnesium:22, zinc:0.7, potassium:126, sodium:346, phosphorus:75, iodine:0, selenium:14.0, copper:0.1,
-        vitamin_a:0, vitamin_b1:0.1, vitamin_b2:0.04, vitamin_b3:1.4, vitamin_b6:0.05, vitamin_b9:15, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:1.0, vitamin_k:2.0,
-        oxalate_eee:0, phytate_eee:150, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        unit_name:'paratha', unit_weight_g:80,
-        tags:['grain','fat','breakfast','wheat'] },
+      {
+        id: 'PARATHA', name_en: 'Paratha (plain)', name_hi: 'परांठा', category: 'Prepared',
+        calories: 287, protein: 5.9, carbs: 42.3, fat: 10.6, fiber: 2.1,
+        iron: 1.5, calcium: 31, magnesium: 22, zinc: 0.7, potassium: 126, sodium: 346, phosphorus: 75, iodine: 0, selenium: 14.0, copper: 0.1,
+        vitamin_a: 0, vitamin_b1: 0.1, vitamin_b2: 0.04, vitamin_b3: 1.4, vitamin_b6: 0.05, vitamin_b9: 15, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 1.0, vitamin_k: 2.0,
+        oxalate_eee: 0, phytate_eee: 150, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        unit_name: 'paratha', unit_weight_g: 80,
+        tags: ['grain', 'fat', 'breakfast', 'wheat']
+      },
 
-      { id:'MOONG_SPROUTS', name_en:'Moong Sprouts', name_hi:'मूंग अंकुरित', category:'Pulses',
-        calories:30, protein:3.0, carbs:5.9, fat:0.2, fiber:1.8,
-        iron:0.9, calcium:13, magnesium:21, zinc:0.4, potassium:149, sodium:6, phosphorus:54, iodine:0, selenium:0.6, copper:0.2,
-        vitamin_a:2, vitamin_b1:0.08, vitamin_b2:0.12, vitamin_b3:0.7, vitamin_b6:0.09, vitamin_b9:60, vitamin_b12:0, vitamin_c:13.2, vitamin_d:0, vitamin_e:0.1, vitamin_k:33,
-        oxalate_eee:0, phytate_eee:80, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['protein','sprout','vitamin_c','folate'] },
+      {
+        id: 'MOONG_SPROUTS', name_en: 'Moong Sprouts', name_hi: 'मूंग अंकुरित', category: 'Pulses',
+        calories: 30, protein: 3.0, carbs: 5.9, fat: 0.2, fiber: 1.8,
+        iron: 0.9, calcium: 13, magnesium: 21, zinc: 0.4, potassium: 149, sodium: 6, phosphorus: 54, iodine: 0, selenium: 0.6, copper: 0.2,
+        vitamin_a: 2, vitamin_b1: 0.08, vitamin_b2: 0.12, vitamin_b3: 0.7, vitamin_b6: 0.09, vitamin_b9: 60, vitamin_b12: 0, vitamin_c: 13.2, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 33,
+        oxalate_eee: 0, phytate_eee: 80, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['protein', 'sprout', 'vitamin_c', 'folate']
+      },
 
       // Treats
-      { id:'DARK_CHOCOLATE_70', name_en:'Dark Chocolate (70%)', name_hi:'डार्क चॉकलेट (70%)', category:'Treats',
-        calories:598, protein:7.8, carbs:45.9, fat:42.6, fiber:10.9,
-        iron:11.9, calcium:73, magnesium:228, zinc:3.3, potassium:715, sodium:20, phosphorus:308, iodine:0, selenium:6.8, copper:1.8,
-        vitamin_a:2, vitamin_b1:0.03, vitamin_b2:0.07, vitamin_b3:1.1, vitamin_b6:0.04, vitamin_b9:6, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:0.6, vitamin_k:7.3,
-        oxalate_eee:150, phytate_eee:0, yield_factor:1.0, food_type:'TREAT', caution_level:'MEDIUM',
-        tags:['treat','antioxidant','magnesium','iron','oxalate'] },
+      {
+        id: 'DARK_CHOCOLATE_70', name_en: 'Dark Chocolate (70%)', name_hi: 'डार्क चॉकलेट (70%)', category: 'Treats',
+        calories: 598, protein: 7.8, carbs: 45.9, fat: 42.6, fiber: 10.9,
+        iron: 11.9, calcium: 73, magnesium: 228, zinc: 3.3, potassium: 715, sodium: 20, phosphorus: 308, iodine: 0, selenium: 6.8, copper: 1.8,
+        vitamin_a: 2, vitamin_b1: 0.03, vitamin_b2: 0.07, vitamin_b3: 1.1, vitamin_b6: 0.04, vitamin_b9: 6, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0.6, vitamin_k: 7.3,
+        oxalate_eee: 150, phytate_eee: 0, yield_factor: 1.0, food_type: 'TREAT', caution_level: 'MEDIUM',
+        tags: ['treat', 'antioxidant', 'magnesium', 'iron', 'oxalate']
+      },
 
-      { id:'HONEY', name_en:'Honey (Shahad)', name_hi:'शहद', category:'Treats',
-        calories:304, protein:0.3, carbs:82.4, fat:0.0, fiber:0.2,
-        iron:0.4, calcium:6, magnesium:2, zinc:0.2, potassium:52, sodium:4, phosphorus:4, iodine:0, selenium:0.8, copper:0.0,
-        vitamin_a:0, vitamin_b1:0.0, vitamin_b2:0.04, vitamin_b3:0.1, vitamin_b6:0.02, vitamin_b9:2, vitamin_b12:0, vitamin_c:0.5, vitamin_d:0, vitamin_e:0, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:0, yield_factor:1.0, food_type:'TREAT', caution_level:'NONE',
-        tags:['treat','natural_sugar','sweetener'] },
+      {
+        id: 'HONEY', name_en: 'Honey (Shahad)', name_hi: 'शहद', category: 'Treats',
+        calories: 304, protein: 0.3, carbs: 82.4, fat: 0.0, fiber: 0.2,
+        iron: 0.4, calcium: 6, magnesium: 2, zinc: 0.2, potassium: 52, sodium: 4, phosphorus: 4, iodine: 0, selenium: 0.8, copper: 0.0,
+        vitamin_a: 0, vitamin_b1: 0.0, vitamin_b2: 0.04, vitamin_b3: 0.1, vitamin_b6: 0.02, vitamin_b9: 2, vitamin_b12: 0, vitamin_c: 0.5, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 0, yield_factor: 1.0, food_type: 'TREAT', caution_level: 'NONE',
+        tags: ['treat', 'natural_sugar', 'sweetener']
+      },
 
-      { id:'JAGGERY', name_en:'Jaggery (Gud)', name_hi:'गुड़', category:'Treats',
-        calories:383, protein:0.4, carbs:98.0, fat:0.1, fiber:0.0,
-        iron:11.0, calcium:80, magnesium:70, zinc:0.3, potassium:1056, sodium:30, phosphorus:20, iodine:0, selenium:0, copper:0.3,
-        vitamin_a:0, vitamin_b1:0.01, vitamin_b2:0.06, vitamin_b3:0.5, vitamin_b6:0.0, vitamin_b9:0, vitamin_b12:0, vitamin_c:7.0, vitamin_d:0, vitamin_e:0, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:0, yield_factor:1.0, food_type:'TREAT', caution_level:'NONE',
-        tags:['treat','natural_sugar','iron','sweetener'] },
+      {
+        id: 'JAGGERY', name_en: 'Jaggery (Gud)', name_hi: 'गुड़', category: 'Treats',
+        calories: 383, protein: 0.4, carbs: 98.0, fat: 0.1, fiber: 0.0,
+        iron: 11.0, calcium: 80, magnesium: 70, zinc: 0.3, potassium: 1056, sodium: 30, phosphorus: 20, iodine: 0, selenium: 0, copper: 0.3,
+        vitamin_a: 0, vitamin_b1: 0.01, vitamin_b2: 0.06, vitamin_b3: 0.5, vitamin_b6: 0.0, vitamin_b9: 0, vitamin_b12: 0, vitamin_c: 7.0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 0, yield_factor: 1.0, food_type: 'TREAT', caution_level: 'NONE',
+        tags: ['treat', 'natural_sugar', 'iron', 'sweetener']
+      },
 
-      { id:'RAISINS', name_en:'Raisins (Kishmish)', name_hi:'किशमिश', category:'Treats',
-        calories:299, protein:3.1, carbs:79.2, fat:0.5, fiber:3.7,
-        iron:1.9, calcium:50, magnesium:32, zinc:0.2, potassium:749, sodium:11, phosphorus:101, iodine:0, selenium:0.6, copper:0.3,
-        vitamin_a:0, vitamin_b1:0.11, vitamin_b2:0.13, vitamin_b3:0.8, vitamin_b6:0.17, vitamin_b9:5, vitamin_b12:0, vitamin_c:2.3, vitamin_d:0, vitamin_e:0.1, vitamin_k:3.5,
-        oxalate_eee:35, phytate_eee:0, yield_factor:1.0, food_type:'TREAT', caution_level:'NONE',
-        tags:['treat','dried_fruit','iron','potassium'] },
+      {
+        id: 'RAISINS', name_en: 'Raisins (Kishmish)', name_hi: 'किशमिश', category: 'Treats',
+        calories: 299, protein: 3.1, carbs: 79.2, fat: 0.5, fiber: 3.7,
+        iron: 1.9, calcium: 50, magnesium: 32, zinc: 0.2, potassium: 749, sodium: 11, phosphorus: 101, iodine: 0, selenium: 0.6, copper: 0.3,
+        vitamin_a: 0, vitamin_b1: 0.11, vitamin_b2: 0.13, vitamin_b3: 0.8, vitamin_b6: 0.17, vitamin_b9: 5, vitamin_b12: 0, vitamin_c: 2.3, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 3.5,
+        oxalate_eee: 35, phytate_eee: 0, yield_factor: 1.0, food_type: 'TREAT', caution_level: 'NONE',
+        tags: ['treat', 'dried_fruit', 'iron', 'potassium']
+      },
 
       // Beverages
-      { id:'COFFEE_BLACK', name_en:'Coffee (black)', name_hi:'कॉफी (ब्लैक)', category:'Beverages',
-        calories:2, protein:0.3, carbs:0.0, fat:0.0, fiber:0.0,
-        iron:0.1, calcium:5, magnesium:8, zinc:0.0, potassium:92, sodium:5, phosphorus:7, iodine:0, selenium:0.0, copper:0.0,
-        vitamin_a:0, vitamin_b1:0.0, vitamin_b2:0.01, vitamin_b3:0.7, vitamin_b6:0.0, vitamin_b9:2, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:0, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:0, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['beverage','caffeine','zero_calorie'] },
+      {
+        id: 'COFFEE_BLACK', name_en: 'Coffee (black)', name_hi: 'कॉफी (ब्लैक)', category: 'Beverages',
+        calories: 2, protein: 0.3, carbs: 0.0, fat: 0.0, fiber: 0.0,
+        iron: 0.1, calcium: 5, magnesium: 8, zinc: 0.0, potassium: 92, sodium: 5, phosphorus: 7, iodine: 0, selenium: 0.0, copper: 0.0,
+        vitamin_a: 0, vitamin_b1: 0.0, vitamin_b2: 0.01, vitamin_b3: 0.7, vitamin_b6: 0.0, vitamin_b9: 2, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 0, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['beverage', 'caffeine', 'zero_calorie']
+      },
 
-      { id:'GREEN_TEA', name_en:'Green Tea (brewed)', name_hi:'ग्रीन टी', category:'Beverages',
-        calories:1, protein:0.2, carbs:0.2, fat:0.0, fiber:0.0,
-        iron:0.0, calcium:0, magnesium:1, zinc:0.0, potassium:20, sodium:1, phosphorus:1, iodine:0, selenium:0.0, copper:0.0,
-        vitamin_a:0, vitamin_b1:0.0, vitamin_b2:0.0, vitamin_b3:0.0, vitamin_b6:0.0, vitamin_b9:5, vitamin_b12:0, vitamin_c:0, vitamin_d:0, vitamin_e:0, vitamin_k:0,
-        oxalate_eee:0, phytate_eee:0, yield_factor:1.0, food_type:'CORE', caution_level:'NONE',
-        tags:['beverage','antioxidant','caffeine','zero_calorie'] },
+      {
+        id: 'GREEN_TEA', name_en: 'Green Tea (brewed)', name_hi: 'ग्रीन टी', category: 'Beverages',
+        calories: 1, protein: 0.2, carbs: 0.2, fat: 0.0, fiber: 0.0,
+        iron: 0.0, calcium: 0, magnesium: 1, zinc: 0.0, potassium: 20, sodium: 1, phosphorus: 1, iodine: 0, selenium: 0.0, copper: 0.0,
+        vitamin_a: 0, vitamin_b1: 0.0, vitamin_b2: 0.0, vitamin_b3: 0.0, vitamin_b6: 0.0, vitamin_b9: 5, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
+        oxalate_eee: 0, phytate_eee: 0, yield_factor: 1.0, food_type: 'CORE', caution_level: 'NONE',
+        tags: ['beverage', 'antioxidant', 'caffeine', 'zero_calorie']
+      },
     ];
 
     for (const f of newFoods) {
@@ -8071,7 +8184,7 @@ FROM(VALUES ${ valuesList }) AS v(id, ox, ph)
         f.yield_factor || 1.0, f.tags || [], f.food_type || 'CORE', f.caution_level || 'NONE',
       ]);
     }
-    console.log(`[migration] inserted ${ newFoods.length } new food items(skipped existing)`);
+    console.log(`[migration] inserted ${newFoods.length} new food items(skipped existing)`);
 
     console.log('[migration] oxalate_eee / phytate_eee columns ready');
   } catch (err) {
@@ -8350,6 +8463,13 @@ const DOCUMENT_BUCKET = "patient-documents";
 const DOCUMENT_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const DOCUMENT_KIND_TYPES = new Set(["blood_report", "prescription", "other"]);
 const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
+let patientDocumentsStorageInitialized = false;
+
+const ensurePatientDocumentStorage = async () => {
+  if (patientDocumentsStorageInitialized) return;
+  await query(`ALTER TABLE patient_documents ADD COLUMN IF NOT EXISTS file_data BYTEA`);
+  patientDocumentsStorageInitialized = true;
+};
 
 const signedDocumentUrl = async (filePath) => {
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -8371,7 +8491,15 @@ const signedDocumentUrl = async (filePath) => {
 };
 
 const attachDocumentUrls = async (rows) =>
-  Promise.all(rows.map(async (row) => ({ ...row, signed_url: await signedDocumentUrl(row.file_path) })));
+  Promise.all(rows.map(async (row) => {
+    const { file_data, ...documentRow } = row;
+    return {
+      ...documentRow,
+      signed_url: file_data
+        ? `/api/patient/documents/${row.id}/download`
+        : await signedDocumentUrl(row.file_path)
+    };
+  }));
 
 const readRawBody = (req) =>
   new Promise((resolve, reject) => {
@@ -8419,7 +8547,7 @@ const uploadToDocumentStorage = async (filePath, file) => {
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceKey) {
-    throw new Error("Supabase document storage is not configured");
+    return { storedInDatabase: true };
   }
   const response = await fetch(`${supabaseUrl}/storage/v1/object/${DOCUMENT_BUCKET}/${filePath}`, {
     method: "PUT",
@@ -8435,6 +8563,7 @@ const uploadToDocumentStorage = async (filePath, file) => {
     const text = await response.text();
     throw new Error(text || "Failed to upload document");
   }
+  return { storedInDatabase: false };
 };
 
 app.post("/api/patient/me/documents", async (req, res) => {
@@ -8456,18 +8585,37 @@ app.post("/api/patient/me/documents", async (req, res) => {
     const extension = file.mimetype === "application/pdf" ? "pdf" : file.mimetype === "image/png" ? "png" : "jpg";
     const id = crypto.randomUUID();
     const filePath = `${auth.userId}/${id}.${extension}`;
-    await uploadToDocumentStorage(filePath, file);
+    await ensurePatientDocumentStorage();
+    const storageResult = await uploadToDocumentStorage(filePath, file);
 
     const result = await query(
       `INSERT INTO patient_documents
-       (id, patient_id, patient_profile_id, kind, file_path, original_filename, mime_type, size_bytes, uploaded_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $2)
+       (id, patient_id, patient_profile_id, kind, file_path, original_filename, mime_type, size_bytes, uploaded_by, file_data)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $2, $9)
        RETURNING *`,
-      [id, auth.userId, patient.id, kind, filePath, file.originalname, file.mimetype, file.buffer.length]
+      [id, auth.userId, patient.id, kind, filePath, file.originalname, file.mimetype, file.buffer.length, storageResult.storedInDatabase ? file.buffer : null]
     );
-    res.status(201).json({ success: true, data: result.rows[0] });
+    res.status(201).json({ success: true, data: (await attachDocumentUrls(result.rows))[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/patient/documents/:id/download", async (req, res) => {
+  try {
+    await ensurePatientDocumentStorage();
+    const result = await query(
+      "SELECT id, original_filename, mime_type, file_data FROM patient_documents WHERE id = $1",
+      [req.params.id]
+    );
+    const doc = result.rows[0];
+    if (!doc?.file_data) return res.status(404).send("Document not found");
+
+    res.setHeader("Content-Type", doc.mime_type || "application/octet-stream");
+    res.setHeader("Content-Disposition", `inline; filename="${String(doc.original_filename || "document").replace(/"/g, "")}"`);
+    res.send(doc.file_data);
+  } catch (err) {
+    res.status(500).send(err.message);
   }
 });
 

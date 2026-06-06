@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getPatient } from "@/lib/api";
 import { toast } from "sonner";
 import { User, Heart, UtensilsCrossed, CalendarDays } from "lucide-react";
+import { getPatientSidebarSections } from "@/lib/patient-sidebar";
 
 interface Ticket {
   id: number;
@@ -245,18 +246,7 @@ const PatientSupport = () => {
     }
   };
 
-  const sidebarSections = [
-    {
-      title: "Dashboard",
-      items: [
-        { label: "Overview", href: "/patient", icon: User },
-        { label: "My Profile", href: "/patient/profile", icon: Heart },
-        { label: "Diet Plans", href: "/patient/diet-plans", icon: UtensilsCrossed },
-        { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
-        { label: "Support", href: "/patient/support", icon: MessageSquare },
-      ],
-    },
-  ];
+  const sidebarSections = getPatientSidebarSections();
 
   const bottomContent = (
     <button
@@ -518,58 +508,7 @@ const PatientSupport = () => {
                         </div>
                       )}
 
-                      {visibleComments.length > 0 && (
-                        <div className="space-y-3">
-                          <p className="text-xs font-medium text-muted-foreground">
-                            {visibleComments.length} {visibleComments.length === 1 ? "comment" : "comments"}
-                          </p>
-                          {visibleComments.map((comment) => (
-                            <div key={comment.id} className="flex gap-3">
-                              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
-                                {comment.user_name?.[0]?.toUpperCase() || "?"}
-                              </div>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-0.5">
-                                  <span className="text-xs font-medium">{comment.user_name}</span>
-                                  <span className="text-[10px] text-muted-foreground">
-                                    {new Date(comment.created_at).toLocaleString()}
-                                  </span>
-                                </div>
-                                <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
-
-                    {selectedTicket.status !== "closed" && (
-                      <div className="px-6 py-3 border-t shrink-0">
-                        <div className="flex gap-2 items-end">
-                          <Textarea
-                            placeholder="Add a comment..."
-                            rows={2}
-                            value={newComment}
-                            onChange={(e) => setNewComment(e.target.value)}
-                            className="flex-1 resize-none text-sm"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && newComment.trim()) {
-                                e.preventDefault();
-                                addCommentMutation.mutate();
-                              }
-                            }}
-                          />
-                          <Button
-                            size="sm"
-                            disabled={!newComment.trim() || addCommentMutation.isPending}
-                            onClick={() => addCommentMutation.mutate()}
-                          >
-                            <Send className="w-4 h-4" />
-                          </Button>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-1">Cmd+Enter to send</p>
-                      </div>
-                    )}
                   </>
                 ) : null}
               </div>

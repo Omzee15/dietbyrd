@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
@@ -60,6 +60,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatTime12, formatDateTime12, parseIST } from "@/lib/utils";
+import { getPatientSidebarSections } from "@/lib/patient-sidebar";
 
 declare global {
   interface Window {
@@ -85,6 +86,7 @@ const PatientAppointments = () => {
   const [appliedCoupon, setAppliedCoupon] = useState<CouponValidation | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
+  const confirmAppointmentButtonRef = useRef<HTMLButtonElement>(null);
 
   // Get patient data
   const { data: patient, isLoading: patientLoading, refetch: refetchPatient } = useQuery({
@@ -117,6 +119,14 @@ const PatientAppointments = () => {
   }, [weekOffset]);
 
   const hasAssignedRD = !!patient?.assigned_rd_id;
+
+  useEffect(() => {
+    if (!isBookingModalOpen || !selectedSlot) return;
+    const focusTimer = window.setTimeout(() => {
+      confirmAppointmentButtonRef.current?.focus();
+    }, 50);
+    return () => window.clearTimeout(focusTimer);
+  }, [isBookingModalOpen, selectedSlot, selectedPackage]);
 
   // Get available slots — assigned dietician or all dieticians if unassigned
   const { data: availableSlots, isLoading: slotsLoading, refetch: refetchSlots } = useQuery({
@@ -407,6 +417,7 @@ const PatientAppointments = () => {
         theme: {
           color: "#14b8a6",
         },
+        remember_customer: true,
         modal: {
           ondismiss: function () {
             setIsPaymentProcessing(false);
@@ -488,18 +499,7 @@ const PatientAppointments = () => {
     .filter((a) => !isUpcomingAppointment(a))
     .sort((a, b) => parseIST(b.scheduled_at).getTime() - parseIST(a.scheduled_at).getTime());
 
-  const sidebarSections = [
-    {
-      title: "Dashboard",
-      items: [
-        { label: "Overview", href: "/patient", icon: User },
-        { label: "My Profile", href: "/patient/profile", icon: Heart },
-        { label: "Diet Plans", href: "/patient/diet-plans", icon: UtensilsCrossed },
-        { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
-        { label: "Support", href: "/patient/support", icon: MessageSquare },
-      ],
-    },
-  ];
+  const sidebarSections = getPatientSidebarSections();
 
   const bottomContent = (
     <button
@@ -897,9 +897,20 @@ const PatientAppointments = () => {
 
             {/* View 2: Confirmation (when slot selected) */}
             {selectedSlot && (
-              <div className="space-y-5">
+              <form
+                className="space-y-5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (consultationsLeft <= 0 && !editingAppointment) {
+                    if (selectedPackage && !isPaymentProcessing) void handlePayment(selectedPackage);
+                    return;
+                  }
+                  handleBookAppointment();
+                }}
+              >
                 {/* Back button to change slot */}
                 <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => setSelectedSlot(null)}
@@ -1018,6 +1029,7 @@ const PatientAppointments = () => {
                               <span>— ₹{appliedCoupon.discount_applied} off</span>
                             </div>
                             <button
+                              type="button"
                               onClick={handleRemoveCoupon}
                               className="text-green-600 hover:text-green-800"
                               aria-label="Remove applied coupon"
@@ -1032,10 +1044,16 @@ const PatientAppointments = () => {
                               placeholder="Coupon code"
                               value={couponCode}
                               onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(null); }}
-                              onKeyDown={(e) => e.key === "Enter" && handleApplyCoupon(selectedPackage)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleApplyCoupon(selectedPackage);
+                                }
+                              }}
                               className="h-9 text-sm"
                             />
                             <Button
+                              type="button"
                               variant="outline"
                               size="sm"
                               className="h-9 px-3 shrink-0"
@@ -1051,8 +1069,9 @@ const PatientAppointments = () => {
                     )}
 
                     <Button
+                      type="submit"
+                      ref={confirmAppointmentButtonRef}
                       className="w-full h-12 text-base"
-                      onClick={() => selectedPackage && handlePayment(selectedPackage)}
                       disabled={!selectedPackage || isPaymentProcessing}
                     >
                       {isPaymentProcessing ? (
@@ -1076,8 +1095,9 @@ const PatientAppointments = () => {
                   </div>
                 ) : (
                   <Button
+                    type="submit"
+                    ref={confirmAppointmentButtonRef}
                     className="w-full h-12 text-base"
-                    onClick={handleBookAppointment}
                     disabled={bookAppointmentMutation.isPending || rescheduleAppointmentMutation.isPending}
                   >
                     {(bookAppointmentMutation.isPending || rescheduleAppointmentMutation.isPending) ? (
@@ -1093,7 +1113,7 @@ const PatientAppointments = () => {
                     )}
                   </Button>
                 )}
-              </div>
+              </form>
             )}
           </div>
         </DialogContent>
@@ -1150,6 +1170,7 @@ const PatientAppointments = () => {
                       <span>— ₹{appliedCoupon.discount_applied} off</span>
                     </div>
                     <button
+                      type="button"
                       onClick={handleRemoveCoupon}
                       className="text-green-600 hover:text-green-800"
                       aria-label="Remove applied coupon"
@@ -1164,10 +1185,16 @@ const PatientAppointments = () => {
                       placeholder="Coupon code"
                       value={couponCode}
                       onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(null); }}
-                      onKeyDown={(e) => e.key === "Enter" && handleApplyCoupon(selectedPackage)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleApplyCoupon(selectedPackage);
+                        }
+                      }}
                       className="h-9 text-sm"
                     />
                     <Button
+                      type="button"
                       variant="outline"
                       size="sm"
                       className="h-9 px-3 shrink-0"

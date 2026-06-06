@@ -1,0 +1,14 @@
+import { CalendarDays, Heart, Home, MessageSquare, UtensilsCrossed } from "lucide-react";
+
+export const getPatientSidebarSections = () => [
+  {
+    title: "Dashboard",
+    items: [
+      { label: "Home", href: "/patient", icon: Home },
+      { label: "My Profile", href: "/patient/profile", icon: Heart },
+      { label: "Diet Plans", href: "/patient/diet-plans", icon: UtensilsCrossed },
+      { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
+      { label: "Support", href: "/patient/support", icon: MessageSquare },
+    ],
+  },
+];

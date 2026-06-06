@@ -42,6 +42,7 @@ import AppSidebar from "@/components/AppSidebar";
 import { deleteMyDocument, getMyDocuments, getPatient, getPatientDietPlans, updatePatient, uploadMyDocument } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { getPatientSidebarSections } from "@/lib/patient-sidebar";
 
 const PatientProfile = () => {
   const navigate = useNavigate();
@@ -252,18 +253,7 @@ const PatientProfile = () => {
   const latestWeight = dietPlans?.find((p) => p.is_active)?.plan_json?.weight || 
     dietPlans?.[0]?.plan_json?.weight;
 
-  const sidebarSections = [
-    {
-      title: "Dashboard",
-      items: [
-        { label: "Overview", href: "/patient", icon: User },
-        { label: "My Profile", href: "/patient/profile", icon: Heart },
-        { label: "Diet Plans", href: "/patient/diet-plans", icon: UtensilsCrossed },
-        { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },
-        { label: "Support", href: "/patient/support", icon: MessageSquare },
-      ],
-    },
-  ];
+  const sidebarSections = getPatientSidebarSections();
 
   const bottomContent = (
     <button
