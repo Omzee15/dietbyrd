@@ -1064,10 +1064,10 @@ const Landing = () => {
       <section className="cta-section" style={{ background: 'var(--cream)' }}>
         <div className="cta-inner">
           <h1 ref={addToRefs} className="cta-headline reveal reveal-delay-1">
-            Your health deserves
-            <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}> clinical expertise</em>
+            Your health deserves a
+            <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}> Registered Dietitian</em>,
             <br />
-            — not a certificate course.
+            not an Instagram influencer.
           </h1>
           <p ref={addToRefs} className="hero-sub reveal reveal-delay-2">
             India's First RD - Only Platform for Clinical Nutrition Consultations.
@@ -1652,10 +1652,10 @@ const Landing = () => {
         <div className="hero-bg" />
         <div className="hero-content">
           <h1 ref={addToRefs} className="hero-h1 reveal reveal-delay-1">
-            Your health deserves
-            <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}> clinical expertise</em>
+            Your health deserves a
+            <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}> Registered Dietitian</em>,
             <br />
-            — not a certificate course.
+            not an Instagram influencer.
           </h1>
           <p ref={addToRefs} className="hero-sub reveal reveal-delay-2">
             India's First RD - Only Platform for Clinical Nutrition Consultations.

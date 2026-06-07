@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { assignDietician, getPatients, getDoctors, getDieticians, getReferrals, getUnregisteredReferrals, getJoinRequests, getUnassignedAppointments, triggerAutoAssign, approveJoinRequest, rejectJoinRequest, verifyDoctor, Patient, Doctor, Dietician, Referral, UnregisteredReferral, JoinRequest, AutoAssignResult } from "@/lib/api";
+import { assignDietician, assignDoctor, getPatients, getDoctors, getDieticians, getReferrals, getUnregisteredReferrals, getJoinRequests, getUnassignedAppointments, triggerAutoAssign, approveJoinRequest, rejectJoinRequest, verifyDoctor, Patient, Doctor, Dietician, Referral, UnregisteredReferral, JoinRequest, AutoAssignResult } from "@/lib/api";
 import { foodService } from "@/lib/food-service";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Food } from "@/lib/diet-types";
@@ -22,6 +22,7 @@ type TimeRangeFilter = "all" | "last_week" | "last_month" | "last_6_months" | "l
 
 interface PatientWithReferral extends Patient {
   referredBy?: string;
+  referredByDoctorId?: number | null;
   dietician?: string;
   dieticianId?: number | null;
 }
@@ -210,6 +211,24 @@ const MLTInternDashboard = () => {
     },
   });
 
+  const assignDoctorMutation = useMutation({
+    mutationFn: ({ patientId, doctorId }: { patientId: number; doctorId: number }) =>
+      assignDoctor(patientId, doctorId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["referrals"] });
+      const doctorName = doctors.find((doc) => doc.id === variables.doctorId)?.name;
+      if (variables.doctorId) {
+        toast.success(`Patient assigned to Dr. ${doctorName || "doctor"}`);
+      } else {
+        toast.success("Patient reset to Direct (No Doctor)");
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to assign doctor");
+    },
+  });
+
   const handleLogout = () => {
     logout();
     navigate("/");
@@ -276,6 +295,7 @@ const MLTInternDashboard = () => {
     return {
       ...patient,
       referredBy: referral?.doctor_name || "Direct",
+      referredByDoctorId: referral?.doctor_id || null,
       dietician: patient.assigned_dietician_name || undefined,
       dieticianId: patient.assigned_rd_id,
     };
@@ -692,7 +712,29 @@ const MLTInternDashboard = () => {
                               );
                             })()}
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">{patient.referredBy || 'Direct'}</td>
+                          <td className="px-6 py-4" onClick={(event) => event.stopPropagation()}>
+                            <Select
+                              value={patient.referredByDoctorId?.toString() || "direct"}
+                              onValueChange={(value) => {
+                                assignDoctorMutation.mutate({
+                                  patientId: patient.id,
+                                  doctorId: value === "direct" ? 0 : parseInt(value, 10),
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="Direct (No Doctor)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="direct">Direct (No Doctor)</SelectItem>
+                                {doctors.map((doctor: Doctor) => (
+                                  <SelectItem key={doctor.id} value={doctor.id.toString()}>
+                                    {doctor.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
                           <td className="px-6 py-4" onClick={(event) => event.stopPropagation()}>
                             {(() => {
                               const hasPaid =

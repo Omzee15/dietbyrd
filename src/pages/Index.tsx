@@ -629,11 +629,11 @@ const Index = () => {
 
                 <p className="text-center text-sm text-slate-400 mt-8">
                   By using DietByRD, you agree to our{" "}
-                  <a href="#" className="text-emerald-600 hover:underline">
-                    Terms
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">
+                    Terms and Conditions
                   </a>{" "}
                   and{" "}
-                  <a href="#" className="text-emerald-600 hover:underline">
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">
                     Privacy Policy
                   </a>
                 </p>

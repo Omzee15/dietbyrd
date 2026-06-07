@@ -388,7 +388,14 @@ const Register = () => {
             </Button>
 
             <p className="text-xs text-gray-500 text-center">
-              By registering, you agree to our Terms of Service and Privacy Policy
+              By registering, you agree to our{" "}
+              <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                Terms and Conditions
+              </a>{" "}
+              and{" "}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                Privacy Policy
+              </a>
             </p>
           </form>
         </div>

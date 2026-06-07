@@ -107,6 +107,12 @@ export const updatePatientImprovementScore = (patientId: number, score: number) 
     }
   );
 
+export const assignDoctor = (patientId: number, doctorId: number) =>
+  request<{ referring_doctor_id: number; referring_doctor_name: string }>(`/patients/${patientId}/assign-doctor`, {
+    method: "POST",
+    body: JSON.stringify({ doctor_id: doctorId }),
+  });
+
 export const assignDietician = (patientId: number, dieticianId: number) =>
   request<{ dietician_name: string }>(`/patients/${patientId}/assign-dietician`, {
     method: "POST",
@@ -214,6 +220,7 @@ export interface Referral {
   id: number;
   patient_id: number;
   referred_by_doctor_id: number;
+  doctor_id?: number;
   source: string;
   notes: string | null;
   created_at?: string;

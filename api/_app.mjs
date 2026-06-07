@@ -3080,7 +3080,16 @@ app.get("/api/patients", async (req, res) => {
         rp.city,
         rp.assigned_rd_id,
         rd.name AS assigned_dietician_name,
-        COALESCE(payment_summary.payment_status, 'unpaid'::text) AS payment_status,
+        (CASE
+          WHEN COALESCE(payment_summary.has_razorpay, false) = true
+            OR EXISTS (
+              SELECT 1
+              FROM dietbyrd_payments dp
+              WHERE (dp.patient_id = p.id OR (rp.id IS NOT NULL AND dp.registered_patient_id = rp.id))
+                AND dp.status::text IN ('success', 'paid', 'captured')
+            ) THEN 'paid'
+          ELSE 'unpaid'
+        END) AS payment_status,
         COALESCE(payment_summary.payment_history, '[]'::json) AS payment_history
       FROM dietbyrd_patients p
       LEFT JOIN dietbyrd_users u ON p.user_id = u.id
@@ -3088,16 +3097,7 @@ app.get("/api/patients", async (req, res) => {
       LEFT JOIN dietbyrd_registered_dietitians rd ON rp.assigned_rd_id = rd.id
       LEFT JOIN LATERAL (
         SELECT
-          (CASE
-            WHEN COUNT(*) FILTER (WHERE pay.status IN ('success', 'paid', 'captured')) > 0
-              OR EXISTS (
-                SELECT 1
-                FROM dietbyrd_payments dp
-                WHERE (dp.patient_id = p.id OR dp.registered_patient_id = rp.id)
-                  AND dp.status IN ('success', 'paid', 'captured')
-              ) THEN 'paid'
-            ELSE 'unpaid'
-          END)::text AS payment_status,
+          (COUNT(*) FILTER (WHERE pay.status::text IN ('success', 'paid', 'captured')) > 0) AS has_razorpay,
           COALESCE(
             json_agg(
               json_build_object(
@@ -3144,10 +3144,27 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
         d.name AS referring_doctor_name,
         d.qualification AS referring_doctor_qualification,
         d.clinic_name AS referring_doctor_clinic,
-        COALESCE(payment_summary.payment_status, 'unpaid'::text) AS payment_status,
+        (CASE
+          WHEN COALESCE(payment_summary.has_razorpay, false) = true
+            OR EXISTS (
+              SELECT 1
+              FROM dietbyrd_payments dp
+              WHERE (dp.patient_id = p.id OR (rp.id IS NOT NULL AND dp.registered_patient_id = rp.id))
+                AND dp.status::text IN ('success', 'paid', 'captured')
+            ) THEN 'paid'
+          ELSE 'unpaid'
+        END) AS payment_status,
         COALESCE(payment_summary.payment_history, '[]'::json) AS payment_history,
         true AS registration_completed,
-        COALESCE(payment_summary.payment_status, 'unpaid'::text) = 'paid' AS payment_completed,
+        (
+          COALESCE(payment_summary.has_razorpay, false) = true
+          OR EXISTS (
+            SELECT 1
+            FROM dietbyrd_payments dp
+            WHERE (dp.patient_id = p.id OR (rp.id IS NOT NULL AND dp.registered_patient_id = rp.id))
+              AND dp.status::text IN ('success', 'paid', 'captured')
+          )
+        ) AS payment_completed,
         EXISTS (
           SELECT 1
           FROM dietbyrd_consultations c
@@ -3169,16 +3186,7 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
       LEFT JOIN dietbyrd_doctors d ON ref.doctor_id = d.id
       LEFT JOIN LATERAL (
         SELECT
-          (CASE
-            WHEN COUNT(*) FILTER (WHERE pay.status IN ('success', 'paid', 'captured')) > 0
-              OR EXISTS (
-                SELECT 1
-                FROM dietbyrd_payments dp
-                WHERE (dp.patient_id = p.id OR dp.registered_patient_id = rp.id)
-                  AND dp.status IN ('success', 'paid', 'captured')
-              ) THEN 'paid'
-            ELSE 'unpaid'
-          END)::text AS payment_status,
+          (COUNT(*) FILTER (WHERE pay.status::text IN ('success', 'paid', 'captured')) > 0) AS has_razorpay,
           COALESCE(
             json_agg(
               json_build_object(
@@ -3570,6 +3578,72 @@ app.post("/api/patients/:id(\\d+)/assign-dietician", async (req, res) => {
         dietician_name: dieticianInfo.rows[0]?.name
       }
     });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Assign doctor to patient
+app.post("/api/patients/:id(\\d+)/assign-doctor", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { doctor_id } = req.body;
+
+    // Check if patient exists
+    const patientCheck = await query("SELECT id FROM dietbyrd_patients WHERE id = $1", [id]);
+    if (patientCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Patient not found" });
+    }
+
+    if (doctor_id) {
+      // Check if doctor exists
+      const doctorCheck = await query("SELECT id FROM dietbyrd_doctors WHERE id = $1", [doctor_id]);
+      if (doctorCheck.rows.length === 0) {
+        return res.status(404).json({ success: false, error: "Doctor not found" });
+      }
+
+      // Upsert into dietbyrd_referrals
+      const existing = await query("SELECT id FROM dietbyrd_referrals WHERE patient_id = $1", [id]);
+      if (existing.rows.length > 0) {
+        await query(
+          "UPDATE dietbyrd_referrals SET doctor_id = $1 WHERE patient_id = $2",
+          [doctor_id, id]
+        );
+      } else {
+        await query(
+          "INSERT INTO dietbyrd_referrals (patient_id, doctor_id, source) VALUES ($1, $2, 'doctor_portal')",
+          [id, doctor_id]
+        );
+      }
+
+      // Update patient's referral_source
+      await query(
+        "UPDATE dietbyrd_patients SET referral_source = 'doctor' WHERE id = $1",
+        [id]
+      );
+    } else {
+      // Reset: delete referral and set referral_source to 'content'
+      await query("DELETE FROM dietbyrd_referrals WHERE patient_id = $1", [id]);
+      await query(
+        "UPDATE dietbyrd_patients SET referral_source = 'content' WHERE id = $1",
+        [id]
+      );
+    }
+
+    // Return the updated referral info
+    const result = await query(
+      `SELECT 
+        p.id,
+        ref.doctor_id AS referring_doctor_id,
+        d.name AS referring_doctor_name
+       FROM dietbyrd_patients p
+       LEFT JOIN dietbyrd_referrals ref ON ref.patient_id = p.id
+       LEFT JOIN dietbyrd_doctors d ON ref.doctor_id = d.id
+       WHERE p.id = $1`,
+      [id]
+    );
+
+    res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -8195,6 +8269,44 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
   }
 };
 
+// ─── Support ticket sequence and generator migration ──────────────────────────
+const ensureTicketNumberSequence = async () => {
+  try {
+    await query(`CREATE SEQUENCE IF NOT EXISTS dietbyrd_tickets_seq`);
+    
+    const maxRes = await query(`SELECT COALESCE(MAX(id), 0) AS max_id FROM dietbyrd_tickets`);
+    const maxId = parseInt(maxRes.rows[0].max_id);
+    
+    if (maxId > 0) {
+      const seqRes = await query(`SELECT last_value, is_called FROM dietbyrd_tickets_seq`);
+      const lastValue = parseInt(seqRes.rows[0].last_value);
+      const isCalled = seqRes.rows[0].is_called;
+      const nextValWillBe = isCalled ? lastValue + 1 : lastValue;
+      
+      if (nextValWillBe <= maxId) {
+        await query(`SELECT setval('dietbyrd_tickets_seq', $1, false)`, [maxId + 1]);
+      }
+    }
+    
+    await query(`
+      CREATE OR REPLACE FUNCTION generate_ticket_number()
+      RETURNS VARCHAR(20) AS $$
+      DECLARE
+        new_number VARCHAR(20);
+        seq_val BIGINT;
+      BEGIN
+        seq_val := nextval('dietbyrd_tickets_seq');
+        new_number := 'TKT-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-' || LPAD(seq_val::TEXT, 4, '0');
+        RETURN new_number;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    console.log('[migration] ticket number sequence ready');
+  } catch (err) {
+    console.error('[migration] ticket number sequence error:', err.message);
+  }
+};
+
 let startupMaintenancePromise = null;
 const runStartupMaintenance = () => {
   if (!isDatabaseConfigured) return Promise.resolve();
@@ -8206,6 +8318,7 @@ const runStartupMaintenance = () => {
       await ensureDieticianClinicColumns();
       await ensurePatientDiagnosesColumn();
       await ensureFoodLibraryModulatorColumns();
+      await ensureTicketNumberSequence();
     })();
   }
   return startupMaintenancePromise;
