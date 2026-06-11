@@ -276,18 +276,17 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
         <div className="text-center p-8 bg-white rounded-2xl shadow-lg max-w-md mx-4">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+            <X className="w-8 h-8 text-red-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Verification Pending</h2>
-          <p className="text-gray-600 mb-6">
-            Your account is currently under review. Our admin team will verify your credentials soon.
-            You'll be able to access all features once verified.
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">Admin has not approved</h2>
+          <p className="text-gray-600 mb-8 text-lg">
+            Your account is not approved by admin. Please contact support or wait for approval to access your dashboard.
           </p>
           <div className="flex gap-3 justify-center">
-            <Button variant="outline" onClick={handleLogout} className="gap-2">
-              <LogOut className="w-4 h-4" />
-              Sign Out
+            <Button variant="outline" onClick={handleLogout} className="gap-2 px-6">
+              <ArrowLeft className="w-4 h-4" />
+              Back
             </Button>
           </div>
         </div>

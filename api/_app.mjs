@@ -3485,6 +3485,14 @@ app.patch("/api/patients/:id(\\d+)", async (req, res) => {
       diagnosesValue = JSON.stringify([diagnosis]);
     }
 
+    if (primaryDiagnosis) {
+      primaryDiagnosis = primaryDiagnosis.toLowerCase();
+      const validDiagnoses = ['diabetes', 'hypertension', 'obesity', 'other', 'pcos', 'thyroid'];
+      if (!validDiagnoses.includes(primaryDiagnosis)) {
+        primaryDiagnosis = 'other';
+      }
+    }
+
     const result = await query(
       `UPDATE dietbyrd_patients
        SET name = COALESCE($1, name),

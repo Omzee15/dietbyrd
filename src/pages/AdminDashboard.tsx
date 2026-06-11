@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { Users, UserCheck, UserPlus, Stethoscope, UtensilsCrossed, BarChart3, Search, ArrowLeft, X, TrendingUp, Loader2, LogOut, Settings, Tag, Trash2, AlertTriangle, MapPin } from "lucide-react";
+import { Users, UserCheck, UserPlus, Stethoscope, UtensilsCrossed, BarChart3, Search, ArrowLeft, X, TrendingUp, Loader2, LogOut, Settings, Tag, Trash2, AlertTriangle, MapPin, Phone } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -767,7 +767,18 @@ const AdminDashboard = () => {
                               <div className="font-semibold">{d.name}</div>
                               <div className="text-xs text-muted-foreground">{d.qualification}</div>
                               <div className="text-xs text-muted-foreground">{d.clinic_name || "Independent"}</div>
-                              {d.clinic_address && <div className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{d.clinic_address}</div>}
+                              {d.clinic_address && (
+                                <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                  <MapPin className="w-3 h-3" />
+                                  {d.clinic_address}
+                                </div>
+                              )}
+                              {(d as any).phone && (
+                                <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                  <Phone className="w-3 h-3" />
+                                  {(d as any).phone}
+                                </div>
+                              )}
                             </div>
                             <Badge variant="outline" className={d.is_verified ? "text-success border-success/30" : "text-warning border-warning/30"}>
                               {d.is_verified ? "Verified" : "Pending"}
