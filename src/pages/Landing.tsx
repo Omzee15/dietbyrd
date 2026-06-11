@@ -1079,8 +1079,8 @@ const Landing = () => {
       {/* CTA — Page 1 */}
       <section className="cta-section" style={{ background: 'var(--cream)' }}>
         <div className="cta-inner">
-          <div ref={addToRefs} className="hero-pill reveal">
-            India's HEALTH deserves better.
+          <div ref={addToRefs} className="cta-eyebrow reveal" style={{ fontSize: '14px', letterSpacing: '0.1em', fontWeight: 600, color: 'var(--teal)', marginBottom: '16px', textTransform: 'uppercase' }}>
+            Your HEALTH deserves better.
           </div>
           <h1 ref={addToRefs} className="cta-headline reveal reveal-delay-1">
             Your health deserves a
@@ -1537,10 +1537,9 @@ const Landing = () => {
               <div className="story-card-body">
                 <div className="story-name">Aryan Bhagat</div>
                 <div className="story-role">Founder, Diet By RD</div>
-                <div className="story-location">Darbhanga, Bihar</div>
-                <div className="story-quote" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div className="story-quote" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
                   <span>"Healthcare works best when integrity comes before profit - the belief that started it all"</span>
-                  <span style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 500, color: 'var(--teal)' }}>
+                  <span style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 500, color: 'var(--teal)', background: '#E8F5F1', padding: '6px 12px', borderRadius: '6px', width: 'fit-content' }}>
                     <ShieldCheck size={14} /> built with purpose and intent.
                   </span>
                 </div>
@@ -1671,8 +1670,8 @@ const Landing = () => {
       <section className="hero" style={{ background: 'var(--cream)' }}>
         <div className="hero-bg" />
         <div className="hero-content">
-          <div ref={addToRefs} className="hero-pill reveal">
-            <span style={{ color: 'var(--gold)' }}>★</span> India's HEALTH deserves better.
+          <div ref={addToRefs} className="cta-eyebrow reveal" style={{ fontSize: '14px', letterSpacing: '0.1em', fontWeight: 600, color: 'var(--teal)', marginBottom: '16px', textTransform: 'uppercase' }}>
+            Your HEALTH deserves better.
           </div>
           <h1 ref={addToRefs} className="hero-h1 reveal reveal-delay-1">
             Your health deserves
@@ -1685,10 +1684,10 @@ const Landing = () => {
             One consultation changes the direction. An RD who understands your food, your condition and you - not a generic PDF , <strong>Never a supplement upsell , Real clinical nutrition, personalized for you.</strong>
           </p>
           <div ref={addToRefs} className="hero-actions reveal reveal-delay-3">
-            <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
+            <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary" style={{ padding: '16px 32px', fontSize: '18px' }}>
               Book Your Consultation
             </button>
-            <button onClick={() => navigate('/join')} className="btn-outline-navy" style={{ padding: '10px 20px', fontSize: '14px' }}>Are you a Doctor / Dietitian</button>
+            <button onClick={() => navigate('/join')} className="btn-outline-navy" style={{ padding: '8px 16px', fontSize: '13px' }}>Are you a Doctor / Dietitian</button>
             <button onClick={handleContactClick} className="btn-ghost-link">Contact / Support →</button>
           </div>
           <div ref={addToRefs} className="hero-stats reveal reveal-delay-3">
