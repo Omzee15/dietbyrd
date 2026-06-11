@@ -1086,7 +1086,7 @@ const Landing = () => {
             Your health deserves a
             <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}> Registered Dietitian</em>,
             <br />
-            not an Instagram influencer.
+            <span className="whitespace-nowrap">not an Instagram influencer.</span>
           </h1>
           <p ref={addToRefs} className="hero-sub reveal reveal-delay-2" style={{ lineHeight: '1.6', maxWidth: '800px' }}>
             India's First RD - Only Platform for Clinical Nutrition Consultations.
