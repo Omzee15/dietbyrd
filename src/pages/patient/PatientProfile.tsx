@@ -136,17 +136,17 @@ const PatientProfile = () => {
 
   const validateBodyAge = (value: string): string => {
     if (!value.trim()) return "";
-    if (!/^\d+$/.test(value)) return "Please enter an age between 1 and 80.";
+    if (!/^\d+$/.test(value)) return "Please enter an age between 1 and 100.";
     const age = Number(value);
-    if (age < 1 || age > 80) return "Please enter an age between 1 and 80.";
+    if (age < 1 || age > 100) return "Please enter an age between 1 and 100.";
     return "";
   };
 
   const validateBodyHeight = (value: string): string => {
     if (!value.trim()) return "";
     const height = Number(value);
-    if (!Number.isFinite(height) || height < 50 || height > 250) {
-      return "Please enter a height between 50 cm and 250 cm.";
+    if (!Number.isFinite(height) || height < 2 || height > 9) {
+      return "Please enter a height between 2 ft and 9 ft.";
     }
     return "";
   };
@@ -219,6 +219,10 @@ const PatientProfile = () => {
   const handleSavePersonal = () => {
     if (!personalDetails.name.trim()) {
       toast.error("Name cannot be empty");
+      return;
+    }
+    if (personalDetails.age && (personalDetails.age < 1 || personalDetails.age > 100)) {
+      toast.error("Please enter a valid age between 1 and 100.");
       return;
     }
     updatePersonalMutation.mutate({
@@ -434,6 +438,8 @@ const PatientProfile = () => {
                           type="number"
                           value={personalDetails.age || ""}
                           onChange={(e) => setPersonalDetails({ ...personalDetails, age: parseInt(e.target.value) || 0 })}
+                          min={1}
+                          max={100}
                           onKeyDown={(e) => ['e', 'E', '+', '-', '.'].includes(e.key) && e.preventDefault()}
                           placeholder="Your age"
                           className="h-8"
@@ -569,7 +575,7 @@ const PatientProfile = () => {
                           type="number"
                           value={bodyDetails.age}
                           min={1}
-                          max={80}
+                          max={100}
                           step={1}
                           onChange={(e) => updateBodyField("age", e.target.value)}
                           onKeyDown={(e) => ["e", "E", "+", "-", "."].includes(e.key) && e.preventDefault()}
@@ -601,12 +607,12 @@ const PatientProfile = () => {
                     </div>
                     {isEditingBody ? (
                       <div className="flex-1">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Height (cm)</p>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Height (ft)</p>
                         <Input
                           type="number"
                           value={bodyDetails.height}
-                          min={50}
-                          max={250}
+                          min={2}
+                          max={9}
                           step={0.1}
                           onChange={(e) => updateBodyField("height", e.target.value)}
                           onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
@@ -616,7 +622,7 @@ const PatientProfile = () => {
                               height: validateBodyHeight(bodyDetails.height),
                             }))
                           }
-                          placeholder="e.g., 170"
+                          placeholder="e.g., 5.8"
                           className="h-8"
                         />
                         {bodyErrors.height && (
@@ -626,7 +632,7 @@ const PatientProfile = () => {
                     ) : (
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider">Height</p>
-                        <p className="font-semibold">{(patient as any)?.height ? `${(patient as any).height} cm` : "Not set"}</p>
+                        <p className="font-semibold">{(patient as any)?.height ? `${(patient as any).height} ft` : "Not set"}</p>
                       </div>
                     )}
                   </div>
