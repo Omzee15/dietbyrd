@@ -44,6 +44,7 @@ export function PatientWelcomeForm({ phone, onComplete, inline = false, onBack }
     weight: "",
     workoutFrequency: "",
     dietaryPreference: "",
+    state: "",
   });
 
   const handleChange = (field: string, value: string) => {
@@ -90,6 +91,7 @@ export function PatientWelcomeForm({ phone, onComplete, inline = false, onBack }
           weight: formData.weight ? parseFloat(formData.weight) : null,
           workoutFrequency: formData.workoutFrequency ? parseInt(formData.workoutFrequency) : null,
           dietaryPreference: formData.dietaryPreference || null,
+          state: formData.state.trim() || null,
         }),
       });
 
@@ -151,16 +153,29 @@ export function PatientWelcomeForm({ phone, onComplete, inline = false, onBack }
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-sm">Email Address (Optional)</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="your.email@example.com"
-                    value={formData.email}
-                    onChange={(e) => handleChange("email", e.target.value)}
-                    className="h-10"
-                  />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email" className="text-sm">Email Address (Optional)</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="your.email@example.com"
+                      value={formData.email}
+                      onChange={(e) => handleChange("email", e.target.value)}
+                      className="h-10"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="state" className="text-sm">State/Location (Optional)</Label>
+                    <Input
+                      id="state"
+                      placeholder="e.g. Maharashtra"
+                      value={formData.state}
+                      onChange={(e) => handleChange("state", e.target.value)}
+                      className="h-10"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -385,15 +400,27 @@ export function PatientWelcomeForm({ phone, onComplete, inline = false, onBack }
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address (Optional)</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="your.email@example.com"
-                  value={formData.email}
-                  onChange={(e) => handleChange("email", e.target.value)}
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email Address (Optional)</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="your.email@example.com"
+                    value={formData.email}
+                    onChange={(e) => handleChange("email", e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="state">State/Location (Optional)</Label>
+                  <Input
+                    id="state"
+                    placeholder="e.g. Maharashtra"
+                    value={formData.state}
+                    onChange={(e) => handleChange("state", e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">

@@ -108,7 +108,7 @@ const AdminFoodLibrary = () => {
     return foods.filter((food: Food) => {
       const matchesSearch = 
         food.name_en.toLowerCase().includes(search.toLowerCase()) ||
-        food.name_hi.includes(search) ||
+        (food.name_hi || "").includes(search) ||
         food.category.toLowerCase().includes(search.toLowerCase());
       
       const matchesCategory = categoryFilter === "all" || food.category === categoryFilter;

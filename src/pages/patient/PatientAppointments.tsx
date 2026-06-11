@@ -30,6 +30,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -88,6 +98,10 @@ const PatientAppointments = () => {
   const [couponError, setCouponError] = useState<string | null>(null);
   const confirmAppointmentButtonRef = useRef<HTMLButtonElement>(null);
 
+  // Cancellation state
+  const [cancelAppointmentId, setCancelAppointmentId] = useState<number | null>(null);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+
   // Get patient data
   const { data: patient, isLoading: patientLoading, refetch: refetchPatient } = useQuery({
     queryKey: ["patient", user?.profileId],
@@ -144,6 +158,13 @@ const PatientAppointments = () => {
     queryFn: getConsultationPackages,
     enabled: isPaymentModalOpen || isBookingModalOpen,
   });
+
+  // Auto-select first package if none selected
+  useEffect(() => {
+    if (packages && packages.length > 0 && !selectedPackage) {
+      setSelectedPackage(packages[0]);
+    }
+  }, [packages, selectedPackage]);
 
   // Book appointment mutation
   const bookAppointmentMutation = useMutation({
@@ -531,7 +552,7 @@ const PatientAppointments = () => {
 
       <AppSidebar
         title="DietByRD"
-        subtitle="Patient Portal"
+        subtitle={user?.name || "Patient Portal"}
         sections={sidebarSections}
         bottomContent={bottomContent}
       />
@@ -647,9 +668,8 @@ const PatientAppointments = () => {
                             size="sm"
                             className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                             onClick={() => {
-                              if (window.confirm("Cancel this appointment?")) {
-                                cancelAppointmentMutation.mutate(appointment.id);
-                              }
+                              setCancelAppointmentId(appointment.id);
+                              setIsCancelDialogOpen(true);
                             }}
                             disabled={cancelAppointmentMutation.isPending}
                           >
@@ -754,7 +774,7 @@ const PatientAppointments = () => {
           setIsBookingModalOpen(open);
         }
       }}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent aria-describedby={undefined} className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarDays className="w-5 h-5" />
@@ -1121,7 +1141,7 @@ const PatientAppointments = () => {
 
       {/* Payment Modal */}
       <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent aria-describedby={undefined} className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CreditCard className="w-5 h-5" />
@@ -1235,6 +1255,30 @@ const PatientAppointments = () => {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Cancel Appointment Alert Dialog */}
+      <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Consultation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this consultation? This action cannot be undone, and your consultation credit will be refunded to your account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                if (cancelAppointmentId) {
+                  cancelAppointmentMutation.mutate(cancelAppointmentId);
+                }
+              }}
+            >
+              Yes, cancel it
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

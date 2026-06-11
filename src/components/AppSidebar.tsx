@@ -60,7 +60,9 @@ const AppSidebar = ({ title, subtitle, sections, bottomContent }: AppSidebarProp
             )}
             <div className="space-y-1.5">
               {section.items.map((item) => {
-                const isActive = location.pathname === item.href;
+                const isActive = item.href.includes('?') 
+                  ? location.pathname + location.search === item.href
+                  : location.pathname === item.href;
                 return (
                   <Link
                     key={item.label}

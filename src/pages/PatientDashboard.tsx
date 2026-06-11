@@ -45,6 +45,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -63,6 +73,7 @@ import {
   getAllDieticianSlots,
   bookAppointment,
   cancelAppointment,
+  rescheduleAppointment,
   getConsultationPackages,
   createPaymentOrder,
   verifyPayment,
@@ -122,9 +133,9 @@ const isIntegerString = (value: string): boolean => /^\d+$/.test(value);
 
 const validateAgeValue = (value: string): string => {
   if (!value.trim()) return "";
-  if (!isIntegerString(value)) return "Please enter an age between 1 and 80.";
+  if (!isIntegerString(value)) return "Please enter an age between 1 and 100.";
   const age = Number(value);
-  if (age < 1 || age > 80) return "Please enter an age between 1 and 80.";
+  if (age < 1 || age > 100) return "Please enter an age between 1 and 100.";
   return "";
 };
 
@@ -239,9 +250,14 @@ const PatientDashboard = () => {
 
   // Appointment booking state
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [reschedulingAppointmentId, setReschedulingAppointmentId] = useState<number | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [appointmentNotes, setAppointmentNotes] = useState("");
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current week, 1 = next week, etc.
+
+  // Cancellation state
+  const [cancelAppointmentId, setCancelAppointmentId] = useState<number | null>(null);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
 
   // Payment state
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -320,6 +336,13 @@ const PatientDashboard = () => {
     enabled: isPaymentModalOpen,
   });
 
+  // Auto-select first package if none selected
+  useEffect(() => {
+    if (packages && packages.length > 0 && !selectedPackage) {
+      setSelectedPackage(packages[0]);
+    }
+  }, [packages, selectedPackage]);
+
   // Book appointment mutation
   const bookAppointmentMutation = useMutation({
     mutationFn: (data: { scheduled_at: string; rd_id?: number | null; patient_notes?: string }) =>
@@ -367,6 +390,27 @@ const PatientDashboard = () => {
     },
   });
 
+  // Reschedule appointment mutation
+  const rescheduleAppointmentMutation = useMutation({
+    mutationFn: (data: { id: number; newScheduledAt: string; patientNotes?: string }) => 
+      rescheduleAppointment(data.id, data.newScheduledAt, data.patientNotes),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient-consultations"] });
+      queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
+      toast.success("Appointment rescheduled successfully!");
+      setIsBookingModalOpen(false);
+      setReschedulingAppointmentId(null);
+      setSelectedSlot(null);
+      setAppointmentNotes("");
+      refetchSlots();
+      refetchAppointments();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to reschedule appointment");
+    },
+  });
+
   // Group available slots by date
   const slotsByDate = useMemo(() => {
     if (!availableSlots) return {};
@@ -384,6 +428,15 @@ const PatientDashboard = () => {
   const handleBookAppointment = () => {
     if (!selectedSlot) return;
     
+    if (reschedulingAppointmentId) {
+      rescheduleAppointmentMutation.mutate({
+        id: reschedulingAppointmentId,
+        newScheduledAt: selectedSlot.datetime,
+        patientNotes: appointmentNotes || undefined,
+      });
+      return;
+    }
+
     // Check if patient has consultations left
     const consultationsLeft = (patient as any)?.consultations_left ?? 0;
     if (consultationsLeft <= 0) {
@@ -434,14 +487,7 @@ const PatientDashboard = () => {
         amount: pkg.price,
       });
 
-      // Debug logging
-      console.log('[Payment Debug] Order created:', {
-        order_id: order.razorpay_order_id,
-        amount: order.amount,
-        razorpay_key: (import.meta as any).env.VITE_RAZORPAY_KEY_ID,
-        fallback_key_used: !(import.meta as any).env.VITE_RAZORPAY_KEY_ID,
-        environment: import.meta.env.MODE
-      });
+
 
       const razorpayKey = (import.meta as any).env.VITE_RAZORPAY_KEY_ID;
       if (!razorpayKey) {
@@ -994,7 +1040,7 @@ const PatientDashboard = () => {
     <div className="flex min-h-screen">
       <AppSidebar
         title="DietByRD"
-        subtitle="Patient Portal"
+        subtitle={patient?.name || "Patient Portal"}
         sections={sidebarSections}
         bottomContent={bottomContent}
       />
@@ -1401,7 +1447,7 @@ const PatientDashboard = () => {
                         placeholder="e.g. 30"
                         value={bodyAge}
                         min={1}
-                        max={80}
+                        max={100}
                         step={1}
                         onChange={(e) => updateBodyAge(e.target.value)}
                         onKeyDown={(e) => ["e", "E", "+", "-", "."].includes(e.key) && e.preventDefault()}
@@ -1473,6 +1519,11 @@ const PatientDashboard = () => {
                           }))
                         }
                       />
+                      {bodyHeight && !bodyErrors.height && (
+                        <p className="text-[13px] text-muted-foreground mt-1">
+                          {bodyHeightUnit === "cm" ? `≈ ${cmToFtIn(Number(bodyHeight))}` : `≈ ${ftDecimalToCm(Number(bodyHeight))} cm`}
+                        </p>
+                      )}
                       {bodyErrors.height && (
                         <p className="text-[13px] text-[#C53030] mt-1">{bodyErrors.height}</p>
                       )}
@@ -1540,7 +1591,8 @@ const PatientDashboard = () => {
                 ) : (
                   <div className="space-y-4">
                     {/* Body Measurements Row */}
-                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                    {/* Body Measurements Row */}
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                       <div className="text-center p-4 bg-muted/50 rounded-lg">
                         <User className="w-5 h-5 mx-auto mb-2 text-primary" />
                         <p className="text-xs text-muted-foreground">Age</p>
@@ -1563,20 +1615,6 @@ const PatientDashboard = () => {
                         </p>
                       </div>
                       <div className="text-center p-4 bg-muted/50 rounded-lg">
-                        <Target className="w-5 h-5 mx-auto mb-2 text-blue-500" />
-                        <p className="text-xs text-muted-foreground">BMI</p>
-                        {currentBMI ? (
-                          <div>
-                            <p className="text-xl font-bold">{currentBMI}</p>
-                            <p className={`text-xs ${getBMICategory(currentBMI).color}`}>
-                              {getBMICategory(currentBMI).label}
-                            </p>
-                          </div>
-                        ) : (
-                          <p className="text-xl font-bold">—</p>
-                        )}
-                      </div>
-                      <div className="text-center p-4 bg-muted/50 rounded-lg">
                         <Activity className="w-5 h-5 mx-auto mb-2 text-green-500" />
                         <p className="text-xs text-muted-foreground">Est. TDEE</p>
                         {currentTDEE ? (
@@ -1596,19 +1634,76 @@ const PatientDashboard = () => {
                         </p>
                       </div>
                     </div>
+
+                    {/* BMI Progress Bar */}
+                    {currentBMI && (
+                      <div className="mt-4 border rounded-xl p-5 bg-card shadow-sm">
+                        <div className="flex justify-between items-center mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center">
+                              <Target className="w-5 h-5 text-blue-500" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-muted-foreground leading-none mb-1">Body Mass Index</p>
+                              <p className="text-2xl font-bold leading-none">{currentBMI}</p>
+                            </div>
+                          </div>
+                          <div className={`px-3 py-1 rounded-full text-xs font-medium border ${
+                            currentBMI < 18.5 ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800' :
+                            currentBMI < 25 ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800' :
+                            currentBMI < 30 ? 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-300 dark:border-yellow-800' :
+                            'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
+                          }`}>
+                            {getBMICategory(currentBMI).label}
+                          </div>
+                        </div>
+                        
+                        <div className="relative pt-2 pb-5">
+                          {/* The Bar */}
+                          <div className="flex h-3 w-full rounded-full overflow-hidden opacity-90">
+                            <div className="bg-blue-400 dark:bg-blue-500" style={{ width: '28.3%' }} title="Underweight (< 18.5)"></div>
+                            <div className="bg-green-400 dark:bg-green-500" style={{ width: '21.6%' }} title="Normal (18.5 - 24.9)"></div>
+                            <div className="bg-yellow-400 dark:bg-yellow-500" style={{ width: '16.6%' }} title="Overweight (25 - 29.9)"></div>
+                            <div className="bg-red-400 dark:bg-red-500" style={{ width: '33.5%' }} title="Obese (≥ 30)"></div>
+                          </div>
+                          
+                          {/* The Marker */}
+                          <div 
+                            className="absolute top-0 w-4 h-7 -ml-2 flex flex-col items-center justify-center transition-all duration-500"
+                            style={{ left: `${Math.min(100, Math.max(0, ((currentBMI - 10) / 30) * 100))}%` }}
+                          >
+                            <div className="w-1 h-3 bg-zinc-800 dark:bg-white rounded-t-sm shadow-sm"></div>
+                            <div className="w-3 h-3 bg-zinc-800 dark:bg-white rotate-45 transform -mt-1 rounded-sm shadow-sm"></div>
+                          </div>
+                          
+                          {/* Labels */}
+                          <div className="absolute w-full flex justify-between text-[10px] text-muted-foreground mt-2 px-1 font-medium">
+                            <span>10</span>
+                            <span className="absolute" style={{ left: '28.3%', transform: 'translateX(-50%)' }}>18.5</span>
+                            <span className="absolute" style={{ left: '49.9%', transform: 'translateX(-50%)' }}>25</span>
+                            <span className="absolute" style={{ left: '66.5%', transform: 'translateX(-50%)' }}>30</span>
+                            <span>40</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Allergies */}
                     {patient.allergies && (
-                      <div className="p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-900">
-                        <div className="flex items-center gap-2 mb-2">
-                          <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
-                          <p className="text-xs text-red-600 dark:text-red-400 uppercase tracking-wider font-semibold">Allergies</p>
+                      <div className="mt-4 p-3 bg-red-50/50 dark:bg-red-950/20 rounded-xl border border-red-100 dark:border-red-900/30 flex items-start gap-3">
+                        <div className="mt-0.5 w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center shrink-0">
+                          <AlertTriangle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
                         </div>
-                        <p className="text-sm font-medium text-red-700 dark:text-red-300">
-                          {Array.isArray(patient.allergies) 
-                            ? patient.allergies.join(", ") 
-                            : patient.allergies}
-                        </p>
+                        <div>
+                          <p className="text-sm font-medium text-red-800 dark:text-red-300 mb-2">Dietary Allergies & Restrictions</p>
+                          <div className="flex flex-wrap gap-2">
+                            {Array.isArray(patient.allergies) ? patient.allergies.map((a: string, i: number) => (
+                              <span key={i} className="px-2.5 py-1 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded-md text-xs font-semibold">{a}</span>
+                            )) : patient.allergies.split(',').map((a: string, i: number) => (
+                              a.trim() && <span key={i} className="px-2.5 py-1 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded-md text-xs font-semibold">{a.trim()}</span>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     )}
                     
@@ -1788,23 +1883,51 @@ const PatientDashboard = () => {
                             {appointment.status}
                           </Badge>
                           {(appointment.status === "scheduled" || appointment.status === "confirmed") && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                              onClick={() => {
-                                if (window.confirm("Are you sure you want to cancel this appointment?")) {
-                                  cancelAppointmentMutation.mutate(appointment.id);
+                            <>
+                              {(() => {
+                                const diffHours = (parseIST(appointment.scheduled_at).getTime() - new Date().getTime()) / (1000 * 60 * 60);
+                                if (diffHours > 24) {
+                                  const daysLeft = Math.floor(diffHours / 24);
+                                  const hoursRemaining = Math.floor(diffHours % 24);
+                                  let timeLeftStr = "";
+                                  if (daysLeft > 0) {
+                                    timeLeftStr = `${daysLeft}d ${hoursRemaining}h left`;
+                                  } else {
+                                    timeLeftStr = `${hoursRemaining}h left`;
+                                  }
+                                  return (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-primary hover:text-primary hover:bg-primary/5 mr-2"
+                                      onClick={() => {
+                                        setReschedulingAppointmentId(appointment.id);
+                                        setIsBookingModalOpen(true);
+                                      }}
+                                    >
+                                      Reschedule ({timeLeftStr})
+                                    </Button>
+                                  );
                                 }
-                              }}
-                              disabled={cancelAppointmentMutation.isPending}
-                            >
-                              {cancelAppointmentMutation.isPending ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <X className="w-4 h-4" />
-                              )}
-                            </Button>
+                                return null;
+                              })()}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                onClick={() => {
+                                  setCancelAppointmentId(appointment.id);
+                                  setIsCancelDialogOpen(true);
+                                }}
+                                disabled={cancelAppointmentMutation.isPending}
+                              >
+                                {cancelAppointmentMutation.isPending ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <X className="w-4 h-4" />
+                                )}
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -1861,7 +1984,7 @@ const PatientDashboard = () => {
 
       {/* Profile Completion Modal */}
       <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent aria-describedby={undefined} className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <User className="w-5 h-5" />
@@ -2032,12 +2155,12 @@ const PatientDashboard = () => {
       </Dialog>
 
       {/* Appointment Booking Modal */}
-      <Dialog open={isBookingModalOpen} onOpenChange={(open) => { setIsBookingModalOpen(open); if (!open) setSelectedSlot(null); }}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+      <Dialog open={isBookingModalOpen} onOpenChange={(open) => { setIsBookingModalOpen(open); if (!open) { setSelectedSlot(null); setReschedulingAppointmentId(null); } }}>
+        <DialogContent aria-describedby={undefined} className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarDays className="w-5 h-5" />
-              {selectedSlot ? "Confirm Appointment" : "Schedule Appointment"}
+              {reschedulingAppointmentId ? "Reschedule Appointment" : selectedSlot ? "Confirm Appointment" : "Schedule Appointment"}
             </DialogTitle>
           </DialogHeader>
 
@@ -2221,17 +2344,17 @@ const PatientDashboard = () => {
                   type="submit"
                   ref={confirmAppointmentButtonRef}
                   className="w-full h-12 text-base"
-                  disabled={bookAppointmentMutation.isPending}
+                  disabled={reschedulingAppointmentId ? rescheduleAppointmentMutation.isPending : bookAppointmentMutation.isPending}
                 >
-                  {bookAppointmentMutation.isPending ? (
+                  {(reschedulingAppointmentId ? rescheduleAppointmentMutation.isPending : bookAppointmentMutation.isPending) ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Booking...
+                      {reschedulingAppointmentId ? "Rescheduling..." : "Booking..."}
                     </>
                   ) : (
                     <>
                       <CalendarDays className="w-4 h-4 mr-2" />
-                      Confirm Appointment
+                      {reschedulingAppointmentId ? "Confirm Reschedule" : "Confirm Appointment"}
                     </>
                   )}
                 </Button>
@@ -2243,7 +2366,7 @@ const PatientDashboard = () => {
 
       {/* Payment Modal */}
       <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent aria-describedby={undefined} className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               Purchase Consultations
@@ -2299,6 +2422,31 @@ const PatientDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Cancel Appointment Alert Dialog */}
+      <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Consultation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this consultation? This action cannot be undone, and your consultation credit will be refunded to your account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                if (cancelAppointmentId) {
+                  cancelAppointmentMutation.mutate(cancelAppointmentId);
+                }
+              }}
+            >
+              Yes, cancel it
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 };

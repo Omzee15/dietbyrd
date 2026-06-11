@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users, MessageSquare, LogOut, Plus, Search, Eye, X, Send, UserCheck, Check, ChevronsUpDown } from "lucide-react";
@@ -112,7 +112,14 @@ const SupportDashboard = () => {
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState("tickets");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") || "tickets";
+  const setActiveTab = (tab: string) => {
+    setSearchParams(prev => {
+      prev.set("tab", tab);
+      return prev;
+    });
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [patientPage, setPatientPage] = useState(1);
@@ -309,8 +316,8 @@ const SupportDashboard = () => {
     {
       title: "Support",
       items: [
-        { label: "Tickets", href: "/support", icon: MessageSquare },
-        { label: "Patients", href: "/support", icon: Users },
+        { label: "Tickets", href: "/support?tab=tickets", icon: MessageSquare },
+        { label: "Patients", href: "/support?tab=patients", icon: Users },
       ],
     },
   ];
@@ -713,6 +720,20 @@ const SupportDashboard = () => {
                         </SelectContent>
                       </Select>
 
+                      <Button
+                        size="sm"
+                        variant={selectedTicket.assigned_to === user?.id ? "ghost" : "outline"}
+                        className={`h-8 text-xs ${selectedTicket.assigned_to === user?.id ? "text-emerald-600 bg-emerald-50" : ""}`}
+                        disabled={updateTicketMutation.isPending}
+                        onClick={() => {
+                          if (selectedTicket.assigned_to !== user?.id) {
+                            updateTicketMutation.mutate({ assigned_to: user?.id });
+                          }
+                        }}
+                      >
+                        <UserCheck className="w-4 h-4 mr-2" />
+                        {selectedTicket.assigned_to === user?.id ? "Assigned to you" : "Assign to me"}
+                      </Button>
                     </div>
                   </div>
 

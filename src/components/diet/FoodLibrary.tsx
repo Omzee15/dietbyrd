@@ -42,7 +42,7 @@ export const FoodLibrary: React.FC<FoodLibraryProps> = ({ onBack }) => {
     const q = search.toLowerCase();
     
     if (q) {
-      return foods.filter(f => f.name_en.toLowerCase().includes(q) || f.name_hi.includes(q));
+      return foods.filter(f => f.name_en.toLowerCase().includes(q) || (f.name_hi || "").includes(q));
     }
 
     // Default ordering when search is empty

@@ -166,6 +166,31 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
     return () => window.clearTimeout(focusTimer);
   }, [open, step]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleGlobalEnter = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        if (step === "slots" && selectedSlot && !isLoading) {
+          const active = document.activeElement;
+          if (active && active.tagName === "BUTTON" && active.textContent !== "Continue →") {
+            return;
+          }
+          e.preventDefault();
+          handleContinueFromSlot();
+        } else if (step === "payment" && selectedPackage && !isPaymentProcessing) {
+          const active = document.activeElement;
+          if (active && active.tagName === "BUTTON") {
+             return; // Let the button handle it
+          }
+          e.preventDefault();
+          void handlePayment();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleGlobalEnter);
+    return () => window.removeEventListener("keydown", handleGlobalEnter);
+  }, [open, step, selectedSlot, isLoading, selectedPackage, isPaymentProcessing]);
+
   const handlePhoneChange = (e: ChangeEvent<HTMLInputElement>) => {
     setPhone(normalizeIndianMobileInput(e.target.value));
   };
@@ -584,11 +609,6 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        phoneInputRef.current?.focus();
-                      }
-                    }}
-                    onKeyUp={(e) => {
-                      if (e.key === "Enter") {
                         phoneInputRef.current?.focus();
                       }
                     }}

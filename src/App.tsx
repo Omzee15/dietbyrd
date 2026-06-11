@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ScrollToTop } from "@/components/ScrollToTop";
 
 // Pages
 import Landing from "./pages/Landing";
@@ -77,6 +78,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <ScrollToTop />
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Landing />} />
@@ -96,6 +98,8 @@ const App = () => (
             <Route element={<ProtectedRoute allowedRoles={["doctor", "assistant"]} />}>
               <Route path="/doctor" element={<DoctorDashboard />} />
               <Route path="/doctor/patients" element={<DoctorPatients />} />
+              <Route path="/doctor/patient/:slug/create-diet" element={<DieticianCreateDiet />} />
+              <Route path="/doctor/patient/:slug/edit-diet/:planId" element={<DieticianCreateDiet />} />
               <Route path="/doctor/referrals" element={<DoctorReferrals />} />
               <Route path="/doctor/admin" element={<DoctorAnalytics />} />
               <Route path="/doctor/analytics" element={<DoctorAnalytics />} />

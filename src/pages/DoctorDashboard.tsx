@@ -404,6 +404,11 @@ const DoctorDashboard = ({ defaultTab = "refer" }: DoctorDashboardProps) => {
                       <div className="bg-muted/50 rounded-xl p-4 text-sm text-muted-foreground">{selectedPatient.notes}</div>
                     </div>
                   )}
+                  <div className="mt-4 pt-4 border-t flex justify-end">
+                    <Button onClick={() => navigate(`/doctor/patient/patient-${selectedPatient.patient_name?.toLowerCase().replace(/\s+/g, '-') || 'user'}-${selectedPatient.id}/create-diet`)}>
+                      Create Diet Plan
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}

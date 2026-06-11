@@ -32,7 +32,7 @@ const fallbackTestimonials = [
     avatar: '🧑'
   },
   {
-    text: 'I had been struggling with PCOS for years. My RD didn\'t just hand me a meal plan — she explained the <strong>science behind every choice</strong>, adapted it to my Gujarati food habits. My periods are now regular for the first time in two years.',
+    text: 'I had been struggling with PCOS for years and tried everything. My RD on Diet By RD didn\'t just hand me a meal plan — she explained the <strong>science behind every choice</strong>, adapted it to my Gujarati food habits, and followed up every month. My periods are now regular for the first time in two years.',
     name: 'Priya M.',
     detail: 'Ahmedabad, Gujarat · 28 years',
     condition: 'PCOS',
@@ -79,8 +79,6 @@ const patientNavItems = [
 
 const trustBadges = [
   { key: 'ida', label: 'IDA Verified RDs', Icon: BadgeCheck },
-  { key: 'nda', label: 'Strict NDA Policy', Icon: FileLock2 },
-  { key: 'anon', label: 'Anonymous Consultations Available', Icon: UserRoundCheck },
   { key: 'dpdpa', label: 'DPDPA Compliant', Icon: ShieldCheck },
 ];
 
@@ -604,7 +602,10 @@ const Landing = () => {
         .approach-section .section-eyebrow { color: var(--teal); }
         .approach-section .section-title { color: var(--navy); }
         .approach-section .section-sub { color: var(--text2); }
-        .approach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: start; margin-top: 48px; }
+        .approach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; margin-top: 48px; }
+        @media (min-width: 901px) {
+          .testimonial-carousel { transform: translateY(-40px); }
+        }
         .approach-features { display: flex; flex-direction: column; gap: 28px; }
         .feature-item { display: flex; gap: 18px; align-items: flex-start; }
         .feature-icon {
@@ -627,8 +628,8 @@ const Landing = () => {
           background: var(--teal);
         }
         .testimonial-quote { color: var(--teal); width: 24px; height: 24px; margin-bottom: 16px; }
-        .testimonial-text { font-family: 'Playfair Display', serif; font-size: 17px; font-style: italic; color: var(--text); line-height: 1.7; margin: 0 0 24px; font-weight: 400; }
-        .testimonial-text strong, .testimonial-text b { font-weight: 700; color: var(--teal); }
+        .testimonial-text { font-family: 'DM Sans', sans-serif; font-size: 15px; font-style: italic; color: var(--text); line-height: 1.6; margin: 0 0 24px; font-weight: 400; }
+        .testimonial-text strong, .testimonial-text b { font-weight: 600; color: var(--teal); }
         .testimonial-author { display: flex; align-items: center; gap: 12px; }
         .testimonial-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--teal-l); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
         .testimonial-name { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 16px; color: var(--navy); }
@@ -742,6 +743,19 @@ const Landing = () => {
         /* Founder Story — WHITE */
         .founder-section { padding: 96px 24px 0; position: relative; overflow: hidden; }
         .founder-inner { max-width: 1100px; margin: 0 auto; }
+        .hero-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: rgba(11,110,79,0.08);
+          border: 1px solid rgba(11,110,79,0.15);
+          color: var(--teal);
+          padding: 6px 14px;
+          border-radius: 100px;
+          font-size: 13px;
+          font-weight: 600;
+          margin: 0 auto 24px auto;
+        }
         .founder-label { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--teal); margin-bottom: 12px; }
         .founder-title { font-family: 'Playfair Display', serif; font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: var(--navy); line-height: 1.15; margin-bottom: 0; }
         .founder-profile-grid {
@@ -902,6 +916,8 @@ const Landing = () => {
           opacity: 0.6;
           filter: grayscale(1);
           transition: opacity 0.2s ease;
+          width: 160px;
+          flex-shrink: 0;
         }
         .clinician-logo:hover { opacity: 1; }
 
@@ -1013,11 +1029,11 @@ const Landing = () => {
         <div className="nav-inner">
           <Logo />
           <div className="nav-links">
-            <a href="/" className="nav-mid">Home</a>
+            <Link to="/" className="nav-mid">Home</Link>
             <a href="#approach" className="nav-mid" onClick={scrollTo('approach')}>How It Works</a>
             <a href="#conditions" className="nav-mid" onClick={scrollTo('conditions')}>Conditions</a>
             <a href="#about" className="nav-mid" onClick={scrollTo('about')}>About Us</a>
-            <a href="/reviews" className="nav-mid">Reviews</a>
+            <Link to="/reviews" className="nav-mid">Reviews</Link>
             <a href="#contact" className="nav-mid" onClick={scrollTo('contact')}>Contact Us</a>
             <a href="/privacy" target="_blank" rel="noopener" className="nav-link">Privacy Policy</a>
             {isAuthenticated ? (
@@ -1063,15 +1079,21 @@ const Landing = () => {
       {/* CTA — Page 1 */}
       <section className="cta-section" style={{ background: 'var(--cream)' }}>
         <div className="cta-inner">
+          <div ref={addToRefs} className="hero-pill reveal">
+            India's HEALTH deserves better.
+          </div>
           <h1 ref={addToRefs} className="cta-headline reveal reveal-delay-1">
             Your health deserves a
             <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}> Registered Dietitian</em>,
             <br />
             not an Instagram influencer.
           </h1>
-          <p ref={addToRefs} className="hero-sub reveal reveal-delay-2">
+          <p ref={addToRefs} className="hero-sub reveal reveal-delay-2" style={{ lineHeight: '1.6', maxWidth: '800px' }}>
             India's First RD - Only Platform for Clinical Nutrition Consultations.
-            <strong>Registered Dietitian</strong> — the only clinically credentialed nutrition professionals in India. Not coaches. Not influencers. <strong>The real thing.</strong>
+            <br />
+            <strong>Registered Dietitian</strong> — the only clinically credentialed nutrition professionals in India.
+            <br />
+            <strong>Not coaches. Not influencers. The real thing.</strong>
           </p>
           <div ref={addToRefs} className="cta-actions reveal reveal-delay-3">
             <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
@@ -1113,18 +1135,27 @@ const Landing = () => {
               <div className="stat-item-lbl">Personalised consultation</div>
             </div>
           </div>
-          <div className="trust-marquee" style={{ marginTop: '48px' }}>
-            <div className="trust-marquee__track">
-              {[...trustBadges, ...trustBadges].map(({ key, label, Icon }, index) => (
-                <div key={`${key}-${index}`} className="privacy-badge">
-                  <Icon
-                    aria-hidden="true"
-                    className="privacy-badge-icon"
-                    size={18}
-                    strokeWidth={2.25}
-                    style={{ color: 'var(--teal)' }}
-                  />
-                  <span>{label}</span>
+          <div className="trust-marquee" style={{ marginTop: '48px', padding: '32px 0' }}>
+            <div className="trust-marquee__track" style={{ animationDuration: '50s', gap: '80px' }}>
+              {Array(6).fill([
+                { label: 'DPDPA Compliant, Strict NDA Policy', img: '/dpdpa.png' },
+                { label: 'IDA Verified RDs', icon: BadgeCheck },
+                { label: 'EU GDPR Compliant', img: '/gdpr.png' },
+                { label: 'Aligned with ISO 27001 standards' },
+              ]).flat().map((item, index) => (
+                <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                  {item.img ? (
+                    <div style={{ width: '80px', height: '80px', borderRadius: '50%', overflow: 'hidden', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(0,0,0,0.08)', flexShrink: 0 }}>
+                      <img src={item.img} alt={item.label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    </div>
+                  ) : item.icon ? (
+                    <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(0,0,0,0.08)', flexShrink: 0 }}>
+                      <item.icon size={40} strokeWidth={2} style={{ color: 'var(--teal)' }} />
+                    </div>
+                  ) : null}
+                  <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--navy)', whiteSpace: 'nowrap', fontFamily: "'Playfair Display', serif" }}>
+                    {item.label}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1234,6 +1265,11 @@ const Landing = () => {
                     <p>Monthly consultations with the same RD who knows your history. Real progress comes from continuity — not a single diet chart PDF.</p>
                   </div>
                 </div>
+              </div>
+              <div style={{ marginTop: '32px' }} className="reveal reveal-delay-3" ref={addToRefs}>
+                <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
+                  Start your journey <span style={{ background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '4px', fontSize: '13px' }}>₹999</span>
+                </button>
               </div>
             </div>
             <div ref={addToRefs} className="testimonial-carousel reveal reveal-delay-2" aria-label="Patient testimonials">
@@ -1354,7 +1390,7 @@ const Landing = () => {
                 </div>
                 <div>
                   <h3>Rooted in integrity</h3>
-                  <p>Recommend what is right for the patient, even when it isn't the most profitable choice.</p>
+                  <p>To recommend what is right for the patient, even when it isn't the most profitable choice.</p>
                 </div>
               </div>
               <div ref={addToRefs} className="vision-pillar reveal reveal-delay-1">
@@ -1363,7 +1399,7 @@ const Landing = () => {
                 </div>
                 <div>
                   <h3>Set the New Industry Standards</h3>
-                  <p>Make clinical credibility the baseline expectation — not a premium add-on — for nutrition care in India.</p>
+                  <p>To make clinical credibility the baseline expectation — not a premium add-on — for nutrition care in India.</p>
                 </div>
               </div>
               <div ref={addToRefs} className="vision-pillar reveal reveal-delay-2">
@@ -1372,7 +1408,7 @@ const Landing = () => {
                 </div>
                 <div>
                   <h3>Science over noise</h3>
-                  <p>In a world drowning in health content, be the one voice that always chooses evidence over engagement.</p>
+                  <p>To be the one voice that always chooses evidence over engagement in a world drowning in health content.</p>
                 </div>
               </div>
             </div>
@@ -1491,7 +1527,7 @@ const Landing = () => {
                     display: 'block',
                     filter: 'none',
                     mixBlendMode: 'multiply',
-                    transform: 'scale(1.08)',
+                    transform: 'scale(1.22) translate(-4%, 40px)',
                     transformOrigin: 'bottom center'
                   }}
                 />
@@ -1502,13 +1538,13 @@ const Landing = () => {
                 <div className="story-name">Aryan Bhagat</div>
                 <div className="story-role">Founder, Diet By RD</div>
                 <div className="story-location">Darbhanga, Bihar</div>
-                <div className="story-quote">
-                  "Everything in this world can be learnt." — the belief that started it all.
+                <div className="story-quote" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <span>"Healthcare works best when integrity comes before profit - the belief that started it all"</span>
+                  <span style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 500, color: 'var(--teal)' }}>
+                    <ShieldCheck size={14} /> built with purpose and intent.
+                  </span>
                 </div>
               </div>
-              <p className="story-bio-text">
-                Diet By RD was founded by <strong style={{ color: 'var(--navy)' }}>Aryan Bhagat</strong>, a young mind from Darbhanga, Bihar, with a simple but powerful belief: <em>"Everything in this world can be learnt."</em>
-              </p>
               <p className="story-bio-text">
                 Coming from a lower-middle-class family, Aryan grew up knowing the weight of every rupee earned — and how unfair it is when misinformation in healthcare makes people lose it so easily. He saw how easily people were misled into spending it on false promises and pseudoscience.
               </p>
@@ -1526,28 +1562,6 @@ const Landing = () => {
               </div>
             </div>
           </div>
-          <div className="story-feature-grid" ref={addToRefs}>
-            <div className="story-feature-card">
-              <Gem size={24} strokeWidth={2} style={{ color: 'var(--teal)' }} />
-              <div className="story-feature-title">Affordability without compromise</div>
-              <p className="story-feature-body">Expert care at ₹999. Because quality should not be a privilege.</p>
-            </div>
-            <div className="story-feature-card">
-              <Microscope size={24} strokeWidth={2} style={{ color: 'var(--teal)' }} />
-              <div className="story-feature-title">Science over pseudoscience</div>
-              <p className="story-feature-body">Evidence-led, not influencer-led. Always.</p>
-            </div>
-            <div className="story-feature-card">
-              <ShieldCheck size={24} strokeWidth={2} style={{ color: 'var(--teal)' }} />
-              <div className="story-feature-title">Transparency &amp; Trust</div>
-              <p className="story-feature-body">Honest pricing, clear policies, and zero hidden agendas. Healthcare without games.</p>
-            </div>
-            <div className="story-feature-card">
-              <BookOpen size={24} strokeWidth={2} style={{ color: 'var(--teal)' }} />
-              <div className="story-feature-title">Education First</div>
-              <p className="story-feature-body">We don't just hand out diet charts. We help you understand why every choice matters.</p>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -1559,12 +1573,18 @@ const Landing = () => {
             <p ref={addToRefs} className="clinician-body reveal reveal-delay-2">
               Doctors across India refer their patients to Diet By RD because they trust the credentialing.
             </p>
-            <div ref={addToRefs} className="clinician-logo-row reveal reveal-delay-2">
-              <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
-              <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
-              <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
-              <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
-              <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
+            <div ref={addToRefs} className="trust-marquee reveal reveal-delay-2" style={{ padding: '0', marginTop: '40px' }}>
+              <div className="trust-marquee__track">
+                {[...Array(4)].map((_, i) => (
+                  <div key={`h-row-${i}`} style={{ display: 'flex', gap: '48px' }}>
+                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
+                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
+                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
+                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
+                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -1651,21 +1671,24 @@ const Landing = () => {
       <section className="hero" style={{ background: 'var(--cream)' }}>
         <div className="hero-bg" />
         <div className="hero-content">
+          <div ref={addToRefs} className="hero-pill reveal">
+            <span style={{ color: 'var(--gold)' }}>★</span> India's HEALTH deserves better.
+          </div>
           <h1 ref={addToRefs} className="hero-h1 reveal reveal-delay-1">
-            Your health deserves a
-            <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}> Registered Dietitian</em>,
+            Your health deserves
             <br />
-            not an Instagram influencer.
+            <em style={{ fontStyle: 'italic', color: 'var(--gold)' }}>clinical expertise</em> —
+            <br />
+            not a certificate course.
           </h1>
-          <p ref={addToRefs} className="hero-sub reveal reveal-delay-2">
-            India's First RD - Only Platform for Clinical Nutrition Consultations.
-            <strong>Registered Dietitian</strong> — the only clinically credentialed nutrition professionals in India. Not coaches. Not influencers. <strong>The real thing.</strong>
+          <p ref={addToRefs} className="hero-sub reveal reveal-delay-2" style={{ lineHeight: '1.6' }}>
+            One consultation changes the direction. An RD who understands your food, your condition and you - not a generic PDF , <strong>Never a supplement upsell , Real clinical nutrition, personalized for you.</strong>
           </p>
           <div ref={addToRefs} className="hero-actions reveal reveal-delay-3">
             <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
               Book Your Consultation
             </button>
-            <button onClick={() => navigate('/join')} className="btn-outline-navy">Are you a Doctor / Dietitian</button>
+            <button onClick={() => navigate('/join')} className="btn-outline-navy" style={{ padding: '10px 20px', fontSize: '14px' }}>Are you a Doctor / Dietitian</button>
             <button onClick={handleContactClick} className="btn-ghost-link">Contact / Support →</button>
           </div>
           <div ref={addToRefs} className="hero-stats reveal reveal-delay-3">
@@ -1704,8 +1727,8 @@ const Landing = () => {
             <div className="footer-col">
               <h5>Company</h5>
               <a href="#rd-section" onClick={scrollTo('rd-section')}>Why RD?</a>
-              <a href="/join">For Doctors</a>
-              <a href="/join">Join as Dietitian</a>
+              <Link to="/join">For Doctors</Link>
+              <Link to="/join">Join as Dietitian</Link>
             </div>
             <div className="footer-col">
               <h4>Legal</h4>

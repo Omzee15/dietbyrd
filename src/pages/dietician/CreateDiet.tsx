@@ -1353,7 +1353,7 @@ const CreateDiet = () => {
     },
     {
       title: "Settings",
-      items: [{ label: "Preferences", href: "/dietician/settings", icon: Settings }],
+      items: [{ label: "My Profile", href: "/dietician/settings", icon: Settings }],
     },
   ];
 
@@ -1371,7 +1371,7 @@ const CreateDiet = () => {
     <div className="flex min-h-screen">
       <AppSidebar
         title="DietByRD"
-        subtitle="Dietician Portal"
+        subtitle={user?.name || "Dietician Portal"}
         sections={sidebarSections}
         bottomContent={bottomContent}
       />

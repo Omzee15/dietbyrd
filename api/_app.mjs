@@ -1985,7 +1985,8 @@ app.post("/api/auth/complete-welcome", async (req, res) => {
       height,
       weight,
       workoutFrequency,
-      dietaryPreference
+      dietaryPreference,
+      state
     } = req.body;
 
     if (!phone || !name) {
@@ -2060,8 +2061,9 @@ app.post("/api/auth/complete-welcome", async (req, res) => {
           height = $8, 
           weight = $9, 
           workout_frequency = $10,
+          state = $11,
           updated_at = CURRENT_TIMESTAMP
-         WHERE id = $11`,
+         WHERE id = $12`,
         [
           name,
           email,
@@ -2073,6 +2075,7 @@ app.post("/api/auth/complete-welcome", async (req, res) => {
           height || null,
           weight || null,
           workoutFrequency || null,
+          state || null,
           patientId
         ]
       );
@@ -2081,8 +2084,8 @@ app.post("/api/auth/complete-welcome", async (req, res) => {
       const patientResult = await query(
         `INSERT INTO dietbyrd_patients (
           user_id, name, phone, email, age, gender, diagnosis, diagnosis_description,
-          allergies, height, weight, workout_frequency, referral_source
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'self_signup')
+          allergies, height, weight, workout_frequency, state, referral_source
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'self_signup')
         RETURNING id`,
         [
           userId,
@@ -2096,7 +2099,8 @@ app.post("/api/auth/complete-welcome", async (req, res) => {
           allergies ? JSON.stringify(allergies) : null,
           height || null,
           weight || null,
-          workoutFrequency || null
+          workoutFrequency || null,
+          state || null
         ]
       );
 
@@ -3264,8 +3268,8 @@ app.delete("/api/patients/:id(\\d+)", async (req, res) => {
     const regId = regResult.rows[0]?.id ?? null;
 
     await queryIfTableExists(
-      "patient_documents",
-      `DELETE FROM patient_documents
+      "dietbyrd_patient_documents",
+      `DELETE FROM dietbyrd_patient_documents
        WHERE patient_profile_id = $1 OR patient_id = $2 OR uploaded_by = $2`,
       [id, userId]
     );
@@ -3740,10 +3744,6 @@ app.delete("/api/doctors/:id", async (req, res) => {
     await query("BEGIN");
     await query("DELETE FROM dietbyrd_doctors WHERE id = $1", [id]);
     if (userId) {
-      await query(
-        "DELETE FROM dietbyrd_join_request_messages WHERE recipient_user_id = $1 OR sender_id = $1",
-        [userId]
-      );
       await query("DELETE FROM dietbyrd_join_requests WHERE user_id = $1", [userId]);
       await query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
     }
@@ -4073,6 +4073,59 @@ app.get("/api/dieticians/:id/patients", async (req, res) => {
       [id]
     );
     res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Dietitian Blocked Slots ────────────────────────────────────────────────
+app.get("/api/dieticians/:id/blocked-slots", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { start_date, end_date } = req.query;
+    let queryStr = "SELECT * FROM dietbyrd_dietitian_blocked_slots WHERE rd_id = $1";
+    const params = [id];
+
+    if (start_date && end_date) {
+      queryStr += " AND blocked_date BETWEEN $2 AND $3";
+      params.push(start_date, end_date);
+    }
+
+    queryStr += " ORDER BY blocked_date ASC, start_time ASC";
+    const result = await query(queryStr, params);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/dieticians/:id/blocked-slots", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { blocked_date, start_time, end_time, reason } = req.body;
+    const result = await query(
+      `INSERT INTO dietbyrd_dietitian_blocked_slots (rd_id, blocked_date, start_time, end_time, reason)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [id, blocked_date, start_time || null, end_time || null, reason || null]
+    );
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete("/api/dieticians/:id/blocked-slots/:slotId", async (req, res) => {
+  try {
+    const { id, slotId } = req.params;
+    const result = await query(
+      "DELETE FROM dietbyrd_dietitian_blocked_slots WHERE id = $1 AND rd_id = $2 RETURNING *",
+      [slotId, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Slot not found" });
+    }
+    res.json({ success: true, message: "Blocked slot removed successfully" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -7224,6 +7277,7 @@ app.get("/api/support/patients", async (req, res) => {
       u.phone,
       u.email,
       p.gender,
+      p.state,
       u.is_active,
       p.created_at,
       (SELECT COUNT(*)
@@ -7240,10 +7294,7 @@ app.get("/api/support/patients", async (req, res) => {
 
     res.json({
       success: true,
-      data: result.rows.map((row) => ({
-        ...row,
-        state: null,
-      })),
+      data: result.rows,
       pagination: {
         page,
         page_size: pageSize,
@@ -7262,10 +7313,10 @@ app.get("/api/support/patients", async (req, res) => {
 app.get("/api/support/dieticians", async (req, res) => {
   try {
     const result = await query(
-      `SELECT d.id, u.name, u.phone, u.email, d.specialization, d.qualification,
-      d.experience_years, d.consultation_fee, d.is_active, d.created_at,
-      (SELECT COUNT(*) FROM dietbyrd_appointments WHERE dietician_id = d.id) as appointment_count
-       FROM dietbyrd_dieticians d
+      `SELECT d.id, u.name, u.phone, u.email, d.specializations as specialization, d.qualification,
+      d.is_active, d.created_at,
+      (SELECT COUNT(*) FROM dietbyrd_consultations WHERE rd_id = d.id) as appointment_count
+       FROM dietbyrd_registered_dietitians d
        JOIN dietbyrd_users u ON u.id = d.user_id
        ORDER BY u.name ASC`
     );
@@ -8597,7 +8648,7 @@ let patientDocumentsStorageInitialized = false;
 
 const ensurePatientDocumentStorage = async () => {
   if (patientDocumentsStorageInitialized) return;
-  await query(`ALTER TABLE patient_documents ADD COLUMN IF NOT EXISTS file_data BYTEA`);
+  await query(`ALTER TABLE dietbyrd_patient_documents ADD COLUMN IF NOT EXISTS file_data BYTEA`);
   patientDocumentsStorageInitialized = true;
 };
 
@@ -8719,7 +8770,7 @@ app.post("/api/patient/me/documents", async (req, res) => {
     const storageResult = await uploadToDocumentStorage(filePath, file);
 
     const result = await query(
-      `INSERT INTO patient_documents
+      `INSERT INTO dietbyrd_patient_documents
        (id, patient_id, patient_profile_id, kind, file_path, original_filename, mime_type, size_bytes, uploaded_by, file_data)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $2, $9)
        RETURNING *`,
@@ -8735,7 +8786,7 @@ app.get("/api/patient/documents/:id/download", async (req, res) => {
   try {
     await ensurePatientDocumentStorage();
     const result = await query(
-      "SELECT id, original_filename, mime_type, file_data FROM patient_documents WHERE id = $1",
+      "SELECT id, original_filename, mime_type, file_data FROM dietbyrd_patient_documents WHERE id = $1",
       [req.params.id]
     );
     const doc = result.rows[0];
@@ -8757,7 +8808,7 @@ app.get("/api/patient/me/documents", async (req, res) => {
     const patient = await getPatientProfileForAuth(auth);
     if (!patient) return res.status(404).json({ success: false, error: "Patient profile not found" });
     const result = await query(
-      "SELECT * FROM patient_documents WHERE patient_id = $1 OR patient_profile_id = $2 ORDER BY created_at DESC",
+      "SELECT * FROM dietbyrd_patient_documents WHERE patient_id = $1 OR patient_profile_id = $2 ORDER BY created_at DESC",
       [auth.userId, patient.id]
     );
     res.json({ success: true, data: await attachDocumentUrls(result.rows) });
@@ -8774,7 +8825,7 @@ app.delete("/api/patient/me/documents/:id", async (req, res) => {
     const patient = await getPatientProfileForAuth(auth);
     if (!patient) return res.status(404).json({ success: false, error: "Patient profile not found" });
     const result = await query(
-      "DELETE FROM patient_documents WHERE id = $1 AND (patient_id = $2 OR patient_profile_id = $3) RETURNING id",
+      "DELETE FROM dietbyrd_patient_documents WHERE id = $1 AND (patient_id = $2 OR patient_profile_id = $3) RETURNING id",
       [req.params.id, auth.userId, patient.id]
     );
     res.json({ success: true, data: result.rows[0] || { id: req.params.id } });
@@ -8791,21 +8842,28 @@ app.get("/api/rd/patients/:patientId/documents", async (req, res) => {
     if (!["rd", "mlt_intern"].includes(auth.role)) return res.status(403).json({ success: false, error: "Not authorized" });
 
     const patientProfileId = parseInt(req.params.patientId, 10);
+    let regId = null;
+
     if (auth.role === "rd") {
       const rdResult = await query("SELECT id FROM dietbyrd_registered_dietitians WHERE user_id = $1", [auth.userId]);
       const rdId = rdResult.rows[0]?.id;
       const assigned = await query(
-        `SELECT 1 FROM dietbyrd_consultations c
+        `SELECT rp.id FROM dietbyrd_consultations c
          JOIN dietbyrd_registered_patients rp ON rp.id = c.registered_patient_id
          WHERE rp.patient_id = $1 AND c.rd_id = $2 LIMIT 1`,
         [patientProfileId, rdId]
       );
       if (!rdId || assigned.rows.length === 0) return res.status(403).json({ success: false, error: "Not assigned to this patient" });
+      regId = assigned.rows[0].id;
+    } else {
+      const rpRes = await query("SELECT id FROM dietbyrd_registered_patients WHERE patient_id = $1 LIMIT 1", [patientProfileId]);
+      if (rpRes.rows.length === 0) return res.json({ success: true, data: [] });
+      regId = rpRes.rows[0].id;
     }
 
     const result = await query(
-      "SELECT * FROM patient_documents WHERE patient_profile_id = $1 ORDER BY created_at DESC",
-      [patientProfileId]
+      "SELECT id, document_type as kind, file_name as original_filename, file_url as file_path, created_at FROM dietbyrd_documents WHERE registered_patient_id = $1 ORDER BY created_at DESC",
+      [regId]
     );
     res.json({ success: true, data: await attachDocumentUrls(result.rows) });
   } catch (err) {
@@ -8843,10 +8901,10 @@ const updatePatientImprovementScoreHandler = async (req, res) => {
     const rdId = rdResult.rows[0].id;
 
     const verifyResult = await query(
-      `SELECT 1 FROM dietbyrd_consultations 
-       WHERE registered_patient_id = $1 
-       AND rd_id = $2 
-       AND status IN ('confirmed', 'in_progress', 'completed') 
+      `SELECT 1 FROM dietbyrd_consultations c
+       JOIN dietbyrd_registered_patients rp ON rp.id = c.registered_patient_id
+       WHERE rp.patient_id = $1 AND c.rd_id = $2 
+       AND c.status IN ('confirmed', 'in_progress', 'completed') 
        LIMIT 1`,
       [patientId, rdId]
     );

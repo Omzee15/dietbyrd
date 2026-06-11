@@ -269,7 +269,7 @@ const PatientProfile = () => {
     <div className="flex min-h-screen">
       <AppSidebar
         title="DietByRD"
-        subtitle="Patient Portal"
+        subtitle={user?.name || "Patient Portal"}
         sections={sidebarSections}
         bottomContent={bottomContent}
       />

@@ -384,13 +384,20 @@ const Index = () => {
           inputMode="numeric"
           placeholder="Enter your phone number"
           value={phone}
-          onChange={(e) => setPhone(normalizeIndianMobileInput(e.target.value))}
+          onChange={(e) => {
+            setPhone(normalizeIndianMobileInput(e.target.value));
+            setError(null);
+          }}
           onKeyDown={(e) => {
-            if (!readOnly && e.key === "Enter" && !isValidIndianMobile(phone)) {
-              e.preventDefault();
-              setError("Please enter a valid mobile number");
-              phoneInputRef.current?.focus();
-              phoneInputRef.current?.select();
+            if (!readOnly && e.key === "Enter") {
+              if (phone.trim() === "") {
+                e.preventDefault();
+              } else if (!isValidIndianMobile(phone)) {
+                e.preventDefault();
+                setError("Please enter a valid mobile number");
+                phoneInputRef.current?.focus();
+                phoneInputRef.current?.select();
+              }
             }
           }}
           autoFocus={!readOnly}

@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getDieticianAppointments, updateAppointmentStatus, getDieticianBlockedSlots, addBlockedSlot, removeBlockedSlot, type DieticianAppointment } from "@/lib/api";
 import { parseIST } from "@/lib/utils";
 import { toast } from "sonner";
@@ -704,8 +705,15 @@ const DieticianCalendarSchedule = ({
             <DialogTitle>Mark Leave</DialogTitle>
             <DialogDescription>Block a day so patients cannot book appointments.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="flex gap-8 mb-12">
+          <div className="space-y-4 py-4">
+            <div className="flex gap-2 mb-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setLeaveDate(new Date().toISOString().split("T")[0])}
+              >
+                Today
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -754,26 +762,34 @@ const DieticianCalendarSchedule = ({
             {leaveType === "time_slot" && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>
-                    From <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    type="time"
-                    value={leaveStartTime}
-                    onChange={(e) => setLeaveStartTime(e.target.value)}
-                    required
-                  />
+                  <Label>From <span className="text-red-500">*</span></Label>
+                  <Select value={leaveStartTime} onValueChange={setLeaveStartTime}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {timeSlots.map(slot => (
+                        <SelectItem key={`start-${slot.hour}`} value={`${slot.hour.toString().padStart(2, '0')}:00`}>
+                          {slot.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>
-                    To <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    type="time"
-                    value={leaveEndTime}
-                    onChange={(e) => setLeaveEndTime(e.target.value)}
-                    required
-                  />
+                  <Label>To <span className="text-red-500">*</span></Label>
+                  <Select value={leaveEndTime} onValueChange={setLeaveEndTime}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {timeSlots.map(slot => (
+                        <SelectItem key={`end-${slot.hour}`} value={`${slot.hour.toString().padStart(2, '0')}:00`}>
+                          {slot.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             )}
@@ -814,13 +830,23 @@ const DieticianCalendarSchedule = ({
             {blockedSlots.map((slot) => {
               const d = slot.blocked_date_str || slot.blocked_date;
               const dateLabel = formatLeaveDate(d);
+              
+              const formatTimeStr = (t: string) => {
+                if (!t) return "";
+                const [h, m] = t.split(":");
+                let hour = parseInt(h, 10);
+                const ampm = hour >= 12 ? "PM" : "AM";
+                hour = hour % 12 || 12;
+                return `${hour}:${m} ${ampm}`;
+              };
+              
               return (
                 <div key={slot.id} className="flex items-center justify-between p-3 bg-orange-50 border border-orange-100 rounded-lg">
                   <div>
                     <p className="text-sm font-medium">{dateLabel}</p>
                     {slot.start_time && slot.end_time ? (
                       <p className="text-xs text-muted-foreground">
-                        {slot.start_time} – {slot.end_time}
+                        {formatTimeStr(slot.start_time)} – {formatTimeStr(slot.end_time)}
                       </p>
                     ) : (
                       <p className="text-xs text-muted-foreground">Full day</p>

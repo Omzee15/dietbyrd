@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const FoodLibraryPage = () => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
 
   const handleLogout = () => {
     logout();
@@ -26,7 +26,7 @@ const FoodLibraryPage = () => {
     },
     {
       title: "Settings",
-      items: [{ label: "Preferences", href: "/dietician/settings", icon: Settings }],
+      items: [{ label: "My Profile", href: "/dietician/settings", icon: Settings }],
     },
   ];
 
@@ -44,7 +44,7 @@ const FoodLibraryPage = () => {
     <div className="flex min-h-screen">
       <AppSidebar
         title="DietByRD"
-        subtitle="Dietician Portal"
+        subtitle={user?.name || "Dietician Portal"}
         sections={sidebarSections}
         bottomContent={bottomContent}
       />

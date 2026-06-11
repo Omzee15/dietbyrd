@@ -28,7 +28,7 @@ const DieticianSettings = () => {
     {
       title: "Settings",
       items: [
-        { label: "Preferences", href: "/dietician/settings", icon: SettingsIcon },
+        { label: "My Profile", href: "/dietician/settings", icon: SettingsIcon },
       ],
     },
   ];
@@ -37,7 +37,7 @@ const DieticianSettings = () => {
     <div className="flex min-h-screen">
       <AppSidebar
         title="DietByRD"
-        subtitle="Dietician Portal"
+        subtitle={user?.name || "Dietician Portal"}
         sections={sidebarSections}
       />
 

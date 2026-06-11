@@ -812,7 +812,7 @@ const DieticianDashboard = () => {
     {
       title: "Settings",
       items: [
-        { label: "Preferences", href: "/dietician/settings", icon: Settings },
+        { label: "My Profile", href: "/dietician/settings", icon: Settings },
       ],
     },
   ];
@@ -865,7 +865,7 @@ const DieticianDashboard = () => {
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar title="DietByRD" subtitle="Dietician Portal" sections={sidebarSections} bottomContent={bottomContent} />
+      <AppSidebar title="DietByRD" subtitle={user?.name || "Dietician Portal"} sections={sidebarSections} bottomContent={bottomContent} />
 
       <main className="flex-1 bg-background">
         {/* Top bar */}

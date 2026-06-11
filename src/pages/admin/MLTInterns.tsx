@@ -303,35 +303,44 @@ const MLTInternsPage = () => {
               Set a new password for {resetPasswordTarget?.name || resetPasswordTarget?.phone}.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">New Password</label>
-              <div className="relative">
-                <Input
-                  ref={resetPasswordInputRef}
-                  type={showNewPassword ? "text" : "password"}
-                  placeholder="Min. 6 characters"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="pr-10"
-                  autoFocus
-                />
-                <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (newPassword.length >= 6 && resetPasswordTarget && !resetPasswordMutation.isPending) {
+                resetPasswordMutation.mutate({ userId: resetPasswordTarget.id, password: newPassword });
+              }
+            }}
+          >
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">New Password</label>
+                <div className="relative">
+                  <Input
+                    ref={resetPasswordInputRef}
+                    type={showNewPassword ? "text" : "password"}
+                    placeholder="Min. 6 characters"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="pr-10"
+                    autoFocus
+                  />
+                  <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setResetPasswordTarget(null)}>Cancel</Button>
-            <Button
-              disabled={newPassword.length < 6 || resetPasswordMutation.isPending}
-              onClick={() => resetPasswordTarget && resetPasswordMutation.mutate({ userId: resetPasswordTarget.id, password: newPassword })}
-            >
-              {resetPasswordMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <KeyRound className="w-4 h-4 mr-2" />}
-              Save Password
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setResetPasswordTarget(null)}>Cancel</Button>
+              <Button
+                type="submit"
+                disabled={newPassword.length < 6 || resetPasswordMutation.isPending}
+              >
+                {resetPasswordMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <KeyRound className="w-4 h-4 mr-2" />}
+                Save Password
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

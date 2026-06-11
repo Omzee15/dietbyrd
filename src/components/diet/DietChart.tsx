@@ -196,7 +196,7 @@ export const DietChart: React.FC<DietChartProps> = ({
     if (!searchQuery) return [];
     const q = searchQuery.toLowerCase();
     return availableFoods.filter(f => {
-      const matchesSearch = f.name_en.toLowerCase().includes(q) || f.name_hi.includes(q);
+      const matchesSearch = f.name_en.toLowerCase().includes(q) || (f.name_hi || "").includes(q);
       return matchesSearch && f.dietitian_visibility;
     }).slice(0, 50);
   }, [searchQuery, availableFoods]);
