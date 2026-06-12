@@ -21,6 +21,17 @@ import {
   Award,
   User,
   UserRoundCheck,
+  ArrowRight,
+  Activity,
+  HeartPulse,
+  Syringe,
+  Dna,
+  Stethoscope,
+  ShieldPlus,
+  Sprout,
+  TrendingUp,
+  Dumbbell,
+  Flower2,
 } from "lucide-react";
 
 const fallbackTestimonials = [
@@ -1034,7 +1045,7 @@ const Landing = () => {
             <a href="#conditions" className="nav-mid" onClick={scrollTo('conditions')}>Conditions</a>
             <a href="#about" className="nav-mid" onClick={scrollTo('about')}>About Us</a>
             <Link to="/reviews" className="nav-mid">Reviews</Link>
-            <a href="#contact" className="nav-mid" onClick={scrollTo('contact')}>Contact Us</a>
+            <Link to="/contact" className="nav-mid">Contact Us</Link>
             <a href="/privacy" target="_blank" rel="noopener" className="nav-link">Privacy Policy</a>
             {isAuthenticated ? (
               <div className="profile-menu-wrap">
@@ -1097,8 +1108,8 @@ const Landing = () => {
           </p>
           <div ref={addToRefs} className="cta-actions reveal reveal-delay-3">
             <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
-              Book Your Consultation
-            </button>
+              Book Your Consultation <ArrowRight size={16} className="ml-2 inline-block" />
+              </button>
           </div>
         </div>
       </section>
@@ -1135,7 +1146,7 @@ const Landing = () => {
               <div className="stat-item-lbl">Personalised consultation</div>
             </div>
           </div>
-          <div className="trust-marquee" style={{ marginTop: '48px', padding: '32px 0' }}>
+          <div className="trust-marquee" style={{ marginTop: '48px', padding: '32px 0', mixBlendMode: 'multiply' }}>
             <div className="trust-marquee__track" style={{ animationDuration: '50s', gap: '80px' }}>
               {Array(6).fill([
                 { label: 'DPDPA Compliant, Strict NDA Policy', img: '/dpdpa.png' },
@@ -1146,7 +1157,7 @@ const Landing = () => {
                 <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                   {item.img ? (
                     <div style={{ width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <img src={item.img} alt={item.label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                      <img src={item.img} alt={item.label} style={{ width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }} />
                     </div>
                   ) : item.icon ? (
                     <div style={{ width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -1259,9 +1270,9 @@ const Landing = () => {
                   </div>
                 </div>
                 <div ref={addToRefs} className="feature-item reveal reveal-delay-3">
-                  <div className="feature-icon">🔁</div>
+                  <div className="feature-icon">🔄</div>
                   <div className="feature-text">
-                    <h4>Consistent, not one-and-done</h4>
+                    <h4>No supplement upsell, Only what is required</h4>
                     <p>Monthly consultations with the same RD who knows your history. Real progress comes from continuity — not a single diet chart PDF.</p>
                   </div>
                 </div>
@@ -1532,6 +1543,12 @@ const Landing = () => {
                   }}
                 />
               </div>
+              <div style={{ marginTop: '72px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <p style={{ fontWeight: 600, color: 'var(--teal)', fontSize: '14px', textAlign: 'center' }}>Turn your One Day to Day One</p>
+                <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary" style={{ padding: '12px 16px', fontSize: '14px', width: '100%' }}>
+                  Book your consultation from the Best Of The Industry
+                </button>
+              </div>
             </div>
             <div className="story-bio">
               <div className="story-card-body">
@@ -1539,8 +1556,8 @@ const Landing = () => {
                 <div className="story-role">Founder, Diet By RD</div>
                 <div className="story-quote" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
                   <span>"Healthcare works best when integrity comes before profit - the belief that started it all"</span>
-                  <span style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 500, color: 'var(--teal)', background: '#E8F5F1', padding: '6px 12px', borderRadius: '6px', width: 'fit-content' }}>
-                    <ShieldCheck size={14} /> built with purpose and intent.
+                  <span style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 500, color: 'var(--teal)', background: '#E8F5F1', padding: '6px 12px', borderRadius: '100px', width: 'fit-content' }}>
+                    <ShieldCheck size={14} /> Built with purpose and intent.
                   </span>
                 </div>
               </div>
@@ -1551,7 +1568,7 @@ const Landing = () => {
                 He watched families trust 'health experts' who were nothing more than confident content creators. He saw diabetic patients follow advice from coaches with no clinical training. He saw people spending money they didn't have on products they didn't need.
               </p>
               <p className="story-bio-text">
-                That's the problem Diet By RD exists to solve. Not with more content — but with the <strong style={{ color: 'var(--navy)' }}>right credentials, the right professionals, and the right price.</strong>
+                That's the problem Diet By RD exists to solve. Not with more content — but with the <br/><strong style={{ color: 'var(--navy)' }}>right credentials, the right professionals, and the right price.</strong>
               </p>
               <div className="story-road-card">
                 <div className="story-road-title">The Road Ahead</div>
@@ -1676,19 +1693,19 @@ const Landing = () => {
           <h1 ref={addToRefs} className="hero-h1 reveal reveal-delay-1">
             Your health deserves
             <br />
-            <em style={{ fontStyle: 'italic', color: 'var(--gold)' }}>clinical expertise</em> —
+            <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}>clinical expertise</em> —
             <br />
             not a certificate course.
           </h1>
           <p ref={addToRefs} className="hero-sub reveal reveal-delay-2" style={{ lineHeight: '1.6' }}>
-            One consultation changes the direction. An RD who understands your food, your condition and you - not a generic PDF , <strong>Never a supplement upsell , Real clinical nutrition, personalized for you.</strong>
+            One consultation changes the direction. An RD who understands your food, your condition and you - not a generic PDF. <br/><strong>Never a supplement upsell, Real clinical nutrition, personalized for you.</strong>
           </p>
-          <div ref={addToRefs} className="hero-actions reveal reveal-delay-3">
+          <div ref={addToRefs} className="hero-actions reveal reveal-delay-3" style={{ alignItems: 'flex-end' }}>
             <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary" style={{ padding: '16px 32px', fontSize: '18px' }}>
-              Book Your Consultation
-            </button>
-            <button onClick={() => navigate('/join')} className="btn-outline-navy" style={{ padding: '8px 16px', fontSize: '13px' }}>Are you a Doctor / Dietitian</button>
-            <button onClick={handleContactClick} className="btn-ghost-link">Contact / Support →</button>
+              Book Your Consultation <ArrowRight size={16} className="ml-2 inline-block" />
+              </button>
+            <button onClick={() => navigate('/join')} className="btn-outline-navy" style={{ padding: '8px 16px', fontSize: '13px' }}>Are you a dietitian /doctor?<br/>join us</button>
+            <button onClick={() => navigate('/contact')} className="btn-ghost-link" style={{ paddingBottom: '8px' }}>Contact / Support →</button>
           </div>
           <div ref={addToRefs} className="hero-stats reveal reveal-delay-3">
             <div className="hero-stat">
@@ -1742,7 +1759,7 @@ const Landing = () => {
               <h5>Legal & Support</h5>
               <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>
               <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
-              <a href="mailto:hello@dietbyrd.com">Contact / Support</a>
+              <Link to="/contact">Contact / Support</Link>
               <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a>
               <div style={{ fontSize: '13.5px', color: 'var(--text3)', marginBottom: '10px' }}>
                 Grievance: <a href="mailto:grievance@dietbyrd.com" style={{ color: 'var(--teal)' }}>grievance@dietbyrd.com</a>
@@ -1777,3 +1794,4 @@ const Landing = () => {
 };
 
 export default Landing;
+

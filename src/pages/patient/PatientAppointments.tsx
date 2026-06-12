@@ -411,14 +411,13 @@ const PatientAppointments = () => {
             setIsPaymentModalOpen(false);
             setIsPaymentProcessing(false);
             
-            // Reopen booking modal with the selected slot to complete booking
-            // Use setTimeout to ensure payment modal fully closes first
-            setTimeout(() => {
-              setSelectedSlot(slotToBook);
-              setAppointmentNotes(notesToSave);
-              setIsBookingModalOpen(true);
-              toast.info("Now confirm your appointment booking!");
-            }, 300);
+            // Automatically book the appointment if a slot was selected
+            if (slotToBook) {
+              bookAppointmentMutation.mutate({
+                scheduled_at: slotToBook.datetime,
+                patient_notes: notesToSave || undefined,
+              });
+            }
             
           } catch (err: any) {
             toast.error(err.message || "Payment verification failed");

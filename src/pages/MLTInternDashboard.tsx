@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
-import { Users, Stethoscope, UtensilsCrossed, LogOut, Search, Apple, UserPlus, Plus, UserX, AlertTriangle, RefreshCw, Check, X, Loader2, Info } from "lucide-react";
+import { Users, Stethoscope, UtensilsCrossed, LogOut, Search, Apple, UserPlus, Plus, UserX, AlertTriangle, RefreshCw, Check, X, Loader2, Info, CalendarOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { assignDietician, assignDoctor, getPatients, getDoctors, getDieticians, getReferrals, getUnregisteredReferrals, getJoinRequests, getUnassignedAppointments, triggerAutoAssign, approveJoinRequest, rejectJoinRequest, verifyDoctor, Patient, Doctor, Dietician, Referral, UnregisteredReferral, JoinRequest, AutoAssignResult } from "@/lib/api";
+import { assignDietician, assignDoctor, getPatients, getDoctors, getDieticians, getReferrals, getUnregisteredReferrals, getJoinRequests, getUnassignedAppointments, triggerAutoAssign, approveJoinRequest, rejectJoinRequest, verifyDoctor, getAllDieticianBlockedSlots, Patient, Doctor, Dietician, Referral, UnregisteredReferral, JoinRequest, AutoAssignResult } from "@/lib/api";
 import { foodService } from "@/lib/food-service";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Food } from "@/lib/diet-types";
@@ -98,6 +98,8 @@ const MLTInternDashboard = () => {
       setActiveSection("join-requests");
     } else if (location.pathname === "/mlt-intern/unregistered-referrals") {
       setActiveSection("unregistered-referrals");
+    } else if (location.pathname === "/mlt-intern/leaves") {
+      setActiveSection("leaves");
     }
   }, [location.pathname]);
 
@@ -158,6 +160,11 @@ const MLTInternDashboard = () => {
   const { data: foods = [], isLoading: foodsLoading, refetch: refetchFoods } = useQuery({
     queryKey: ["food-library"],
     queryFn: foodService.getAll,
+  });
+
+  const { data: leaves = [], isLoading: leavesLoading } = useQuery({
+    queryKey: ["all-dietician-blocked-slots"],
+    queryFn: () => getAllDieticianBlockedSlots(),
   });
 
   const { data: joinRequests = [], isLoading: joinRequestsLoading } = useQuery({
@@ -420,6 +427,7 @@ const MLTInternDashboard = () => {
         { label: "Patients", href: "/mlt-intern/patients", icon: Users, badge: patients.length },
         { label: "Doctors", href: "/mlt-intern/doctors", icon: Stethoscope, badge: doctors.length },
         { label: "Dieticians", href: "/mlt-intern/dieticians", icon: UtensilsCrossed, badge: dieticians.length },
+        { label: "Dietician Leaves", href: "/mlt-intern/leaves", icon: CalendarOff, badge: leaves.length || undefined },
         { label: "Join Requests", href: "/mlt-intern/join-requests", icon: UserPlus, badge: joinRequests.length || undefined },
         { label: "Unregistered Referrals", href: "/mlt-intern/unregistered-referrals", icon: UserX, badge: unregisteredReferrals.length || undefined },
         { label: "Food Library", href: "/mlt-intern/food-library", icon: Apple, badge: foods.length },
@@ -441,13 +449,13 @@ const MLTInternDashboard = () => {
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar title="DietByRD" subtitle="MLT Intern" sections={sidebarSections} bottomContent={bottomContent} />
+      <AppSidebar title="DietByRD" subtitle={user?.name || "MLT Intern"} sections={sidebarSections} bottomContent={bottomContent} />
       
       <main className="flex-1 p-8 bg-gray-50">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">MLT Intern Dashboard</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{user?.name ? `${user.name}'s Dashboard` : "MLT Intern Dashboard"}</h1>
             <p className="text-gray-500 mt-1">Manage patient-to-dietician assignments and view system data</p>
           </div>
 
@@ -712,28 +720,10 @@ const MLTInternDashboard = () => {
                               );
                             })()}
                           </td>
-                          <td className="px-6 py-4" onClick={(event) => event.stopPropagation()}>
-                            <Select
-                              value={patient.referredByDoctorId?.toString() || "direct"}
-                              onValueChange={(value) => {
-                                assignDoctorMutation.mutate({
-                                  patientId: patient.id,
-                                  doctorId: value === "direct" ? 0 : parseInt(value, 10),
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="Direct (No Doctor)" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="direct">Direct (No Doctor)</SelectItem>
-                                {doctors.map((doctor: Doctor) => (
-                                  <SelectItem key={doctor.id} value={doctor.id.toString()}>
-                                    {doctor.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          <td className="px-6 py-4 text-sm font-medium text-gray-900" onClick={(event) => event.stopPropagation()}>
+                            {patient.referredByDoctorId && doctors.find((d: Doctor) => d.id === patient.referredByDoctorId)
+                              ? doctors.find((d: Doctor) => d.id === patient.referredByDoctorId)?.name
+                              : "Direct (No Doctor)"}
                           </td>
                           <td className="px-6 py-4" onClick={(event) => event.stopPropagation()}>
                             {(() => {
@@ -747,12 +737,10 @@ const MLTInternDashboard = () => {
                               value={patient.assigned_rd_id?.toString() || "unassigned"}
                               disabled={!hasPaid}
                               onValueChange={(value) => {
-                                if (value !== "unassigned") {
-                                  assignDieticianMutation.mutate({
-                                    patientId: patient.id,
-                                    dieticianId: parseInt(value, 10),
-                                  });
-                                }
+                                assignDieticianMutation.mutate({
+                                  patientId: patient.id,
+                                  dieticianId: value === "unassigned" ? 0 : parseInt(value, 10),
+                                });
                               }}
                             >
                               <SelectTrigger className={`w-56 ${!hasPaid ? "opacity-50 cursor-not-allowed" : ""}`}>
@@ -1023,6 +1011,41 @@ const MLTInternDashboard = () => {
                             </td>
                           </tr>
                         ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : activeSection === 'leaves' ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dietician</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {leaves.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                          No dietician leaves found
+                        </td>
+                      </tr>
+                    ) : (
+                      leaves.map((leave: any) => (
+                          <tr key={leave.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 text-sm font-medium text-gray-900">{leave.dietician_name || "Unknown"}</td>
+                            <td className="px-6 py-4 text-sm text-gray-900">{leave.blocked_date_str}</td>
+                            <td className="px-6 py-4 text-sm text-gray-900">
+                              {leave.start_time && leave.end_time
+                                ? `${leave.start_time.slice(0, 5)} - ${leave.end_time.slice(0, 5)}`
+                                : "Full Day"}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-900">{leave.reason || "N/A"}</td>
+                          </tr>
+                      ))
                     )}
                   </tbody>
                 </table>

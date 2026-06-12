@@ -2880,7 +2880,7 @@ app.patch("/api/join-request-messages/:id", async (req, res) => {
 app.patch("/api/join-requests/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { action, reviewed_by, rejection_reason, admin_message, commission_rate } = req.body;
+    const { action, reviewed_by, rejection_reason, admin_message, commission_rate, delivery } = req.body;
 
     if (!action || !["approve", "reject"].includes(action)) {
       return res.status(400).json({ success: false, error: "Action must be 'approve' or 'reject'" });
@@ -2911,6 +2911,66 @@ app.patch("/api/join-requests/:id", async (req, res) => {
     }
 
     if (action === "reject") {
+      const deliveryMode = ["email_first", "email_only", "whatsapp_only", "both"].includes(String(delivery))
+        ? String(delivery)
+        : "email_first";
+
+      let applicantEmail = null;
+      if (joinRequest.user_id) {
+        const userResult = await query("SELECT email FROM dietbyrd_users WHERE id = $1", [joinRequest.user_id]);
+        if (userResult.rows.length > 0) applicantEmail = userResult.rows[0].email;
+      }
+
+      const customMessage = String(admin_message || "").trim();
+      const baseMessage = customMessage
+        ? `Thank you for your interest in joining DietByRD.\n\n${customMessage}`
+        : "Thank you for your interest in joining DietByRD. Unfortunately, we are unable to proceed with your application at this time.";
+      const whatsappBody = `Hi ${joinRequest.name}! 👋\n\n${baseMessage}\n\n- Team DietByRD`;
+
+      const shouldSendEmail = deliveryMode !== "whatsapp_only";
+      const shouldSendWhatsapp = deliveryMode !== "email_only";
+
+      let emailResult = { sent: false, reason: "not_requested" };
+      let whatsappResult = { sent: false, reason: "not_requested" };
+
+      if (shouldSendEmail && applicantEmail) {
+        try {
+          emailResult = await sendJoinRequestMessageEmail({
+            recipientEmail: applicantEmail,
+            recipientName: joinRequest.name,
+            senderName: "DietByRD team",
+            message: baseMessage,
+            subject: "Update on your DietByRD application",
+          });
+        } catch (e) {
+          emailResult = { sent: false, reason: "email_failed" };
+        }
+      } else if (shouldSendEmail && !applicantEmail) {
+        emailResult = { sent: false, reason: "no_email_found" };
+      }
+
+      const shouldFallbackToWhatsapp =
+        shouldSendWhatsapp &&
+        (deliveryMode === "email_first" ? !emailResult.sent : deliveryMode === "both");
+
+      if (shouldFallbackToWhatsapp) {
+        if (twilioClient) {
+          const cleanPhone = joinRequest.phone.replace(/\D/g, "").replace(/^91/, "");
+          try {
+            await twilioClient.messages.create({
+              from: TWILIO_WHATSAPP_FROM,
+              to: `whatsapp:+91${cleanPhone}`,
+              body: whatsappBody,
+            });
+            whatsappResult = { sent: true };
+          } catch (smsErr) {
+            whatsappResult = { sent: false, reason: "whatsapp_failed" };
+          }
+        } else {
+          whatsappResult = { sent: true, reason: "dev_simulated" };
+        }
+      }
+
       // Reject the request - also deactivate/delete the unverified user
       if (joinRequest.user_id) {
         // Unlink first to avoid FK violations in environments without ON DELETE SET NULL
@@ -2926,7 +2986,7 @@ app.patch("/api/join-requests/:id", async (req, res) => {
          WHERE id = $4`,
         [reviewed_by || null, rejection_reason || null, admin_message || null, id]
       );
-      return res.json({ success: true, message: "Request rejected" });
+      return res.json({ success: true, message: "Request rejected", email: emailResult, whatsapp: whatsappResult });
     }
 
     // Approve: Verify the user and create the profile
@@ -3139,7 +3199,7 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
       `SELECT 
         p.*,
         u.phone AS user_phone,
-        rp.dietary_preference,
+        COALESCE(p.dietary_preference, rp.dietary_preference::text) AS dietary_preference,
         rp.food_restrictions,
         rp.assigned_rd_id,
         rd.name AS assigned_dietician_name,
@@ -3465,7 +3525,7 @@ app.post("/api/patients", async (req, res) => {
 app.patch("/api/patients/:id(\\d+)", async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, age, gender, diagnosis, diagnosis_description, height, weight, allergies, workout_frequency, diagnoses } = req.body;
+    const { name, email, age, gender, diagnosis, diagnosis_description, height, weight, allergies, workout_frequency, diagnoses, address, dietary_preference } = req.body;
 
     // Prepare allergies for JSONB column
     let allergiesValue = null;
@@ -3506,10 +3566,12 @@ app.patch("/api/patients/:id(\\d+)", async (req, res) => {
            allergies = COALESCE($9::jsonb, allergies),
            workout_frequency = COALESCE($10, workout_frequency),
            diagnoses = COALESCE($12::jsonb, diagnoses),
+           address = COALESCE($13, address),
+           dietary_preference = COALESCE($14, dietary_preference),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $11
        RETURNING *`,
-      [name, email || null, age, gender, primaryDiagnosis, diagnosis_description, height, weight, allergiesValue, workout_frequency, id, diagnosesValue]
+      [name, email || null, age, gender, primaryDiagnosis, diagnosis_description, height, weight, allergiesValue, workout_frequency, id, diagnosesValue, address, dietary_preference]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: "Patient not found" });
 
@@ -3533,9 +3595,11 @@ app.post("/api/patients/:id(\\d+)/assign-dietician", async (req, res) => {
     const { id } = req.params;
     const { dietician_id } = req.body;
 
-    if (!dietician_id) {
+    if (dietician_id === undefined) {
       return res.status(400).json({ success: false, error: "dietician_id is required" });
     }
+
+    const targetDieticianId = dietician_id === 0 ? null : dietician_id;
 
     // Check if patient exists
     const patientCheck = await query("SELECT id FROM dietbyrd_patients WHERE id = $1", [id]);
@@ -3564,7 +3628,7 @@ app.post("/api/patients/:id(\\d+)/assign-dietician", async (req, res) => {
         `INSERT INTO dietbyrd_registered_patients (patient_id, assigned_rd_id)
          VALUES ($1, $2)
          RETURNING *`,
-        [id, dietician_id]
+        [id, targetDieticianId]
       );
     } else {
       // Update existing record
@@ -3573,21 +3637,25 @@ app.post("/api/patients/:id(\\d+)/assign-dietician", async (req, res) => {
          SET assigned_rd_id = $1, updated_at = CURRENT_TIMESTAMP
          WHERE patient_id = $2
          RETURNING *`,
-        [dietician_id, id]
+        [targetDieticianId, id]
       );
     }
 
     // Get dietician name for response
-    const dieticianInfo = await query(
-      "SELECT name FROM dietbyrd_registered_dietitians WHERE id = $1",
-      [dietician_id]
-    );
+    let dieticianName = null;
+    if (targetDieticianId) {
+      const dieticianInfo = await query(
+        "SELECT name FROM dietbyrd_registered_dietitians WHERE id = $1",
+        [targetDieticianId]
+      );
+      dieticianName = dieticianInfo.rows[0]?.name;
+    }
 
     res.json({
       success: true,
       data: {
         ...result.rows[0],
-        dietician_name: dieticianInfo.rows[0]?.name
+        dietician_name: dieticianName
       }
     });
   } catch (err) {
@@ -4898,7 +4966,7 @@ app.get("/api/doctors/:id/stats", async (req, res) => {
 
     // Get commission earned (from doctor_earnings table)
     const commissionResult = await query(
-      `SELECT COALESCE(SUM(amount), 0) as total_commission
+      `SELECT COALESCE(SUM(earnings_amount), 0) as total_commission
        FROM dietbyrd_doctor_earnings
        WHERE doctor_id = $1`,
       [id]
@@ -5112,7 +5180,7 @@ app.get("/api/food-library/:id", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "Food item not found" });
+      return res.json({ success: true, data: null });
     }
 
     res.json({ success: true, data: result.rows[0] });
@@ -5130,6 +5198,7 @@ app.post("/api/food-library", async (req, res) => {
       iron, calcium, magnesium, zinc, potassium, sodium, phosphorus, iodine, selenium, copper,
       vitamin_a, vitamin_b1, vitamin_b2, vitamin_b3, vitamin_b6, vitamin_b9, vitamin_b12,
       vitamin_c, vitamin_d, vitamin_e, vitamin_k,
+      oxalate_eee, phytate_eee,
       yield_factor, image_url, tags, food_type, dietitian_visibility, caution_level, notes,
       created_by_user_id
     } = req.body;
@@ -6391,6 +6460,38 @@ app.post("/api/dieticians/:id/blocked-slots", async (req, res) => {
   }
 });
 
+// Get blocked slots for all dieticians
+app.get("/api/all-dietician-blocked-slots", async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query;
+
+    let sql = `
+      SELECT bs.*, TO_CHAR(bs.blocked_date, 'YYYY-MM-DD') as blocked_date_str, rd.name as dietician_name 
+      FROM dietbyrd_dietician_blocked_slots bs
+      LEFT JOIN dietbyrd_registered_dietitians rd ON bs.rd_id = rd.id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (start_date) {
+      params.push(start_date);
+      sql += ` AND bs.blocked_date >= $${params.length}::date`;
+    }
+    if (end_date) {
+      params.push(end_date);
+      sql += ` AND bs.blocked_date <= $${params.length}::date`;
+    }
+
+    sql += ` ORDER BY bs.blocked_date, bs.start_time`;
+
+    const result = await query(sql, params);
+
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get blocked slots for a dietician
 app.get("/api/dieticians/:id/blocked-slots", async (req, res) => {
   try {
@@ -7008,17 +7109,18 @@ app.get("/api/doctor/me/patients", async (req, res) => {
         p.improvement_updated_at,
         p.phone                       AS phone,
         r.referred_at                 AS referral_date,
-        COALESCE(c.status, 'pending') AS consultation_status,
+        COALESCE(c.status::text, 'pending') AS consultation_status,
         (CASE WHEN pay.id IS NOT NULL THEN 'paid' ELSE 'unpaid' END)::text AS payment_status,
         c.scheduled_at                AS next_consultation_at,
         rd.name                       AS assigned_dietitian_name
       FROM dietbyrd_referrals r
       JOIN dietbyrd_patients p ON p.id = r.patient_id
       LEFT JOIN LATERAL (
-        SELECT id, status, scheduled_at, rd_id
-        FROM dietbyrd_consultations
-        WHERE registered_patient_id = p.id
-        ORDER BY scheduled_at DESC NULLS LAST, created_at DESC
+        SELECT c2.id, c2.status, c2.scheduled_at, c2.rd_id
+        FROM dietbyrd_consultations c2
+        JOIN dietbyrd_registered_patients rp ON rp.id = c2.registered_patient_id
+        WHERE rp.patient_id = p.id
+        ORDER BY c2.scheduled_at DESC NULLS LAST, c2.created_at DESC
         LIMIT 1
       ) c ON true
       LEFT JOIN dietbyrd_registered_dietitians rd ON rd.id = c.rd_id
@@ -7077,17 +7179,18 @@ app.get("/doctor/me/patients", async (req, res) => {
         p.improvement_updated_at,
         p.phone                       AS phone,
         r.referred_at                 AS referral_date,
-        COALESCE(c.status, 'pending') AS consultation_status,
+        COALESCE(c.status::text, 'pending') AS consultation_status,
         (CASE WHEN pay.id IS NOT NULL THEN 'paid' ELSE 'unpaid' END)::text AS payment_status,
         c.scheduled_at                AS next_consultation_at,
         rd.name                       AS assigned_dietitian_name
       FROM dietbyrd_referrals r
       JOIN dietbyrd_patients p ON p.id = r.patient_id
       LEFT JOIN LATERAL (
-        SELECT id, status, scheduled_at, rd_id
-        FROM dietbyrd_consultations
-        WHERE registered_patient_id = p.id
-        ORDER BY scheduled_at DESC NULLS LAST, created_at DESC
+        SELECT c2.id, c2.status, c2.scheduled_at, c2.rd_id
+        FROM dietbyrd_consultations c2
+        JOIN dietbyrd_registered_patients rp ON rp.id = c2.registered_patient_id
+        WHERE rp.patient_id = p.id
+        ORDER BY c2.scheduled_at DESC NULLS LAST, c2.created_at DESC
         LIMIT 1
       ) c ON true
       LEFT JOIN dietbyrd_registered_dietitians rd ON rd.id = c.rd_id
@@ -7285,18 +7388,24 @@ app.get("/api/support/patients", async (req, res) => {
       u.phone,
       u.email,
       p.gender,
+      p.age,
       p.state,
       u.is_active,
       p.created_at,
+      rp.diagnosis,
+      rp.diagnosis_description,
+      rp.dietary_preference,
+      rp.referred_by AS "referredBy",
       (SELECT COUNT(*)
        FROM dietbyrd_consultations c
        JOIN dietbyrd_registered_patients rp2 ON rp2.id = c.registered_patient_id
        WHERE rp2.patient_id = p.id) as appointment_count
        FROM dietbyrd_patients p
        JOIN dietbyrd_users u ON u.id = p.user_id
+       LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id AND rp.is_active = true
        ${whereSql}
        ORDER BY p.created_at DESC
-       LIMIT $${limitParam} OFFSET $${offsetParam} `,
+       LIMIT $${limitParam} OFFSET $${offsetParam}`,
       listParams
     );
 
@@ -8332,21 +8441,21 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
 const ensureTicketNumberSequence = async () => {
   try {
     await query(`CREATE SEQUENCE IF NOT EXISTS dietbyrd_tickets_seq`);
-    
+
     const maxRes = await query(`SELECT COALESCE(MAX(id), 0) AS max_id FROM dietbyrd_tickets`);
     const maxId = parseInt(maxRes.rows[0].max_id);
-    
+
     if (maxId > 0) {
       const seqRes = await query(`SELECT last_value, is_called FROM dietbyrd_tickets_seq`);
       const lastValue = parseInt(seqRes.rows[0].last_value);
       const isCalled = seqRes.rows[0].is_called;
       const nextValWillBe = isCalled ? lastValue + 1 : lastValue;
-      
+
       if (nextValWillBe <= maxId) {
         await query(`SELECT setval('dietbyrd_tickets_seq', $1, false)`, [maxId + 1]);
       }
     }
-    
+
     await query(`
       CREATE OR REPLACE FUNCTION generate_ticket_number()
       RETURNS VARCHAR(20) AS $$
@@ -8887,8 +8996,8 @@ const updatePatientImprovementScoreHandler = async (req, res) => {
       return res.status(401).json({ error: auth.error });
     }
 
-    if (auth.role !== "rd") {
-      return res.status(403).json({ error: "Only dietitians can update improvement scores" });
+    if (auth.role !== "rd" && auth.role !== "doctor") {
+      return res.status(403).json({ error: "Only dietitians and doctors can update improvement scores" });
     }
 
     const { patientId } = req.params;
@@ -8951,3 +9060,4 @@ app.use((_req, res) => {
 });
 
 export default app;
+

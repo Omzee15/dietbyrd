@@ -439,10 +439,10 @@ export const approveJoinRequest = (id: number, reviewedBy?: number, adminMessage
     body: JSON.stringify({ action: "approve", reviewed_by: reviewedBy, admin_message: adminMessage, commission_rate: commissionRate }),
   });
 
-export const rejectJoinRequest = (id: number, reviewedBy?: number, reason?: string, adminMessage?: string) =>
-  request<{ message: string }>(`/join-requests/${id}`, {
+export const rejectJoinRequest = (id: number, reviewedBy?: number, reason?: string, adminMessage?: string, delivery?: "email_first" | "email_only" | "whatsapp_only" | "both") =>
+  request<any>(`/join-requests/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ action: "reject", reviewed_by: reviewedBy, rejection_reason: reason, admin_message: adminMessage }),
+    body: JSON.stringify({ action: "reject", reviewed_by: reviewedBy, rejection_reason: reason, admin_message: adminMessage, delivery }),
   });
 
 export const scheduleInterview = (
@@ -597,6 +597,7 @@ export interface BlockedSlot {
   start_time?: string;
   end_time?: string;
   reason?: string;
+  dietician_name?: string;
 }
 
 export const getDieticianBlockedSlots = (dieticianId: number, startDate?: string, endDate?: string) => {
@@ -604,6 +605,13 @@ export const getDieticianBlockedSlots = (dieticianId: number, startDate?: string
   if (startDate) params.set("start_date", startDate);
   if (endDate) params.set("end_date", endDate);
   return request<BlockedSlot[]>(`/dieticians/${dieticianId}/blocked-slots?${params.toString()}`);
+};
+
+export const getAllDieticianBlockedSlots = (startDate?: string, endDate?: string) => {
+  const params = new URLSearchParams();
+  if (startDate) params.set("start_date", startDate);
+  if (endDate) params.set("end_date", endDate);
+  return request<BlockedSlot[]>(`/all-dietician-blocked-slots?${params.toString()}`);
 };
 
 export const addBlockedSlot = (

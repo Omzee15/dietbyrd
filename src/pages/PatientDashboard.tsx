@@ -366,7 +366,6 @@ const PatientDashboard = () => {
     onError: (error: Error) => {
       // Check if it's a payment required error
       if (error.message.includes("No consultations left") || error.message.includes("consultation package")) {
-        toast.error("No consultations left. Please purchase a package to book an appointment.");
         setIsBookingModalOpen(false);
         setIsPaymentModalOpen(true);
       } else {
@@ -440,7 +439,6 @@ const PatientDashboard = () => {
     // Check if patient has consultations left
     const consultationsLeft = (patient as any)?.consultations_left ?? 0;
     if (consultationsLeft <= 0) {
-      toast.error("No consultations left. Please purchase a package first.");
       setIsBookingModalOpen(false);
       setIsPaymentModalOpen(true);
       return;
@@ -512,10 +510,19 @@ const PatientDashboard = () => {
               razorpay_signature: response.razorpay_signature,
             });
 
-            toast.success(`Payment successful! ${pkg.num_consultations} consultation(s) added.`);
             queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
             setIsPaymentModalOpen(false);
             setIsPaymentProcessing(false);
+
+            // Automatically book the appointment if a slot was selected
+            if (selectedSlot) {
+              bookAppointmentMutation.mutate({
+                scheduled_at: selectedSlot.datetime,
+                patient_notes: appointmentNotes || undefined,
+              });
+            } else {
+              toast.success(`Payment successful! ${pkg.num_consultations} consultation(s) added.`);
+            }
           } catch (err: any) {
             toast.error(err.message || "Payment verification failed");
             setIsPaymentProcessing(false);
@@ -1390,14 +1397,18 @@ const PatientDashboard = () => {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
                     <Stethoscope className="w-4 h-4" />
-                    Consultations Left
+                    Total Sessions Left
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-primary">
-                    {(patient as any)?.consultations_left ?? 0}
+                  <div className="flex items-baseline gap-2">
+                    <div className="text-2xl font-bold text-primary">
+                      {((patient as any)?.consultations_left ?? 0) + upcomingAppointments.length}
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">Available sessions</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {(patient as any)?.consultations_left ?? 0} available to book
+                  </p>
                 </CardContent>
               </Card>
             </div>
@@ -2384,7 +2395,7 @@ const PatientDashboard = () => {
                 className={`p-4 border rounded-lg cursor-pointer transition-all hover:border-primary/50 ${
                   selectedPackage?.id === pkg.id ? "border-primary ring-2 ring-primary/20" : ""
                 }`}
-                onClick={() => setSelectedPackage(pkg)}
+                onClick={() => handlePayment(pkg)}
               >
                 <div className="flex items-center justify-between">
                   <div>

@@ -20,6 +20,7 @@ import Terms from "./pages/legal/Terms";
 import Refund from "./pages/legal/Refund";
 import Cancellation from "./pages/legal/Cancellation";
 import Reviews from "./pages/Reviews";
+import ContactUs from "./pages/ContactUs";
 
 // Doctor Pages
 import DoctorDashboard from "./pages/DoctorDashboard";
@@ -92,6 +93,7 @@ const App = () => (
             <Route path="/refund" element={<Refund />} />
             <Route path="/cancellation" element={<Cancellation />} />
             <Route path="/reviews" element={<Reviews />} />
+            <Route path="/contact" element={<ContactUs />} />
             <Route path="/pay" element={<Pay />} />
 
             {/* Doctor routes - doctors and their assistants */}

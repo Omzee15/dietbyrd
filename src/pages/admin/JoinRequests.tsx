@@ -81,7 +81,7 @@ const JoinRequests = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, logout } = useAuth();
-  
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("pending");
   const [locationFilter, setLocationFilter] = useState<string>("All Locations");
@@ -94,6 +94,7 @@ const JoinRequests = () => {
   const [interviewRequest, setInterviewRequest] = useState<JoinRequest | null>(null);
   const [interviewMessage, setInterviewMessage] = useState("");
   const [interviewDelivery, setInterviewDelivery] = useState<"email_first" | "email_only" | "whatsapp_only" | "both">("email_first");
+  const [rejectDelivery, setRejectDelivery] = useState<"email_first" | "email_only" | "whatsapp_only" | "both">("email_first");
   const [rejectionReason, setRejectionReason] = useState("");
   const [adminMessage, setAdminMessage] = useState("");
   const [commissionRate, setCommissionRate] = useState("");
@@ -140,11 +141,24 @@ const JoinRequests = () => {
 
   // Reject mutation
   const rejectMutation = useMutation({
-    mutationFn: ({ id, reason, message }: { id: number; reason?: string; message?: string }) =>
-      rejectJoinRequest(id, user?.id, reason, message),
-    onSuccess: () => {
+    mutationFn: ({ id, reason, message, delivery }: { id: number; reason?: string; message?: string; delivery: "email_first" | "email_only" | "whatsapp_only" | "both" }) =>
+      rejectJoinRequest(id, user?.id, reason, message, delivery),
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["join-requests"] });
-      toast.success("Request rejected");
+
+      const emailSent = data?.email?.sent;
+      const whatsappSent = data?.whatsapp?.sent;
+
+      if (emailSent && whatsappSent) {
+        toast.success("Request rejected and notification sent via email and WhatsApp.");
+      } else if (emailSent) {
+        toast.success("Request rejected and notification emailed.");
+      } else if (whatsappSent) {
+        toast.success("Request rejected and notification sent via WhatsApp.");
+      } else {
+        toast.success("Request rejected.");
+      }
+
       setShowRejectDialog(false);
       setSelectedRequest(null);
       setRejectionReason("");
@@ -199,7 +213,12 @@ const JoinRequests = () => {
 
   const handleReject = () => {
     if (selectedRequest) {
-      rejectMutation.mutate({ id: selectedRequest.id, reason: rejectionReason || undefined, message: adminMessage || undefined });
+      rejectMutation.mutate({
+        id: selectedRequest.id,
+        reason: rejectionReason,
+        message: adminMessage,
+        delivery: rejectDelivery,
+      });
     }
   };
 
@@ -212,7 +231,9 @@ const JoinRequests = () => {
 
   const openRejectDialog = (request: JoinRequest) => {
     setSelectedRequest(request);
+    setRejectionReason("");
     setAdminMessage("");
+    setRejectDelivery(request.applicant_email ? "email_first" : "whatsapp_only");
     setShowRejectDialog(true);
   };
 
@@ -444,8 +465,8 @@ const JoinRequests = () => {
               <UserPlus className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
               <h3 className="text-lg font-medium">No requests found</h3>
               <p className="text-muted-foreground text-sm mt-1">
-                {statusFilter === "pending" 
-                  ? "No pending requests at the moment" 
+                {statusFilter === "pending"
+                  ? "No pending requests at the moment"
                   : "No requests match your criteria"}
               </p>
             </div>
@@ -458,17 +479,16 @@ const JoinRequests = () => {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                        request.requested_role === "doctor" ? "bg-blue-50" : "bg-emerald-50"
-                      }`}>
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${request.requested_role === "doctor" ? "bg-blue-50" : "bg-emerald-50"
+                        }`}>
                         {getRoleIcon(request.requested_role)}
                       </div>
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="font-semibold">{request.name}</h3>
                           <Badge variant="outline" className={
-                            request.requested_role === "doctor" 
-                              ? "bg-blue-50 text-blue-700 border-blue-200" 
+                            request.requested_role === "doctor"
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
                               : "bg-emerald-50 text-emerald-700 border-emerald-200"
                           }>
                             {request.requested_role === "doctor" ? "Doctor" : "Dietician"}
@@ -719,10 +739,10 @@ const JoinRequests = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="email_first">Email first (fallback WhatsApp)</SelectItem>
-                  <SelectItem value="email_only">Email only</SelectItem>
+                  <SelectItem value="email_first" disabled={!interviewRequest?.applicant_email}>Email first (fallback WhatsApp)</SelectItem>
+                  <SelectItem value="email_only" disabled={!interviewRequest?.applicant_email}>Email only</SelectItem>
                   <SelectItem value="whatsapp_only">WhatsApp only</SelectItem>
-                  <SelectItem value="both">Email + WhatsApp</SelectItem>
+                  <SelectItem value="both" disabled={!interviewRequest?.applicant_email}>Email + WhatsApp</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
@@ -863,6 +883,25 @@ const JoinRequests = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-2 block">Delivery method</label>
+              <Select value={rejectDelivery} onValueChange={(value) => setRejectDelivery(value as typeof rejectDelivery)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="email_first" disabled={!selectedRequest?.applicant_email}>Email first (fallback WhatsApp)</SelectItem>
+                  <SelectItem value="email_only" disabled={!selectedRequest?.applicant_email}>Email only</SelectItem>
+                  <SelectItem value="whatsapp_only">WhatsApp only</SelectItem>
+                  <SelectItem value="both" disabled={!selectedRequest?.applicant_email}>Email + WhatsApp</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {selectedRequest?.applicant_email
+                  ? `Email will be sent to ${selectedRequest.applicant_email}.`
+                  : "No registered email found - WhatsApp delivery is recommended."}
+              </p>
+            </div>
             <div>
               <label className="text-sm font-medium text-slate-700 mb-2 block">
                 Reason for rejection (optional)

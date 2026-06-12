@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "react-router-dom";
-import { LucideIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { LucideIcon, ChevronLeft, ChevronRight, ChevronUp, LifeBuoy, Mail, Phone } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface NavItem {
   label: string;
@@ -97,11 +102,40 @@ const AppSidebar = ({ title, subtitle, sections, bottomContent }: AppSidebarProp
       </nav>
 
       {/* Bottom content */}
-      {bottomContent && (
-        <div className={`px-3 py-4 border-t border-sidebar-border ${collapsed ? 'flex flex-col items-center gap-2' : ''}`}>
+      <div className={`px-3 py-4 border-t border-sidebar-border ${collapsed ? 'flex flex-col items-center gap-2' : ''}`}>
+        <div className="space-y-1 w-full">
+          {!collapsed ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] font-medium text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-150">
+                  <div className="flex items-center gap-3">
+                    <LifeBuoy className="w-[18px] h-[18px] shrink-0" />
+                    <span>Contact Support</span>
+                  </div>
+                  <ChevronUp className="w-4 h-4 text-sidebar-foreground/50" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start" className="w-56 mb-2 border-sidebar-accent/20 bg-sidebar shadow-lg rounded-xl">
+                <div className="flex flex-col gap-1 p-1">
+                  <a href="mailto:doctor@dietbyrd.com" className="flex items-center gap-3 px-2 py-2.5 text-[13px] font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary-foreground rounded-lg transition-colors">
+                    <Mail className="w-[16px] h-[16px] text-sidebar-foreground/70" />
+                    <span>doctor@dietbyrd.com</span>
+                  </a>
+                  <a href="tel:+918000000000" className="flex items-center gap-3 px-2 py-2.5 text-[13px] font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary-foreground rounded-lg transition-colors">
+                    <Phone className="w-[16px] h-[16px] text-sidebar-foreground/70" />
+                    <span>+91 80000 00000</span>
+                  </a>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <button title="Contact Support" className="w-full flex items-center justify-center p-2 rounded-xl text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-150">
+              <LifeBuoy className="w-[18px] h-[18px] shrink-0" />
+            </button>
+          )}
           {bottomContent}
         </div>
-      )}
+      </div>
     </aside>
   );
 };

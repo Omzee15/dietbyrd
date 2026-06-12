@@ -67,6 +67,15 @@ const PatientProfile = () => {
     email: "",
     age: 0,
     gender: "",
+    address: "",
+  });
+
+  // Edit state for health info
+  const [isEditingHealth, setIsEditingHealth] = useState(false);
+  const [healthDetails, setHealthDetails] = useState({
+    diagnosis: "",
+    dietary_preference: "",
+    allergies: "",
   });
 
   const { data: patient, isLoading } = useQuery({
@@ -122,7 +131,7 @@ const PatientProfile = () => {
 
   // Update patient mutation — personal info
   const updatePersonalMutation = useMutation({
-    mutationFn: (data: { name?: string; email?: string | null; age?: number; gender?: string }) =>
+    mutationFn: (data: { name?: string; email?: string | null; age?: number; gender?: string; address?: string }) =>
       updatePatient(user!.profileId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
@@ -131,6 +140,20 @@ const PatientProfile = () => {
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to update personal information");
+    },
+  });
+
+  // Update patient mutation - health info
+  const updateHealthMutation = useMutation({
+    mutationFn: (data: { diagnosis?: string; dietary_preference?: string; allergies?: string }) =>
+      updatePatient(user!.profileId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
+      toast.success("Health information updated successfully!");
+      setIsEditingHealth(false);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update health information");
     },
   });
 
@@ -185,9 +208,6 @@ const PatientProfile = () => {
       age: patient?.age ? String(patient.age) : "",
       height: (patient as any)?.height ? String((patient as any).height) : "",
       weight: (patient as any)?.weight ? String((patient as any).weight) : "",
-      allergies: Array.isArray(patient?.allergies)
-        ? patient.allergies.join(", ")
-        : (patient?.allergies || ""),
     });
     setBodyErrors({});
     setIsEditingBody(true);
@@ -197,11 +217,29 @@ const PatientProfile = () => {
     const nextErrors = validateBodyDetails();
     setBodyErrors(nextErrors);
     if (Object.values(nextErrors).some(Boolean)) return;
-    const trimmedAllergies = bodyDetails.allergies.trim();
     updatePatientMutation.mutate({
       age: bodyDetails.age ? parseInt(bodyDetails.age, 10) : undefined,
       height: bodyDetails.height ? parseFloat(bodyDetails.height) : undefined,
       weight: bodyDetails.weight ? parseFloat(bodyDetails.weight) : undefined,
+    });
+  };
+
+  const handleEditHealth = () => {
+    setHealthDetails({
+      diagnosis: patient?.diagnosis || "",
+      dietary_preference: (patient as any)?.dietary_preference || "",
+      allergies: Array.isArray(patient?.allergies)
+        ? patient.allergies.join(", ")
+        : (patient?.allergies || ""),
+    });
+    setIsEditingHealth(true);
+  };
+
+  const handleSaveHealth = () => {
+    const trimmedAllergies = healthDetails.allergies.trim();
+    updateHealthMutation.mutate({
+      diagnosis: healthDetails.diagnosis.trim() || undefined,
+      dietary_preference: healthDetails.dietary_preference.trim() || undefined,
       allergies: trimmedAllergies ? trimmedAllergies : undefined,
     });
   };
@@ -212,6 +250,7 @@ const PatientProfile = () => {
       email: patient?.email || "",
       age: patient?.age || 0,
       gender: patient?.gender || "",
+      address: (patient as any)?.address || "",
     });
     setIsEditingPersonal(true);
   };
@@ -230,6 +269,7 @@ const PatientProfile = () => {
       email: personalDetails.email.trim() || null,
       age: personalDetails.age || undefined,
       gender: personalDetails.gender || undefined,
+      address: personalDetails.address.trim() || undefined,
     });
   };
 
@@ -507,15 +547,28 @@ const PatientProfile = () => {
                     )}
                   </div>
 
-                  {/* Address - read-only (no DB column) */}
+                  {/* Address */}
                   <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
-                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center shrink-0">
                       <MapPin className="w-5 h-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Address</p>
-                      <p className="font-semibold">{(patient as any).address || "Not provided"}</p>
-                    </div>
+                    {isEditingPersonal ? (
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Address</p>
+                        <Input
+                          type="text"
+                          value={personalDetails.address}
+                          onChange={(e) => setPersonalDetails({ ...personalDetails, address: e.target.value })}
+                          placeholder="Your address"
+                          className="h-8"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Address</p>
+                        <p className="font-semibold">{(patient as any).address || "Not provided"}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -674,25 +727,6 @@ const PatientProfile = () => {
                     )}
                   </div>
                 </div>
-                {isEditingBody && (
-                  <div className="mt-4 p-4 bg-muted/50 rounded-xl">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
-                      Allergies (optional)
-                    </p>
-                    <Textarea
-                      value={bodyDetails.allergies}
-                      onChange={(e) =>
-                        setBodyDetails((prev) => ({ ...prev, allergies: e.target.value }))
-                      }
-                      maxLength={500}
-                      placeholder="e.g., Peanuts, shellfish, lactose intolerance"
-                      className="min-h-[92px]"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {bodyDetails.allergies.length}/500
-                    </p>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
@@ -773,31 +807,108 @@ const PatientProfile = () => {
             {/* Health Information */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Heart className="w-5 h-5" />
-                  Health Information
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Heart className="w-5 h-5" />
+                    Health Information
+                  </CardTitle>
+                  {!isEditingHealth ? (
+                    <Button variant="ghost" size="sm" onClick={handleEditHealth}>
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsEditingHealth(false)}
+                        disabled={updateHealthMutation.isPending}
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveHealth}
+                        disabled={updateHealthMutation.isPending}
+                      >
+                        {updateHealthMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4 mr-2" />
+                        )}
+                        Save
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
-                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center shrink-0">
                       <FileText className="w-5 h-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Diagnosis</p>
-                      <p className="font-semibold capitalize">{patient.diagnosis || "General wellness"}</p>
-                    </div>
+                    {isEditingHealth ? (
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Diagnosis</p>
+                        <Select
+                          value={healthDetails.diagnosis}
+                          onValueChange={(value) => setHealthDetails({ ...healthDetails, diagnosis: value })}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue placeholder="Select diagnosis" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="diabetes">Diabetes</SelectItem>
+                            <SelectItem value="hypertension">Hypertension</SelectItem>
+                            <SelectItem value="obesity">Obesity</SelectItem>
+                            <SelectItem value="pcos">PCOS</SelectItem>
+                            <SelectItem value="thyroid">Thyroid</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Diagnosis</p>
+                        <p className="font-semibold capitalize">{patient.diagnosis || "General wellness"}</p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
-                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center shrink-0">
                       <UtensilsCrossed className="w-5 h-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Dietary Preference</p>
-                      <p className="font-semibold capitalize">{patient.dietary_preference || "Not specified"}</p>
-                    </div>
+                    {isEditingHealth ? (
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Dietary Preference</p>
+                        <Select
+                          value={healthDetails.dietary_preference}
+                          onValueChange={(value) => setHealthDetails({ ...healthDetails, dietary_preference: value })}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue placeholder="Select preference" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="vegetarian">Vegetarian</SelectItem>
+                            <SelectItem value="vegan">Vegan</SelectItem>
+                            <SelectItem value="non-vegetarian">Non-Vegetarian</SelectItem>
+                            <SelectItem value="eggetarian">Eggetarian</SelectItem>
+                            <SelectItem value="pescatarian">Pescatarian</SelectItem>
+                            <SelectItem value="jain">Jain</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Dietary Preference</p>
+                        <p className="font-semibold capitalize">{(patient as any).dietary_preference || "Not specified"}</p>
+                      </div>
+                    )}
                   </div>
 
                   {latestWeight && (
@@ -839,7 +950,25 @@ const PatientProfile = () => {
                   </>
                 )}
 
-                {patient.allergies && (
+                {isEditingHealth ? (
+                  <div className="mt-4 p-4 bg-muted/50 rounded-xl">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+                      Allergies (optional)
+                    </p>
+                    <Textarea
+                      value={healthDetails.allergies}
+                      onChange={(e) =>
+                        setHealthDetails({ ...healthDetails, allergies: e.target.value })
+                      }
+                      maxLength={500}
+                      placeholder="e.g., Peanuts, shellfish, lactose intolerance"
+                      className="min-h-[92px]"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {healthDetails.allergies.length}/500
+                    </p>
+                  </div>
+                ) : patient.allergies ? (
                   <div className="p-4 bg-red-50 dark:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-900">
                     <p className="text-xs text-red-600 dark:text-red-400 uppercase tracking-wider mb-2">Allergies</p>
                     <p className="text-sm font-medium text-red-700 dark:text-red-300">
@@ -848,7 +977,7 @@ const PatientProfile = () => {
                         : patient.allergies}
                     </p>
                   </div>
-                )}
+                ) : null}
               </CardContent>
             </Card>
 

@@ -176,9 +176,9 @@ const JoinForm = () => {
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-bold text-xl text-primary">
-            <Heart className="w-6 h-6 fill-primary" />
-            DietByRD
+          <Link to="/" className="flex items-center" style={{ fontFamily: "'Playfair Display', serif", fontSize: "22px", fontWeight: 700, letterSpacing: "-0.3px" }}>
+            <span style={{ color: "#0A1628" }}>Diet By </span>
+            <span style={{ color: "#C9952A" }}>&nbsp;RD</span>
           </Link>
           <Link to="/login">
             <Button variant="ghost">

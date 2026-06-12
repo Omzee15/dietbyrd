@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Search, Plus, Upload, X } from 'lucide-react';
@@ -279,6 +280,7 @@ export const FoodLibrary: React.FC<FoodLibraryProps> = ({ onBack }) => {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingFood?.id ? 'Edit Food' : 'Add New Food'}</DialogTitle>
+            <DialogDescription className="hidden">Details for editing or adding a food item.</DialogDescription>
           </DialogHeader>
           {editingFood && (
             <form onSubmit={handleSaveFood} className="space-y-6">
@@ -406,6 +408,7 @@ export const FoodLibrary: React.FC<FoodLibraryProps> = ({ onBack }) => {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Import Foods from CSV</DialogTitle>
+            <DialogDescription className="hidden">Paste CSV content to import food items.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-slate-500">

@@ -1998,7 +1998,7 @@ const CreateDiet = () => {
       </main>
 
       {/* Floating Action Buttons - Bottom Right (FitArc style) */}
-      <div className="fixed bottom-8 right-8 flex flex-col gap-3 z-50">
+      <div className="fixed bottom-8 right-[320px] flex flex-col gap-3 z-50">
         <Button
           onClick={() => setPdfModalOpen(true)}
           className="shadow-xl bg-primary hover:bg-primary/90 px-6 py-4 rounded-full"

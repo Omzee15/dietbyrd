@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, MessageSquare, LogOut, Plus, Search, Eye, X, Send, UserCheck, Check, ChevronsUpDown } from "lucide-react";
+import { Users, MessageSquare, LogOut, Plus, Search, Eye, X, Send, UserCheck, Check, ChevronsUpDown, ArrowLeft } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,10 +32,15 @@ interface Patient {
   phone: string;
   email: string;
   gender: string;
+  age?: number;
   state: string;
   is_active: boolean;
   created_at: string;
   appointment_count: number;
+  diagnosis?: string;
+  diagnosis_description?: string;
+  dietary_preference?: string;
+  referredBy?: string;
 }
 
 interface Dietician {
@@ -127,6 +132,7 @@ const SupportDashboard = () => {
   const [patientPickerOpen, setPatientPickerOpen] = useState(false);
   const [patientSearch, setPatientSearch] = useState("");
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [selectedPatientDetail, setSelectedPatientDetail] = useState<Patient | null>(null);
   const [newComment, setNewComment] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [ticketForm, setTicketForm] = useState({
@@ -478,7 +484,7 @@ const SupportDashboard = () => {
         <div className="flex flex-1 overflow-hidden">
           {/* Left: ticket list + tabs */}
           <div className={`flex flex-col overflow-hidden transition-all duration-200 ${selectedTicketId ? "w-[45%] border-r" : "w-full"}`}>
-            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedTicketId(null); }} className="flex flex-col flex-1 overflow-hidden">
+            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedTicketId(null); setSelectedPatientDetail(null); }} className="flex flex-col flex-1 overflow-hidden">
               <div className="px-6 pt-4 shrink-0">
                 <TabsList>
                   <TabsTrigger value="tickets">Tickets</TabsTrigger>
@@ -568,56 +574,107 @@ const SupportDashboard = () => {
               </TabsContent>
 
               <TabsContent value="patients" className="flex-1 overflow-y-auto px-6 pb-4 mt-0">
-                <div className="mb-3">
-                  <Input placeholder="Search patients…" value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)} />
-                </div>
-                {patientsError ? (
-                  <div className="p-4 border border-red-200 bg-red-50 rounded-lg text-sm text-red-600">
-                    Failed to load patients: {patientsErrorObj instanceof Error ? patientsErrorObj.message : "Unknown error"}
+                {selectedPatientDetail ? (
+                  <div className="py-2">
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedPatientDetail(null)} className="mb-4 gap-1">
+                      <ArrowLeft className="w-4 h-4" /> Back
+                    </Button>
+                    <div className="bg-card rounded-xl border p-6 space-y-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary">
+                            {(selectedPatientDetail.name || "?").split(" ").map((n) => n[0]).join("")}
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-bold">{selectedPatientDetail.name || "Unknown"}</h2>
+                            <div className="text-sm text-muted-foreground">
+                              {selectedPatientDetail.age ? `${selectedPatientDetail.age} yrs · ` : ""}{selectedPatientDetail.gender || "Unknown"} · {selectedPatientDetail.phone}
+                            </div>
+                            <Badge variant="outline" className={`mt-1 ${selectedPatientDetail.is_active ? "bg-success/10 text-success border-success/20" : "bg-warning/10 text-warning border-warning/20"}`}>
+                              {selectedPatientDetail.is_active ? "Active" : "Inactive"}
+                            </Badge>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedPatientDetail(null)}><X className="w-4 h-4" /></Button>
+                      </div>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        {[
+                          { label: "Diagnosis", value: selectedPatientDetail.diagnosis || "Not specified" },
+                          { label: "Referred By", value: selectedPatientDetail.referredBy || "Direct" },
+                          { label: "Created", value: new Date(selectedPatientDetail.created_at).toLocaleDateString() },
+                          { label: "Diet Preference", value: selectedPatientDetail.dietary_preference || "Not set" },
+                        ].map((item) => (
+                          <div key={item.label} className="bg-muted/50 rounded-xl p-4">
+                            <div className="text-xs text-muted-foreground uppercase tracking-wider">{item.label}</div>
+                            <div className="font-semibold mt-1 capitalize">{item.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {selectedPatientDetail.diagnosis_description && (
+                        <div>
+                          <div className="text-sm font-semibold mb-2">Diagnosis Details</div>
+                          <div className="bg-muted/50 rounded-xl p-4 text-sm text-muted-foreground">{selectedPatientDetail.diagnosis_description}</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-2">
-                      {(patientsData || [])
-                        .filter(p => !searchQuery || p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.phone.includes(searchQuery))
-                        .map(patient => (
-                          <div key={patient.id} className="p-3 border rounded-lg flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-sm">{patient.name || "—"}</p>
-                              <p className="text-xs text-muted-foreground">{patient.phone} · {patient.state || "—"}</p>
-                            </div>
-                            <div className="text-right">
-                              <Badge variant={patient.is_active ? "default" : "secondary"} className="text-[10px]">
-                                {patient.is_active ? "Active" : "Inactive"}
-                              </Badge>
-                              <p className="text-xs text-muted-foreground mt-1">{patient.appointment_count} appts</p>
-                            </div>
-                          </div>
-                        ))}
+                    <div className="mb-3">
+                      <Input placeholder="Search patients…" value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)} />
                     </div>
-                    {patientsPagination && patientsPagination.total_pages > 1 && (
-                      <div className="flex items-center justify-between mt-4">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setPatientPage((prev) => Math.max(1, prev - 1))}
-                          disabled={patientPage <= 1}
-                        >
-                          Previous
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                          Page {patientsPagination.page} of {patientsPagination.total_pages}
-                        </p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setPatientPage((prev) => prev + 1)}
-                          disabled={!patientsPagination.has_more}
-                        >
-                          Next
-                        </Button>
+                    {patientsError ? (
+                      <div className="p-4 border border-red-200 bg-red-50 rounded-lg text-sm text-red-600">
+                        Failed to load patients: {patientsErrorObj instanceof Error ? patientsErrorObj.message : "Unknown error"}
                       </div>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          {(patientsData || [])
+                            .filter(p => !searchQuery || p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.phone.includes(searchQuery))
+                            .map(patient => (
+                              <div key={patient.id} className="p-3 border rounded-lg flex items-center justify-between">
+                                <div>
+                                  <p className="font-medium text-sm">{patient.name || "—"}</p>
+                                  <p className="text-xs text-muted-foreground">{patient.phone} · {patient.state || "—"}</p>
+                                </div>
+                                <div className="text-right flex flex-col items-end gap-1.5">
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant={patient.is_active ? "default" : "secondary"} className="text-[10px]">
+                                      {patient.is_active ? "Active" : "Inactive"}
+                                    </Badge>
+                                    <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={() => setSelectedPatientDetail(patient)}>View</Button>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">{patient.appointment_count} appts</p>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                        {patientsPagination && patientsPagination.total_pages > 1 && (
+                          <div className="flex items-center justify-between mt-4">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setPatientPage((prev) => Math.max(1, prev - 1))}
+                              disabled={patientPage <= 1}
+                            >
+                              Previous
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                              Page {patientsPagination.page} of {patientsPagination.total_pages}
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setPatientPage((prev) => prev + 1)}
+                              disabled={!patientsPagination.has_more}
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </>
                 )}
