@@ -1042,8 +1042,7 @@ const Landing = () => {
           <div className="nav-links">
             <Link to="/" className="nav-mid">Home</Link>
             <a href="#approach" className="nav-mid" onClick={scrollTo('approach')}>How It Works</a>
-            <a href="#conditions" className="nav-mid" onClick={scrollTo('conditions')}>Conditions</a>
-            <a href="#about" className="nav-mid" onClick={scrollTo('about')}>About Us</a>
+                        <a href="#about" className="nav-mid" onClick={scrollTo('about')}>About Us</a>
             <Link to="/reviews" className="nav-mid">Reviews</Link>
             <Link to="/contact" className="nav-mid">Contact Us</Link>
             <a href="/privacy" target="_blank" rel="noopener" className="nav-link">Privacy Policy</a>
@@ -1738,8 +1737,7 @@ const Landing = () => {
               <h5>Platform</h5>
               <a href="#" onClick={(e) => { e.preventDefault(); setIsBookingModalOpen(true); }}>Book Consultation</a>
               <a href="#approach" onClick={scrollTo('approach')}>How It Works</a>
-              <a href="#conditions" onClick={scrollTo('conditions')}>Conditions</a>
-            </div>
+                          </div>
             <div className="footer-col">
               <h5>Company</h5>
               <a href="#rd-section" onClick={scrollTo('rd-section')}>Why RD?</a>
@@ -1794,4 +1792,5 @@ const Landing = () => {
 };
 
 export default Landing;
+
 

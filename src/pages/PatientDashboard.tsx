@@ -28,11 +28,13 @@ import {
   Save,
   Scale,
   Stethoscope,
+  Star,
   Target,
   User,
   UserCheck,
   Users,
   UtensilsCrossed,
+  Video,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -1890,6 +1892,17 @@ const PatientDashboard = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          {appointment.status === "scheduled" && appointment.meeting_link && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              onClick={() => window.open(appointment.meeting_link, "_blank")}
+                            >
+                              <Video className="w-4 h-4 mr-2" />
+                              Join
+                            </Button>
+                          )}
                           <Badge variant="outline" className="capitalize">
                             {appointment.status}
                           </Badge>

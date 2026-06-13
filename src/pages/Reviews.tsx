@@ -92,7 +92,7 @@ const Reviews = () => {
           </Badge>
           <h1 className="text-3xl font-bold tracking-tight">Honest Reviews</h1>
           <p className="mt-2 max-w-2xl text-muted-foreground">
-            Only onboarded patients with a completed paid consultation can submit a review. Published reviews never show patient names.
+            Only paid patients can submit a review. Published reviews never show patient names.
           </p>
         </section>
 
@@ -110,7 +110,7 @@ const Reviews = () => {
               </div>
             ) : !eligibility?.eligible ? (
               <div className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
-                {eligibility?.reason || "Reviews open after your first completed paid consultation."}
+                {eligibility?.reason || "Only paid patients can submit a review."}
               </div>
             ) : (
               <form

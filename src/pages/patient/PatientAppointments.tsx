@@ -19,6 +19,7 @@ import {
   AlertCircle,
   MessageSquare,
   Tag,
+  Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -648,6 +649,17 @@ const PatientAppointments = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          {appointment.status === "scheduled" && appointment.meeting_link && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              onClick={() => window.open(appointment.meeting_link, "_blank")}
+                            >
+                              <Video className="w-4 h-4 mr-2" />
+                              Join Meeting
+                            </Button>
+                          )}
                           <Badge variant="outline" className="capitalize">
                             {appointment.status}
                           </Badge>
@@ -873,24 +885,29 @@ const PatientAppointments = () => {
                 {/* Available Slots */}
                 {!slotsLoading && availableSlots && (
                   <div className="space-y-4">
-                    {Object.keys(slotsByDate).length === 0 ? (
-                      <div className="text-center py-8">
-                        <CalendarDays className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-30" />
-                        <p className="text-muted-foreground">No available slots this week</p>
-                        <p className="text-sm text-muted-foreground">Try selecting a different week</p>
-                      </div>
-                    ) : (
-                      Object.entries(slotsByDate).map(([date, slots]) => {
-                        const dateObj = new Date(date + "T00:00:00");
-                        return (
-                          <div key={date} className="border rounded-lg p-4">
-                            <p className="font-medium mb-3">
+                    {Array.from({ length: 7 }).map((_, i) => {
+                      const dateObj = new Date(weekDateRange.startDate);
+                      dateObj.setDate(dateObj.getDate() + i);
+                      const dateStr = dateObj.toISOString().split("T")[0];
+                      const slots = slotsByDate[dateStr] || [];
+
+                      return (
+                        <div key={dateStr} className={`border rounded-lg p-4 ${slots.length === 0 ? "bg-muted/30 opacity-70" : ""}`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="font-medium">
                               {dateObj.toLocaleDateString("en-US", {
                                 weekday: "long",
                                 month: "short",
                                 day: "numeric",
                               })}
                             </p>
+                            {slots.length === 0 && (
+                              <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                                Dietitian on Leave / Fully Booked
+                              </span>
+                            )}
+                          </div>
+                          {slots.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
                               {slots.map((slot) => (
                                 <Button
@@ -905,10 +922,15 @@ const PatientAppointments = () => {
                                 </Button>
                               ))}
                             </div>
-                          </div>
-                        );
-                      })
-                    )}
+                          ) : (
+                            <div className="text-sm text-muted-foreground flex items-center gap-2">
+                              <CalendarDays className="w-4 h-4" />
+                              No available slots
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </>

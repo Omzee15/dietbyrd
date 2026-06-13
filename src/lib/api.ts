@@ -296,6 +296,7 @@ export interface Consultation {
   scheduled_at: string;
   patient_name?: string;
   dietician_name?: string;
+  meeting_link?: string;
 }
 
 export const getConsultations = (filters?: { rd_id?: number; patient_id?: number; status?: string }) => {
@@ -305,6 +306,12 @@ export const getConsultations = (filters?: { rd_id?: number; patient_id?: number
   if (filters?.status) params.set("status", filters.status);
   return request<Consultation[]>(`/consultations?${params.toString()}`);
 };
+
+export const updateMeetingLink = (rdId: number, consultationId: number, link: string) =>
+  request<Consultation>(`/rd/${rdId}/consultations/${consultationId}/link`, {
+    method: "PUT",
+    body: JSON.stringify({ meeting_link: link }),
+  });
 
 // Consultation preview for payment page
 export const getConsultationPreview = (consultationId: number) =>

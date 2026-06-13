@@ -15,7 +15,7 @@ const Privacy = () => (
       <p>Diet By RD is India's first clinical nutrition platform where every single consultation is exclusively with a Registered Dietitian — a licensed professional whose title is legally protected by the Indian Dietetic Association. We are not a wellness app. We are a clinical service, and we treat your health information with the seriousness that entails.</p>
       <p><strong>Legal Entity:</strong> Diet By RD Private Limited</p>
       <p><strong>Contact:</strong> <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a></p>
-      <p><strong>Grievance Officer:</strong> Aryan Bhagat, Founder — <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a></p>
+      <p><strong>Grievance Officer:</strong> Aryan Bhagat, Founder — <a href="mailto:grievance@dietbyrd.com">grievance@dietbyrd.com</a></p>
       <p>We operate exclusively within India and serve only Indian residents.</p>
 
       <h2>2. The Information We Collect — And Why</h2>
@@ -113,7 +113,7 @@ const Privacy = () => (
       <p>If you have a concern about how we have handled your data — or anything at all about your privacy — contact our Grievance Officer directly:</p>
       <p>Aryan<br />
       Founder, Diet By RD Private Limited<br />
-      Email: <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a></p>
+      Email: <a href="mailto:grievance@dietbyrd.com">grievance@dietbyrd.com</a></p>
       <p><strong>Response commitment:</strong> We will acknowledge your concern within 3 business days and resolve it within 30 days. This is not a legal formality — it is a personal commitment.</p>
 
       <h2>9. Not an Emergency Service</h2>

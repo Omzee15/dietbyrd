@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getDieticianAppointments, updateAppointmentStatus, getDieticianBlockedSlots, addBlockedSlot, removeBlockedSlot, type DieticianAppointment } from "@/lib/api";
+import { getDieticianAppointments, updateAppointmentStatus, updateMeetingLink, getDieticianBlockedSlots, addBlockedSlot, removeBlockedSlot, type DieticianAppointment } from "@/lib/api";
 import { parseIST } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -48,6 +48,7 @@ const DieticianCalendarSchedule = ({
     action: "completed" | "no_show" | "cancelled" | null;
     notes: string;
   }>({ open: false, appointment: null, action: null, notes: "" });
+  const [linkDialog, setLinkDialog] = useState<{ open: boolean; appointment: any | null; link: string }>({ open: false, appointment: null, link: "" });
   const [leaveDialog, setLeaveDialog] = useState(false);
   const [leaveDate, setLeaveDate] = useState("");
   const [leaveReason, setLeaveReason] = useState("");
@@ -72,6 +73,16 @@ const DieticianCalendarSchedule = ({
     onError: (err: Error) => {
       toast.error(err.message);
     },
+  });
+
+  const linkMutation = useMutation({
+    mutationFn: () => updateMeetingLink(dieticianId!, linkDialog.appointment!.id, linkDialog.link),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dietician-appointments"] });
+      toast.success("Meeting link updated successfully");
+      setLinkDialog({ open: false, appointment: null, link: "" });
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const openStatusDialog = (apt: DieticianAppointment, action: "completed" | "no_show" | "cancelled") => {
@@ -455,23 +466,44 @@ const DieticianCalendarSchedule = ({
                                 hour12: true,
                               })}
                             </p>
-                            {apt.status === "scheduled" && isPast && (
-                              <div className="flex gap-1 mt-1">
-                                <button
-                                  onClick={() => openStatusDialog(apt, "completed")}
-                                  className="flex-1 bg-green-500 hover:bg-green-600 text-white rounded text-[9px] py-0.5 font-medium"
-                                >
-                                  Done
-                                </button>
-                                <button
-                                  onClick={() => openStatusDialog(apt, "no_show")}
-                                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-[9px] py-0.5 font-medium"
-                                >
-                                  No-show
-                                </button>
+                            {apt.status === "scheduled" && (
+                              <div className="flex flex-col gap-1 mt-1">
+                                <div className="flex gap-1">
+                                  {(apt as any).meeting_link && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); window.open((apt as any).meeting_link, "_blank"); }}
+                                      className="flex-1 bg-green-500 hover:bg-green-600 text-white rounded text-[9px] py-0.5 font-medium flex items-center justify-center gap-1"
+                                    >
+                                      Join
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setLinkDialog({ open: true, appointment: apt, link: (apt as any).meeting_link || "" }); }}
+                                    className={`${(apt as any).meeting_link ? 'flex-1' : 'w-full'} bg-blue-500 hover:bg-blue-600 text-white rounded text-[9px] py-0.5 font-medium flex items-center justify-center gap-1`}
+                                  >
+                                    <Video className="w-3 h-3" />
+                                    {(apt as any).meeting_link ? "Edit Link" : "Add Link"}
+                                  </button>
+                                </div>
+                                {isPast && (
+                                  <div className="flex gap-1 mt-1">
+                                    <button
+                                      onClick={() => openStatusDialog(apt, "completed")}
+                                      className="flex-1 bg-green-500 hover:bg-green-600 text-white rounded text-[9px] py-0.5 font-medium"
+                                    >
+                                      Done
+                                    </button>
+                                    <button
+                                      onClick={() => openStatusDialog(apt, "no_show")}
+                                      className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-[9px] py-0.5 font-medium"
+                                    >
+                                      No-show
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
-                          </div>
+                        </div>
                         );
                       })}
                     </div>
@@ -562,26 +594,53 @@ const DieticianCalendarSchedule = ({
                           {apt.status.replace("_", " ")}
                         </Badge>
                       </div>
-                      {apt.status === "scheduled" && isPast && (
-                        <div className="flex gap-2">
+                      {apt.status === "scheduled" && (
+                        <div className="flex gap-2 flex-wrap">
+                          {(apt as any).meeting_link && (
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              onClick={() => window.open((apt as any).meeting_link, "_blank")}
+                            >
+                              <Video className="w-4 h-4 mr-1" />
+                              Join Meeting
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-green-600 border-green-300 hover:bg-green-50"
-                            onClick={() => openStatusDialog(apt, "completed")}
+                            className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                            onClick={() => setLinkDialog({ open: true, appointment: apt, link: (apt as any).meeting_link || "" })}
                           >
-                            <CheckCircle className="w-4 h-4 mr-1" />
-                            Complete
+                            <Video className="w-4 h-4 mr-1" />
+                            {(apt as any).meeting_link ? "Edit Link" : "Add Link"}
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-orange-600 border-orange-300 hover:bg-orange-50"
-                            onClick={() => openStatusDialog(apt, "no_show")}
-                          >
-                            <AlertCircle className="w-4 h-4 mr-1" />
-                            No-show
-                          </Button>
+                          {isPast && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-green-600 border-green-300 hover:bg-green-50"
+                                onClick={() => openStatusDialog(apt, "completed")}
+                              >
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Complete
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                                onClick={() => openStatusDialog(apt, "no_show")}
+                              >
+                                <AlertCircle className="w-4 h-4 mr-1" />
+                                No-show
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {apt.status === "scheduled" && !isPast && (
+                        <div className="flex gap-2 mt-2">
                           <Button
                             size="sm"
                             variant="outline"
@@ -606,6 +665,40 @@ const DieticianCalendarSchedule = ({
           </div>
         </>
       )}
+
+      {/* Link Update Dialog */}
+      <Dialog
+        open={linkDialog.open}
+        onOpenChange={(open) => !open && setLinkDialog({ open: false, appointment: null, link: "" })}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Meeting Link</DialogTitle>
+            <DialogDescription>Add a video meeting link for {linkDialog.appointment?.patient_name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Google Meet / Zoom URL</Label>
+              <Input
+                placeholder="https://meet.google.com/..."
+                value={linkDialog.link}
+                onChange={(e) => setLinkDialog({ ...linkDialog, link: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinkDialog({ open: false, appointment: null, link: "" })}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => linkMutation.mutate()} 
+              disabled={linkMutation.isPending}
+            >
+              {linkMutation.isPending ? "Saving..." : "Save Link"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Status update dialog */}
       <Dialog

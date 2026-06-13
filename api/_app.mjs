@@ -33,6 +33,7 @@ if (SENDGRID_API_KEY) {
 
 const getTwilioVerifyService = () => {
   if (!twilioClient || !TWILIO_VERIFY_SERVICE_SID) {
+    
     throw new Error("Twilio OTP is not configured. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID in .env");
   }
 
@@ -2690,7 +2691,7 @@ app.post("/api/join-requests/:id/schedule-interview", async (req, res) => {
 
     const shouldFallbackToWhatsapp =
       shouldSendWhatsapp &&
-      (deliveryMode === "email_first" ? !emailResult.sent : deliveryMode === "both");
+      (deliveryMode === "whatsapp_only" || deliveryMode === "both" || (deliveryMode === "email_first" && !emailResult.sent));
 
     if (shouldFallbackToWhatsapp) {
       if (twilioClient) {
@@ -2951,7 +2952,7 @@ app.patch("/api/join-requests/:id", async (req, res) => {
 
       const shouldFallbackToWhatsapp =
         shouldSendWhatsapp &&
-        (deliveryMode === "email_first" ? !emailResult.sent : deliveryMode === "both");
+        (deliveryMode === "whatsapp_only" || deliveryMode === "both" || (deliveryMode === "email_first" && !emailResult.sent));
 
       if (shouldFallbackToWhatsapp) {
         if (twilioClient) {
@@ -6411,6 +6412,30 @@ app.patch("/api/appointments/:id/status", async (req, res) => {
   }
 });
 
+// Update meeting link for an appointment
+app.put("/api/rd/:rd_id/consultations/:consultation_id/link", async (req, res) => {
+  try {
+    const { rd_id, consultation_id } = req.params;
+    const { meeting_link } = req.body;
+
+    const result = await query(
+      `UPDATE dietbyrd_consultations
+       SET meeting_link = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND rd_id = $3
+       RETURNING *`,
+      [meeting_link || null, consultation_id, rd_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Appointment not found or not assigned to this dietician" });
+    }
+
+    res.json({ success: true, data: result.rows[0], message: "Meeting link updated successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Block time slots for a dietician (for leave, holidays, etc.)
 app.post("/api/dieticians/:id/blocked-slots", async (req, res) => {
   try {
@@ -7915,6 +7940,16 @@ const ensureDoctorCommissionRateColumn = async () => {
   }
 };
 
+// ─── Consultation meeting_link column migration ─────────────────────────────────
+const ensureConsultationMeetingLinkColumn = async () => {
+  try {
+    await query(`ALTER TABLE dietbyrd_consultations ADD COLUMN IF NOT EXISTS meeting_link VARCHAR(500) NULL`);
+    console.log('[migration] consultation meeting_link column ready');
+  } catch (err) {
+    console.error('[migration] consultation meeting_link column error:', err.message);
+  }
+};
+
 // ─── Dietician clinic_address / clinic_name column migration ──────────────────
 const ensureDieticianClinicColumns = async () => {
   try {
@@ -8484,6 +8519,7 @@ const runStartupMaintenance = () => {
       await ensureJoinRequestAboutYourselfColumn();
       await ensureDoctorCommissionRateColumn();
       await ensureDieticianClinicColumns();
+      await ensureConsultationMeetingLinkColumn();
       await ensurePatientDiagnosesColumn();
       await ensureFoodLibraryModulatorColumns();
       await ensureTicketNumberSequence();
@@ -8600,22 +8636,21 @@ const getPatientProfileForUser = async (userId) => {
 };
 
 const hasCompletedPaidConsultation = async (patientProfileId) => {
+  // Check if they have any successful payment
   const result = await query(
-    `SELECT 1
-     FROM dietbyrd_consultations c
-     JOIN dietbyrd_registered_patients rp ON rp.id = c.registered_patient_id
-     WHERE rp.patient_id = $1
-       AND c.status = 'completed'
-       AND EXISTS (
-         SELECT 1
-         FROM dietbyrd_razorpay_payments pay
-         WHERE pay.patient_id = rp.patient_id
-           AND pay.status IN ('paid', 'captured', 'success')
-       )
-     LIMIT 1`,
+    `SELECT 1 FROM dietbyrd_razorpay_payments WHERE patient_id = $1 AND status IN ('paid', 'captured', 'success') LIMIT 1`,
     [patientProfileId]
   );
-  return result.rows.length > 0;
+  if (result.rows.length > 0) return true;
+
+  // Fallback check for manual/legacy paid status
+  const patientRes = await query(
+    `SELECT payment_status FROM dietbyrd_patients WHERE id = $1 LIMIT 1`,
+    [patientProfileId]
+  );
+  if (patientRes.rows[0] && patientRes.rows[0].payment_status === 'paid') return true;
+
+  return false;
 };
 
 app.get("/api/reviews", async (req, res) => {
@@ -8656,7 +8691,7 @@ app.get("/api/reviews/me/status", async (req, res) => {
         eligible: completed && !hasReviewed,
         has_completed_paid_consultation: completed,
         has_reviewed: hasReviewed,
-        reason: !completed ? "Available after your first completed paid consultation" : hasReviewed ? "You have already posted a review." : null,
+        reason: !completed ? "Only paid clients can submit a review." : hasReviewed ? "You have already posted a review." : null,
       },
     });
   } catch (err) {
@@ -8672,7 +8707,7 @@ app.post("/api/reviews", async (req, res) => {
 
     const patient = await getPatientProfileForUser(auth.userId);
     if (!patient || !(await hasCompletedPaidConsultation(patient.id))) {
-      return res.status(403).json({ success: false, error: "Only patients who have completed a paid consultation can post a review." });
+      return res.status(403).json({ success: false, error: "Only paid patients can post a review." });
     }
 
     const rating = Number(req.body.rating);
@@ -8965,9 +9000,9 @@ app.get("/api/rd/patients/:patientId/documents", async (req, res) => {
       const rdResult = await query("SELECT id FROM dietbyrd_registered_dietitians WHERE user_id = $1", [auth.userId]);
       const rdId = rdResult.rows[0]?.id;
       const assigned = await query(
-        `SELECT rp.id FROM dietbyrd_consultations c
-         JOIN dietbyrd_registered_patients rp ON rp.id = c.registered_patient_id
-         WHERE rp.patient_id = $1 AND c.rd_id = $2 LIMIT 1`,
+        `SELECT rp.id FROM dietbyrd_registered_patients rp
+         LEFT JOIN dietbyrd_consultations c ON rp.id = c.registered_patient_id
+         WHERE rp.patient_id = $1 AND (rp.assigned_rd_id = $2 OR c.rd_id = $2) LIMIT 1`,
         [patientProfileId, rdId]
       );
       if (!rdId || assigned.rows.length === 0) return res.status(403).json({ success: false, error: "Not assigned to this patient" });
@@ -9018,10 +9053,9 @@ const updatePatientImprovementScoreHandler = async (req, res) => {
     const rdId = rdResult.rows[0].id;
 
     const verifyResult = await query(
-      `SELECT 1 FROM dietbyrd_consultations c
-       JOIN dietbyrd_registered_patients rp ON rp.id = c.registered_patient_id
-       WHERE rp.patient_id = $1 AND c.rd_id = $2 
-       AND c.status IN ('confirmed', 'in_progress', 'completed') 
+      `SELECT rp.id FROM dietbyrd_registered_patients rp
+       LEFT JOIN dietbyrd_consultations c ON rp.id = c.registered_patient_id
+       WHERE rp.patient_id = $1 AND (rp.assigned_rd_id = $2 OR (c.rd_id = $2 AND c.status IN ('confirmed', 'scheduled', 'completed')))
        LIMIT 1`,
       [patientId, rdId]
     );
@@ -9060,4 +9094,8 @@ app.use((_req, res) => {
 });
 
 export default app;
+
+
+
+
 

@@ -434,6 +434,7 @@ CREATE TABLE dietbyrd_consultations (
     notes_locked BOOLEAN DEFAULT FALSE,
     notes_locked_at TIMESTAMP NULL,
     notes_unlocked_by INT REFERENCES dietbyrd_staff(id) ON DELETE SET NULL,
+    meeting_link VARCHAR(500) NULL,
     -- Appointment booking fields
     booked_by_patient BOOLEAN DEFAULT FALSE,
     patient_notes TEXT NULL,

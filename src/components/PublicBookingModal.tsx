@@ -73,6 +73,34 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const otpInputRef = useRef<HTMLInputElement>(null);
   const confirmPaymentButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Coupon state
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponValidation | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+
+  const handleApplyCoupon = async (pkg: ConsultationPackage | null) => {
+    if (!couponCode.trim() || !pkg) return;
+    setCouponLoading(true);
+    setCouponError(null);
+    try {
+      const result = await validateCoupon(couponCode.trim(), pkg.price / 100);
+      setAppliedCoupon(result);
+      toast.success(`Coupon applied! ₹${result.discount_applied} off`);
+    } catch (err: any) {
+      setCouponError(err.message || "Invalid coupon code");
+      setAppliedCoupon(null);
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode("");
+    setCouponError(null);
+  };
   const isSignedInPatient = user?.role === "patient" && !!user.profileId;
 
   const weekDateRange = useMemo(() => {
@@ -356,6 +384,15 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
             });
+
+            if (appliedCoupon) {
+              applyCoupon(appliedCoupon.id, {
+                patient_id: patientId,
+                discount_applied: appliedCoupon.discount_applied,
+                order_amount: selectedPackage.price / 100,
+              }).catch(console.error);
+              handleRemoveCoupon();
+            }
             await bookAppointment({
               patient_id: patientId,
               scheduled_at: selectedSlot.datetime,
@@ -504,30 +541,48 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {Object.entries(slotsByDate).map(([date, slots]) => {
-                    const d = new Date(date + "T00:00:00");
+                  {Array.from({ length: 7 }).map((_, i) => {
+                    const d = new Date(weekDateRange.startDate);
+                    d.setDate(d.getDate() + i);
+                    const dateStr = d.toISOString().split("T")[0];
+                    const slots = slotsByDate[dateStr] || [];
+                    
                     return (
-                      <div key={date} className="border rounded-lg p-4">
-                        <p className="text-sm font-semibold mb-3">
-                          {d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {slots.map((slot) => (
-                            <Button
-                              key={slot.datetime}
-                              variant={selectedSlot?.datetime === slot.datetime ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setSelectedSlot(slot)}
-                              className={
-                                selectedSlot?.datetime === slot.datetime
-                                  ? "bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
-                                  : "hover:border-emerald-400"
-                              }
-                            >
-                              {formatTime12(slot.start_time)}
-                            </Button>
-                          ))}
+                      <div key={dateStr} className={`border rounded-lg p-4 ${slots.length === 0 ? "bg-muted/30 opacity-70" : ""}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-sm font-semibold">
+                            {d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                          </p>
+                          {slots.length === 0 && (
+                            <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                              Dietitian on Leave / Fully Booked
+                            </span>
+                          )}
                         </div>
+                        {slots.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {slots.map((slot) => (
+                              <Button
+                                key={slot.datetime}
+                                variant={selectedSlot?.datetime === slot.datetime ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setSelectedSlot(slot)}
+                                className={
+                                  selectedSlot?.datetime === slot.datetime
+                                    ? "bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
+                                    : "hover:border-emerald-400"
+                                }
+                              >
+                                {formatTime12(slot.start_time)}
+                              </Button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground flex items-center gap-2">
+                            <CalendarDays className="w-4 h-4" />
+                            No available slots
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -811,7 +866,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                   <Loader2 className="w-4 h-4 animate-spin mr-2" /> Processing…
                 </>
               ) : (
-                `Pay ₹${selectedPackage ? (selectedPackage.price / 100).toFixed(0) : "0"} & Confirm Booking`
+                `Pay ₹${selectedPackage ? Math.max(1, (selectedPackage.price / 100) - (appliedCoupon?.discount_applied || 0)).toFixed(0) : "0"} & Confirm Booking`
               )}
             </Button>
           </form>

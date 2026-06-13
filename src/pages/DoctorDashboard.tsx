@@ -572,7 +572,7 @@ const DoctorDashboard = ({ defaultTab = "overview" }: DoctorDashboardProps) => {
                     </div>
                     <div>
                       <div className="text-2xl font-bold">₹{(doctorStats?.total_commission || 0).toLocaleString()}</div>
-                      <div className="text-sm text-muted-foreground">Total Money Earned</div>
+                      <div className="text-sm text-muted-foreground">Total Fees Earned</div>
                     </div>
                   </div>
                 </div>
@@ -695,28 +695,34 @@ const DoctorDashboard = ({ defaultTab = "overview" }: DoctorDashboardProps) => {
                               <Badge variant="outline" className={`text-xs ${consultationBadgeClass}`}>{consultationLabel}</Badge>
                             </td>
                             <td className="p-4">
-                              <Select 
-                                value={patient.improvement_score ? String(patient.improvement_score) : ""} 
-                                onValueChange={async (value) => {
-                                  try {
-                                    await updatePatientImprovementScore(patient.id, Number(value));
-                                    queryClient.invalidateQueries({ queryKey: ["doctorPatients"] });
-                                    toast.success("Patient score updated");
-                                  } catch (err) {
-                                    console.error("Failed to update improvement score", err);
-                                    toast.error("Failed to update score");
-                                  }
-                                }}
-                              >
-                                <SelectTrigger className="w-[110px] h-8 text-xs">
-                                  <SelectValue placeholder="Not rated" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Array.from({length: 10}, (_, i) => i + 1).map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n} / 10</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              {isAssistant ? (
+                                <Badge variant="outline" className="text-xs bg-muted border-muted">
+                                  {patient.improvement_score ? `${patient.improvement_score} / 10` : "Not rated"}
+                                </Badge>
+                              ) : (
+                                <Select 
+                                  value={patient.improvement_score ? String(patient.improvement_score) : ""} 
+                                  onValueChange={async (value) => {
+                                    try {
+                                      await updatePatientImprovementScore(patient.id, Number(value));
+                                      queryClient.invalidateQueries({ queryKey: ["doctorPatients"] });
+                                      toast.success("Patient score updated");
+                                    } catch (err) {
+                                      console.error("Failed to update improvement score", err);
+                                      toast.error("Failed to update score");
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="w-[110px] h-8 text-xs">
+                                    <SelectValue placeholder="Not rated" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({length: 10}, (_, i) => i + 1).map(n => (
+                                      <SelectItem key={n} value={String(n)}>{n} / 10</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
                             </td>
                           </tr>
                         );
@@ -857,7 +863,7 @@ const DoctorDashboard = ({ defaultTab = "overview" }: DoctorDashboardProps) => {
                 <div className="bg-sidebar text-sidebar-foreground rounded-xl p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-sidebar-foreground/60">Total Money Earned</p>
+                      <p className="text-sm text-sidebar-foreground/60">Total Fees Earned</p>
                       <p className="text-3xl font-bold mt-1 text-primary">₹{(doctorStats?.total_commission || 0).toLocaleString()}</p>
                       <p className="text-xs text-sidebar-foreground/50 mt-1">Clinical collaboration fees from your patients</p>
                     </div>
@@ -926,6 +932,7 @@ const DoctorDashboard = ({ defaultTab = "overview" }: DoctorDashboardProps) => {
 };
 
 export default DoctorDashboard;
+
 
 
 

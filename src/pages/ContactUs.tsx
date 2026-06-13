@@ -14,7 +14,7 @@ const GmailIcon = () => (
 
 const ContactUs = () => {
   return (
-    <div className="min-h-screen bg-[var(--cream)]" style={{ fontFamily: 'var(--font-sans)' }}>
+    <div className="min-h-screen bg-[var(--cream)]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
       {/* Simple Header */}
       <div className="max-w-6xl mx-auto px-6 py-8">
         <Link to="/" className="inline-flex items-center text-gray-500 hover:text-gray-900 transition-colors">
@@ -25,12 +25,12 @@ const ContactUs = () => {
 
       <div className="max-w-3xl mx-auto px-6 pt-12 pb-24">
         {/* Title */}
-        <h1 className="text-4xl md:text-5xl font-serif text-[var(--navy)] mb-10 tracking-tight leading-tight">
-          We're Here to Help
+        <h1 className="text-4xl md:text-5xl text-[var(--navy)] mb-10 tracking-tight leading-tight" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700 }}>
+          CONTACT US
         </h1>
 
         {/* Content */}
-        <div className="space-y-6 text-lg text-gray-800 leading-relaxed font-medium">
+        <div className="space-y-6 text-lg text-gray-800 leading-relaxed font-medium" style={{ fontFamily: "'DM Sans', sans-serif" }}>
           <p>
             Every health journey begins with a conversation.
           </p>
@@ -69,3 +69,4 @@ const ContactUs = () => {
 };
 
 export default ContactUs;
+

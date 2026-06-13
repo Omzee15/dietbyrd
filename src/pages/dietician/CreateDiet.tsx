@@ -2060,12 +2060,11 @@ const CreateDiet = () => {
                   key={tab}
                   type="button"
                   onClick={() => setActiveTab(tab)}
-                  disabled={tab === 'quantity' && !selectedFood?.unitName}
                   className={`flex-1 py-2 text-sm font-medium rounded-lg capitalize transition-all ${
                     activeTab === tab 
                       ? "bg-background text-foreground shadow-sm" 
                       : "text-muted-foreground hover:text-foreground"
-                  } ${tab === 'quantity' && !selectedFood?.unitName ? "opacity-40 cursor-not-allowed" : ""}`}
+                  }`}
                 >
                   {tab}
                 </button>
@@ -2126,7 +2125,7 @@ const CreateDiet = () => {
                 </>
               )}
 
-              {activeTab === 'quantity' && selectedFood?.unitName && (
+              {activeTab === 'quantity' && (
                 <>
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">
                     Enter Quantity
@@ -2140,11 +2139,11 @@ const CreateDiet = () => {
                       autoFocus
                     />
                     <span className="text-sm font-medium text-muted-foreground capitalize">
-                      {selectedFood.unitName}(s)
+                      {selectedFood?.unitName || 'unit'}(s)
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    1 {selectedFood.unitName} ≈ {selectedFood.unitWeight}g
+                    1 {selectedFood?.unitName || 'unit'} ≈ {selectedFood?.unitWeight || 100}g
                   </p>
                 </>
               )}

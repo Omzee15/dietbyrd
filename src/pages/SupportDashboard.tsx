@@ -139,7 +139,7 @@ const SupportDashboard = () => {
     patient_id: null as number | null,
     subject: "",
     description: "",
-    priority: "normal",
+    priority: "medium",
   });
 
   // Fetch list data
@@ -242,7 +242,7 @@ const SupportDashboard = () => {
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["support-tickets"] });
       setShowCreateTicket(false);
-      setTicketForm({ patient_id: null, subject: "", description: "", priority: "normal" });
+      setTicketForm({ patient_id: null, subject: "", description: "", priority: "medium" });
       const ticketNumber = data?.ticket_number ? ` (#${data.ticket_number})` : "";
       toast.success(`Ticket created${ticketNumber}`);
     },
@@ -251,7 +251,7 @@ const SupportDashboard = () => {
 
   // Update ticket status/assignment
   const updateTicketMutation = useMutation({
-    mutationFn: async (update: { status?: string; assigned_to?: number | null; resolution_notes?: string }) => {
+    mutationFn: async (update: { status?: string; priority?: string; assigned_to?: number | null; resolution_notes?: string }) => {
       const res = await fetch(`/api/support/tickets/${selectedTicketId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -463,9 +463,10 @@ const SupportDashboard = () => {
                     <Select value={ticketForm.priority} onValueChange={(v) => setTicketForm({ ...ticketForm, priority: v })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="normal">Normal</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -774,6 +775,22 @@ const SupportDashboard = () => {
                           <SelectItem value="in_progress">In Progress</SelectItem>
                           <SelectItem value="resolved">Resolved</SelectItem>
                           <SelectItem value="closed">Closed</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select
+                        value={selectedTicket.priority}
+                        onValueChange={(priority) => updateTicketMutation.mutate({ priority })}
+                        disabled={updateTicketMutation.isPending}
+                      >
+                        <SelectTrigger className="h-8 w-32 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
                         </SelectContent>
                       </Select>
 

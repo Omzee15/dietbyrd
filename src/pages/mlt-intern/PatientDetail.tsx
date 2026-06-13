@@ -435,3 +435,4 @@ const MLTInternPatientDetail = () => {
 };
 
 export default MLTInternPatientDetail;
+
