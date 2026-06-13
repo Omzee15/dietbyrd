@@ -304,8 +304,8 @@ const PatientDashboard = () => {
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 6);
     return {
-      start: startOfWeek.toISOString().split("T")[0],
-      end: endOfWeek.toISOString().split("T")[0],
+      start: new Date(startOfWeek.getTime() - startOfWeek.getTimezoneOffset() * 60000).toISOString().split("T")[0],
+      end: new Date(endOfWeek.getTime() - endOfWeek.getTimezoneOffset() * 60000).toISOString().split("T")[0],
       startDate: startOfWeek,
       endDate: endOfWeek,
     };
@@ -1910,7 +1910,7 @@ const PatientDashboard = () => {
                             <>
                               {(() => {
                                 const diffHours = (parseIST(appointment.scheduled_at).getTime() - new Date().getTime()) / (1000 * 60 * 60);
-                                if (diffHours > 24) {
+                                if (true) {
                                   const daysLeft = Math.floor(diffHours / 24);
                                   const hoursRemaining = Math.floor(diffHours % 24);
                                   let timeLeftStr = "";

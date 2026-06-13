@@ -110,8 +110,8 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
     return {
-      start: start.toISOString().split("T")[0],
-      end: end.toISOString().split("T")[0],
+      start: new Date(start.getTime() - start.getTimezoneOffset() * 60000).toISOString().split("T")[0],
+      end: new Date(end.getTime() - end.getTimezoneOffset() * 60000).toISOString().split("T")[0],
       startDate: start,
       endDate: end,
     };
@@ -544,7 +544,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                   {Array.from({ length: 7 }).map((_, i) => {
                     const d = new Date(weekDateRange.startDate);
                     d.setDate(d.getDate() + i);
-                    const dateStr = d.toISOString().split("T")[0];
+                    const dateStr = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split("T")[0];
                     const slots = slotsByDate[dateStr] || [];
                     
                     return (

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Settings as SettingsIcon, User, Bell, Shield, ArrowLeft, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -5,11 +6,39 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import AppSidebar from "@/components/AppSidebar";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { updatePassword } from "@/lib/api";
 import { UserPlus, Users, BarChart3 } from "lucide-react";
 
 const DoctorSettings = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleUpdatePassword = async () => {
+    if (!currentPassword || !newPassword) {
+      toast.error("Please enter both passwords");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("New password must be at least 6 characters");
+      return;
+    }
+    
+    setIsUpdating(true);
+    try {
+      await updatePassword({ currentPassword, newPassword });
+      toast.success("Password updated successfully");
+      setCurrentPassword("");
+      setNewPassword("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update password");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -113,19 +142,20 @@ const DoctorSettings = () => {
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Current Password</label>
-                <Input type="password" placeholder="••••••••" />
+                <Input type="password" placeholder="••••••••" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">New Password</label>
-                <Input type="password" placeholder="••••••••" />
+                <Input type="password" placeholder="••••••••" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
               </div>
-              <Button size="sm">Update Password</Button>
+              <Button size="sm" onClick={handleUpdatePassword} disabled={isUpdating}>
+                {isUpdating ? "Updating..." : "Update Password"}
+              </Button>
             </div>
           </div>
 
           {/* Danger Zone */}
           <div className="bg-card rounded-xl border border-destructive/20 p-6">
-            <h2 className="font-semibold text-destructive mb-4">Danger Zone</h2>
             <Button variant="destructive" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Sign Out

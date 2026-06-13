@@ -815,3 +815,5 @@ export function getMe(): StoredUser | null {
     return null;
   }
 }
+
+export const updatePassword = (data: { currentPassword: string; newPassword: string }) => request<void>("/user/password", { method: "PUT", body: JSON.stringify(data) });

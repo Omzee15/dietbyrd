@@ -278,6 +278,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <Input
+                autoFocus
                 type="tel"
                 placeholder="Enter 10-digit phone number"
                 value={formData.phone}
@@ -321,6 +322,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
               )}
             </div>
             <Input
+              autoFocus
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"

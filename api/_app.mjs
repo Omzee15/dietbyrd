@@ -9089,6 +9089,33 @@ app.patch("/api/dietitian/patients/:patientId/improvement-score", updatePatientI
 app.patch("/api/dietitians/patients/:patientId/improvement-score", updatePatientImprovementScoreHandler);
 
 // 404 handler
+// Update user password
+app.put("/api/user/password", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json(auth);
+    
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword || newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: "Invalid password data" });
+    }
+
+    const userRes = await query("SELECT password FROM dietbyrd_users WHERE id = $1", [auth.userId]);
+    if (userRes.rows.length === 0) return res.status(404).json({ success: false, error: "User not found" });
+
+    const isValid = await bcrypt.compare(currentPassword, userRes.rows[0].password);
+    if (!isValid) return res.status(400).json({ success: false, error: "Incorrect current password" });
+
+    const hashed = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    await query("UPDATE dietbyrd_users SET password = $1 WHERE id = $2", [hashed, auth.userId]);
+
+    res.json({ success: true, message: "Password updated successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: "Failed to update password" });
+  }
+});
+
 app.use((_req, res) => {
   res.status(404).json({ success: false, error: "Route not found" });
 });
