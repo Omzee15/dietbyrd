@@ -7429,7 +7429,7 @@ app.get("/api/support/patients", async (req, res) => {
        WHERE rp2.patient_id = p.id) as appointment_count
        FROM dietbyrd_patients p
        JOIN dietbyrd_users u ON u.id = p.user_id
-       LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id AND rp.is_active = true
+       LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id
        ${whereSql}
        ORDER BY p.created_at DESC
        LIMIT $${limitParam} OFFSET $${offsetParam}`,
