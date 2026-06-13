@@ -99,7 +99,7 @@ const TWILIO_TEMPLATE_REFERRAL_SID = process.env.TWILIO_TEMPLATE_REFERRAL_SID ||
 
 // Send WhatsApp welcome message using approved template (best effort - doesn't fail if message fails)
 const sendWelcomeWhatsApp = async (phone, name, patientId = null) => {
-  const messageBody = `Hi ${name || 'there'}! 👋\n\nThank you for joining DietByRD! 🎉\n\nOur team will contact you shortly to guide you through the onboarding process and help you get started on your health journey.\n\nIf you have any questions, feel free to reach out!\n\n- Team DietByRD`;
+  const messageBody = `Hi ${name || 'there'}! ðŸ‘‹\n\nThank you for joining DietByRD! ðŸŽ‰\n\nOur team will contact you shortly to guide you through the onboarding process and help you get started on your health journey.\n\nIf you have any questions, feel free to reach out!\n\n- Team DietByRD`;
 
   try {
     if (!twilioClient) {
@@ -159,11 +159,11 @@ const sendWelcomeWhatsApp = async (phone, name, patientId = null) => {
 // Send approval notification to a newly approved doctor/RD (best-effort, never throws)
 const sendJoinApprovalNotification = async (phone, name, role) => {
   const roleLabel = role === "doctor" ? "Doctor" : "Dietician (RD)";
-  const messageBody = `Hi ${name}! 🎉\n\nYour application to join DietByRD as a ${roleLabel} has been approved!\n\nYou can now log in using your registered phone number and the password you set during sign-up.\n\nWelcome to the team!\n\n- Team DietByRD`;
+  const messageBody = `Hi ${name}! ðŸŽ‰\n\nYour application to join DietByRD as a ${roleLabel} has been approved!\n\nYou can now log in using your registered phone number and the password you set during sign-up.\n\nWelcome to the team!\n\n- Team DietByRD`;
 
   try {
     if (!twilioClient) {
-      console.log(`[JoinApproval] Twilio not configured — skipping notification for ${phone}`);
+      console.log(`[JoinApproval] Twilio not configured â€” skipping notification for ${phone}`);
       return;
     }
 
@@ -981,7 +981,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ─── Health Check ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Health Check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/health", async (_req, res) => {
   try {
     await getPool().query("SELECT 1");
@@ -991,7 +991,7 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
-// ─── Authentication ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Authentication â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { phone, password } = req.body;
@@ -1042,7 +1042,7 @@ app.post("/api/auth/login", async (req, res) => {
       });
     }
 
-    // Compare password — supports both bcrypt hashes and legacy plain-text
+    // Compare password â€” supports both bcrypt hashes and legacy plain-text
     // (plain-text passwords are re-hashed on successful login for seamless migration)
     let isValidPassword = false;
     if (!user.password) {
@@ -1055,7 +1055,7 @@ app.post("/api/auth/login", async (req, res) => {
     } else if (user.password.startsWith("$2b$") || user.password.startsWith("$2a$")) {
       isValidPassword = await bcrypt.compare(password, user.password);
     } else {
-      // Legacy plain-text — compare and re-hash immediately
+      // Legacy plain-text â€” compare and re-hash immediately
       isValidPassword = user.password === password;
       if (isValidPassword) {
         const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -1264,7 +1264,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
   }
 });
 
-// ─── Patient Signup ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Patient Signup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/auth/signup", async (req, res) => {
   try {
     const { phone, password, name } = req.body;
@@ -1480,7 +1480,7 @@ app.post("/api/auth/employee/login", async (req, res) => {
   }
 });
 
-// ─── OTP Authentication ───────────────────────────────────────────────────────
+// â”€â”€â”€ OTP Authentication â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // In-memory OTP rate limiter: max 3 sends per phone per 10 minutes
 const OTP_RATE_LIMIT = 3;
@@ -2294,7 +2294,7 @@ app.post("/api/auth/set-password-after-otp", async (req, res) => {
   }
 });
 
-// ─── Signup with OTP ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Signup with OTP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Send OTP for signup (stores pending signup data)
 app.post("/api/auth/signup/send-otp", async (req, res) => {
   try {
@@ -2463,7 +2463,7 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
   }
 });
 
-// ─── Join Requests (Doctor/Dietician) ─────────────────────────────────────────
+// â”€â”€â”€ Join Requests (Doctor/Dietician) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Create a join request
 app.post("/api/join-requests", async (req, res) => {
   try {
@@ -2671,7 +2671,7 @@ app.post("/api/join-requests/:id/schedule-interview", async (req, res) => {
     const baseMessage = customMessage
       ? `We'd like to schedule an interview with you regarding your DietByRD application.\n\n${customMessage}`
       : "We'd like to schedule an interview with you regarding your DietByRD application. Our team will contact you shortly to confirm the details.";
-    const whatsappBody = `Hi ${name}! 👋\n\n${baseMessage}\n\n- Team DietByRD`;
+    const whatsappBody = `Hi ${name}! ðŸ‘‹\n\n${baseMessage}\n\n- Team DietByRD`;
 
     const shouldSendEmail = deliveryMode !== "whatsapp_only";
     const shouldSendWhatsapp = deliveryMode !== "email_only";
@@ -2685,7 +2685,7 @@ app.post("/api/join-requests/:id/schedule-interview", async (req, res) => {
         recipientName: name,
         senderName: "DietByRD team",
         message: baseMessage,
-        subject: "Interview invitation — DietByRD",
+        subject: "Interview invitation â€” DietByRD",
       });
     }
 
@@ -2926,7 +2926,7 @@ app.patch("/api/join-requests/:id", async (req, res) => {
       const baseMessage = customMessage
         ? `Thank you for your interest in joining DietByRD.\n\n${customMessage}`
         : "Thank you for your interest in joining DietByRD. Unfortunately, we are unable to proceed with your application at this time.";
-      const whatsappBody = `Hi ${joinRequest.name}! 👋\n\n${baseMessage}\n\n- Team DietByRD`;
+      const whatsappBody = `Hi ${joinRequest.name}! ðŸ‘‹\n\n${baseMessage}\n\n- Team DietByRD`;
 
       const shouldSendEmail = deliveryMode !== "whatsapp_only";
       const shouldSendWhatsapp = deliveryMode !== "email_only";
@@ -3099,7 +3099,7 @@ app.patch("/api/join-requests/:id", async (req, res) => {
       [parsedPhone.digits, reviewed_by || null, admin_message || null, id]
     );
 
-    // Notify the applicant — best effort, never blocks the response
+    // Notify the applicant â€” best effort, never blocks the response
     sendJoinApprovalNotification(joinRequest.phone, joinRequest.name, joinRequest.requested_role).catch(() => { });
 
     res.json({ success: true, message: `${joinRequest.requested_role === "doctor" ? "Doctor" : "Dietician"} account verified successfully` });
@@ -3108,7 +3108,7 @@ app.patch("/api/join-requests/:id", async (req, res) => {
   }
 });
 
-// ─── Analytics ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Analytics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/analytics", async (_req, res) => {
   try {
     const [patients, referrals, doctors, dieticians] = await Promise.all([
@@ -3131,7 +3131,7 @@ app.get("/api/analytics", async (_req, res) => {
   }
 });
 
-// ─── Patients ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Patients â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/patients", async (req, res) => {
   try {
     const result = await query(
@@ -3730,7 +3730,7 @@ app.post("/api/patients/:id(\\d+)/assign-doctor", async (req, res) => {
   }
 });
 
-// ─── Doctors ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Doctors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/doctors", async (req, res) => {
   try {
     const result = await query(
@@ -3756,10 +3756,13 @@ app.get("/api/doctors/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query(
-      `SELECT d.*, u.phone, u.is_active
+      `SELECT d.*, u.phone, u.email, u.is_active,
+              COUNT(DISTINCT r.patient_id) AS total_referrals
        FROM dietbyrd_doctors d
        LEFT JOIN dietbyrd_users u ON d.user_id = u.id
-       WHERE d.id = $1`,
+       LEFT JOIN dietbyrd_referrals r ON r.doctor_id = d.id
+       WHERE d.id = $1
+       GROUP BY d.id, u.phone, u.email, u.is_active`,
       [id]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: "Doctor not found" });
@@ -3837,7 +3840,7 @@ app.delete("/api/doctors/:id", async (req, res) => {
   }
 });
 
-// ─── Dieticians ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Dieticians â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/dieticians", async (req, res) => {
   try {
     const result = await query(
@@ -4157,7 +4160,7 @@ app.get("/api/dieticians/:id/patients", async (req, res) => {
   }
 });
 
-// ─── Dietitian Blocked Slots ────────────────────────────────────────────────
+// â”€â”€â”€ Dietitian Blocked Slots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/dieticians/:id/blocked-slots", async (req, res) => {
   try {
     const { id } = req.params;
@@ -4210,7 +4213,7 @@ app.delete("/api/dieticians/:id/blocked-slots/:slotId", async (req, res) => {
   }
 });
 
-// ─── Referrals ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Referrals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/referrals", async (req, res) => {
   try {
     const result = await query(
@@ -4419,7 +4422,7 @@ app.post("/api/referrals", async (req, res) => {
   }
 });
 
-// Verify registration token (legacy — kept for backward compat)
+// Verify registration token (legacy â€” kept for backward compat)
 app.get("/api/referrals/verify-token", async (req, res) => {
   try {
     const { token } = req.query;
@@ -4477,7 +4480,7 @@ app.get("/api/referrals/verify-ref", async (req, res) => {
   }
 });
 
-// ─── Phone Number Lookup (for doctor referral autocomplete) ───────────────────
+// â”€â”€â”€ Phone Number Lookup (for doctor referral autocomplete) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/patients/lookup-phone", async (req, res) => {
   try {
     const phoneQuery = Array.isArray(req.query.phone) ? req.query.phone[0] : req.query.phone;
@@ -4658,7 +4661,7 @@ app.post("/api/doctor/patients", async (req, res) => {
   }
 });
 
-// ─── Consultations ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Consultations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/consultations", async (req, res) => {
   try {
     const { rd_id, patient_id, status } = req.query;
@@ -4790,7 +4793,7 @@ app.post("/api/consultations/:id(\\d+)/resend-payment-link", async (req, res) =>
   }
 });
 
-// ─── Plans ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Plans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/plans", async (req, res) => {
   try {
     const result = await query(`SELECT * FROM dietbyrd_plans WHERE is_active = true ORDER BY price ASC`);
@@ -4800,7 +4803,7 @@ app.get("/api/plans", async (req, res) => {
   }
 });
 
-// ─── Diet Plans ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Diet Plans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Get diet plans for a specific patient
 app.get("/api/patients/:id(\\d+)/diet-plans", async (req, res) => {
   try {
@@ -4939,7 +4942,7 @@ app.patch("/api/diet-plans/:id", async (req, res) => {
   }
 });
 
-// ─── Doctor Stats ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Doctor Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/doctors/:id/stats", async (req, res) => {
   try {
     const { id } = req.params;
@@ -4988,7 +4991,7 @@ app.get("/api/doctors/:id/stats", async (req, res) => {
   }
 });
 
-// ─── Doctor Assistants ────────────────────────────────────────────────────────
+// â”€â”€â”€ Doctor Assistants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/doctors/:id/assistants", async (req, res) => {
   try {
     const { id } = req.params;
@@ -5135,7 +5138,7 @@ app.delete("/api/assistants/:id", async (req, res) => {
   }
 });
 
-// ─── Food Library ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Food Library â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Get all food items
 app.get("/api/food-library", async (req, res) => {
@@ -5463,7 +5466,7 @@ app.delete("/api/food-library/:id", async (req, res) => {
   }
 });
 
-// ─── Coupon Codes ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Coupon Codes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Get all coupons (admin only)
 app.get("/api/admin/coupons", async (req, res) => {
@@ -5545,7 +5548,7 @@ app.post("/api/coupons/validate", async (req, res) => {
       if (order_amount < coupon.min_purchase_amount) {
         return res.status(400).json({
           success: false,
-          error: `Minimum purchase amount of ₹${coupon.min_purchase_amount} required`
+          error: `Minimum purchase amount of â‚¹${coupon.min_purchase_amount} required`
         });
       }
     }
@@ -5751,7 +5754,7 @@ app.post("/api/coupons/:id/apply", async (req, res) => {
   }
 });
 
-// ─── Appointment Booking System ───────────────────────────────────────────────
+// â”€â”€â”€ Appointment Booking System â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Get dietician's weekly availability schedule
 app.get("/api/dieticians/:id/availability", async (req, res) => {
@@ -6004,7 +6007,7 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
 app.post("/api/appointments/book", async (req, res) => {
   try {
     const { patient_id, scheduled_at, consultation_type, patient_notes } = req.body;
-    // rd_id is optional — when null the appointment is pending dietitian assignment
+    // rd_id is optional â€” when null the appointment is pending dietitian assignment
     const rdId = null;
 
     if (!patient_id || !scheduled_at) {
@@ -6088,7 +6091,7 @@ app.post("/api/appointments/book", async (req, res) => {
     );
     const type = consultation_type || (previousConsultations.rows[0].count > 0 ? 'returning' : 'first');
 
-    // Create the consultation (rd_id may be NULL — pending auto-assignment)
+    // Create the consultation (rd_id may be NULL â€” pending auto-assignment)
     const rdResult = await query(
       `SELECT rd.id
        FROM dietbyrd_registered_dietitians rd
@@ -6356,7 +6359,7 @@ app.put("/api/appointments/:id/reschedule", async (req, res) => {
   }
 });
 
-// Update appointment status (complete / no_show / cancel) — RD action
+// Update appointment status (complete / no_show / cancel) â€” RD action
 app.patch("/api/appointments/:id/status", async (req, res) => {
   try {
     const { id } = req.params;
@@ -6382,7 +6385,7 @@ app.patch("/api/appointments/:id/status", async (req, res) => {
     if (appt.status !== "scheduled") {
       return res.status(409).json({
         success: false,
-        error: `Cannot update status — appointment is already '${appt.status}'`,
+        error: `Cannot update status â€” appointment is already '${appt.status}'`,
       });
     }
 
@@ -6568,7 +6571,7 @@ app.delete("/api/dieticians/:rdId/blocked-slots/:slotId", async (req, res) => {
   }
 });
 
-// ─── Dietician Appointments (Calendar View) ───────────────────────────────────
+// â”€â”€â”€ Dietician Appointments (Calendar View) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Get all appointments for a dietician (for calendar view)
 app.get("/api/dieticians/:id/appointments", async (req, res) => {
@@ -6615,7 +6618,7 @@ app.get("/api/dieticians/:id/appointments", async (req, res) => {
   }
 });
 
-// ─── Consultation Packages & Razorpay Payments ────────────────────────────────
+// â”€â”€â”€ Consultation Packages & Razorpay Payments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Razorpay configuration
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID;
@@ -7004,7 +7007,7 @@ app.post("/api/payments/webhook", async (req, res) => {
   }
 });
 
-// ─── Doctor Commissions ─────────────────────────────────────────────────────
+// â”€â”€â”€ Doctor Commissions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Update doctor commission percent (admin only)
 app.patch("/api/admin/doctors/:id/commission", async (req, res) => {
   try {
@@ -7235,7 +7238,7 @@ app.get("/doctor/me/patients", async (req, res) => {
   }
 });
 
-// ─── Admin Staff Management ──────────────────────────────────────────────────
+// â”€â”€â”€ Admin Staff Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Get staff members by role (mlt_intern or support_intern)
 app.get("/api/admin/staff/:role", async (req, res) => {
   try {
@@ -7289,7 +7292,7 @@ app.post("/api/admin/staff/create", async (req, res) => {
     const plainPassword = Math.floor(10000000 + Math.random() * 90000000).toString();
     const hashedStaffPw = await bcrypt.hash(plainPassword, BCRYPT_ROUNDS);
 
-    // Create user account — store hash for auth, plain_password for admin visibility
+    // Create user account â€” store hash for auth, plain_password for admin visibility
     const userResult = await query(
       `INSERT INTO dietbyrd_users(phone, role, password, plain_password, name, is_active, is_verified)
        VALUES($1, $2, $3, $4, $5, true, true)
@@ -7794,7 +7797,7 @@ RETURNING * `,
   }
 });
 
-// ─── Unassigned appointments (pending dietitian allocation) ──────────────────────
+// â”€â”€â”€ Unassigned appointments (pending dietitian allocation) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/appointments/unassigned", async (_req, res) => {
   try {
     const result = await query(
@@ -7821,7 +7824,7 @@ c.id,
   }
 });
 
-// ─── Core auto-assign logic (shared by scheduler and HTTP endpoint) ────────────
+// â”€â”€â”€ Core auto-assign logic (shared by scheduler and HTTP endpoint) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function runAutoAssign() {
   const pending = await query(
     `SELECT
@@ -7912,7 +7915,7 @@ rd.id,
   return { assigned: assignedCount, total_pending: pending.rows.length, details };
 }
 
-// ─── Staff plain_password column migration ────────────────────────────────────
+// â”€â”€â”€ Staff plain_password column migration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ensureStaffPlainPasswordColumn = async () => {
   try {
     await query(`ALTER TABLE dietbyrd_users ADD COLUMN IF NOT EXISTS plain_password TEXT`);
@@ -7922,7 +7925,7 @@ const ensureStaffPlainPasswordColumn = async () => {
   }
 };
 
-// ─── Join request about_yourself column migration ─────────────────────────────
+// â”€â”€â”€ Join request about_yourself column migration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ensureJoinRequestAboutYourselfColumn = async () => {
   try {
     await query(`ALTER TABLE dietbyrd_join_requests ADD COLUMN IF NOT EXISTS about_yourself TEXT`);
@@ -7932,7 +7935,7 @@ const ensureJoinRequestAboutYourselfColumn = async () => {
   }
 };
 
-// ─── Doctor commission_rate column migration ──────────────────────────────────
+// â”€â”€â”€ Doctor commission_rate column migration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ensureDoctorCommissionRateColumn = async () => {
   try {
     await query(`ALTER TABLE dietbyrd_doctors ADD COLUMN IF NOT EXISTS commission_rate NUMERIC(5, 2) DEFAULT 0`);
@@ -7942,7 +7945,7 @@ const ensureDoctorCommissionRateColumn = async () => {
   }
 };
 
-// ─── Consultation meeting_link column migration ─────────────────────────────────
+// â”€â”€â”€ Consultation meeting_link column migration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ensureConsultationMeetingLinkColumn = async () => {
   try {
     await query(`ALTER TABLE dietbyrd_consultations ADD COLUMN IF NOT EXISTS meeting_link VARCHAR(500) NULL`);
@@ -7952,7 +7955,7 @@ const ensureConsultationMeetingLinkColumn = async () => {
   }
 };
 
-// ─── Dietician clinic_address / clinic_name column migration ──────────────────
+// â”€â”€â”€ Dietician clinic_address / clinic_name column migration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ensureDieticianClinicColumns = async () => {
   try {
     await query(`ALTER TABLE dietbyrd_registered_dietitians ADD COLUMN IF NOT EXISTS clinic_address TEXT`);
@@ -7963,7 +7966,7 @@ const ensureDieticianClinicColumns = async () => {
   }
 };
 
-// ─── Patient diagnoses array column migration ─────────────────────────────────
+// â”€â”€â”€ Patient diagnoses array column migration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ensurePatientDiagnosesColumn = async () => {
   try {
     await query(`ALTER TABLE dietbyrd_patients ADD COLUMN IF NOT EXISTS diagnoses JSONB DEFAULT '[]'`);
@@ -7980,7 +7983,7 @@ AND(diagnoses IS NULL OR diagnoses = '[]':: jsonb)
   }
 };
 
-// ─── Food library modulator columns migration ─────────────────────────────────
+// â”€â”€â”€ Food library modulator columns migration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ensureFoodLibraryModulatorColumns = async () => {
   try {
     await query(`
@@ -8043,7 +8046,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
     const newFoods = [
       // Fruits
       {
-        id: 'KIWI', name_en: 'Kiwi', name_hi: 'कीवी', category: 'Fruits',
+        id: 'KIWI', name_en: 'Kiwi', name_hi: 'à¤•à¥€à¤µà¥€', category: 'Fruits',
         calories: 61, protein: 1.1, carbs: 14.7, fat: 0.5, fiber: 3.0,
         iron: 0.3, calcium: 34, magnesium: 17, zinc: 0.1, potassium: 312, sodium: 3, phosphorus: 34, iodine: 0, selenium: 0.2, copper: 0.1,
         vitamin_a: 4, vitamin_b1: 0.02, vitamin_b2: 0.04, vitamin_b3: 0.3, vitamin_b6: 0.06, vitamin_b9: 25, vitamin_b12: 0, vitamin_c: 92, vitamin_d: 0, vitamin_e: 1.5, vitamin_k: 40,
@@ -8052,7 +8055,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'PEAR', name_en: 'Pear', name_hi: 'नाशपाती', category: 'Fruits',
+        id: 'PEAR', name_en: 'Pear', name_hi: 'à¤¨à¤¾à¤¶à¤ªà¤¾à¤¤à¥€', category: 'Fruits',
         calories: 57, protein: 0.4, carbs: 15.5, fat: 0.1, fiber: 3.1,
         iron: 0.2, calcium: 9, magnesium: 7, zinc: 0.1, potassium: 116, sodium: 1, phosphorus: 12, iodine: 0, selenium: 0.1, copper: 0.1,
         vitamin_a: 1, vitamin_b1: 0.01, vitamin_b2: 0.03, vitamin_b3: 0.2, vitamin_b6: 0.03, vitamin_b9: 7, vitamin_b12: 0, vitamin_c: 4.3, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 4.5,
@@ -8061,7 +8064,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'DATES_DRIED', name_en: 'Dates (Khajur)', name_hi: 'खजूर', category: 'Fruits',
+        id: 'DATES_DRIED', name_en: 'Dates (Khajur)', name_hi: 'à¤–à¤œà¥‚à¤°', category: 'Fruits',
         calories: 277, protein: 1.8, carbs: 75.0, fat: 0.2, fiber: 6.7,
         iron: 0.9, calcium: 64, magnesium: 54, zinc: 0.4, potassium: 696, sodium: 1, phosphorus: 62, iodine: 0, selenium: 3.0, copper: 0.4,
         vitamin_a: 7, vitamin_b1: 0.05, vitamin_b2: 0.07, vitamin_b3: 1.6, vitamin_b6: 0.2, vitamin_b9: 15, vitamin_b12: 0, vitamin_c: 0.4, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 2.7,
@@ -8070,7 +8073,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'FIG_DRIED', name_en: 'Fig (Anjeer, dried)', name_hi: 'अंजीर', category: 'Fruits',
+        id: 'FIG_DRIED', name_en: 'Fig (Anjeer, dried)', name_hi: 'à¤…à¤‚à¤œà¥€à¤°', category: 'Fruits',
         calories: 249, protein: 3.3, carbs: 63.9, fat: 0.9, fiber: 9.8,
         iron: 2.0, calcium: 162, magnesium: 68, zinc: 0.5, potassium: 680, sodium: 10, phosphorus: 67, iodine: 0, selenium: 0.6, copper: 0.3,
         vitamin_a: 0, vitamin_b1: 0.1, vitamin_b2: 0.08, vitamin_b3: 0.6, vitamin_b6: 0.1, vitamin_b9: 9, vitamin_b12: 0, vitamin_c: 1.2, vitamin_d: 0, vitamin_e: 0.4, vitamin_k: 15.6,
@@ -8079,7 +8082,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'LEMON', name_en: 'Lemon (Nimbu)', name_hi: 'नींबू', category: 'Fruits',
+        id: 'LEMON', name_en: 'Lemon (Nimbu)', name_hi: 'à¤¨à¥€à¤‚à¤¬à¥‚', category: 'Fruits',
         calories: 29, protein: 1.1, carbs: 9.3, fat: 0.3, fiber: 2.8,
         iron: 0.6, calcium: 26, magnesium: 8, zinc: 0.1, potassium: 138, sodium: 2, phosphorus: 16, iodine: 0, selenium: 0.4, copper: 0.1,
         vitamin_a: 1, vitamin_b1: 0.04, vitamin_b2: 0.02, vitamin_b3: 0.1, vitamin_b6: 0.08, vitamin_b9: 11, vitamin_b12: 0, vitamin_c: 53, vitamin_d: 0, vitamin_e: 0.2, vitamin_k: 0,
@@ -8088,7 +8091,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'CHIKOO', name_en: 'Chikoo (Sapodilla)', name_hi: 'चीकू', category: 'Fruits',
+        id: 'CHIKOO', name_en: 'Chikoo (Sapodilla)', name_hi: 'à¤šà¥€à¤•à¥‚', category: 'Fruits',
         calories: 83, protein: 0.4, carbs: 20.0, fat: 1.1, fiber: 5.3,
         iron: 0.8, calcium: 21, magnesium: 12, zinc: 0.1, potassium: 193, sodium: 12, phosphorus: 12, iodine: 0, selenium: 0.6, copper: 0.1,
         vitamin_a: 3, vitamin_b1: 0.0, vitamin_b2: 0.02, vitamin_b3: 0.2, vitamin_b6: 0.04, vitamin_b9: 14, vitamin_b12: 0, vitamin_c: 14.7, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 0,
@@ -8097,7 +8100,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'STRAWBERRY', name_en: 'Strawberry', name_hi: 'स्ट्रॉबेरी', category: 'Fruits',
+        id: 'STRAWBERRY', name_en: 'Strawberry', name_hi: 'à¤¸à¥à¤Ÿà¥à¤°à¥‰à¤¬à¥‡à¤°à¥€', category: 'Fruits',
         calories: 32, protein: 0.7, carbs: 7.7, fat: 0.3, fiber: 2.0,
         iron: 0.4, calcium: 16, magnesium: 13, zinc: 0.1, potassium: 153, sodium: 1, phosphorus: 24, iodine: 0, selenium: 0.4, copper: 0.05,
         vitamin_a: 1, vitamin_b1: 0.02, vitamin_b2: 0.02, vitamin_b3: 0.4, vitamin_b6: 0.05, vitamin_b9: 24, vitamin_b12: 0, vitamin_c: 58.8, vitamin_d: 0, vitamin_e: 0.3, vitamin_k: 2.2,
@@ -8106,7 +8109,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'COCONUT_FRESH', name_en: 'Coconut (Fresh)', name_hi: 'नारियल', category: 'Fruits',
+        id: 'COCONUT_FRESH', name_en: 'Coconut (Fresh)', name_hi: 'à¤¨à¤¾à¤°à¤¿à¤¯à¤²', category: 'Fruits',
         calories: 354, protein: 3.3, carbs: 15.2, fat: 33.5, fiber: 9.0,
         iron: 2.4, calcium: 14, magnesium: 32, zinc: 1.1, potassium: 356, sodium: 20, phosphorus: 113, iodine: 0, selenium: 10.1, copper: 0.4,
         vitamin_a: 0, vitamin_b1: 0.07, vitamin_b2: 0.02, vitamin_b3: 0.5, vitamin_b6: 0.05, vitamin_b9: 26, vitamin_b12: 0, vitamin_c: 3.3, vitamin_d: 0, vitamin_e: 0.2, vitamin_k: 0,
@@ -8116,7 +8119,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
 
       // Vegetables
       {
-        id: 'BEETROOT', name_en: 'Beetroot (Chukandar)', name_hi: 'चुकंदर', category: 'Vegetables',
+        id: 'BEETROOT', name_en: 'Beetroot (Chukandar)', name_hi: 'à¤šà¥à¤•à¤‚à¤¦à¤°', category: 'Vegetables',
         calories: 43, protein: 1.6, carbs: 9.6, fat: 0.2, fiber: 2.8,
         iron: 0.8, calcium: 16, magnesium: 23, zinc: 0.3, potassium: 325, sodium: 78, phosphorus: 40, iodine: 0, selenium: 0.7, copper: 0.1,
         vitamin_a: 2, vitamin_b1: 0.03, vitamin_b2: 0.04, vitamin_b3: 0.3, vitamin_b6: 0.07, vitamin_b9: 109, vitamin_b12: 0, vitamin_c: 4.9, vitamin_d: 0, vitamin_e: 0.0, vitamin_k: 0.2,
@@ -8125,7 +8128,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'BROCCOLI', name_en: 'Broccoli', name_hi: 'ब्रोकली', category: 'Vegetables',
+        id: 'BROCCOLI', name_en: 'Broccoli', name_hi: 'à¤¬à¥à¤°à¥‹à¤•à¤²à¥€', category: 'Vegetables',
         calories: 34, protein: 2.8, carbs: 6.6, fat: 0.4, fiber: 2.6,
         iron: 0.7, calcium: 47, magnesium: 21, zinc: 0.4, potassium: 316, sodium: 33, phosphorus: 66, iodine: 0, selenium: 2.5, copper: 0.05,
         vitamin_a: 31, vitamin_b1: 0.07, vitamin_b2: 0.12, vitamin_b3: 0.6, vitamin_b6: 0.18, vitamin_b9: 63, vitamin_b12: 0, vitamin_c: 89.2, vitamin_d: 0, vitamin_e: 0.8, vitamin_k: 102,
@@ -8134,7 +8137,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'BELL_PEPPER_RED', name_en: 'Red Bell Pepper (Capsicum)', name_hi: 'लाल शिमला मिर्च', category: 'Vegetables',
+        id: 'BELL_PEPPER_RED', name_en: 'Red Bell Pepper (Capsicum)', name_hi: 'à¤²à¤¾à¤² à¤¶à¤¿à¤®à¤²à¤¾ à¤®à¤¿à¤°à¥à¤š', category: 'Vegetables',
         calories: 31, protein: 1.0, carbs: 6.0, fat: 0.3, fiber: 2.1,
         iron: 0.4, calcium: 7, magnesium: 12, zinc: 0.3, potassium: 211, sodium: 4, phosphorus: 26, iodine: 0, selenium: 0.1, copper: 0.02,
         vitamin_a: 157, vitamin_b1: 0.05, vitamin_b2: 0.09, vitamin_b3: 1.0, vitamin_b6: 0.29, vitamin_b9: 46, vitamin_b12: 0, vitamin_c: 127.7, vitamin_d: 0, vitamin_e: 1.6, vitamin_k: 4.9,
@@ -8143,7 +8146,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'MUSHROOM', name_en: 'Mushroom (Button)', name_hi: 'मशरूम', category: 'Vegetables',
+        id: 'MUSHROOM', name_en: 'Mushroom (Button)', name_hi: 'à¤®à¤¶à¤°à¥‚à¤®', category: 'Vegetables',
         calories: 22, protein: 3.1, carbs: 3.3, fat: 0.3, fiber: 1.0,
         iron: 0.5, calcium: 3, magnesium: 9, zinc: 0.5, potassium: 318, sodium: 5, phosphorus: 86, iodine: 0, selenium: 9.3, copper: 0.3,
         vitamin_a: 0, vitamin_b1: 0.08, vitamin_b2: 0.4, vitamin_b3: 3.6, vitamin_b6: 0.1, vitamin_b9: 17, vitamin_b12: 0, vitamin_c: 2.1, vitamin_d: 0.2, vitamin_e: 0.0, vitamin_k: 0,
@@ -8152,7 +8155,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'CORN', name_en: 'Corn (Bhutta)', name_hi: 'मक्का', category: 'Vegetables',
+        id: 'CORN', name_en: 'Corn (Bhutta)', name_hi: 'à¤®à¤•à¥à¤•à¤¾', category: 'Vegetables',
         calories: 86, protein: 3.3, carbs: 19.0, fat: 1.4, fiber: 2.7,
         iron: 0.5, calcium: 2, magnesium: 37, zinc: 0.5, potassium: 270, sodium: 15, phosphorus: 89, iodine: 0, selenium: 0.6, copper: 0.05,
         vitamin_a: 10, vitamin_b1: 0.2, vitamin_b2: 0.07, vitamin_b3: 1.8, vitamin_b6: 0.09, vitamin_b9: 42, vitamin_b12: 0, vitamin_c: 6.8, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 0.3,
@@ -8161,7 +8164,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'GREEN_BEANS', name_en: 'Green Beans (Sem)', name_hi: 'सेम', category: 'Vegetables',
+        id: 'GREEN_BEANS', name_en: 'Green Beans (Sem)', name_hi: 'à¤¸à¥‡à¤®', category: 'Vegetables',
         calories: 31, protein: 1.8, carbs: 7.1, fat: 0.1, fiber: 3.4,
         iron: 1.0, calcium: 37, magnesium: 25, zinc: 0.2, potassium: 209, sodium: 6, phosphorus: 38, iodine: 0, selenium: 0.6, copper: 0.07,
         vitamin_a: 35, vitamin_b1: 0.08, vitamin_b2: 0.1, vitamin_b3: 0.7, vitamin_b6: 0.14, vitamin_b9: 33, vitamin_b12: 0, vitamin_c: 12.2, vitamin_d: 0, vitamin_e: 0.4, vitamin_k: 43,
@@ -8171,7 +8174,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
 
       // Cereals & Grains
       {
-        id: 'QUINOA', name_en: 'Quinoa', name_hi: 'क्विनोआ', category: 'Cereals',
+        id: 'QUINOA', name_en: 'Quinoa', name_hi: 'à¤•à¥à¤µà¤¿à¤¨à¥‹à¤†', category: 'Cereals',
         calories: 368, protein: 14.1, carbs: 64.2, fat: 6.1, fiber: 7.0,
         iron: 4.6, calcium: 47, magnesium: 197, zinc: 3.1, potassium: 563, sodium: 5, phosphorus: 457, iodine: 0, selenium: 8.5, copper: 0.6,
         vitamin_a: 1, vitamin_b1: 0.36, vitamin_b2: 0.32, vitamin_b3: 1.5, vitamin_b6: 0.49, vitamin_b9: 184, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 2.4, vitamin_k: 0,
@@ -8180,7 +8183,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'BARLEY', name_en: 'Barley (Jau)', name_hi: 'जौ', category: 'Cereals',
+        id: 'BARLEY', name_en: 'Barley (Jau)', name_hi: 'à¤œà¥Œ', category: 'Cereals',
         calories: 354, protein: 12.5, carbs: 73.5, fat: 2.3, fiber: 17.3,
         iron: 3.6, calcium: 33, magnesium: 133, zinc: 2.8, potassium: 452, sodium: 12, phosphorus: 264, iodine: 0, selenium: 37.7, copper: 0.5,
         vitamin_a: 1, vitamin_b1: 0.65, vitamin_b2: 0.28, vitamin_b3: 4.6, vitamin_b6: 0.32, vitamin_b9: 19, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0.6, vitamin_k: 2.2,
@@ -8189,7 +8192,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'BREAD_WHEAT', name_en: 'Bread (Whole Wheat)', name_hi: 'गेहूं की रोटी (ब्रेड)', category: 'Cereals',
+        id: 'BREAD_WHEAT', name_en: 'Bread (Whole Wheat)', name_hi: 'à¤—à¥‡à¤¹à¥‚à¤‚ à¤•à¥€ à¤°à¥‹à¤Ÿà¥€ (à¤¬à¥à¤°à¥‡à¤¡)', category: 'Cereals',
         calories: 247, protein: 9.0, carbs: 41.3, fat: 3.4, fiber: 6.8,
         iron: 2.7, calcium: 107, magnesium: 76, zinc: 1.5, potassium: 248, sodium: 472, phosphorus: 215, iodine: 0, selenium: 30.5, copper: 0.3,
         vitamin_a: 0, vitamin_b1: 0.34, vitamin_b2: 0.15, vitamin_b3: 4.5, vitamin_b6: 0.1, vitamin_b9: 43, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0.4, vitamin_k: 3.4,
@@ -8199,7 +8202,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'BREAD_WHITE', name_en: 'Bread (White)', name_hi: 'सफेद ब्रेड', category: 'Cereals',
+        id: 'BREAD_WHITE', name_en: 'Bread (White)', name_hi: 'à¤¸à¤«à¥‡à¤¦ à¤¬à¥à¤°à¥‡à¤¡', category: 'Cereals',
         calories: 265, protein: 9.0, carbs: 51.2, fat: 3.2, fiber: 2.3,
         iron: 2.7, calcium: 182, magnesium: 26, zinc: 0.8, potassium: 116, sodium: 491, phosphorus: 108, iodine: 0, selenium: 27.9, copper: 0.2,
         vitamin_a: 0, vitamin_b1: 0.31, vitamin_b2: 0.19, vitamin_b3: 4.8, vitamin_b6: 0.04, vitamin_b9: 91, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0.3, vitamin_k: 1.8,
@@ -8209,7 +8212,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'MAKHANA', name_en: 'Makhana (Fox Nuts, roasted)', name_hi: 'मखाना', category: 'Cereals',
+        id: 'MAKHANA', name_en: 'Makhana (Fox Nuts, roasted)', name_hi: 'à¤®à¤–à¤¾à¤¨à¤¾', category: 'Cereals',
         calories: 347, protein: 9.7, carbs: 76.9, fat: 0.1, fiber: 14.5,
         iron: 1.4, calcium: 60, magnesium: 67, zinc: 0.6, potassium: 500, sodium: 70, phosphorus: 180, iodine: 0, selenium: 0, copper: 0.2,
         vitamin_a: 0, vitamin_b1: 0.4, vitamin_b2: 0.0, vitamin_b3: 1.0, vitamin_b6: 0.0, vitamin_b9: 0, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
@@ -8218,7 +8221,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'PUFFED_RICE', name_en: 'Puffed Rice (Murmura)', name_hi: 'मुरमुरा', category: 'Cereals',
+        id: 'PUFFED_RICE', name_en: 'Puffed Rice (Murmura)', name_hi: 'à¤®à¥à¤°à¤®à¥à¤°à¤¾', category: 'Cereals',
         calories: 402, protein: 6.3, carbs: 89.0, fat: 0.5, fiber: 1.0,
         iron: 5.0, calcium: 5, magnesium: 35, zinc: 1.2, potassium: 115, sodium: 12, phosphorus: 130, iodine: 0, selenium: 15.1, copper: 0.2,
         vitamin_a: 0, vitamin_b1: 0.07, vitamin_b2: 0.05, vitamin_b3: 4.1, vitamin_b6: 0.1, vitamin_b9: 8, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
@@ -8228,7 +8231,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
 
       // Nuts & Seeds
       {
-        id: 'PISTACHIOS', name_en: 'Pistachios (Pista)', name_hi: 'पिस्ता', category: 'Nuts & Seeds',
+        id: 'PISTACHIOS', name_en: 'Pistachios (Pista)', name_hi: 'à¤ªà¤¿à¤¸à¥à¤¤à¤¾', category: 'Nuts & Seeds',
         calories: 562, protein: 20.2, carbs: 27.5, fat: 45.4, fiber: 10.3,
         iron: 3.9, calcium: 105, magnesium: 121, zinc: 2.2, potassium: 1025, sodium: 1, phosphorus: 490, iodine: 0, selenium: 7.0, copper: 1.3,
         vitamin_a: 26, vitamin_b1: 0.87, vitamin_b2: 0.16, vitamin_b3: 1.3, vitamin_b6: 1.7, vitamin_b9: 51, vitamin_b12: 0, vitamin_c: 5.6, vitamin_d: 0, vitamin_e: 2.3, vitamin_k: 13.2,
@@ -8237,7 +8240,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'PUMPKIN_SEEDS', name_en: 'Pumpkin Seeds (Kaddu ke Beej)', name_hi: 'कद्दू के बीज', category: 'Nuts & Seeds',
+        id: 'PUMPKIN_SEEDS', name_en: 'Pumpkin Seeds (Kaddu ke Beej)', name_hi: 'à¤•à¤¦à¥à¤¦à¥‚ à¤•à¥‡ à¤¬à¥€à¤œ', category: 'Nuts & Seeds',
         calories: 559, protein: 30.2, carbs: 10.7, fat: 49.1, fiber: 6.0,
         iron: 8.8, calcium: 46, magnesium: 592, zinc: 7.8, potassium: 809, sodium: 7, phosphorus: 1233, iodine: 0, selenium: 9.4, copper: 1.3,
         vitamin_a: 16, vitamin_b1: 0.27, vitamin_b2: 0.15, vitamin_b3: 4.4, vitamin_b6: 0.14, vitamin_b9: 57, vitamin_b12: 0, vitamin_c: 1.9, vitamin_d: 0, vitamin_e: 2.2, vitamin_k: 0,
@@ -8246,7 +8249,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'SUNFLOWER_SEEDS', name_en: 'Sunflower Seeds', name_hi: 'सूरजमुखी के बीज', category: 'Nuts & Seeds',
+        id: 'SUNFLOWER_SEEDS', name_en: 'Sunflower Seeds', name_hi: 'à¤¸à¥‚à¤°à¤œà¤®à¥à¤–à¥€ à¤•à¥‡ à¤¬à¥€à¤œ', category: 'Nuts & Seeds',
         calories: 584, protein: 20.8, carbs: 20.0, fat: 51.5, fiber: 8.6,
         iron: 5.3, calcium: 78, magnesium: 325, zinc: 5.0, potassium: 645, sodium: 9, phosphorus: 660, iodine: 0, selenium: 53.0, copper: 1.8,
         vitamin_a: 3, vitamin_b1: 1.48, vitamin_b2: 0.36, vitamin_b3: 8.3, vitamin_b6: 1.35, vitamin_b9: 227, vitamin_b12: 0, vitamin_c: 1.4, vitamin_d: 0, vitamin_e: 35.2, vitamin_k: 0,
@@ -8255,7 +8258,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'PEANUT_BUTTER', name_en: 'Peanut Butter (unsweetened)', name_hi: 'मूंगफली का मक्खन', category: 'Nuts & Seeds',
+        id: 'PEANUT_BUTTER', name_en: 'Peanut Butter (unsweetened)', name_hi: 'à¤®à¥‚à¤‚à¤—à¤«à¤²à¥€ à¤•à¤¾ à¤®à¤•à¥à¤–à¤¨', category: 'Nuts & Seeds',
         calories: 588, protein: 25.1, carbs: 20.0, fat: 49.9, fiber: 6.0,
         iron: 1.7, calcium: 49, magnesium: 168, zinc: 2.9, potassium: 558, sodium: 459, phosphorus: 335, iodine: 0, selenium: 4.1, copper: 0.6,
         vitamin_a: 0, vitamin_b1: 0.15, vitamin_b2: 0.13, vitamin_b3: 13.7, vitamin_b6: 0.44, vitamin_b9: 87, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 9.1, vitamin_k: 0.3,
@@ -8264,7 +8267,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'COCONUT_MILK', name_en: 'Coconut Milk', name_hi: 'नारियल का दूध', category: 'Nuts & Seeds',
+        id: 'COCONUT_MILK', name_en: 'Coconut Milk', name_hi: 'à¤¨à¤¾à¤°à¤¿à¤¯à¤² à¤•à¤¾ à¤¦à¥‚à¤§', category: 'Nuts & Seeds',
         calories: 230, protein: 2.3, carbs: 5.5, fat: 23.8, fiber: 2.2,
         iron: 1.6, calcium: 18, magnesium: 37, zinc: 0.7, potassium: 263, sodium: 15, phosphorus: 100, iodine: 0, selenium: 6.2, copper: 0.3,
         vitamin_a: 0, vitamin_b1: 0.03, vitamin_b2: 0.0, vitamin_b3: 0.8, vitamin_b6: 0.03, vitamin_b9: 16, vitamin_b12: 0, vitamin_c: 2.8, vitamin_d: 0, vitamin_e: 0.2, vitamin_k: 0,
@@ -8274,7 +8277,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
 
       // Protein foods
       {
-        id: 'TOFU', name_en: 'Tofu (Soy Paneer)', name_hi: 'टोफू', category: 'Pulses',
+        id: 'TOFU', name_en: 'Tofu (Soy Paneer)', name_hi: 'à¤Ÿà¥‹à¤«à¥‚', category: 'Pulses',
         calories: 76, protein: 8.1, carbs: 1.9, fat: 4.8, fiber: 0.3,
         iron: 5.4, calcium: 350, magnesium: 30, zinc: 0.8, potassium: 121, sodium: 7, phosphorus: 97, iodine: 0, selenium: 8.9, copper: 0.2,
         vitamin_a: 0, vitamin_b1: 0.04, vitamin_b2: 0.05, vitamin_b3: 0.2, vitamin_b6: 0.05, vitamin_b9: 15, vitamin_b12: 0, vitamin_c: 0.1, vitamin_d: 0, vitamin_e: 0.0, vitamin_k: 2.0,
@@ -8283,7 +8286,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'EGG_YOLK', name_en: 'Egg Yolk', name_hi: 'अंडे की जर्दी', category: 'Eggs & Non-Veg',
+        id: 'EGG_YOLK', name_en: 'Egg Yolk', name_hi: 'à¤…à¤‚à¤¡à¥‡ à¤•à¥€ à¤œà¤°à¥à¤¦à¥€', category: 'Eggs & Non-Veg',
         calories: 322, protein: 15.9, carbs: 3.6, fat: 26.5, fiber: 0.0,
         iron: 2.7, calcium: 129, magnesium: 5, zinc: 2.3, potassium: 109, sodium: 48, phosphorus: 390, iodine: 0, selenium: 25.5, copper: 0.1,
         vitamin_a: 381, vitamin_b1: 0.18, vitamin_b2: 0.53, vitamin_b3: 0.0, vitamin_b6: 0.35, vitamin_b9: 146, vitamin_b12: 1.95, vitamin_c: 0, vitamin_d: 5.6, vitamin_e: 2.6, vitamin_k: 0.7,
@@ -8293,7 +8296,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'FISH_POMFRET', name_en: 'Pomfret (Paplet)', name_hi: 'पापलेट', category: 'Eggs & Non-Veg',
+        id: 'FISH_POMFRET', name_en: 'Pomfret (Paplet)', name_hi: 'à¤ªà¤¾à¤ªà¤²à¥‡à¤Ÿ', category: 'Eggs & Non-Veg',
         calories: 97, protein: 20.6, carbs: 0.0, fat: 1.6, fiber: 0.0,
         iron: 0.5, calcium: 28, magnesium: 27, zinc: 0.4, potassium: 432, sodium: 74, phosphorus: 210, iodine: 0, selenium: 36.0, copper: 0.1,
         vitamin_a: 12, vitamin_b1: 0.04, vitamin_b2: 0.12, vitamin_b3: 5.0, vitamin_b6: 0.4, vitamin_b9: 12, vitamin_b12: 1.5, vitamin_c: 0, vitamin_d: 0.5, vitamin_e: 0.6, vitamin_k: 0,
@@ -8302,7 +8305,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'SALMON', name_en: 'Salmon', name_hi: 'सैल्मन', category: 'Eggs & Non-Veg',
+        id: 'SALMON', name_en: 'Salmon', name_hi: 'à¤¸à¥ˆà¤²à¥à¤®à¤¨', category: 'Eggs & Non-Veg',
         calories: 208, protein: 20.4, carbs: 0.0, fat: 13.4, fiber: 0.0,
         iron: 0.3, calcium: 9, magnesium: 27, zinc: 0.4, potassium: 363, sodium: 59, phosphorus: 252, iodine: 0, selenium: 36.5, copper: 0.3,
         vitamin_a: 12, vitamin_b1: 0.23, vitamin_b2: 0.38, vitamin_b3: 8.0, vitamin_b6: 0.64, vitamin_b9: 26, vitamin_b12: 3.18, vitamin_c: 0, vitamin_d: 11.1, vitamin_e: 2.5, vitamin_k: 0,
@@ -8311,7 +8314,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'TUNA_CANNED', name_en: 'Tuna (Canned in water)', name_hi: 'ट्यूना', category: 'Eggs & Non-Veg',
+        id: 'TUNA_CANNED', name_en: 'Tuna (Canned in water)', name_hi: 'à¤Ÿà¥à¤¯à¥‚à¤¨à¤¾', category: 'Eggs & Non-Veg',
         calories: 116, protein: 25.5, carbs: 0.0, fat: 0.8, fiber: 0.0,
         iron: 1.3, calcium: 11, magnesium: 31, zinc: 0.6, potassium: 237, sodium: 327, phosphorus: 194, iodine: 0, selenium: 80.4, copper: 0.1,
         vitamin_a: 20, vitamin_b1: 0.09, vitamin_b2: 0.1, vitamin_b3: 13.3, vitamin_b6: 0.45, vitamin_b9: 4, vitamin_b12: 2.5, vitamin_c: 0, vitamin_d: 5.4, vitamin_e: 0.6, vitamin_k: 0,
@@ -8321,7 +8324,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
 
       // Dairy
       {
-        id: 'GREEK_YOGURT', name_en: 'Greek Yogurt (plain)', name_hi: 'ग्रीक दही', category: 'Dairy',
+        id: 'GREEK_YOGURT', name_en: 'Greek Yogurt (plain)', name_hi: 'à¤—à¥à¤°à¥€à¤• à¤¦à¤¹à¥€', category: 'Dairy',
         calories: 59, protein: 10.2, carbs: 3.6, fat: 0.4, fiber: 0.0,
         iron: 0.1, calcium: 110, magnesium: 11, zinc: 0.5, potassium: 141, sodium: 36, phosphorus: 135, iodine: 0, selenium: 9.7, copper: 0.0,
         vitamin_a: 0, vitamin_b1: 0.02, vitamin_b2: 0.28, vitamin_b3: 0.2, vitamin_b6: 0.06, vitamin_b9: 7, vitamin_b12: 0.75, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0.0, vitamin_k: 0,
@@ -8330,7 +8333,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'WHEY_PROTEIN', name_en: 'Whey Protein (unflavoured)', name_hi: 'व्हे प्रोटीन', category: 'Dairy',
+        id: 'WHEY_PROTEIN', name_en: 'Whey Protein (unflavoured)', name_hi: 'à¤µà¥à¤¹à¥‡ à¤ªà¥à¤°à¥‹à¤Ÿà¥€à¤¨', category: 'Dairy',
         calories: 352, protein: 75.0, carbs: 6.0, fat: 2.0, fiber: 0.0,
         iron: 0.4, calcium: 500, magnesium: 30, zinc: 1.0, potassium: 200, sodium: 100, phosphorus: 400, iodine: 0, selenium: 0, copper: 0.0,
         vitamin_a: 0, vitamin_b1: 0.0, vitamin_b2: 0.4, vitamin_b3: 0.0, vitamin_b6: 0.0, vitamin_b9: 0, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
@@ -8340,7 +8343,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
 
       // Prepared foods
       {
-        id: 'RAJMA_COOKED', name_en: 'Rajma (cooked)', name_hi: 'राजमा (पकाया)', category: 'Prepared',
+        id: 'RAJMA_COOKED', name_en: 'Rajma (cooked)', name_hi: 'à¤°à¤¾à¤œà¤®à¤¾ (à¤ªà¤•à¤¾à¤¯à¤¾)', category: 'Prepared',
         calories: 127, protein: 8.7, carbs: 22.8, fat: 0.5, fiber: 6.4,
         iron: 2.5, calcium: 43, magnesium: 45, zinc: 1.0, potassium: 403, sodium: 2, phosphorus: 142, iodine: 0, selenium: 1.2, copper: 0.2,
         vitamin_a: 0, vitamin_b1: 0.16, vitamin_b2: 0.06, vitamin_b3: 0.6, vitamin_b6: 0.12, vitamin_b9: 130, vitamin_b12: 0, vitamin_c: 1.5, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 5.6,
@@ -8349,7 +8352,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'CHOLE_COOKED', name_en: 'Chole / Chickpeas (cooked)', name_hi: 'छोले', category: 'Prepared',
+        id: 'CHOLE_COOKED', name_en: 'Chole / Chickpeas (cooked)', name_hi: 'à¤›à¥‹à¤²à¥‡', category: 'Prepared',
         calories: 164, protein: 8.9, carbs: 27.4, fat: 2.6, fiber: 7.6,
         iron: 2.9, calcium: 49, magnesium: 48, zinc: 1.5, potassium: 291, sodium: 24, phosphorus: 168, iodine: 0, selenium: 3.7, copper: 0.4,
         vitamin_a: 3, vitamin_b1: 0.12, vitamin_b2: 0.06, vitamin_b3: 0.5, vitamin_b6: 0.14, vitamin_b9: 172, vitamin_b12: 0, vitamin_c: 1.3, vitamin_d: 0, vitamin_e: 0.4, vitamin_k: 4.0,
@@ -8358,7 +8361,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'POHA_COOKED', name_en: 'Poha (cooked)', name_hi: 'पोहा (पका हुआ)', category: 'Prepared',
+        id: 'POHA_COOKED', name_en: 'Poha (cooked)', name_hi: 'à¤ªà¥‹à¤¹à¤¾ (à¤ªà¤•à¤¾ à¤¹à¥à¤†)', category: 'Prepared',
         calories: 130, protein: 2.6, carbs: 28.1, fat: 1.5, fiber: 0.7,
         iron: 3.0, calcium: 7, magnesium: 18, zinc: 0.4, potassium: 98, sodium: 2, phosphorus: 55, iodine: 0, selenium: 5.0, copper: 0.1,
         vitamin_a: 0, vitamin_b1: 0.1, vitamin_b2: 0.03, vitamin_b3: 1.5, vitamin_b6: 0.05, vitamin_b9: 5, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
@@ -8367,7 +8370,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'PARATHA', name_en: 'Paratha (plain)', name_hi: 'परांठा', category: 'Prepared',
+        id: 'PARATHA', name_en: 'Paratha (plain)', name_hi: 'à¤ªà¤°à¤¾à¤‚à¤ à¤¾', category: 'Prepared',
         calories: 287, protein: 5.9, carbs: 42.3, fat: 10.6, fiber: 2.1,
         iron: 1.5, calcium: 31, magnesium: 22, zinc: 0.7, potassium: 126, sodium: 346, phosphorus: 75, iodine: 0, selenium: 14.0, copper: 0.1,
         vitamin_a: 0, vitamin_b1: 0.1, vitamin_b2: 0.04, vitamin_b3: 1.4, vitamin_b6: 0.05, vitamin_b9: 15, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 1.0, vitamin_k: 2.0,
@@ -8377,7 +8380,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'MOONG_SPROUTS', name_en: 'Moong Sprouts', name_hi: 'मूंग अंकुरित', category: 'Pulses',
+        id: 'MOONG_SPROUTS', name_en: 'Moong Sprouts', name_hi: 'à¤®à¥‚à¤‚à¤— à¤…à¤‚à¤•à¥à¤°à¤¿à¤¤', category: 'Pulses',
         calories: 30, protein: 3.0, carbs: 5.9, fat: 0.2, fiber: 1.8,
         iron: 0.9, calcium: 13, magnesium: 21, zinc: 0.4, potassium: 149, sodium: 6, phosphorus: 54, iodine: 0, selenium: 0.6, copper: 0.2,
         vitamin_a: 2, vitamin_b1: 0.08, vitamin_b2: 0.12, vitamin_b3: 0.7, vitamin_b6: 0.09, vitamin_b9: 60, vitamin_b12: 0, vitamin_c: 13.2, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 33,
@@ -8387,7 +8390,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
 
       // Treats
       {
-        id: 'DARK_CHOCOLATE_70', name_en: 'Dark Chocolate (70%)', name_hi: 'डार्क चॉकलेट (70%)', category: 'Treats',
+        id: 'DARK_CHOCOLATE_70', name_en: 'Dark Chocolate (70%)', name_hi: 'à¤¡à¤¾à¤°à¥à¤• à¤šà¥‰à¤•à¤²à¥‡à¤Ÿ (70%)', category: 'Treats',
         calories: 598, protein: 7.8, carbs: 45.9, fat: 42.6, fiber: 10.9,
         iron: 11.9, calcium: 73, magnesium: 228, zinc: 3.3, potassium: 715, sodium: 20, phosphorus: 308, iodine: 0, selenium: 6.8, copper: 1.8,
         vitamin_a: 2, vitamin_b1: 0.03, vitamin_b2: 0.07, vitamin_b3: 1.1, vitamin_b6: 0.04, vitamin_b9: 6, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0.6, vitamin_k: 7.3,
@@ -8396,7 +8399,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'HONEY', name_en: 'Honey (Shahad)', name_hi: 'शहद', category: 'Treats',
+        id: 'HONEY', name_en: 'Honey (Shahad)', name_hi: 'à¤¶à¤¹à¤¦', category: 'Treats',
         calories: 304, protein: 0.3, carbs: 82.4, fat: 0.0, fiber: 0.2,
         iron: 0.4, calcium: 6, magnesium: 2, zinc: 0.2, potassium: 52, sodium: 4, phosphorus: 4, iodine: 0, selenium: 0.8, copper: 0.0,
         vitamin_a: 0, vitamin_b1: 0.0, vitamin_b2: 0.04, vitamin_b3: 0.1, vitamin_b6: 0.02, vitamin_b9: 2, vitamin_b12: 0, vitamin_c: 0.5, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
@@ -8405,7 +8408,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'JAGGERY', name_en: 'Jaggery (Gud)', name_hi: 'गुड़', category: 'Treats',
+        id: 'JAGGERY', name_en: 'Jaggery (Gud)', name_hi: 'à¤—à¥à¤¡à¤¼', category: 'Treats',
         calories: 383, protein: 0.4, carbs: 98.0, fat: 0.1, fiber: 0.0,
         iron: 11.0, calcium: 80, magnesium: 70, zinc: 0.3, potassium: 1056, sodium: 30, phosphorus: 20, iodine: 0, selenium: 0, copper: 0.3,
         vitamin_a: 0, vitamin_b1: 0.01, vitamin_b2: 0.06, vitamin_b3: 0.5, vitamin_b6: 0.0, vitamin_b9: 0, vitamin_b12: 0, vitamin_c: 7.0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
@@ -8414,7 +8417,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'RAISINS', name_en: 'Raisins (Kishmish)', name_hi: 'किशमिश', category: 'Treats',
+        id: 'RAISINS', name_en: 'Raisins (Kishmish)', name_hi: 'à¤•à¤¿à¤¶à¤®à¤¿à¤¶', category: 'Treats',
         calories: 299, protein: 3.1, carbs: 79.2, fat: 0.5, fiber: 3.7,
         iron: 1.9, calcium: 50, magnesium: 32, zinc: 0.2, potassium: 749, sodium: 11, phosphorus: 101, iodine: 0, selenium: 0.6, copper: 0.3,
         vitamin_a: 0, vitamin_b1: 0.11, vitamin_b2: 0.13, vitamin_b3: 0.8, vitamin_b6: 0.17, vitamin_b9: 5, vitamin_b12: 0, vitamin_c: 2.3, vitamin_d: 0, vitamin_e: 0.1, vitamin_k: 3.5,
@@ -8424,7 +8427,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
 
       // Beverages
       {
-        id: 'COFFEE_BLACK', name_en: 'Coffee (black)', name_hi: 'कॉफी (ब्लैक)', category: 'Beverages',
+        id: 'COFFEE_BLACK', name_en: 'Coffee (black)', name_hi: 'à¤•à¥‰à¤«à¥€ (à¤¬à¥à¤²à¥ˆà¤•)', category: 'Beverages',
         calories: 2, protein: 0.3, carbs: 0.0, fat: 0.0, fiber: 0.0,
         iron: 0.1, calcium: 5, magnesium: 8, zinc: 0.0, potassium: 92, sodium: 5, phosphorus: 7, iodine: 0, selenium: 0.0, copper: 0.0,
         vitamin_a: 0, vitamin_b1: 0.0, vitamin_b2: 0.01, vitamin_b3: 0.7, vitamin_b6: 0.0, vitamin_b9: 2, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
@@ -8433,7 +8436,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
       },
 
       {
-        id: 'GREEN_TEA', name_en: 'Green Tea (brewed)', name_hi: 'ग्रीन टी', category: 'Beverages',
+        id: 'GREEN_TEA', name_en: 'Green Tea (brewed)', name_hi: 'à¤—à¥à¤°à¥€à¤¨ à¤Ÿà¥€', category: 'Beverages',
         calories: 1, protein: 0.2, carbs: 0.2, fat: 0.0, fiber: 0.0,
         iron: 0.0, calcium: 0, magnesium: 1, zinc: 0.0, potassium: 20, sodium: 1, phosphorus: 1, iodine: 0, selenium: 0.0, copper: 0.0,
         vitamin_a: 0, vitamin_b1: 0.0, vitamin_b2: 0.0, vitamin_b3: 0.0, vitamin_b6: 0.0, vitamin_b9: 5, vitamin_b12: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0, vitamin_k: 0,
@@ -8474,7 +8477,7 @@ FROM(VALUES ${valuesList}) AS v(id, ox, ph)
   }
 };
 
-// ─── Support ticket sequence and generator migration ──────────────────────────
+// â”€â”€â”€ Support ticket sequence and generator migration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ensureTicketNumberSequence = async () => {
   try {
     await query(`CREATE SEQUENCE IF NOT EXISTS dietbyrd_tickets_seq`);
@@ -8555,7 +8558,7 @@ if (process.env.ENABLE_AUTO_ASSIGN_SCHEDULER === "true" || IS_DEV) {
   }, 60 * 60 * 1000);
 }
 
-// ─── Manual trigger endpoint (for the dashboard "Auto-Assign Now" button) ──────
+// â”€â”€â”€ Manual trigger endpoint (for the dashboard "Auto-Assign Now" button) â”€â”€â”€â”€â”€â”€
 app.post("/api/appointments/trigger-auto-assign", async (_req, res) => {
   try {
     const result = await runAutoAssign();
