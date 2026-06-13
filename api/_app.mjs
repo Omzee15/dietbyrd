@@ -3737,12 +3737,13 @@ app.get("/api/doctors", async (req, res) => {
       `SELECT 
         d.*,
         u.phone,
+        u.email,
         u.is_active,
         COUNT(DISTINCT r.patient_id) AS total_referrals
       FROM dietbyrd_doctors d
       LEFT JOIN dietbyrd_users u ON d.user_id = u.id
       LEFT JOIN dietbyrd_referrals r ON r.doctor_id = d.id
-      GROUP BY d.id, u.phone, u.is_active
+      GROUP BY d.id, u.phone, u.email, u.is_active
       ORDER BY d.created_at DESC`
     );
     res.json({ success: true, data: result.rows });
@@ -3841,16 +3842,17 @@ app.get("/api/dieticians", async (req, res) => {
   try {
     const result = await query(
       `SELECT 
-        rd.*,
-        u.phone,
-        u.is_active,
-        COUNT(DISTINCT rp.patient_id) AS active_patients
-      FROM dietbyrd_registered_dietitians rd
-      LEFT JOIN dietbyrd_users u ON rd.user_id = u.id
-      LEFT JOIN dietbyrd_registered_patients rp ON rp.assigned_rd_id = rd.id
-      WHERE rd.is_active = true
-      GROUP BY rd.id, u.phone, u.is_active
-      ORDER BY rd.created_at DESC`
+          rd.*,
+          u.phone,
+          u.email,
+          u.is_active,
+          COUNT(DISTINCT rp.patient_id) AS active_patients
+        FROM dietbyrd_registered_dietitians rd
+        LEFT JOIN dietbyrd_users u ON rd.user_id = u.id
+        LEFT JOIN dietbyrd_registered_patients rp ON rp.assigned_rd_id = rd.id
+        WHERE rd.is_active = true
+        GROUP BY rd.id, u.phone, u.email, u.is_active
+        ORDER BY rd.created_at DESC`
     );
     res.json({ success: true, data: result.rows });
   } catch (err) {

@@ -766,6 +766,7 @@ const AdminDashboard = () => {
                             <div className="flex-1">
                               <div className="font-semibold">{d.name}</div>
                               <div className="text-xs text-muted-foreground">{d.qualification}</div>
+                                {d.email && <div className="text-xs text-muted-foreground">{d.email}</div>}
                               <div className="text-xs text-muted-foreground">{d.clinic_name || "Independent"}</div>
                               {d.clinic_address && (
                                 <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
@@ -939,6 +940,7 @@ const AdminDashboard = () => {
                             <div className="flex-1">
                               <div className="font-semibold">{d.name}</div>
                               <div className="text-xs text-muted-foreground">{d.qualification}</div>
+                                {d.email && <div className="text-xs text-muted-foreground">{d.email}</div>}
                               {d.clinic_address && <div className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{d.clinic_address}</div>}
                               <div className="text-xs text-muted-foreground">{d.phone || "—"}</div>
                             </div>

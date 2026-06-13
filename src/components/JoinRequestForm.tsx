@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -70,6 +70,8 @@ type JoinStep = "otp-send" | "otp-verify" | "password" | "details";
 export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequestFormProps) {
   const [step, setStep] = useState<JoinStep>("otp-send");
   const [isSubmitting, setIsSubmitting] = useState(false);
+    const [emailError, setEmailError] = useState("");
+    const emailInputRef = React.useRef<HTMLInputElement>(null);
     const [openCitySelect, setOpenCitySelect] = useState(false);
     const [citySearch, setCitySearch] = useState("");
   const [submitted, setSubmitted] = useState(false);
