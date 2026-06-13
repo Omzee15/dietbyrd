@@ -703,13 +703,20 @@ const DoctorDashboard = ({ defaultTab = "overview" }: DoctorDashboardProps) => {
                                 <Select 
                                   value={patient.improvement_score ? String(patient.improvement_score) : ""} 
                                   onValueChange={async (value) => {
+                                    const score = Number(value);
                                     try {
-                                      await updatePatientImprovementScore(patient.id, Number(value));
+                                      // Optimistic UI update
+                                      queryClient.setQueryData(["doctorPatients"], (old: any) => {
+                                        if (!old) return old;
+                                        return old.map((p: any) => p.id === patient.id ? { ...p, improvement_score: score } : p);
+                                      });
+                                      await updatePatientImprovementScore(patient.id, score);
                                       queryClient.invalidateQueries({ queryKey: ["doctorPatients"] });
                                       toast.success("Patient score updated");
                                     } catch (err) {
                                       console.error("Failed to update improvement score", err);
                                       toast.error("Failed to update score");
+                                      queryClient.invalidateQueries({ queryKey: ["doctorPatients"] });
                                     }
                                   }}
                                 >

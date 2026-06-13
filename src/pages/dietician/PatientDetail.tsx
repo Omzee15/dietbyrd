@@ -776,11 +776,21 @@ const PatientDetail = () => {
                 <Select 
                   value={patient.improvement_score ? String(patient.improvement_score) : ''} 
                   onValueChange={async (value) => {
+                    const score = Number(value);
                     try {
-                      await updatePatientImprovementScore(patient.id, Number(value));
+                      // Optimistic UI update
+                      queryClient.setQueryData(["patient", patient.id], (old: any) => ({
+                        ...old,
+                        improvement_score: score,
+                      }));
+                      await updatePatientImprovementScore(patient.id, score);
+                      toast.success("Improvement score updated");
                       queryClient.invalidateQueries({ queryKey: ["patient", patient.id] });
+                      queryClient.invalidateQueries({ queryKey: ["dietician-patients", currentDietician?.id] });
                     } catch (err) {
+                      toast.error("Failed to update improvement score");
                       console.error("Failed to update improvement score", err);
+                      queryClient.invalidateQueries({ queryKey: ["patient", patient.id] });
                     }
                   }}
                 >
