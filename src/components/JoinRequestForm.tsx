@@ -3,6 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Loader2, ArrowLeft, CheckCircle2, Stethoscope, UtensilsCrossed, Phone, MessageSquare, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { isValidIndianMobile, normalizeIndianMobileInput } from "@/lib/validation";
@@ -27,13 +31,32 @@ const RD_SPECIALIZATIONS = [
 ];
 
 const INDIAN_CITIES = [
-  "Mumbai","Delhi","Bengaluru","Hyderabad","Ahmedabad","Chennai","Kolkata","Pune",
-  "Jaipur","Lucknow","Kanpur","Nagpur","Indore","Thane","Bhopal","Visakhapatnam",
-  "Pimpri-Chinchwad","Patna","Vadodara","Ghaziabad","Ludhiana","Agra","Nashik",
-  "Faridabad","Meerut","Rajkot","Kalyan-Dombivali","Vasai-Virar","Varanasi","Srinagar",
-  "Aurangabad","Dhanbad","Amritsar","Navi Mumbai","Allahabad","Ranchi","Howrah","Coimbatore",
-  "Jabalpur","Gwalior","Vijayawada","Jodhpur","Madurai","Raipur","Kota","Chandigarh",
-  "Guwahati","Thiruvananthapuram","Kochi","Mysuru","Others",
+  "Mumbai","Delhi","Bengaluru","Hyderabad","Ahmedabad","Chennai","Kolkata","Surat","Pune","Jaipur",
+  "Lucknow","Kanpur","Nagpur","Indore","Thane","Bhopal","Visakhapatnam","Pimpri-Chinchwad","Patna","Vadodara",
+  "Ghaziabad","Ludhiana","Agra","Nashik","Faridabad","Meerut","Rajkot","Kalyan-Dombivali","Vasai-Virar","Varanasi",
+  "Srinagar","Aurangabad","Dhanbad","Amritsar","Navi Mumbai","Allahabad","Ranchi","Howrah","Coimbatore","Jabalpur",
+  "Gwalior","Vijayawada","Jodhpur","Madurai","Raipur","Kota","Chandigarh","Guwahati","Solapur","Hubli-Dharwad",
+  "Mysuru","Tiruchirappalli","Bareilly","Aligarh","Tiruppur","Gurgaon","Moradabad","Jalandhar","Bhubaneswar","Salem",
+  "Warangal","Guntur","Bhiwandi","Saharanpur","Gorakhpur","Bikaner","Amravati","Noida","Jamshedpur","Bhilai",
+  "Cuttack","Firozabad","Kochi","Nellore","Bhavnagar","Dehradun","Durgapur","Asansol","Rourkela","Nanded",
+  "Kolhapur","Ajmer","Akola","Gulbarga","Jamnagar","Ujjain","Loni","Siliguri","Jhansi","Ulhasnagar",
+  "Jammu","Sangli-Miraj & Kupwad","Mangalore","Erode","Belgaum","Ambattur","Tirunelveli","Malegaon","Gaya","Jalgaon",
+  "Udaipur","Maheshtala","Davanagere","Kozhikode","Kurnool","Rajpur Sonarpur","Rajahmundry","Bokaro","South Dumdum","Bellary",
+  "Patiala","Gopalpur","Agartala","Bhagalpur","Muzaffarnagar","Bhatpara","Panihati","Latur","Dhule","Tirupati",
+  "Rohtak","Korba","Bhilwara","Berhampur","Muzaffarpur","Ahmednagar","Mathura","Kollam","Avadi","Kadapa",
+  "Kamarhati","Sambalpur","Bilaspur","Shahjahanpur","Satara","Bijapur","Rampur","Shivamogga","Chandrapur","Junagadh",
+  "Thrissur","Alwar","Bardhaman","Kulti","Kakinada","Nizamabad","Parbhani","Tumkur","Khammam","Ozhukarai",
+  "Bihar Sharif","Panipat","Darbhanga","Bally","Aizawl","Dewas","Ichalkaranji","Karnal","Bathinda","Jalna",
+  "Eluru","Barasat","Purnia","Satna","Mau","Sonipat","Farrukhabad","Sagar","Durg","Imphal",
+  "Ratlam","Hapur","Anantapur","Arrah","Karimnagar","Etawah","Ambernath","North Dumdum","Bharatpur","Begusarai",
+  "New Delhi","Gandhidham","Baranagar","Tiruvottiyur","Puducherry","Sikar","Thoothukudi","Rewa","Mirzapur","Raichur",
+  "Pali","Ramagundam","Haridwar","Vijayanagaram","Katihar","Nagercoil","Sri Ganganagar","Mango","Thanjavur","Bulandshahr",
+  "Uluberia","Murwara","Haldia","Khandwa","Nandyal","Chittoor","Morena","Bhiwani","Orai","Phusro",
+  "Vellore","Mehsana","Raiganj","Sirsa","Danapur","Serampore","Guna","Jaunpur","Panvel","Shivpuri",
+  "Surendranagar Dudhrej","Unnao","Hugli-Chinsurah","Alappuzha","Kottayam","Machilipatnam","Shimla","Adoni","Tenali","Proddatur",
+  "Saharsa","Hindupur","Sasaram","Hajipur","Bhimavaram","Deoghar","Madanapalle","Kumbakonam","Bongaigaon","Raigarh",
+  "Bhusawal","Ooty","Dharmavaram","Guntakal","Srikakulam","Gudivada","Narasaraopet","Tadipatri","Chilakaluripet","Kavali",
+  "Tadepalligudem","Amaravati","Others"
 ];
 
 interface JoinRequestFormProps {
@@ -47,6 +70,8 @@ type JoinStep = "otp-send" | "otp-verify" | "password" | "details";
 export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequestFormProps) {
   const [step, setStep] = useState<JoinStep>("otp-send");
   const [isSubmitting, setIsSubmitting] = useState(false);
+    const [openCitySelect, setOpenCitySelect] = useState(false);
+    const [citySearch, setCitySearch] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpTimer, setOtpTimer] = useState(0);
@@ -522,9 +547,17 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
                 <Input
                   type="number"
                   placeholder="5"
-                  min="0"
+                  min="0" max="80"
                   value={formData.experience_years}
-                  onChange={(e) => handleChange("experience_years", e.target.value)}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (val !== "") {
+                      let num = parseInt(val);
+                      if (num > 80) val = "80";
+                      if (num < 0) val = "0";
+                    }
+                    handleChange("experience_years", val);
+                  }}
                   onKeyDown={(e) => ['e','E','+','-','.'].includes(e.key) && e.preventDefault()}
                   required
                 />
@@ -562,9 +595,17 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
               <Input
                 type="number"
                 placeholder="3"
-                min="0"
+                min="0" max="80"
                 value={formData.experience_years}
-                onChange={(e) => handleChange("experience_years", e.target.value)}
+                onChange={(e) => {
+                    let val = e.target.value;
+                    if (val !== "") {
+                      let num = parseInt(val);
+                      if (num > 80) val = "80";
+                      if (num < 0) val = "0";
+                    }
+                    handleChange("experience_years", val);
+                  }}
                 onKeyDown={(e) => ['e','E','+','-','.'].includes(e.key) && e.preventDefault()}
               />
             </div>
@@ -585,14 +626,62 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Location (City)</label>
-            <Select value={formData.clinic_address} onValueChange={(v) => handleChange("clinic_address", v)}>
-              <SelectTrigger><SelectValue placeholder="Select city" /></SelectTrigger>
-              <SelectContent>
-                {INDIAN_CITIES.map((city) => (
-                  <SelectItem key={city} value={city}>{city}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={openCitySelect} onOpenChange={setOpenCitySelect}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openCitySelect}
+                    className="w-full justify-between font-normal text-left"
+                  >
+                    {formData.clinic_address || "Select city..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput 
+                      placeholder="Search or type city..." 
+                      onValueChange={setCitySearch}
+                      value={citySearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty className="p-2 text-sm text-center">
+                        <Button 
+                          variant="ghost" 
+                          className="w-full justify-start text-primary"
+                          onClick={() => {
+                            handleChange("clinic_address", citySearch);
+                            setOpenCitySelect(false);
+                          }}
+                        >
+                          Use "{citySearch}"
+                        </Button>
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {INDIAN_CITIES.map((city) => (
+                          <CommandItem
+                            key={city}
+                            value={city}
+                            onSelect={(currentValue) => {
+                              handleChange("clinic_address", city);
+                              setOpenCitySelect(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                formData.clinic_address === city ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {city}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
           </div>
         </div>
 
