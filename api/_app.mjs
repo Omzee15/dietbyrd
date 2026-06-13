@@ -7419,13 +7419,13 @@ app.get("/api/support/patients", async (req, res) => {
       u.email,
       p.gender,
       p.age,
-      p.state,
+      rp.state_region AS state,
       u.is_active,
       p.created_at,
-      rp.diagnosis,
-      rp.diagnosis_description,
+      p.diagnosis,
+      p.diagnosis_description,
       rp.dietary_preference,
-      rp.referred_by AS "referredBy",
+      p.referral_source AS "referredBy",
       (SELECT COUNT(*)
        FROM dietbyrd_consultations c
        JOIN dietbyrd_registered_patients rp2 ON rp2.id = c.registered_patient_id

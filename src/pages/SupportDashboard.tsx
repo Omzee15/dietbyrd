@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, MessageSquare, LogOut, Plus, Search, Eye, X, Send, UserCheck, Check, ChevronsUpDown, ArrowLeft } from "lucide-react";
+import { Users, MessageSquare, LogOut, Plus, Search, Eye, X, Send, UserCheck, Check, ChevronsUpDown, ArrowLeft, Mail } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
