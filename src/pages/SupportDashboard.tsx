@@ -135,12 +135,42 @@ const SupportDashboard = () => {
   const [selectedPatientDetail, setSelectedPatientDetail] = useState<Patient | null>(null);
   const [newComment, setNewComment] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
-  const [ticketForm, setTicketForm] = useState({
-    patient_id: null as number | null,
-    subject: "",
-    description: "",
-    priority: "medium",
+  const [ticketForm, setTicketForm] = useState({ patient_id: null as number | null, subject: "", description: "", priority: "medium" });
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailTarget, setEmailTarget] = useState<{name: string, email: string} | null>(null);
+  const [emailForm, setEmailForm] = useState({ subject: "", body: "" });
+
+  const { data: communications } = useQuery({
+    queryKey: ["support-communications", emailTarget?.email],
+    queryFn: async () => {
+      if (!emailTarget?.email) return [];
+      const res = await fetch(`/api/support/communications?email=${encodeURIComponent(emailTarget.email)}`);
+      const data = await res.json();
+      return data.data || [];
+    },
+    enabled: !!emailTarget?.email,
   });
+
+  const sendEmailMutation = useMutation({
+    mutationFn: async () => {
+      if (!emailTarget?.email) throw new Error("No email target selected");
+      const res = await fetch("/api/support/communications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_email: emailTarget.email, subject: emailForm.subject, body: emailForm.body }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      return data.data;
+    },
+    onSuccess: () => {
+      toast.success("Email sent and logged successfully!");
+      queryClient.invalidateQueries({ queryKey: ["support-communications", emailTarget?.email] });
+      setEmailForm({ subject: "", body: "" });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+  
 
   // Fetch list data
   const { data: doctorsData } = useQuery({
@@ -565,6 +595,7 @@ const SupportDashboard = () => {
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {ticket.patient_name || "No patient"} · {new Date(ticket.created_at).toLocaleDateString()}
                             {ticket.comment_count > 0 && ` · ${ticket.comment_count} comments`}
+                              {ticket.assigned_to_name ? ` · 👤 ${ticket.assigned_to_name}` : " · 👤 Unassigned"}
                           </p>
                         </div>
                         <Eye className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
@@ -638,7 +669,7 @@ const SupportDashboard = () => {
                               <div key={patient.id} className="p-3 border rounded-lg flex items-center justify-between">
                                 <div>
                                   <p className="font-medium text-sm">{patient.name || "—"}</p>
-                                  <p className="text-xs text-muted-foreground">{patient.phone} · {patient.state || "—"}</p>
+                                  <p className="text-xs text-muted-foreground">{patient.phone} · {patient.email || "No email"} · {patient.state || "Unknown"}</p>
                                 </div>
                                 <div className="text-right flex flex-col items-end gap-1.5">
                                   <div className="flex items-center gap-2">
@@ -646,6 +677,7 @@ const SupportDashboard = () => {
                                       {patient.is_active ? "Active" : "Inactive"}
                                     </Badge>
                                     <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={() => setSelectedPatientDetail(patient)}>View</Button>
+                                      {patient.email && <Button variant="outline" size="sm" className="h-6 text-xs px-2 bg-primary/5 hover:bg-primary/10 text-primary" onClick={() => { setEmailTarget({ name: patient.name || "Patient", email: patient.email }); setShowEmailModal(true); }}><Mail className="w-3 h-3 mr-1" /> Mail</Button>}
                                   </div>
                                   <p className="text-xs text-muted-foreground">{patient.appointment_count} appts</p>
                                 </div>
@@ -693,7 +725,7 @@ const SupportDashboard = () => {
                       <div key={doctor.id} className="p-3 border rounded-lg flex items-center justify-between">
                         <div>
                           <p className="font-medium text-sm">{doctor.name}</p>
-                          <p className="text-xs text-muted-foreground">{doctor.phone}</p>
+                          <p className="text-xs text-muted-foreground">{doctor.phone} · {doctor.email || "No email"}</p>
                         </div>
                         <Badge variant={doctor.is_active ? "default" : "secondary"} className="text-[10px]">
                           {doctor.is_active ? "Active" : "Inactive"}
@@ -716,6 +748,7 @@ const SupportDashboard = () => {
                         <div>
                           <p className="font-medium text-sm">{dietician.name}</p>
                           <p className="text-xs text-muted-foreground">{dietician.qualification} · {dietician.appointment_count} appts</p>
+                              {dietician.email && <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-8 w-8 text-primary hover:bg-primary/10" onClick={() => { setEmailTarget({ name: dietician.name, email: dietician.email }); setShowEmailModal(true); }}><Mail className="w-4 h-4" /></Button>}
                         </div>
                         <Badge variant={dietician.is_active ? "default" : "secondary"} className="text-[10px]">
                           {dietician.is_active ? "Active" : "Inactive"}
