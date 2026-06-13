@@ -975,13 +975,13 @@ const Landing = () => {
         }
         .footer-email {
           display: inline-flex; align-items: center; gap: 7px;
-          font-size: 13.5px; color: var(--text3);
+          font-size: 13.5px; color: rgba(255, 255, 255, 0.8);
           text-decoration: none; margin-top: 14px;
           padding: 8px 14px;
-          background: var(--teal-l); border: 1px solid rgba(11,110,79,0.15);
+          background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15);
           border-radius: 8px; transition: all 0.2s;
         }
-        .footer-email:hover { color: var(--teal); background: rgba(11,110,79,0.1); border-color: rgba(11,110,79,0.25); }
+        .footer-email:hover { color: #fff; background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.25); }
         .footer-inner { max-width: 1200px; margin: 0 auto; }
         .footer-top { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 40px; border-bottom: 1px solid rgba(255,255,255,0.08); }
         .footer-brand .fb-logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 10px; }
@@ -1792,5 +1792,6 @@ const Landing = () => {
 };
 
 export default Landing;
+
 
 

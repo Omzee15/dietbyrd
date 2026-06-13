@@ -323,6 +323,143 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
             ) : (
               <><MessageSquare className="w-4 h-4 mr-2" />Send OTP</>
             )}
+          </Button>
+        </form>
+      );
+    }
+
+    // Step 2: Verify OTP
+    if (step === "otp-verify") {
+      return (
+        <form onSubmit={handleVerifyOtp} className="space-y-6">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-slate-900">Verify OTP</h2>
+            <p className="text-slate-600 text-sm mt-1">
+              Step 1 of 3: Enter the 6-digit code sent to {formData.phone}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Enter OTP</label>
+              {otpTimer > 0 && (
+                <span className="text-sm text-slate-500">
+                  {Math.floor(otpTimer / 60)}:{(otpTimer % 60).toString().padStart(2, "0")}
+                </span>
+              )}
+            </div>
+            <Input
+              autoFocus
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              placeholder="Enter 6-digit OTP"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+              className="h-12 text-center tracking-widest font-mono text-lg"
+              required
+            />
+          </div>
+
+          <Button type="submit" disabled={isSubmitting || otp.length !== 6} className="w-full h-12">
+            {isSubmitting ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Verifying...</>
+            ) : (
+              "Verify OTP"
+            )}
+          </Button>
+
+          {otpTimer === 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setOtp("");
+                setStep("otp-send");
+              }}
+              className="w-full text-center text-emerald-600 hover:text-emerald-700 font-medium text-sm"
+            >
+              Resend OTP
+            </button>
+          )}
+        </form>
+      );
+    }
+
+    // Step 3: Set Password
+    if (step === "password") {
+      return (
+        <form onSubmit={handlePasswordSubmit} className="space-y-6">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-slate-900">Create Password</h2>
+            <p className="text-slate-600 text-sm mt-1">
+              Step 2 of 3: Set a secure password for your account
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Password <span className="text-red-500">*</span></label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter password (min 6 characters)"
+                value={formData.password}
+                onChange={(e) => handleChange("password", e.target.value)}
+                className="pl-11 pr-11 h-12"
+                required
+                minLength={6}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Confirm Password <span className="text-red-500">*</span></label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Input
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="Re-enter password"
+                value={formData.confirmPassword}
+                onChange={(e) => handleChange("confirmPassword", e.target.value)}
+                className="pl-11 pr-11 h-12"
+                required
+                minLength={6}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+          <Button type="submit" disabled={isSubmitting} className="w-full h-12">
+            Continue
+          </Button>
+        </form>
+      );
+    }
+
+    // Step 4: Details Form
+    return (
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-slate-900">Professional Details</h2>
+          <p className="text-slate-600 text-sm mt-1">
+            Step 3 of 3: Tell us about your practice
+          </p>
+        </div>
+
         {/* Role Selection */}
         <div className="space-y-2">
           <label className="text-sm font-medium flex items-center gap-2">
