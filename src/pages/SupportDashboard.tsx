@@ -52,6 +52,7 @@ interface Dietician {
   is_active: boolean;
   created_at: string;
   appointment_count: number;
+  email?: string;
 }
 
 interface Ticket {
@@ -747,8 +748,9 @@ const SupportDashboard = () => {
                       <div key={dietician.id} className="p-3 border rounded-lg flex items-center justify-between">
                         <div>
                           <p className="font-medium text-sm">{dietician.name}</p>
+                          <p className="text-xs text-muted-foreground mb-0.5">{dietician.phone} · {dietician.email || "No email"}</p>
                           <p className="text-xs text-muted-foreground">{dietician.qualification} · {dietician.appointment_count} appts</p>
-                              {dietician.email && <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-8 w-8 text-primary hover:bg-primary/10" onClick={() => { setEmailTarget({ name: dietician.name, email: dietician.email }); setShowEmailModal(true); }}><Mail className="w-4 h-4" /></Button>}
+                              {dietician.email && <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-8 w-8 text-primary hover:bg-primary/10" onClick={() => { setEmailTarget({ name: dietician.name, email: dietician.email as string }); setShowEmailModal(true); }}><Mail className="w-4 h-4" /></Button>}
                         </div>
                         <Badge variant={dietician.is_active ? "default" : "secondary"} className="text-[10px]">
                           {dietician.is_active ? "Active" : "Inactive"}
