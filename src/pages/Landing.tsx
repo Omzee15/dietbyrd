@@ -1272,7 +1272,7 @@ const Landing = () => {
                   <div className="feature-icon">🔄</div>
                   <div className="feature-text">
                     <h4>No supplement upsell, Only what is required</h4>
-                    <p>Monthly consultations with the same RD who knows your history. Real progress comes from continuity — not a single diet chart PDF.</p>
+                    <p>We recommend supplements only when there is a genuine nutritional need—not because they are profitable to sell. Your health deserves evidence-based guidance, not unnecessary products added to a bill.</p>
                   </div>
                 </div>
               </div>
