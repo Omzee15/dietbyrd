@@ -720,6 +720,14 @@ const PatientDashboard = () => {
     navigate("/");
   };
 
+  // Auto-logout if patient data cannot be found for the current profileId (stale session)
+  useEffect(() => {
+    if (!patientLoading && user?.profileId && !patient) {
+      toast.error("Session expired or invalid. Please log in again.");
+      handleLogout();
+    }
+  }, [patientLoading, patient, user?.profileId]);
+
   const formatDate = (dateStr: string) => {
     const date = parseIST(dateStr);
     return date.toLocaleDateString("en-US", {
