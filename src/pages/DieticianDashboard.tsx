@@ -235,7 +235,9 @@ const DieticianDashboard = () => {
     const latestReferralByPatient = new Map<number, Referral>();
     referrals.forEach((referral) => {
       const existing = latestReferralByPatient.get(referral.patient_id);
-      if (!existing || new Date(referral.created_at) > new Date(existing.created_at)) {
+      const referralDate = new Date(referral.referred_at || referral.created_at || 0);
+      const existingDate = existing ? new Date(existing.referred_at || existing.created_at || 0) : null;
+      if (!existing || referralDate > existingDate!) {
         latestReferralByPatient.set(referral.patient_id, referral);
       }
     });

@@ -182,14 +182,26 @@ const MLTInternDoctorDetail = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {referrals.map((referral) => (
-                              <tr key={referral.id} className="border-b last:border-0">
-                                <td className="py-2 font-medium">{referral.patient_name || "N/A"}</td>
-                                <td className="py-2">{referral.patient_phone || "N/A"}</td>
-                                <td className="py-2">{referral.diagnosis || "N/A"}</td>
-                                <td className="py-2">{new Date(referral.created_at).toLocaleDateString()}</td>
-                              </tr>
-                            ))}
+                            {referrals.map((referral) => {
+                              const dateVal = referral.referred_at || referral.created_at;
+                              return (
+                                <tr key={referral.id} className="border-b last:border-0">
+                                  <td className="py-2 font-medium">{referral.patient_name || "N/A"}</td>
+                                  <td className="py-2">{referral.patient_phone || "N/A"}</td>
+                                  <td className="py-2">{referral.diagnosis || "N/A"}</td>
+                                  <td className="py-2 whitespace-nowrap">
+                                    {dateVal ? new Date(dateVal).toLocaleString("en-US", {
+                                      month: "short",
+                                      day: "numeric",
+                                      year: "numeric",
+                                      hour: "numeric",
+                                      minute: "2-digit",
+                                      hour12: true
+                                    }) : "N/A"}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
