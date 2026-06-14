@@ -3822,20 +3822,24 @@ app.delete("/api/doctors/:id", async (req, res) => {
       return res.status(404).json({ success: false, error: "Doctor not found" });
     }
     const userId = doctor.rows[0].user_id;
-    await query("BEGIN");
-    await query("DELETE FROM dietbyrd_doctors WHERE id = $1", [id]);
-    if (userId) {
-      await query("DELETE FROM dietbyrd_join_requests WHERE user_id = $1", [userId]);
-      await query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
-    }
-    await query("COMMIT");
-    res.json({ success: true, message: "Doctor deleted successfully" });
-  } catch (err) {
+
+    const client = await getPool().connect();
     try {
-      await query("ROLLBACK");
-    } catch {
-      // Ignore rollback errors
+      await client.query("BEGIN");
+      await client.query("DELETE FROM dietbyrd_doctors WHERE id = $1", [id]);
+      if (userId) {
+        await client.query("DELETE FROM dietbyrd_join_requests WHERE user_id = $1", [userId]);
+        await client.query("DELETE FROM dietbyrd_users WHERE id = $1", [userId]);
+      }
+      await client.query("COMMIT");
+      res.json({ success: true, message: "Doctor deleted successfully" });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
     }
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -5787,12 +5791,13 @@ app.post("/api/dieticians/:id/availability", async (req, res) => {
       });
     }
 
-    // Start transaction
-    await query("BEGIN");
-
+    const client = await getPool().connect();
     try {
+      // Start transaction
+      await client.query("BEGIN");
+
       // Deactivate all existing schedules for this dietician
-      await query(
+      await client.query(
         `UPDATE dietbyrd_dietician_availability 
          SET is_active = false, updated_at = CURRENT_TIMESTAMP 
          WHERE rd_id = $1`,
@@ -5801,7 +5806,7 @@ app.post("/api/dieticians/:id/availability", async (req, res) => {
 
       // Insert new schedules
       for (const schedule of schedules) {
-        await query(
+        await client.query(
           `INSERT INTO dietbyrd_dietician_availability 
            (rd_id, day_of_week, start_time, end_time, slot_duration_minutes, is_active)
            VALUES ($1, $2, $3, $4, $5, true)
@@ -5815,21 +5820,23 @@ app.post("/api/dieticians/:id/availability", async (req, res) => {
         );
       }
 
-      await query("COMMIT");
-
-      // Return updated schedules
-      const result = await query(
-        `SELECT * FROM dietbyrd_dietician_availability 
-         WHERE rd_id = $1 AND is_active = true 
-         ORDER BY day_of_week, start_time`,
-        [id]
-      );
-
-      res.json({ success: true, data: result.rows });
+      await client.query("COMMIT");
     } catch (err) {
-      await query("ROLLBACK");
+      await client.query("ROLLBACK");
       throw err;
+    } finally {
+      client.release();
     }
+
+    // Return updated schedules
+    const result = await query(
+      `SELECT * FROM dietbyrd_dietician_availability 
+       WHERE rd_id = $1 AND is_active = true 
+       ORDER BY day_of_week, start_time`,
+      [id]
+    );
+
+    res.json({ success: true, data: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
