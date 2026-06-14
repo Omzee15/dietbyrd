@@ -42,7 +42,7 @@ interface Coupon {
 const AdminCoupons = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   
   const [editingCoupon, setEditingCoupon] = useState<Partial<Coupon> | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
