@@ -187,7 +187,7 @@ const SupportTeamPage = () => {
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar title="DietByRD" subtitle="Admin Panel" sections={sidebarSections} bottomContent={bottomContent} />
+      <AppSidebar title="DietByRD" subtitle={user?.name || "Admin Panel"} sections={sidebarSections} bottomContent={bottomContent} />
 
       <main className="flex-1 bg-background">
         <div className="flex items-center justify-end px-6 py-4 border-b">

@@ -376,7 +376,7 @@ const SupportDashboard = () => {
     <div className="flex min-h-screen">
       <AppSidebar
         title="DietByRD"
-        subtitle="Support Team"
+        subtitle={user?.name || "Support Team"}
         sections={sidebarSections}
         bottomContent={bottomContent}
       />

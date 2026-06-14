@@ -375,7 +375,7 @@ const JoinRequests = () => {
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar title="DietByRD" subtitle="Admin Panel" sections={sidebarSections} bottomContent={bottomContent} />
+      <AppSidebar title="DietByRD" subtitle={user?.name || "Admin Panel"} sections={sidebarSections} bottomContent={bottomContent} />
 
       <main className="flex-1 bg-background">
         {/* Header */}

@@ -190,7 +190,7 @@ const AdminFoodLibrary = () => {
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar title="DietByRD" subtitle="Admin Panel" sections={sidebarSections} bottomContent={bottomContent} />
+      <AppSidebar title="DietByRD" subtitle={user?.name || "Admin Panel"} sections={sidebarSections} bottomContent={bottomContent} />
       
       <main className="flex-1 p-8 bg-gray-50">
         <div className="max-w-7xl mx-auto space-y-6">

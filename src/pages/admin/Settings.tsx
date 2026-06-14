@@ -50,7 +50,7 @@ const AdminSettings = () => {
     <div className="flex min-h-screen">
       <AppSidebar
         title="DietByRD"
-        subtitle="Admin Panel"
+        subtitle={user?.name || "Admin Panel"}
         sections={sidebarSections}
       />
 
