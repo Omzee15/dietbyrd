@@ -1150,7 +1150,7 @@ const Landing = () => {
               {Array(6).fill([
                 { label: 'DPDPA Compliant, Strict NDA Policy', img: '/dpdpa.png' },
                 { label: 'IDA Verified RDs', icon: BadgeCheck },
-                { label: 'EU GDPR Compliant', img: '/gdpr.png' },
+                { label: 'EUGDPR Compliant', img: '/gdpr.png' },
                 { label: 'Aligned with ISO 27001 standards' },
               ]).flat().map((item, index) => (
                 <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -1777,7 +1777,7 @@ const Landing = () => {
               </a>
               <div className="footer-badges">
                 <span className="f-badge">DPDPA Compliant</span>
-                <span className="f-badge">GDPR Aligned</span>
+                <span className="f-badge">EUGDPR Aligned</span>
                 <span className="f-badge">256-bit SSL</span>
                 <span className="f-badge">IDA Verified RDs</span>
               </div>
