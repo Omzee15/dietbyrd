@@ -22,9 +22,10 @@ const getStoredAuthHeaders = (): Record<string, string> => {
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const isFormData = typeof FormData !== "undefined" && options?.body instanceof FormData;
+  const { headers: customHeaders, ...restOptions } = options || {};
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { ...(isFormData ? {} : { "Content-Type": "application/json" }), ...options?.headers },
-    ...options,
+    ...restOptions,
+    headers: { ...(isFormData ? {} : { "Content-Type": "application/json" }), ...customHeaders },
   });
   const data = await res.json();
   if (!res.ok || !data.success) {

@@ -781,8 +781,8 @@ const PatientDashboard = () => {
   const nextAppointment = upcomingAppointments[0];
 
   // Check if patient has completed first consultation
-  const hasCompletedConsultation = (consultations || []).some((c) => c.status === "completed");
-  const hasScheduledAppointment = (consultations || []).some((c) => c.status === "scheduled");
+  const hasCompletedConsultation = (consultations || []).some((c) => c.status === "completed") || (appointments || []).some((a) => a.status === "completed");
+  const hasScheduledAppointment = (consultations || []).some((c) => c.status === "scheduled") || (appointments || []).some((a) => a.status === "scheduled" || a.status === "confirmed");
   const hasPaid = (patient as any)?.payment_status === "paid" || (patient as any)?.consultations_left > 0 || dietPlans?.length > 0;
   
   // Progress steps for onboarding
@@ -1395,6 +1395,18 @@ const PatientDashboard = () => {
                       <Badge className="mt-2 bg-teal-50 text-teal-700 border border-teal-200">
                         Confirmed
                       </Badge>
+                      {(nextAppointment as any).meeting_link && (
+                        <div className="pt-2">
+                          <Button
+                            size="sm"
+                            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium flex items-center justify-center gap-2"
+                            onClick={() => window.open((nextAppointment as any).meeting_link, "_blank")}
+                          >
+                            <Video className="w-4 h-4" />
+                            Join Meeting
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">No upcoming appointments</p>
