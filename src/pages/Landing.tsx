@@ -1075,8 +1075,8 @@ const Landing = () => {
             ) : (
               <>
                 <div className="profile-menu-wrap">
-                  <Link to="/login" className="profile-avatar" aria-label="Login">
-                    <User size={18} />
+                  <Link to="/login" className="nav-link" style={{ fontWeight: 600 }}>
+                    Login / Sign Up
                   </Link>
                 </div>
                 <button onClick={() => setIsBookingModalOpen(true)} className="nav-cta">Book — ₹999</button>
