@@ -777,7 +777,8 @@ const getPool = () => {
 };
 
 const query = async (text, params) => {
-  const res = await getPool().query(text, params);
+  const safeParams = params ? params.map(p => p === undefined ? null : p) : params;
+  const res = await getPool().query(text, safeParams);
   return res;
 };
 
@@ -3515,7 +3516,7 @@ app.post("/api/patients", async (req, res) => {
       `INSERT INTO dietbyrd_patients (name, phone, age, gender, diagnosis, diagnosis_description, referral_source)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [name, phone, age, gender, diagnosis, diagnosis_description, referral_source]
+      [name, phone, age, gender, diagnosis, diagnosis_description, referral_source].map(v => v === undefined ? null : v)
     );
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) {
@@ -3570,12 +3571,10 @@ app.patch("/api/patients/:id(\\d+)", async (req, res) => {
            address = COALESCE($13, address),
            dietary_preference = COALESCE($14, dietary_preference),
            city = COALESCE($15, city),
-           current_weight = COALESCE($16, current_weight),
-           target_weight = COALESCE($17, target_weight),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $11
        RETURNING *`,
-      [name, email || null, age, gender, primaryDiagnosis, diagnosis_description, height, weight, allergiesValue, workout_frequency, id, diagnosesValue, address, dietary_preference, city, current_weight, target_weight]
+      [name, email || null, age, gender, primaryDiagnosis, diagnosis_description, height, weight, allergiesValue, workout_frequency, id, diagnosesValue, address, dietary_preference, city].map(v => v === undefined ? null : v)
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: "Patient not found" });
 
