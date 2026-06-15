@@ -5990,13 +5990,19 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
             continue;
           }
 
-          // Include all slots (both booked and available), with is_booked flag
+          // Skip booked slots — they should not be shown to patients
+          if (isBooked) {
+            slotMinutes += slotDuration;
+            continue;
+          }
+
+          // Include only available slots
           availableSlots.push({
             date: dateStr,
             start_time: slotTimeStr,
             datetime: slotDatetime,
             duration_minutes: slotDuration,
-            is_booked: isBooked
+            is_booked: false
           });
 
           slotMinutes += slotDuration;
