@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { Loader2, ShieldCheck, Star, UserX, Lock, MessageCircle, Heart, Quote, Mail, ArrowLeft } from "lucide-react";
+import { Loader2, ShieldCheck, Star, UserX, Lock, MessageCircle, Heart, Quote, Mail, ArrowLeft, ArrowRight } from "lucide-react";
 import { getApprovedReviews, getReviewEligibility, submitReview, getMyReview, updateMyReview } from "@/lib/api";
 import { PublicBookingModal } from "@/components/PublicBookingModal";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1114,9 +1114,15 @@ const Reviews = () => {
             </div>
           ) : (!eligibility?.eligible && !isEditing) ? (
             <div className="text-center p-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-              <p className="text-sm text-gray-600 font-medium mb-3">
-                {eligibility?.reason || "Only paid patients can submit a review."}
-              </p>
+              {!eligibility?.has_reviewed && (
+                <button
+                  onClick={() => setIsBookingModalOpen(true)}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white hover:bg-gray-50 text-[var(--navy)] border border-[#EBE7DF] rounded-xl text-[14px] font-bold transition-all shadow-sm w-full sm:w-auto"
+                >
+                  Experience Diet By RD to become eligible to post an honest review
+                  <ArrowRight className="w-4 h-4 text-[#427A5B]" />
+                </button>
+              )}
               {eligibility?.has_reviewed && (
                 <button 
                   onClick={() => setIsEditing(true)}
