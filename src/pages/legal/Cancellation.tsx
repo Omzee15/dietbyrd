@@ -6,7 +6,7 @@ const Cancellation = () => (
       <h2>1. Cancelling a One-Time Consultation</h2>
 
       <h3>More than 24 hours before your slot</h3>
-      <p>You may cancel or reschedule freely. Your session credit is preserved in full. Email <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a> or message us on WhatsApp. We will confirm your cancellation and your credit within 2 business hours.</p>
+      <p>You may cancel or reschedule freely. Your session credit is preserved in full. Email <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer">hello@dietbyrd.com</a> or message us on WhatsApp. We will confirm your cancellation and your credit within 2 business hours.</p>
 
       <h3>Less than 24 hours before your slot</h3>
       <p>Your session fee is non-refundable. Your Registered Dietitian's time has been reserved exclusively for you and cannot be reassigned at short notice. We genuinely understand that emergencies happen — if you have a documented emergency, contact us and we will consider your situation with care.</p>
@@ -31,11 +31,11 @@ const Cancellation = () => (
       <p>Changed your mind? You are always welcome back. Simply book a new consultation or resubscribe from your profile. Your consultation history and clinical notes from previous sessions will be preserved if you return within 3 years of your last consultation.</p>
 
       <h2>4. Account Closure</h2>
-      <p>If you wish to close your account entirely — including requesting deletion of your personal data — please refer to Section 8 of our Privacy Policy (Right to Erasure) or email us at <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a>. Account closure and data deletion are two separate requests and each will be handled with care and transparency.</p>
+      <p>If you wish to close your account entirely — including requesting deletion of your personal data — please refer to Section 8 of our Privacy Policy (Right to Erasure) or email us at <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer">hello@dietbyrd.com</a>. Account closure and data deletion are two separate requests and each will be handled with care and transparency.</p>
 
       <h2>5. Contact Us</h2>
       <p>For any cancellation-related query:</p>
-      <p><strong>Email:</strong> <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a><br />
+      <p><strong>Email:</strong> <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer">hello@dietbyrd.com</a><br />
       <strong>WhatsApp:</strong> Reply to any message from Diet By RD or use the support number on our website<br />
       <strong>Response time:</strong> Within 2 business hours, 9am–8pm Monday–Saturday</p>
     </div>

@@ -19,7 +19,7 @@ const Refund = () => (
         <li>You have a documented personal or medical emergency that prevented you from attending a scheduled consultation</li>
         <li>The quality of your consultation was demonstrably below the standard we hold ourselves to, and we are unable to satisfactorily address your concern</li>
       </ul>
-      <p>We will always review such requests with empathy and without bureaucratic rigidity. Write to us at <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a> with a brief explanation. We will respond within 24 hours.</p>
+      <p>We will always review such requests with empathy and without bureaucratic rigidity. Write to us at <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer">hello@dietbyrd.com</a> with a brief explanation. We will respond within 24 hours.</p>
 
       <h2>3. No Refund</h2>
       <p>A refund will not be issued in the following circumstances:</p>
@@ -30,7 +30,7 @@ const Refund = () => (
         <li>You request a refund more than 7 days after your payment date without a compelling documented reason</li>
         <li>You disagree with the clinical recommendations made by your Registered Dietitian — our RDs provide evidence-based guidance; we cannot issue refunds on the basis of dietary disagreement</li>
       </ul>
-      <p>If you have concerns about the advice you received, please contact us at <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a>. We will review the matter with your RD and follow up with you directly.</p>
+      <p>If you have concerns about the advice you received, please contact us at <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer">hello@dietbyrd.com</a>. We will review the matter with your RD and follow up with you directly.</p>
 
       <h2>4. Subscription Refunds</h2>
       <p>Monthly subscription payments are non-refundable once the billing cycle has begun. When you cancel your subscription:</p>
@@ -42,7 +42,7 @@ const Refund = () => (
       <p>This is consistent with standard subscription service practice and is stated transparently at the time of subscription so there are no surprises.</p>
 
       <h2>5. How to Request a Refund</h2>
-      <p>Email us at <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a> with the subject line "Refund Request" and include:</p>
+      <p>Email us at <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer">hello@dietbyrd.com</a> with the subject line "Refund Request" and include:</p>
       <ul>
         <li>Your registered mobile number</li>
         <li>Your payment date and amount</li>

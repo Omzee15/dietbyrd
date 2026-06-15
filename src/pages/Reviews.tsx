@@ -962,9 +962,9 @@ const Reviews = () => {
           <Logo />
           <div className="nav-links">
             <Link to="/" className="nav-mid">Home</Link>
-            <a href="#approach" className="nav-mid" onClick={scrollTo('approach')}>How It Works</a>
+
                         <a href="#about" className="nav-mid" onClick={scrollTo('about')}>About Us</a>
-            <Link to="/reviews" className="nav-mid">Reviews</Link>
+            <Link to="/reviews" className="nav-mid">Real Reviews</Link>
             <Link to="/contact" className="nav-mid">Contact Us</Link>
             <a href="/privacy" target="_blank" rel="noopener" className="nav-link">Privacy Policy</a>
             {isAuthenticated ? (
@@ -1290,12 +1290,12 @@ const Reviews = () => {
               <div className="fb-logo">Diet <span>By RD</span></div>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: '-6px', marginBottom: '10px' }}>The Gold Standard Clinical Nutrition</div>
               <p>India's first clinical nutrition platform where every consultation is exclusively with a Registered Dietitian. Evidence-based. Affordable. Honest.</p>
-              <a href="mailto:hello@dietbyrd.com" className="footer-email">✉️ hello@dietbyrd.com</a>
+              <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer" className="footer-email">✉️ hello@dietbyrd.com</a>
             </div>
             <div id="footer-platform" className="footer-col">
               <h5>Platform</h5>
               <a href="#" onClick={(e) => { e.preventDefault(); setIsBookingModalOpen(true); }}>Book Consultation</a>
-              <a href="#approach" onClick={scrollTo('approach')}>How It Works</a>
+
                           </div>
             <div className="footer-col">
               <h5>Company</h5>
@@ -1317,9 +1317,9 @@ const Reviews = () => {
               <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>
               <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
               <Link to="/contact">Contact / Support</Link>
-              <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a>
+              <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer">hello@dietbyrd.com</a>
               <div style={{ fontSize: '13.5px', color: 'var(--text3)', marginBottom: '10px' }}>
-                Grievance: <a href="mailto:grievance@dietbyrd.com" style={{ color: 'var(--teal)' }}>grievance@dietbyrd.com</a>
+                Grievance: <a href="https://mail.google.com/mail/?view=cm&fs=1&to=grievance@dietbyrd.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--teal)' }}>grievance@dietbyrd.com</a>
               </div>
             </div>
           </div>
