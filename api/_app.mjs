@@ -8904,16 +8904,18 @@ const hasCompletedPaidConsultation = async (patientProfileId) => {
 app.get("/api/reviews", async (req, res) => {
   try {
     const approvedOnly = req.query.approved === "1";
+    const featuredOnly = req.query.featured === "1";
     const limit = Math.min(parseInt(req.query.limit || "20", 10), 50);
     const offset = Math.max(parseInt(req.query.offset || "0", 10), 0);
     const result = await query(
       `SELECT r.id, r.patient_id, 'Anonymous patient' AS patient_name, r.rating, r.body, r.condition_tag,
-              r.is_approved, r.created_at, r.approved_at
+              r.is_approved, r.is_featured, r.created_at, r.approved_at
        FROM reviews r
        WHERE ($1::boolean = false OR r.is_approved = true)
+         AND ($2::boolean = false OR r.is_featured = true)
        ORDER BY r.created_at DESC
-       LIMIT $2 OFFSET $3`,
-      [approvedOnly, limit, offset]
+       LIMIT $3 OFFSET $4`,
+      [approvedOnly, featuredOnly, limit, offset]
     );
     res.json({ success: true, data: result.rows });
   } catch (err) {
@@ -9074,11 +9076,11 @@ app.get("/api/admin/reviews", async (req, res) => {
     const approved = req.query.approved === undefined ? null : req.query.approved === "1";
     const result = await query(
       `SELECT r.id, r.patient_id, u.name AS patient_name, r.rating, r.body, r.condition_tag,
-              r.is_approved, r.created_at, r.approved_at
+              r.is_approved, r.is_featured, r.created_at, r.approved_at
        FROM reviews r
        LEFT JOIN dietbyrd_users u ON u.id = r.patient_id
        WHERE ($1::boolean IS NULL OR r.is_approved = $1)
-       ORDER BY r.created_at DESC`,
+       ORDER BY r.is_featured DESC NULLS LAST, r.created_at DESC`,
       [approved]
     );
     res.json({ success: true, data: result.rows });
@@ -9102,6 +9104,32 @@ app.patch("/api/admin/reviews/:id", async (req, res) => {
        RETURNING *`,
       [isApproved, req.params.id]
     );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Toggle featured status for landing page testimonial section
+app.patch("/api/admin/reviews/:id/feature", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (!["ops_manager", "founder", "tech_lead"].includes(auth.role)) {
+      return res.status(403).json({ success: false, error: "Not authorized" });
+    }
+    const isFeatured = !!req.body.is_featured;
+    // Ensure is_featured column exists (safe migration)
+    try {
+      await query(`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS is_featured boolean NOT NULL DEFAULT false`);
+    } catch (_) {}
+    const result = await query(
+      `UPDATE reviews SET is_featured = $1 WHERE id = $2 RETURNING *`,
+      [isFeatured, req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Review not found" });
+    }
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

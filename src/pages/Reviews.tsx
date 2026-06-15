@@ -53,18 +53,38 @@ const Logo = () => {
   );
 };
 
-const INDIAN_NAMES = ["Rahul S.", "Priya K.", "Amit V.", "Neha D.", "Vikram M.", "Sneha R.", "Arjun T.", "Pooja B.", "Karan P.", "Divya N.", "Rohan G.", "Anjali C.", "Siddharth Y.", "Kavita L.", "Aditya S."];
-const INDIAN_STATES = ["Delhi", "Maharashtra", "Karnataka", "Punjab", "Gujarat", "Tamil Nadu", "West Bengal", "Rajasthan", "Uttar Pradesh", "Sikkim", "Kerala", "Haryana", "Telangana", "Madhya Pradesh", "Assam"];
+// Female-only conditions — never assign male names to these
+const FEMALE_CONDITIONS = ["pcos", "pcod", "pregnancy", "postpartum", "prenatal", "maternity"];
 
-const getAnonymousIdentity = (uuid) => {
-  if (!uuid) return { name: "A Verified Patient", state: "India" };
+const FEMALE_NAMES = [
+  "Priya M.", "Sneha R.", "Anjali C.", "Kavita L.", "Divya N.",
+  "Neha D.", "Pooja B.", "Ritu S.", "Sanskriti M.", "Anika R.",
+  "Simran K.", "Meera T.", "Pallavi V.", "Shreya G.", "Aditi J.",
+  "Radhika P.", "Swati B.", "Nisha K.", "Preeti V.", "Mansi S.",
+];
+
+const MALE_NAMES = [
+  "Rahul K.", "Amit V.", "Vikram M.", "Arjun T.", "Karan P.",
+  "Rohan G.", "Siddharth Y.", "Aditya S.", "Harjeet S.", "Suresh K.",
+  "Rishi T.", "Manish B.", "Gaurav D.", "Ankit R.", "Nikhil S.",
+  "Deepak J.", "Sachin M.", "Pavan K.", "Tarun B.", "Abhishek N.",
+];
+
+const INDIAN_STATES = ["Delhi", "Maharashtra", "Karnataka", "Punjab", "Gujarat", "Tamil Nadu", "West Bengal", "Rajasthan", "Uttar Pradesh", "Kerala", "Haryana", "Telangana", "Madhya Pradesh", "Assam", "Sikkim"];
+
+const getAnonymousIdentity = (uuid, conditionTag = "") => {
+  if (!uuid) return { name: "Priya M.", state: "India" };
   let hash = 0;
   for (let i = 0; i < uuid.length; i++) {
     hash = uuid.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const nameIndex = Math.abs(hash) % INDIAN_NAMES.length;
+  const isFemaleCondition = FEMALE_CONDITIONS.some(fc =>
+    conditionTag.toLowerCase().includes(fc)
+  );
+  const pool = isFemaleCondition ? FEMALE_NAMES : [...MALE_NAMES, ...FEMALE_NAMES];
+  const nameIndex = Math.abs(hash) % pool.length;
   const stateIndex = Math.abs(hash >> 2) % INDIAN_STATES.length;
-  return { name: INDIAN_NAMES[nameIndex], state: INDIAN_STATES[stateIndex] };
+  return { name: pool[nameIndex], state: INDIAN_STATES[stateIndex] };
 }
 
 const formatReviewDate = (dateString) => {
@@ -1242,7 +1262,7 @@ const Reviews = () => {
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-32 max-w-7xl mx-auto">
             {reviews.map((review) => {
-              const identity = getAnonymousIdentity(review.id);
+              const identity = getAnonymousIdentity(review.id, review.condition_tag || "");
               return (
               <div key={review.id} className="bg-white border border-[#EBE7DF] rounded-2xl p-8 flex flex-col shadow-sm">
                 <div className="flex justify-center gap-1 mb-6">

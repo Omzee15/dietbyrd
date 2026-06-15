@@ -557,9 +557,10 @@ const SupportDashboard = () => {
                 </div>
               )}
 
-              <TabsContent value="tickets" className="flex-1 overflow-hidden flex flex-col mt-0 px-6 pb-4">
-                {/* Filters */}
-                <div className="flex gap-2 mb-3 shrink-0">
+              <TabsContent value="tickets" className="flex-1 overflow-hidden mt-0 px-6 pb-4">
+                <div className="flex flex-col h-full overflow-hidden">
+                  {/* Filters */}
+                  <div className="flex gap-2 mb-3 shrink-0">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input placeholder="Search tickets…" className="pl-9" value={searchQuery}
@@ -617,7 +618,8 @@ const SupportDashboard = () => {
                     </div>
                   ))}
                 </div>
-              </TabsContent>
+              </div>
+            </TabsContent>
 
               <TabsContent value="patients" className="flex-1 overflow-y-auto px-6 pb-4 mt-0">
                 <div className="mb-3">

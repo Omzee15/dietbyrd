@@ -713,12 +713,16 @@ export interface Review {
   body: string;
   condition_tag?: string | null;
   is_approved: boolean;
+  is_featured?: boolean;
   created_at: string;
   approved_at?: string | null;
 }
 
 export const getApprovedReviews = (limit = 20, offset = 0) =>
   request<Review[]>(`/reviews?approved=1&limit=${limit}&offset=${offset}`);
+
+export const getFeaturedReviews = (limit = 6) =>
+  request<Review[]>(`/reviews?approved=1&featured=1&limit=${limit}`);
 
 export const getReviewEligibility = () =>
   request<{ eligible: boolean; has_completed_paid_consultation: boolean; has_reviewed: boolean; reason?: string }>("/reviews/me/status", {
@@ -755,6 +759,14 @@ export const updateAdminReview = (id: string, is_approved: boolean) =>
     headers: getStoredAuthHeaders(),
     body: JSON.stringify({ is_approved }),
   });
+
+export const featureAdminReview = (id: string, is_featured: boolean) =>
+  request<Review>(`/admin/reviews/${id}/feature`, {
+    method: "PATCH",
+    headers: getStoredAuthHeaders(),
+    body: JSON.stringify({ is_featured }),
+  });
+
 
 export interface PatientDocument {
   id: string;

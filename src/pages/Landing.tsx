@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth, getDashboardPath } from "@/contexts/AuthContext";
 import { PublicBookingModal } from "@/components/PublicBookingModal";
-import { getApprovedReviews } from "@/lib/api";
+import { getFeaturedReviews } from "@/lib/api";
 import {
   BadgeCheck,
   BookOpen,
@@ -194,17 +194,52 @@ const Landing = () => {
   const [approachActiveIdx, setApproachActiveIdx] = useState(0);
   const [isApproachPaused, setIsApproachPaused] = useState(false);
 
+  const FEMALE_CONDITIONS = ["pcos", "pregnancy", "postpartum", "pcod", "prenatal"];
+
+  const FEMALE_NAMES = [
+    "Priya M.", "Sneha R.", "Anjali C.", "Kavita L.", "Divya N.",
+    "Neha D.", "Pooja B.", "Ritu S.", "Sanskriti M.", "Anika R.",
+    "Simran K.", "Meera T.", "Pallavi V.", "Shreya G.", "Aditi J.",
+  ];
+  const MALE_NAMES = [
+    "Rahul K.", "Amit V.", "Vikram M.", "Arjun T.", "Karan P.",
+    "Rohan G.", "Siddharth Y.", "Aditya S.", "Harjeet S.", "Suresh K.",
+    "Rishi T.", "Manish B.", "Gaurav D.", "Ankit R.", "Nikhil S.",
+  ];
+  const INDIAN_STATES = [
+    "Delhi", "Maharashtra", "Karnataka", "Punjab", "Gujarat",
+    "Tamil Nadu", "West Bengal", "Rajasthan", "Uttar Pradesh", "Kerala",
+  ];
+
+  const getTestimonialIdentity = (uuid: string, conditionTag?: string) => {
+    let hash = 0;
+    for (let i = 0; i < uuid.length; i++) {
+      hash = uuid.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const isFemaleCondition = FEMALE_CONDITIONS.some(fc =>
+      (conditionTag || "").toLowerCase().includes(fc)
+    );
+    const pool = isFemaleCondition ? FEMALE_NAMES : [...MALE_NAMES, ...FEMALE_NAMES];
+    const nameIndex = Math.abs(hash) % pool.length;
+    const stateIndex = Math.abs(hash >> 2) % INDIAN_STATES.length;
+    return { name: pool[nameIndex], state: INDIAN_STATES[stateIndex] };
+  };
+
   useEffect(() => {
-    getApprovedReviews(6)
+    getFeaturedReviews(6)
       .then((reviews) => {
+        if (reviews.length === 0) return; // keep fallback if no featured reviews yet
         setApprovedTestimonials(
-          reviews.map((review) => ({
-            text: review.body,
-            name: review.patient_name || "Verified Patient",
-            detail: "Verified Diet By RD patient",
-            condition: review.condition_tag || `${review.rating}/5 review`,
-            avatar: "★",
-          }))
+          reviews.map((review) => {
+            const identity = getTestimonialIdentity(review.id, review.condition_tag || "");
+            return {
+              text: review.body,
+              name: identity.name,
+              detail: `Verified Diet By RD patient · ${identity.state}`,
+              condition: review.condition_tag || `${review.rating}/5`,
+              avatar: "★",
+            };
+          })
         );
       })
       .catch(() => {});
@@ -1288,13 +1323,17 @@ const Landing = () => {
                   className="testimonial-card fade-in"
                   onMouseEnter={() => setIsApproachPaused(true)}
                   onMouseLeave={() => setIsApproachPaused(false)}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => navigate("/reviews")}
+                  role="button"
+                  aria-label="Read more reviews"
                 >
                   <Quote className="testimonial-quote" aria-hidden="true" />
                   <p className="testimonial-text" dangerouslySetInnerHTML={{ __html: approachTestimonial.text || "" }} />
                   <div className="testimonial-author">
                     <div className="testimonial-avatar">{approachTestimonial.avatar}</div>
                     <div>
-                      <div className="testimonial-name">{approachTestimonial.name}</div>
+                      <div className="testimonial-name" style={{ textDecoration: "underline", textDecorationColor: "rgba(10,22,40,0.3)", textUnderlineOffset: "3px" }}>{approachTestimonial.name}</div>
                       <div className="testimonial-detail">{approachTestimonial.detail}</div>
                     </div>
                     <div className="testimonial-condition">{approachTestimonial.condition || "General Wellness"}</div>
