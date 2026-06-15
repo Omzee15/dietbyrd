@@ -4,7 +4,7 @@ export const getPatientSidebarSections = () => [
   {
     title: "Dashboard",
     items: [
-      { label: "Home", href: "/patient", icon: Home },
+      { label: "My Dashboard", href: "/patient", icon: Home },
       { label: "My Profile", href: "/patient/profile", icon: Heart },
       { label: "Diet Plans", href: "/patient/diet-plans", icon: UtensilsCrossed },
       { label: "Appointments", href: "/patient/appointments", icon: CalendarDays },

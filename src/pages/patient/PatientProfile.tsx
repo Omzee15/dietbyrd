@@ -39,6 +39,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import AppSidebar from "@/components/AppSidebar";
+import { DashboardFooter } from "@/components/DashboardFooter";
 import { deleteMyDocument, getMyDocuments, getPatient, getPatientDietPlans, updatePatient, uploadMyDocument } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -324,7 +325,7 @@ const PatientProfile = () => {
         bottomContent={bottomContent}
       />
 
-      <main className="flex-1 bg-background">
+      <main className="flex-1 bg-background flex flex-col">
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div className="flex items-center gap-3">
@@ -1045,6 +1046,7 @@ const PatientProfile = () => {
             </Card>
           </div>
         )}
+        <DashboardFooter />
       </main>
     </div>
   );

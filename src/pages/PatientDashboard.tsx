@@ -65,6 +65,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import AppSidebar from "@/components/AppSidebar";
+import { DashboardFooter } from "@/components/DashboardFooter";
 import { CitySearchCombobox } from "@/components/CitySearchCombobox";
 import {
   getPatient,
@@ -1066,7 +1067,7 @@ const PatientDashboard = () => {
         bottomContent={bottomContent}
       />
 
-      <main className="flex-1 bg-background">
+      <main className="flex-1 bg-background flex flex-col">
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h1 className="text-xl font-semibold">My Dashboard</h1>
@@ -2028,6 +2029,7 @@ const PatientDashboard = () => {
             </div>
           </div>
         )}
+        <DashboardFooter />
       </main>
 
       {/* Profile Completion Modal */}

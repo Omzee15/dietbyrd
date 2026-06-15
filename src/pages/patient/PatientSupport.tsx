@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { MessageSquare, Plus, LogOut, ChevronDown, Eye, X, Send } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
+import { DashboardFooter } from "@/components/DashboardFooter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -273,7 +274,7 @@ const PatientSupport = () => {
         bottomContent={bottomContent}
       />
 
-      <main className="flex-1 bg-background">
+      <main className="flex-1 bg-background flex flex-col">
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h1 className="text-xl font-semibold">Customer Support</h1>
@@ -515,6 +516,7 @@ const PatientSupport = () => {
             )}
           </div>
         </div>
+        <DashboardFooter />
       </main>
     </div>
   );
