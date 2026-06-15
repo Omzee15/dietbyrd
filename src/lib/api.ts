@@ -732,6 +732,18 @@ export const submitReview = (data: { rating: number; body: string; condition_tag
     body: JSON.stringify(data),
   });
 
+export const getMyReview = () =>
+  request<Review>("/reviews/me", {
+    headers: getStoredAuthHeaders(),
+  });
+
+export const updateMyReview = (data: { rating: number; body: string; condition_tag?: string }) =>
+  request<Review>("/reviews/me", {
+    method: "PATCH",
+    headers: getStoredAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+
 export const getAdminReviews = (approved?: boolean) =>
   request<Review[]>(`/admin/reviews${typeof approved === "boolean" ? `?approved=${approved ? "1" : "0"}` : ""}`, {
     headers: getStoredAuthHeaders(),

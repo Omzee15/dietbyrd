@@ -113,8 +113,8 @@ const Index = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showJoinForm, setShowJoinForm] = useState(false);
-  const [joinSuccess, setJoinSuccess] = useState("");
+  const [showJoinForm, setShowJoinForm] = useState(() => window.location.pathname === '/join');
+  const [joinSuccess, setJoinSuccess] = useState(() => new URLSearchParams(window.location.search).get('joinSuccess') ? "Thanks for your interest! Our team will review your request." : "");
   const [secondsRemaining, setSecondsRemaining] = useState(0);
   const phoneInputRef = useRef<HTMLInputElement>(null);
 
@@ -605,11 +605,21 @@ const Index = () => {
             {showJoinForm ? (
               <JoinRequestForm
                 inline
-                onBack={() => setShowJoinForm(false)}
+                onBack={() => {
+                  if (window.location.pathname === '/join') {
+                    navigate('/');
+                  } else {
+                    setShowJoinForm(false);
+                  }
+                }}
                 onComplete={() => {
-                  setJoinSuccess("Thanks for your interest! Our team will review your request.");
-                  setShowJoinForm(false);
-                  setStep("phone");
+                  if (window.location.pathname === '/join') {
+                    navigate('/login?joinSuccess=1');
+                  } else {
+                    setJoinSuccess("Thanks for your interest! Our team will review your request.");
+                    setShowJoinForm(false);
+                    setStep("phone");
+                  }
                 }}
               />
             ) : (

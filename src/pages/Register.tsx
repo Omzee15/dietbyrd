@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, CheckCircle2, AlertCircle, ArrowRight, Heart, Leaf } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { CitySearchCombobox } from "@/components/CitySearchCombobox";
 
 interface TokenData {
   patientPhone: string;
@@ -39,6 +40,7 @@ const Register = () => {
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
   const [dietaryPreference, setDietaryPreference] = useState("");
+  const [city, setCity] = useState("");
 
   // Verify token or short ref code on mount
   useEffect(() => {
@@ -103,7 +105,7 @@ const Register = () => {
       return;
     }
 
-    if (!age || !gender || !dietaryPreference) {
+    if (!age || !gender || !dietaryPreference || !city) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -132,6 +134,7 @@ const Register = () => {
             gender,
             dietary_preference: dietaryPreference,
             diagnosis: tokenData.diagnosis,
+            city,
           }),
         });
 
@@ -347,6 +350,17 @@ const Register = () => {
                   <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* City */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                City <span className="text-red-500">*</span>
+              </label>
+              <CitySearchCombobox
+                value={city}
+                onChange={setCity}
+              />
             </div>
 
             {/* Dietary Preference */}

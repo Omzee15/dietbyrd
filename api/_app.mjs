@@ -3526,7 +3526,7 @@ app.post("/api/patients", async (req, res) => {
 app.patch("/api/patients/:id(\\d+)", async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, age, gender, diagnosis, diagnosis_description, height, weight, allergies, workout_frequency, diagnoses, address, dietary_preference } = req.body;
+    const { name, email, age, gender, diagnosis, diagnosis_description, height, weight, allergies, workout_frequency, diagnoses, address, dietary_preference, city, current_weight, target_weight } = req.body;
 
     // Prepare allergies for JSONB column
     let allergiesValue = null;
@@ -3569,10 +3569,13 @@ app.patch("/api/patients/:id(\\d+)", async (req, res) => {
            diagnoses = COALESCE($12::jsonb, diagnoses),
            address = COALESCE($13, address),
            dietary_preference = COALESCE($14, dietary_preference),
+           city = COALESCE($15, city),
+           current_weight = COALESCE($16, current_weight),
+           target_weight = COALESCE($17, target_weight),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $11
        RETURNING *`,
-      [name, email || null, age, gender, primaryDiagnosis, diagnosis_description, height, weight, allergiesValue, workout_frequency, id, diagnosesValue, address, dietary_preference]
+      [name, email || null, age, gender, primaryDiagnosis, diagnosis_description, height, weight, allergiesValue, workout_frequency, id, diagnosesValue, address, dietary_preference, city, current_weight, target_weight]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: "Patient not found" });
 
@@ -6952,6 +6955,32 @@ app.post("/api/payments/verify", async (req, res) => {
   }
 });
 
+// Meta WhatsApp Webhook Verification
+app.get("/api/webhooks/whatsapp", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || "dietbyrd_meta_verify_token";
+
+  if (mode && token) {
+    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+      console.log("[webhooks/whatsapp] Webhook verified");
+      res.status(200).send(challenge);
+    } else {
+      res.sendStatus(403);
+    }
+  } else {
+    res.sendStatus(400);
+  }
+});
+
+// Meta WhatsApp Webhook Events (Messages, Status Updates)
+app.post("/api/webhooks/whatsapp", (req, res) => {
+  console.log("[webhooks/whatsapp] Incoming Webhook Event:", JSON.stringify(req.body, null, 2));
+  res.sendStatus(200);
+});
+
 // Razorpay webhook handler (payment.captured)
 app.post("/api/payments/webhook", async (req, res) => {
   try {
@@ -7478,6 +7507,208 @@ app.get("/api/support/dieticians", async (req, res) => {
     res.json({ success: true, data: result.rows });
   } catch (err) {
     console.error("[support/dieticians] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/support/patients/:id/details", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const patientResult = await query(
+      `SELECT p.*, u.name, u.phone, u.email, u.is_active, rp.state_region as state, p.referral_source as "referredBy"
+       FROM dietbyrd_patients p
+       JOIN dietbyrd_users u ON u.id = p.user_id
+       LEFT JOIN dietbyrd_registered_patients rp ON rp.patient_id = p.id
+       WHERE p.id = $1`,
+      [id]
+    );
+    if (patientResult.rows.length === 0) return res.status(404).json({ success: false, error: "Patient not found" });
+    const patient = patientResult.rows[0];
+
+    const apptResult = await query(
+      `SELECT c.id, c.scheduled_at, c.status, u.name AS dietitian_name, rd.qualification, c.duration_minutes
+       FROM dietbyrd_consultations c
+       JOIN dietbyrd_registered_dietitians rd ON rd.id = c.rd_id
+       JOIN dietbyrd_users u ON u.id = rd.user_id
+       JOIN dietbyrd_registered_patients rp ON rp.id = c.registered_patient_id
+       WHERE rp.patient_id = $1
+       ORDER BY c.scheduled_at DESC`,
+      [id]
+    );
+
+    const dietitianResult = await query(
+      `SELECT u.name, rd.qualification, dp.created_at as assigned_at
+       FROM dietbyrd_diet_plans dp
+       JOIN dietbyrd_registered_dietitians rd ON rd.id = dp.dietitian_id
+       JOIN dietbyrd_users u ON u.id = rd.user_id
+       WHERE dp.patient_id = $1
+       ORDER BY dp.created_at DESC LIMIT 1`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        patient,
+        appointments: apptResult.rows,
+        assigned_dietitian: dietitianResult.rows[0] || null
+      }
+    });
+  } catch (err) {
+    console.error("[support/patients/details] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/support/patients/:id/documents", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pRes = await query("SELECT user_id FROM dietbyrd_patients WHERE id = $1", [id]);
+    if (pRes.rows.length === 0) return res.status(404).json({ success: false, error: "Patient not found" });
+    const userId = pRes.rows[0].user_id;
+
+    const docResult = await query(
+      `SELECT id, original_filename, mime_type, file_size_bytes, created_at
+       FROM dietbyrd_patient_documents
+       WHERE patient_id = $1 OR patient_profile_id = $2
+       ORDER BY created_at DESC`,
+      [userId, id]
+    );
+    res.json({ success: true, data: docResult.rows });
+  } catch (err) {
+    console.error("[support/patients/documents] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/support/doctors/:id/details", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const docResult = await query(
+      `SELECT u.id, u.name, u.phone, u.email, u.is_active, u.created_at
+       FROM dietbyrd_users u
+       WHERE u.id = $1 AND u.role = 'doctor'`,
+      [id]
+    );
+    if (docResult.rows.length === 0) return res.status(404).json({ success: false, error: "Doctor not found" });
+
+    res.json({
+      success: true,
+      data: { doctor: docResult.rows[0], appointments: [] }
+    });
+  } catch (err) {
+    console.error("[support/doctors/details] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/support/dieticians/:id/details", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dietResult = await query(
+      `SELECT d.id, u.name, u.phone, u.email, d.specializations as specialization, d.qualification, d.is_active, d.created_at
+       FROM dietbyrd_registered_dietitians d
+       JOIN dietbyrd_users u ON u.id = d.user_id
+       WHERE d.id = $1`,
+      [id]
+    );
+    if (dietResult.rows.length === 0) return res.status(404).json({ success: false, error: "Dietician not found" });
+
+    const apptResult = await query(
+      `SELECT c.id, c.scheduled_at, c.status, COALESCE(p.name, u2.name) as patient_name
+       FROM dietbyrd_consultations c
+       JOIN dietbyrd_registered_patients rp ON rp.id = c.registered_patient_id
+       JOIN dietbyrd_patients p ON p.id = rp.patient_id
+       JOIN dietbyrd_users u2 ON u2.id = p.user_id
+       WHERE c.rd_id = $1
+       ORDER BY c.scheduled_at DESC`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        dietician: dietResult.rows[0],
+        appointments: apptResult.rows
+      }
+    });
+  } catch (err) {
+    console.error("[support/dieticians/details] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+let supportCommunicationsTableInitialized = false;
+const ensureSupportCommunicationsTable = async () => {
+  if (supportCommunicationsTableInitialized) return;
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS dietbyrd_support_communications (
+        id SERIAL PRIMARY KEY,
+        target_email VARCHAR(255) NOT NULL,
+        subject VARCHAR(255) NOT NULL,
+        body TEXT NOT NULL,
+        sent_by_user_id INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_support_comms_email ON dietbyrd_support_communications(target_email)`);
+    supportCommunicationsTableInitialized = true;
+  } catch (err) {
+    console.error("Error creating support communications table:", err.message);
+  }
+};
+
+app.get("/api/support/communications", async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) return res.status(400).json({ success: false, error: "Email is required" });
+    
+    await ensureSupportCommunicationsTable();
+    
+    const result = await query(
+      `SELECT * FROM dietbyrd_support_communications WHERE target_email = $1 ORDER BY created_at DESC`,
+      [email]
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("[support/communications get] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/support/communications", async (req, res) => {
+  try {
+    const { target_email, subject, body } = req.body;
+    if (!target_email || !subject || !body) {
+      return res.status(400).json({ success: false, error: "Missing required fields" });
+    }
+
+    // Try to send email using existing sendJoinRequestMessageEmail logic
+    const emailResult = await sendJoinRequestMessageEmail({
+      recipientEmail: target_email,
+      recipientName: "Patient", 
+      senderName: "DietByRD Support",
+      message: body,
+      subject: subject,
+    });
+
+    if (!emailResult.sent && emailResult.reason !== "missing_email") {
+       console.error("Email sending failed or skipped:", emailResult.reason);
+    }
+
+    await ensureSupportCommunicationsTable();
+
+    const insertResult = await query(
+      `INSERT INTO dietbyrd_support_communications (target_email, subject, body) 
+       VALUES ($1, $2, $3) RETURNING *`,
+      [target_email, subject, body]
+    );
+
+    res.json({ success: true, data: insertResult.rows[0] });
+  } catch (err) {
+    console.error("[support/communications post] Error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -8576,7 +8807,7 @@ app.post("/api/appointments/trigger-auto-assign", async (_req, res) => {
 });
 
 const getPatientProfileForAuth = async (auth) => {
-  if (!auth || auth.role !== "patient") return null;
+  if (!auth || !["patient", "admin", "rd"].includes(auth.role)) return null;
 
   if (auth.patientProfileId) {
     const byProfileId = await query(
@@ -8760,6 +8991,74 @@ app.post("/api/reviews", async (req, res) => {
   }
 });
 
+app.get("/api/reviews/me", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Only patients can fetch their review." });
+
+    const phone = formatPhoneE164(auth.user.phone || "");
+    const result = await query(
+      `SELECT * FROM reviews WHERE phone_e164 = $1 OR patient_id = $2 LIMIT 1`,
+      [phone, auth.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Review not found" });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.patch("/api/reviews/me", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Only patients can edit their review." });
+
+    const rating = Number(req.body.rating);
+    const body = String(req.body.body || "").trim();
+    const conditionTag = req.body.condition_tag ? String(req.body.condition_tag).trim() : null;
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5 || body.length < 20 || body.length > 2000) {
+      return res.status(400).json({ success: false, error: "Please provide a 1-5 rating and a review between 20 and 2000 characters." });
+    }
+
+    const blockedReviewPatterns = [
+      /\b(fuck|shit|bitch|asshole|bastard|slut|whore)\b/i,
+      /\b(kill|suicide|self[-\s]?harm|rape|molest)\b/i,
+      /\b\d{10}\b/,
+      /https?:\/\//i,
+      /www\./i,
+      /@[a-z0-9_.-]+\.[a-z]{2,}/i,
+    ];
+    if (blockedReviewPatterns.some((pattern) => pattern.test(body))) {
+      return res.status(400).json({
+        success: false,
+        error: "This review violates our community guidelines and cannot be submitted.",
+      });
+    }
+
+    const phone = formatPhoneE164(auth.user.phone || "");
+    const result = await query(
+      `UPDATE reviews 
+       SET rating = $1, body = $2, condition_tag = $3, is_approved = false, approved_at = null
+       WHERE phone_e164 = $4 OR patient_id = $5
+       RETURNING *`,
+      [rating, body, conditionTag, phone, auth.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Review not found" });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
 app.get("/api/admin/reviews", async (req, res) => {
   try {
     const auth = await getAuthContextFromHeaders(req);
@@ -8915,7 +9214,7 @@ app.post("/api/patient/me/documents", async (req, res) => {
   try {
     const auth = await getAuthContextFromHeaders(req);
     if (auth.error) return res.status(401).json({ success: false, error: auth.error });
-    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Only patients can upload documents." });
+    if (!["patient", "admin", "rd"].includes(auth.role)) return res.status(403).json({ success: false, error: "Only patients can upload documents." });
 
     const patient = await getPatientProfileForUser(auth.userId);
     if (!patient) return res.status(404).json({ success: false, error: "Patient profile not found" });
@@ -9101,6 +9400,49 @@ app.patch("/api/dietitian/patients/:patientId/improvement-score", updatePatientI
 app.patch("/api/dietitians/patients/:patientId/improvement-score", updatePatientImprovementScoreHandler);
 
 // 404 handler
+// Update patient profile (called during registration)
+app.put("/api/patients/profile", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json(auth);
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Only patients can update profile" });
+
+    const { age, gender, dietary_preference, diagnosis, city } = req.body;
+
+    const patientRes = await query("SELECT id FROM dietbyrd_patients WHERE user_id = $1", [auth.userId]);
+    if (patientRes.rows.length === 0) return res.status(404).json({ success: false, error: "Patient profile not found" });
+
+    const patientId = patientRes.rows[0].id;
+
+    // Use primaryDiagnosis formatting like in PATCH /api/patients/:id
+    let primaryDiagnosis = diagnosis || null;
+    if (primaryDiagnosis) {
+      primaryDiagnosis = primaryDiagnosis.toLowerCase();
+      const validDiagnoses = ['diabetes', 'hypertension', 'obesity', 'other', 'pcos', 'thyroid'];
+      if (!validDiagnoses.includes(primaryDiagnosis)) {
+        primaryDiagnosis = 'other';
+      }
+    }
+
+    const result = await query(
+      `UPDATE dietbyrd_patients
+       SET age = COALESCE($1, age),
+           gender = COALESCE($2, gender),
+           dietary_preference = COALESCE($3, dietary_preference),
+           diagnosis = COALESCE($4, diagnosis),
+           city = COALESCE($5, city),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $6
+       RETURNING *`,
+      [age, gender, dietary_preference, primaryDiagnosis, city, patientId]
+    );
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Update user password
 app.put("/api/user/password", async (req, res) => {
   try {

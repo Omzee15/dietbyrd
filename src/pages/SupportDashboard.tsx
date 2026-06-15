@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PatientPane } from "@/components/support/PatientPane";
+import { DoctorPane } from "@/components/support/DoctorPane";
+import { DieticianPane } from "@/components/support/DieticianPane";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -134,6 +137,16 @@ const SupportDashboard = () => {
   const [patientSearch, setPatientSearch] = useState("");
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
   const [selectedPatientDetail, setSelectedPatientDetail] = useState<Patient | null>(null);
+  const [selectedDoctorDetail, setSelectedDoctorDetail] = useState<Doctor | null>(null);
+  const [selectedDieticianDetail, setSelectedDieticianDetail] = useState<Dietician | null>(null);
+
+  // Clear selections when tab changes
+  useEffect(() => {
+    setSelectedTicketId(null);
+    setSelectedPatientDetail(null);
+    setSelectedDoctorDetail(null);
+    setSelectedDieticianDetail(null);
+  }, [activeTab]);
   const [newComment, setNewComment] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [ticketForm, setTicketForm] = useState({ patient_id: null as number | null, subject: "", description: "", priority: "medium" });
@@ -514,9 +527,9 @@ const SupportDashboard = () => {
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Left: ticket list + tabs */}
-          <div className={`flex flex-col overflow-hidden transition-all duration-200 ${selectedTicketId ? "w-[45%] border-r" : "w-full"}`}>
-            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedTicketId(null); setSelectedPatientDetail(null); }} className="flex flex-col flex-1 overflow-hidden">
+          {/* Left: list + tabs */}
+          <div className={`flex flex-col overflow-hidden transition-all duration-200 ${(selectedTicketId || selectedPatientDetail || selectedDoctorDetail || selectedDieticianDetail) ? "w-[45%] border-r" : "w-full"}`}>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 overflow-hidden">
               <div className="px-6 pt-4 shrink-0">
                 <TabsList>
                   <TabsTrigger value="tickets">Tickets</TabsTrigger>
@@ -607,53 +620,7 @@ const SupportDashboard = () => {
               </TabsContent>
 
               <TabsContent value="patients" className="flex-1 overflow-y-auto px-6 pb-4 mt-0">
-                {selectedPatientDetail ? (
-                  <div className="py-2">
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedPatientDetail(null)} className="mb-4 gap-1">
-                      <ArrowLeft className="w-4 h-4" /> Back
-                    </Button>
-                    <div className="bg-card rounded-xl border p-6 space-y-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary">
-                            {(selectedPatientDetail.name || "?").split(" ").map((n) => n[0]).join("")}
-                          </div>
-                          <div>
-                            <h2 className="text-xl font-bold">{selectedPatientDetail.name || "Unknown"}</h2>
-                            <div className="text-sm text-muted-foreground">
-                              {selectedPatientDetail.age ? `${selectedPatientDetail.age} yrs · ` : ""}{selectedPatientDetail.gender || "Unknown"} · {selectedPatientDetail.phone}
-                            </div>
-                            <Badge variant="outline" className={`mt-1 ${selectedPatientDetail.is_active ? "bg-success/10 text-success border-success/20" : "bg-warning/10 text-warning border-warning/20"}`}>
-                              {selectedPatientDetail.is_active ? "Active" : "Inactive"}
-                            </Badge>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedPatientDetail(null)}><X className="w-4 h-4" /></Button>
-                      </div>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        {[
-                          { label: "Diagnosis", value: selectedPatientDetail.diagnosis || "Not specified" },
-                          { label: "Referred By", value: selectedPatientDetail.referredBy || "Direct" },
-                          { label: "Created", value: new Date(selectedPatientDetail.created_at).toLocaleDateString() },
-                          { label: "Diet Preference", value: selectedPatientDetail.dietary_preference || "Not set" },
-                        ].map((item) => (
-                          <div key={item.label} className="bg-muted/50 rounded-xl p-4">
-                            <div className="text-xs text-muted-foreground uppercase tracking-wider">{item.label}</div>
-                            <div className="font-semibold mt-1 capitalize">{item.value}</div>
-                          </div>
-                        ))}
-                      </div>
-                      {selectedPatientDetail.diagnosis_description && (
-                        <div>
-                          <div className="text-sm font-semibold mb-2">Diagnosis Details</div>
-                          <div className="bg-muted/50 rounded-xl p-4 text-sm text-muted-foreground">{selectedPatientDetail.diagnosis_description}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="mb-3">
+                <div className="mb-3">
                       <Input placeholder="Search patients…" value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)} />
                     </div>
@@ -667,20 +634,16 @@ const SupportDashboard = () => {
                           {(patientsData || [])
                             .filter(p => !searchQuery || p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.phone.includes(searchQuery))
                             .map(patient => (
-                              <div key={patient.id} className="p-3 border rounded-lg flex items-center justify-between">
+                              <div key={patient.id} className="p-3 border rounded-lg flex items-center justify-between cursor-pointer hover:bg-muted/50" onClick={() => setSelectedPatientDetail(patient)}>
                                 <div>
                                   <p className="font-medium text-sm">{patient.name || "—"}</p>
                                   <p className="text-xs text-muted-foreground">{patient.phone} · {patient.email || "No email"} · {patient.state || "Unknown"}</p>
                                 </div>
                                 <div className="text-right flex flex-col items-end gap-1.5">
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant={patient.is_active ? "default" : "secondary"} className="text-[10px]">
-                                      {patient.is_active ? "Active" : "Inactive"}
-                                    </Badge>
-                                    <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={() => setSelectedPatientDetail(patient)}>View</Button>
-                                      {patient.email && <Button variant="outline" size="sm" className="h-6 text-xs px-2 bg-primary/5 hover:bg-primary/10 text-primary" onClick={() => { setEmailTarget({ name: patient.name || "Patient", email: patient.email }); setShowEmailModal(true); }}><Mail className="w-3 h-3 mr-1" /> Mail</Button>}
-                                  </div>
-                                  <p className="text-xs text-muted-foreground">{patient.appointment_count} appts</p>
+                                  <Badge variant={patient.is_active ? "default" : "secondary"} className="text-[10px]">
+                                    {patient.is_active ? "Active" : "Inactive"}
+                                  </Badge>
+                                  <p className="text-xs text-muted-foreground">{patient.appointment_count} appointments</p>
                                 </div>
                               </div>
                             ))}
@@ -710,8 +673,6 @@ const SupportDashboard = () => {
                         )}
                       </>
                     )}
-                  </>
-                )}
               </TabsContent>
 
               <TabsContent value="doctors" className="flex-1 overflow-y-auto px-6 pb-4 mt-0">
@@ -723,7 +684,7 @@ const SupportDashboard = () => {
                   {(doctorsData || [])
                     .filter(d => !searchQuery || d.name.toLowerCase().includes(searchQuery.toLowerCase()) || d.phone.includes(searchQuery))
                     .map(doctor => (
-                      <div key={doctor.id} className="p-3 border rounded-lg flex items-center justify-between">
+                      <div key={doctor.id} className="p-3 border rounded-lg flex items-center justify-between cursor-pointer hover:bg-muted/50" onClick={() => setSelectedDoctorDetail(doctor)}>
                         <div>
                           <p className="font-medium text-sm">{doctor.name}</p>
                           <p className="text-xs text-muted-foreground">{doctor.phone} · {doctor.email || "No email"}</p>
@@ -745,12 +706,11 @@ const SupportDashboard = () => {
                   {(dieticiansData || [])
                     .filter(d => !searchQuery || d.name.toLowerCase().includes(searchQuery.toLowerCase()) || d.phone.includes(searchQuery))
                     .map(dietician => (
-                      <div key={dietician.id} className="p-3 border rounded-lg flex items-center justify-between">
+                      <div key={dietician.id} className="p-3 border rounded-lg flex items-center justify-between cursor-pointer hover:bg-muted/50" onClick={() => setSelectedDieticianDetail(dietician)}>
                         <div>
                           <p className="font-medium text-sm">{dietician.name}</p>
                           <p className="text-xs text-muted-foreground mb-0.5">{dietician.phone} · {dietician.email || "No email"}</p>
-                          <p className="text-xs text-muted-foreground">{dietician.qualification} · {dietician.appointment_count} appts</p>
-                              {dietician.email && <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-8 w-8 text-primary hover:bg-primary/10" onClick={() => { setEmailTarget({ name: dietician.name, email: dietician.email as string }); setShowEmailModal(true); }}><Mail className="w-4 h-4" /></Button>}
+                          <p className="text-xs text-muted-foreground">{dietician.qualification} · {dietician.appointment_count} appointments</p>
                         </div>
                         <Badge variant={dietician.is_active ? "default" : "secondary"} className="text-[10px]">
                           {dietician.is_active ? "Active" : "Inactive"}
@@ -854,6 +814,18 @@ const SupportDashboard = () => {
                       <p className="text-sm whitespace-pre-wrap">{selectedTicket.description}</p>
                     </div>
 
+                    {/* Patient Details & Documents embedded in Ticket */}
+                    {selectedTicket.patient_id && (
+                      <div className="border rounded-lg overflow-hidden flex flex-col max-h-[500px]">
+                        <div className="bg-muted/50 px-4 py-2 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                          <span>Patient Information</span>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                          <PatientPane patientId={selectedTicket.patient_id} onMail={(name, email) => { setEmailTarget({ name, email }); setShowEmailModal(true); }} />
+                        </div>
+                      </div>
+                    )}
+
                     {/* Resolution notes (if resolved) */}
                     {selectedTicket.status === "resolved" && (
                       <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -941,6 +913,15 @@ const SupportDashboard = () => {
                   )}
                 </>
               ) : null}
+              {activeTab === "patients" && selectedPatientDetail && (
+                <PatientPane patientId={selectedPatientDetail.id} onClose={() => setSelectedPatientDetail(null)} onMail={(name, email) => { setEmailTarget({ name, email }); setShowEmailModal(true); }} />
+              )}
+              {activeTab === "doctors" && selectedDoctorDetail && (
+                <DoctorPane doctorId={selectedDoctorDetail.id} onClose={() => setSelectedDoctorDetail(null)} onMail={(name, email) => { setEmailTarget({ name, email }); setShowEmailModal(true); }} />
+              )}
+              {activeTab === "dieticians" && selectedDieticianDetail && (
+                <DieticianPane dieticianId={selectedDieticianDetail.id} onClose={() => setSelectedDieticianDetail(null)} onMail={(name, email) => { setEmailTarget({ name, email }); setShowEmailModal(true); }} />
+              )}
             </div>
           )}
         </div>

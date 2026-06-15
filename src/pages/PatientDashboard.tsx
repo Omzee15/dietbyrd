@@ -65,6 +65,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import AppSidebar from "@/components/AppSidebar";
+import { CitySearchCombobox } from "@/components/CitySearchCombobox";
 import {
   getPatient,
   getPatientDietPlans,
@@ -248,6 +249,7 @@ const PatientDashboard = () => {
   const [profileAllergies, setProfileAllergies] = useState("");
   const [profileWorkout, setProfileWorkout] = useState("");
   const [profileDietary, setProfileDietary] = useState("");
+  const [profileCity, setProfileCity] = useState("");
   const [profileErrors, setProfileErrors] = useState<{ age?: string; height?: string; weight?: string }>({});
 
   // Appointment booking state
@@ -634,6 +636,7 @@ const PatientDashboard = () => {
     );
     setProfileWorkout(patient?.workout_frequency?.toString() || "");
     setProfileDietary(patient?.dietary_preference || "");
+    setProfileCity(patient?.city || "");
     setProfileErrors({});
     setIsProfileModalOpen(true);
   };
@@ -680,6 +683,7 @@ const PatientDashboard = () => {
       allergies: trimmedProfileAllergies ? trimmedProfileAllergies : undefined,
       workout_frequency: profileWorkout ? parseInt(profileWorkout) : undefined,
       dietary_preference: profileDietary || undefined,
+      city: profileCity || undefined,
     });
     setIsProfileModalOpen(false);
   };
@@ -2184,6 +2188,13 @@ const PatientDashboard = () => {
               <div>
                 <label className="text-sm font-medium">Dietary Preference (optional)</label>
                 <Input value={profileDietary} onChange={e => setProfileDietary(e.target.value)} placeholder="e.g., Vegetarian, Vegan" className="mt-1" />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">City</label>
+                <div className="mt-1">
+                  <CitySearchCombobox value={profileCity} onChange={setProfileCity} />
+                </div>
               </div>
             </div>
 

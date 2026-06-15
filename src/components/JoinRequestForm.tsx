@@ -30,34 +30,8 @@ const RD_SPECIALIZATIONS = [
   "Weight Management","Women's Health & PCOS","Others",
 ];
 
-const INDIAN_CITIES = [
-  "Mumbai","Delhi","Bengaluru","Hyderabad","Ahmedabad","Chennai","Kolkata","Surat","Pune","Jaipur",
-  "Lucknow","Kanpur","Nagpur","Indore","Thane","Bhopal","Visakhapatnam","Pimpri-Chinchwad","Patna","Vadodara",
-  "Ghaziabad","Ludhiana","Agra","Nashik","Faridabad","Meerut","Rajkot","Kalyan-Dombivali","Vasai-Virar","Varanasi",
-  "Srinagar","Aurangabad","Dhanbad","Amritsar","Navi Mumbai","Allahabad","Ranchi","Howrah","Coimbatore","Jabalpur",
-  "Gwalior","Vijayawada","Jodhpur","Madurai","Raipur","Kota","Chandigarh","Guwahati","Solapur","Hubli-Dharwad",
-  "Mysuru","Tiruchirappalli","Bareilly","Aligarh","Tiruppur","Gurgaon","Moradabad","Jalandhar","Bhubaneswar","Salem",
-  "Warangal","Guntur","Bhiwandi","Saharanpur","Gorakhpur","Bikaner","Amravati","Noida","Jamshedpur","Bhilai",
-  "Cuttack","Firozabad","Kochi","Nellore","Bhavnagar","Dehradun","Durgapur","Asansol","Rourkela","Nanded",
-  "Kolhapur","Ajmer","Akola","Gulbarga","Jamnagar","Ujjain","Loni","Siliguri","Jhansi","Ulhasnagar",
-  "Jammu","Sangli-Miraj & Kupwad","Mangalore","Erode","Belgaum","Ambattur","Tirunelveli","Malegaon","Gaya","Jalgaon",
-  "Udaipur","Maheshtala","Davanagere","Kozhikode","Kurnool","Rajpur Sonarpur","Rajahmundry","Bokaro","South Dumdum","Bellary",
-  "Patiala","Gopalpur","Agartala","Bhagalpur","Muzaffarnagar","Bhatpara","Panihati","Latur","Dhule","Tirupati",
-  "Rohtak","Korba","Bhilwara","Berhampur","Muzaffarpur","Ahmednagar","Mathura","Kollam","Avadi","Kadapa",
-  "Kamarhati","Sambalpur","Bilaspur","Shahjahanpur","Satara","Bijapur","Rampur","Shivamogga","Chandrapur","Junagadh",
-  "Thrissur","Alwar","Bardhaman","Kulti","Kakinada","Nizamabad","Parbhani","Tumkur","Khammam","Ozhukarai",
-  "Bihar Sharif","Panipat","Darbhanga","Bally","Aizawl","Dewas","Ichalkaranji","Karnal","Bathinda","Jalna",
-  "Eluru","Barasat","Purnia","Satna","Mau","Sonipat","Farrukhabad","Sagar","Durg","Imphal",
-  "Ratlam","Hapur","Anantapur","Arrah","Karimnagar","Etawah","Ambernath","North Dumdum","Bharatpur","Begusarai",
-  "New Delhi","Gandhidham","Baranagar","Tiruvottiyur","Puducherry","Sikar","Thoothukudi","Rewa","Mirzapur","Raichur",
-  "Pali","Ramagundam","Haridwar","Vijayanagaram","Katihar","Nagercoil","Sri Ganganagar","Mango","Thanjavur","Bulandshahr",
-  "Uluberia","Murwara","Haldia","Khandwa","Nandyal","Chittoor","Morena","Bhiwani","Orai","Phusro",
-  "Vellore","Mehsana","Raiganj","Sirsa","Danapur","Serampore","Guna","Jaunpur","Panvel","Shivpuri",
-  "Surendranagar Dudhrej","Unnao","Hugli-Chinsurah","Alappuzha","Kottayam","Machilipatnam","Shimla","Adoni","Tenali","Proddatur",
-  "Saharsa","Hindupur","Sasaram","Hajipur","Bhimavaram","Deoghar","Madanapalle","Kumbakonam","Bongaigaon","Raigarh",
-  "Bhusawal","Ooty","Dharmavaram","Guntakal","Srikakulam","Gudivada","Narasaraopet","Tadipatri","Chilakaluripet","Kavali",
-  "Tadepalligudem","Amaravati","Others"
-];
+import { INDIAN_CITIES } from "@/lib/indian-cities";
+import { CitySearchCombobox } from "@/components/CitySearchCombobox";
 
 interface JoinRequestFormProps {
   onComplete: () => void;
@@ -443,9 +417,19 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
             </div>
           </div>
 
-          <Button type="submit" disabled={isSubmitting} className="w-full h-12">
-            Continue
-          </Button>
+          <div className="flex gap-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStep("otp-verify")}
+              className="w-1/3 h-12 text-base"
+            >
+              Back
+            </Button>
+            <Button type="submit" disabled={isSubmitting} className="w-2/3 h-12">
+              Continue
+            </Button>
+          </div>
         </form>
       );
     }
@@ -628,62 +612,10 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Location (City)</label>
-            <Popover open={openCitySelect} onOpenChange={setOpenCitySelect}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={openCitySelect}
-                    className="w-full justify-between font-normal text-left"
-                  >
-                    {formData.clinic_address || "Select city..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0" align="start">
-                  <Command>
-                    <CommandInput 
-                      placeholder="Search or type city..." 
-                      onValueChange={setCitySearch}
-                      value={citySearch}
-                    />
-                    <CommandList>
-                      <CommandEmpty className="p-2 text-sm text-center">
-                        <Button 
-                          variant="ghost" 
-                          className="w-full justify-start text-primary"
-                          onClick={() => {
-                            handleChange("clinic_address", citySearch);
-                            setOpenCitySelect(false);
-                          }}
-                        >
-                          Use "{citySearch}"
-                        </Button>
-                      </CommandEmpty>
-                      <CommandGroup>
-                        {INDIAN_CITIES.map((city) => (
-                          <CommandItem
-                            key={city}
-                            value={city}
-                            onSelect={(currentValue) => {
-                              handleChange("clinic_address", city);
-                              setOpenCitySelect(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                formData.clinic_address === city ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {city}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+            <CitySearchCombobox
+              value={formData.clinic_address || ""}
+              onChange={(v) => handleChange("clinic_address", v)}
+            />
           </div>
         </div>
 
@@ -700,20 +632,30 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
         </div>
 
         {/* Submit Button */}
-        <Button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full h-12 text-base"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Submitting...
-            </>
-          ) : (
-            "Submit Application"
-          )}
-        </Button>
+        <div className="flex gap-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setStep("password")}
+            className="w-1/3 h-12 text-base"
+          >
+            Back
+          </Button>
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-2/3 h-12 text-base"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              "Submit Application"
+            )}
+          </Button>
+        </div>
 
         <p className="text-xs text-slate-500 text-center">
           Our team will review your application and contact you within 2-3 business days

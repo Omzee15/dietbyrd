@@ -11,7 +11,7 @@ import { ScrollToTop } from "@/components/ScrollToTop";
 import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Register from "./pages/Register";
-import JoinForm from "./pages/JoinForm";
+
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import NotFound from "./pages/NotFound";
@@ -87,7 +87,7 @@ const App = () => (
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/join" element={<JoinForm />} />
+            <Route path="/join" element={<Index />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/refund" element={<Refund />} />

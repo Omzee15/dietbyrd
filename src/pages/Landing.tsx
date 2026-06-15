@@ -1542,10 +1542,10 @@ const Landing = () => {
                   }}
                 />
               </div>
-              <div style={{ marginTop: '72px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ marginTop: '160px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <p style={{ fontWeight: 600, color: 'var(--teal)', fontSize: '14px', textAlign: 'center' }}>Turn your One Day to Day One</p>
-                <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary" style={{ padding: '12px 16px', fontSize: '14px', width: '100%' }}>
-                  Book your consultation from the Best Of The Industry
+                <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary" style={{ padding: '12px 16px', fontSize: '14px', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  Book your consultation from the Best Of The Industry <ArrowRight size={16} />
                 </button>
               </div>
             </div>
@@ -1585,9 +1585,7 @@ const Landing = () => {
           <div className="clinician-referral-inner">
             <span ref={addToRefs} className="section-eyebrow reveal">REFERRED BY LEADING CLINICIANS</span>
             <h2 ref={addToRefs} className="clinician-title reveal reveal-delay-1">Trusted by Doctors Across India</h2>
-            <p ref={addToRefs} className="clinician-body reveal reveal-delay-2">
-              Doctors across India refer their patients to Diet By RD because they trust the credentialing.
-            </p>
+
             <div ref={addToRefs} className="trust-marquee reveal reveal-delay-2" style={{ padding: '0', marginTop: '40px' }}>
               <div className="trust-marquee__track">
                 {[...Array(4)].map((_, i) => (
@@ -1599,6 +1597,29 @@ const Landing = () => {
                     <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Referred by Leading Clinicians + Conditions — Page 7 */}
+      <section id="trust" className="section trust-section" style={{ background: 'var(--cream)' }}>
+        <div className="section-inner trust-inner">
+          <div ref={addToRefs} className="doctor-trust-banner reveal">
+            <span className="section-eyebrow">Referred by leading clinicians</span>
+            <div className="trust-proof-row">
+              <div className="trust-proof">
+                <div className="tp-num">100%</div>
+                <div className="tp-lbl">RD-only consultations</div>
+              </div>
+              <div className="trust-proof">
+                <div className="tp-num">IDA</div>
+                <div className="tp-lbl">Certified dietitians</div>
+              </div>
+              <div className="trust-proof">
+                <div className="tp-num">₹999</div>
+                <div className="tp-lbl">Honest pricing</div>
               </div>
             </div>
           </div>
@@ -1641,29 +1662,6 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Referred by Leading Clinicians + Conditions — Page 7 */}
-      <section id="trust" className="section trust-section" style={{ background: 'var(--cream)' }}>
-        <div className="section-inner trust-inner">
-          <div ref={addToRefs} className="doctor-trust-banner reveal">
-            <span className="section-eyebrow">Referred by leading clinicians</span>
-            <p className="trust-quote-big">"Doctors across India refer their patients to Diet By RD because they know exactly who will pick up — a Registered Dietitian, not a coach."</p>
-            <div className="trust-proof-row">
-              <div className="trust-proof">
-                <div className="tp-num">100%</div>
-                <div className="tp-lbl">RD-only consultations</div>
-              </div>
-              <div className="trust-proof">
-                <div className="tp-num">IDA</div>
-                <div className="tp-lbl">Certified dietitians</div>
-              </div>
-              <div className="trust-proof">
-                <div className="tp-num">₹999</div>
-                <div className="tp-lbl">Honest pricing</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <section id="conditions" className="section trust-section" style={{ background: 'var(--cream)' }}>
         <div className="section-inner trust-inner">

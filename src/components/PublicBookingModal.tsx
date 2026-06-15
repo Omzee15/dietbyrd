@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays,
   Check,
@@ -25,7 +26,10 @@ import {
   createPaymentOrder,
   verifyPayment,
   bookAppointment,
+  validateCoupon,
+  applyCoupon,
   type ConsultationPackage,
+  type CouponValidation,
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -50,6 +54,7 @@ interface PublicBookingModalProps {
 export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalProps) {
   const { user, sendOtp, verifyOtp, loginWithData } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [step, setStep] = useState<BookingStep>("slots");
   const [weekOffset, setWeekOffset] = useState(0);
@@ -245,10 +250,32 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
     setName(user.name || "");
     setPhone(normalizeIndianMobileInput(user.phone || ""));
     try {
+      // Try to book directly using wallet first
+      try {
+        await bookAppointment({
+          patient_id: user.profileId!,
+          scheduled_at: selectedSlot.datetime,
+        });
+
+        // Success - bypass payment
+        queryClient.invalidateQueries({ queryKey: ["patient"] });
+        queryClient.invalidateQueries({ queryKey: ["patient-profile"] });
+        queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
+        queryClient.invalidateQueries({ queryKey: ["patient-consultations"] });
+
+        setStep("success");
+        return;
+      } catch (err: any) {
+        const msg = err.message?.toLowerCase() || "";
+        if (!msg.includes("no consultations left") && !msg.includes("consultation package") && !msg.includes("payment required")) {
+          throw err;
+        }
+      }
+
       await loadPackagesForPayment();
       setStep("payment");
-    } catch {
-      setError("Failed to load consultation packages. Please try again.");
+    } catch (err: any) {
+      setError(err.message || "Failed to load consultation packages. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -326,10 +353,37 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
 
     setPatientId(pid);
 
-    try {
-      await loadPackagesForPayment();
-    } catch {
-      // non-fatal
+    if (pid && selectedSlot) {
+      try {
+        // Try to book directly using wallet first
+        try {
+          await bookAppointment({
+            patient_id: pid,
+            scheduled_at: selectedSlot.datetime,
+          });
+
+          // Success - bypass payment
+          queryClient.invalidateQueries({ queryKey: ["patient"] });
+          queryClient.invalidateQueries({ queryKey: ["patient-profile"] });
+          queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
+          queryClient.invalidateQueries({ queryKey: ["patient-consultations"] });
+
+          setStep("success");
+          setIsLoading(false);
+          return;
+        } catch (err: any) {
+          const msg = err.message?.toLowerCase() || "";
+          if (!msg.includes("no consultations left") && !msg.includes("consultation package") && !msg.includes("payment required")) {
+            throw err;
+          }
+        }
+
+        await loadPackagesForPayment();
+      } catch (err: any) {
+        setError(err.message || "An error occurred while continuing");
+        setIsLoading(false);
+        return;
+      }
     }
 
     setStep("payment");
@@ -397,6 +451,13 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
               patient_id: patientId,
               scheduled_at: selectedSlot.datetime,
             });
+
+            // Invalidate queries so the patient dashboard updates
+            queryClient.invalidateQueries({ queryKey: ["patient"] });
+            queryClient.invalidateQueries({ queryKey: ["patient-profile"] });
+            queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
+            queryClient.invalidateQueries({ queryKey: ["patient-consultations"] });
+
             setStep("success");
           } catch (err: any) {
             toast.error(err.message || "Booking failed after payment");
@@ -854,6 +915,62 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                 </button>
               ))}
             </div>
+
+            {/* Coupon Code Section */}
+            {selectedPackage && (
+              <div className="pt-2 pb-2">
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-green-600" />
+                      <div>
+                        <p className="text-sm font-semibold text-green-800">
+                          {appliedCoupon.code} applied!
+                        </p>
+                        <p className="text-xs text-green-600">
+                          ₹{appliedCoupon.discount_applied} discount
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveCoupon}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 px-2"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Have a coupon code?"
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        className="flex-1"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleApplyCoupon(selectedPackage);
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => handleApplyCoupon(selectedPackage)}
+                        disabled={!couponCode.trim() || couponLoading}
+                      >
+                        {couponLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
+                      </Button>
+                    </div>
+                    {couponError && <p className="text-xs text-red-600 pl-1">{couponError}</p>}
+                  </div>
+                )}
+              </div>
+            )}
 
             <Button
               ref={confirmPaymentButtonRef}

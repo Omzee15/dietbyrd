@@ -76,6 +76,8 @@ const PatientProfile = () => {
     diagnosis: "",
     dietary_preference: "",
     allergies: "",
+    current_weight: "",
+    target_weight: "",
   });
 
   const { data: patient, isLoading } = useQuery({
@@ -145,7 +147,7 @@ const PatientProfile = () => {
 
   // Update patient mutation - health info
   const updateHealthMutation = useMutation({
-    mutationFn: (data: { diagnosis?: string; dietary_preference?: string; allergies?: string }) =>
+    mutationFn: (data: { diagnosis?: string; dietary_preference?: string; allergies?: string; current_weight?: number; target_weight?: number; }) =>
       updatePatient(user!.profileId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
@@ -231,6 +233,8 @@ const PatientProfile = () => {
       allergies: Array.isArray(patient?.allergies)
         ? patient.allergies.join(", ")
         : (patient?.allergies || ""),
+      current_weight: (patient as any)?.current_weight || latestWeight?.current || "",
+      target_weight: (patient as any)?.target_weight || latestWeight?.target || "",
     });
     setIsEditingHealth(true);
   };
@@ -241,6 +245,8 @@ const PatientProfile = () => {
       diagnosis: healthDetails.diagnosis.trim() || undefined,
       dietary_preference: healthDetails.dietary_preference.trim() || undefined,
       allergies: trimmedAllergies ? trimmedAllergies : undefined,
+      current_weight: healthDetails.current_weight ? parseFloat(healthDetails.current_weight as string) : undefined,
+      target_weight: healthDetails.target_weight ? parseFloat(healthDetails.target_weight as string) : undefined,
     });
   };
 
@@ -911,33 +917,25 @@ const PatientProfile = () => {
                     )}
                   </div>
 
-                  {latestWeight && (
-                    <>
-                      <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
-                        <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
-                          <Scale className="w-5 h-5 text-primary" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Weight</p>
-                          <p className="font-semibold">
-                            {latestWeight.current ? `${latestWeight.current} kg` : "Not recorded"}
-                          </p>
-                        </div>
-                      </div>
+                  <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
+                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center shrink-0">
+                      <Scale className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Weight</p>
+                      <p className="font-semibold capitalize">{(patient as any)?.current_weight || latestWeight?.current ? `${(patient as any)?.current_weight || latestWeight?.current} kg` : "Not recorded"}</p>
+                    </div>
+                  </div>
 
-                      <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
-                        <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
-                          <Scale className="w-5 h-5 text-green-600" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Target Weight</p>
-                          <p className="font-semibold">
-                            {latestWeight.target ? `${latestWeight.target} kg` : "Not set"}
-                          </p>
-                        </div>
-                      </div>
-                    </>
-                  )}
+                  <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
+                    <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center shrink-0">
+                      <Scale className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Target Weight</p>
+                      <p className="font-semibold capitalize">{(patient as any)?.target_weight || latestWeight?.target ? `${(patient as any)?.target_weight || latestWeight?.target} kg` : "Not set"}</p>
+                    </div>
+                  </div>
                 </div>
 
                 {patient.diagnosis_description && (

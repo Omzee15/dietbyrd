@@ -362,7 +362,7 @@ const DoctorDashboard = ({ defaultTab = "overview" }: DoctorDashboardProps) => {
     <div className="flex min-h-screen">
       <AppSidebar
         title="DietByRD"
-        subtitle={isAssistant ? "Assistant Portal" : "Doctor Portal"}
+        subtitle={isAssistant ? (user?.name || "Assistant Portal") : "Doctor Portal"}
         sections={sidebarSections}
         bottomContent={bottomContent}
       />
@@ -509,7 +509,30 @@ const DoctorDashboard = ({ defaultTab = "overview" }: DoctorDashboardProps) => {
                         <p className="text-xs text-red-500 mt-1">Enter valid 10-digit number starting with 6-9</p>
                       )}
                       {patientPhone.length === 10 && isValidIndianPhone(patientPhone) && isExistingPatient && (
-                        <p className="text-xs text-amber-600 mt-1">This number already exists</p>
+                        <div className="mt-2 space-y-2">
+                          <p className="text-xs text-amber-600">Patient found in our records:</p>
+                          {phoneSuggestions.map((patient: any) => (
+                            <div key={patient.id} className="p-2.5 bg-amber-50/50 border border-amber-200/50 rounded-lg flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-medium text-amber-900">{patient.name || "Unknown"}</p>
+                                <p className="text-xs text-amber-700/70 capitalize">{patient.diagnosis || "No diagnosis"}</p>
+                              </div>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="h-7 text-xs border-amber-200 hover:bg-amber-100 hover:text-amber-900 text-amber-800"
+                                onClick={() => {
+                                  if (patient.name) setPatientName(patient.name);
+                                  if (patient.diagnosis && diagnosisOptions.includes(patient.diagnosis.toLowerCase())) {
+                                    setDiagnosis(patient.diagnosis.toLowerCase());
+                                  }
+                                }}
+                              >
+                                Autofill
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                     <div>
@@ -547,7 +570,7 @@ const DoctorDashboard = ({ defaultTab = "overview" }: DoctorDashboardProps) => {
             {!selectedPatient && activeView === "overview" && (
               <div className="p-6 space-y-6">
                 {/* Stats Summary Cards */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className={`grid ${isAssistant ? "grid-cols-2" : "grid-cols-3"} gap-4`}>
                   <div className="bg-card rounded-xl border p-5 flex items-center gap-4">
                     <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-primary">
                       <Users className="w-6 h-6" />
@@ -566,15 +589,17 @@ const DoctorDashboard = ({ defaultTab = "overview" }: DoctorDashboardProps) => {
                       <div className="text-sm text-muted-foreground">Onboarded Patients</div>
                     </div>
                   </div>
-                  <div className="bg-card rounded-xl border p-5 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-info">
-                      <IndianRupee className="w-6 h-6" />
+                  {!isAssistant && (
+                    <div className="bg-card rounded-xl border p-5 flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-info">
+                        <IndianRupee className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold">₹{(doctorStats?.total_commission || 0).toLocaleString()}</div>
+                        <div className="text-sm text-muted-foreground">Total Fees Earned</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-2xl font-bold">₹{(doctorStats?.total_commission || 0).toLocaleString()}</div>
-                      <div className="text-sm text-muted-foreground">Total Fees Earned</div>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Recent patients helped */}
