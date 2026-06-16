@@ -581,7 +581,7 @@ const Index = () => {
   }
 
   return (
-    <div className="h-screen w-full bg-[#FDFBF7] flex relative overflow-hidden page-fade-in">
+    <div className="h-screen w-full bg-[#FDFBF7] flex justify-center items-center relative overflow-hidden page-fade-in">
       {/* Subtle dotted background pattern for the whole right side */}
       <div className="absolute inset-0 right-0 top-0 pointer-events-none" style={{
         backgroundImage: 'radial-gradient(#E8E4DB 1.5px, transparent 1.5px)',
@@ -590,9 +590,12 @@ const Index = () => {
         maskImage: 'radial-gradient(circle at top right, black 30%, transparent 80%)'
       }} />
 
-      {/* Left Side: Auth Form Card */}
-      <div className="flex-none w-full lg:w-[440px] xl:w-[480px] m-4 lg:m-6 bg-white rounded-[24px] shadow-[0_4px_30px_rgba(0,0,0,0.06)] p-8 lg:p-12 flex flex-col z-20 overflow-y-auto">
-        <div className="flex-1 flex flex-col justify-center">
+      {/* Main Content Wrapper to constrain width */}
+      <div className="w-full max-w-[1240px] xl:max-w-[1340px] h-[90vh] min-h-[700px] max-h-[850px] flex relative z-10">
+        
+        {/* Left Side: Auth Form Card */}
+        <div className="flex-none w-[400px] xl:w-[440px] bg-white rounded-[32px] shadow-[0_8px_40px_rgba(0,0,0,0.06)] p-10 xl:p-12 flex flex-col z-20 overflow-y-auto">
+          <div className="flex-1 flex flex-col justify-center">
             {sessionExpired && step === "phone" && !showJoinForm && (
               <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
                 <p className="font-semibold text-sm">Your session has expired for security purposes.</p>
@@ -655,9 +658,9 @@ const Index = () => {
         </div>
 
         {/* Right Side: Visual Section */}
-        <div className="hidden lg:flex flex-1 relative flex-col z-10 p-12 pr-0 pl-8">
+        <div className="hidden lg:flex flex-1 relative flex-col justify-center z-10 pl-12 xl:pl-16">
           
-          <div className="relative z-10 w-full max-w-[500px] xl:max-w-[550px]">
+          <div className="relative z-10 w-full max-w-[480px] xl:max-w-[540px]">
             {/* Header/Logo */}
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
@@ -729,10 +732,11 @@ const Index = () => {
           <img 
             src="/signin-image.png" 
             alt="Happy patient eating salad" 
-            className="absolute bottom-0 right-0 h-[85%] xl:h-[95%] max-h-[900px] object-contain object-right-bottom z-0 pointer-events-none"
-            style={{ filter: 'drop-shadow(-10px 10px 20px rgba(0,0,0,0.05))', right: '-20px' }}
+            className="absolute bottom-0 right-0 h-[95%] xl:h-[105%] max-h-[850px] object-contain object-right-bottom z-0 pointer-events-none"
+            style={{ filter: 'drop-shadow(-10px 10px 20px rgba(0,0,0,0.05))', right: '-40px' }}
           />
         </div>
+      </div>
     </div>
   );
 };
