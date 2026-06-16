@@ -730,7 +730,7 @@ const Index = () => {
           src="/signin-image.png" 
           alt="Happy patient eating salad" 
           className="absolute bottom-0 right-0 h-[92%] object-contain object-right-bottom z-0 pointer-events-none"
-          style={{ filter: 'drop-shadow(-10px 10px 20px rgba(0,0,0,0.04))' }}
+          style={{ mixBlendMode: 'multiply' }}
         />
       </div>
     </div>
