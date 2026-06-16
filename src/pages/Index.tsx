@@ -598,7 +598,7 @@ const Index = () => {
           <img 
             src="/signin-image-nobg.png" 
             alt="Happy patient eating salad" 
-            className="absolute bottom-0 right-0 h-[92%] xl:h-[95%] object-contain object-right-bottom translate-x-[10%] xl:translate-x-[18%]"
+            className="absolute bottom-0 right-0 h-[92%] xl:h-[95%] object-contain object-right-bottom translate-x-[20%] xl:translate-x-[28%]"
             style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.08))' }}
           />
         </div>
