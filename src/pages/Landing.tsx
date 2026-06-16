@@ -66,19 +66,19 @@ const fallbackTestimonials = [
 ];
 
 const conditions = [
-  { icon: '🩸', name: 'Type 2 Diabetes' },
-  { icon: '❤️', name: 'High Blood Pressure' },
-  { icon: '🫀', name: 'High Cholesterol' },
-  { icon: '⚡', name: 'PCOS' },
-  { icon: '🔄', name: 'Hormonal Imbalance' },
-  { icon: '🌿', name: 'Gut Issues' },
-  { icon: '💨', name: 'IBS' },
-  { icon: '⚖️', name: 'Weight Management' },
-  { icon: '💊', name: 'Deficiency Management' },
-  { icon: '💚', name: 'General Health' },
-  { icon: '🌱', name: 'Healthy Vegan Diet' },
-  { icon: '🏋️', name: 'Sports Nutrition' },
-  { icon: '💪', name: 'Gym Diet' },
+  { icon: '/conditions/diabetes.png', name: 'Type 2 Diabetes' },
+  { icon: '/conditions/cholesterol.png', name: 'High Cholesterol' },
+  { icon: '/conditions/blood_pressure.png', name: 'High Blood Pressure' },
+  { icon: '/conditions/pcos.png', name: 'PCOS' },
+  { icon: '/conditions/hormonal.png', name: 'Hormonal Imbalance' },
+  { icon: '/conditions/gut.png', name: 'Gut Issues' },
+  { icon: '/conditions/ibs.png', name: 'IBS' },
+  { icon: '/conditions/weight.png', name: 'Weight Management' },
+  { icon: '/conditions/deficiency.png', name: 'Deficiency Management' },
+  { icon: '/conditions/general_health.png', name: 'General Health' },
+  { icon: '/conditions/vegan.png', name: 'Healthy Vegan Diet' },
+  { icon: '/conditions/sports.png', name: 'Sports Nutrition' },
+  { icon: '/conditions/gym.png', name: 'Gym Diet' },
 ];
 
 const patientNavItems = [
@@ -994,14 +994,17 @@ const Landing = () => {
         .doctor-trust-banner { background: linear-gradient(135deg, #E8F5F0 0%, #D1F0E4 100%); border: 1px solid rgba(11,110,79,0.15); border-radius: 20px; padding: 40px; text-align: center; margin-bottom: 56px; }
         .trust-quote-big { font-family: 'Playfair Display', serif; font-size: clamp(1.1rem, 2vw, 1.4rem); font-style: italic; color: var(--text); line-height: 1.6; max-width: 700px; margin: 0 auto 20px; }
         .trust-proof-row { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
-        .trust-proof { text-align: center; }
-        .trust-proof .tp-num { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 700; color: var(--teal); }
-        .trust-proof .tp-lbl { font-size: 12px; color: var(--text3); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
-        .conditions-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-bottom: 64px; }
-        .condition-pill { background: #FAFAFA; border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; text-align: center; transition: all 0.2s; cursor: default; min-width: 140px; flex: 0 1 160px; }
-        .condition-pill:hover { background: var(--teal-l); border-color: rgba(11,110,79,0.3); transform: translateY(-2px); box-shadow: 0 4px 15px rgba(11,110,79,0.1); }
-        .condition-pill .cicon { font-size: 24px; margin-bottom: 7px; }
-        .condition-pill .ctxt { font-size: 13px; color: var(--text); font-weight: 500; line-height: 1.3; }
+        .conditions-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-bottom: 64px; max-width: 900px; margin-left: auto; margin-right: auto; position: relative; z-index: 2; }
+        .condition-pill { background: #FFFFFF; border: 1px solid rgba(0,0,0,0.06); border-radius: 16px; padding: 24px 16px; text-align: center; transition: all 0.2s; cursor: default; width: 140px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 4px 14px rgba(0,0,0,0.03); }
+        .condition-pill:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: rgba(11,110,79,0.15); }
+        .condition-pill .cicon { width: 64px; height: 64px; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; }
+        .condition-pill .cicon img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .condition-pill .ctxt { font-family: 'Playfair Display', serif; font-size: 15px; color: var(--navy); font-weight: 700; line-height: 1.3; }
+
+        .conditions-bg-leaf { position: absolute; opacity: 0.15; z-index: 0; pointer-events: none; }
+        .conditions-bg-leaf.left { top: 0; left: 0; width: 200px; }
+        .conditions-bg-leaf.right { top: 0; right: 0; width: 200px; transform: scaleX(-1); }
+        .conditions-bg-leaf.bottom { bottom: 0; left: 50%; transform: translateX(-50%); width: 120px; opacity: 0.2; }
 
         /* Footer */
         .landing-footer {
@@ -1702,19 +1705,50 @@ const Landing = () => {
       </section>
 
 
-      <section id="conditions" className="section trust-section" style={{ background: 'var(--cream)' }}>
-        <div className="section-inner trust-inner">
-          <h2 ref={addToRefs} className="trust-title reveal reveal-delay-1">Conditions We Treat</h2>
-          <p ref={addToRefs} className="trust-sub reveal reveal-delay-2">
-            Your RD is trained to manage these conditions clinically — not with generic advice, but with a personalised plan designed around your specific case.
+      <section id="conditions" className="section trust-section" style={{ background: '#FDFBF7', position: 'relative' }}>
+        <svg className="conditions-bg-leaf left" viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M0 50C40 50 80 80 100 120C120 160 110 210 90 250C100 230 110 190 90 150C70 110 30 80 0 80V50Z" fill="var(--teal)" />
+          <path d="M0 120C50 110 90 140 120 180C150 220 140 270 120 300C130 280 140 230 110 190C80 150 30 140 0 150V120Z" fill="var(--teal)" opacity="0.6"/>
+          <path d="M0 0C60 10 120 50 160 110C200 170 190 240 160 300C180 260 190 190 140 130C90 70 30 40 0 40V0Z" fill="var(--teal)" opacity="0.3"/>
+        </svg>
+        <svg className="conditions-bg-leaf right" viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M0 50C40 50 80 80 100 120C120 160 110 210 90 250C100 230 110 190 90 150C70 110 30 80 0 80V50Z" fill="var(--teal)" />
+          <path d="M0 120C50 110 90 140 120 180C150 220 140 270 120 300C130 280 140 230 110 190C80 150 30 140 0 150V120Z" fill="var(--teal)" opacity="0.6"/>
+          <path d="M0 0C60 10 120 50 160 110C200 170 190 240 160 300C180 260 190 190 140 130C90 70 30 40 0 40V0Z" fill="var(--teal)" opacity="0.3"/>
+        </svg>
+        
+        <div className="section-inner trust-inner" style={{ position: 'relative', zIndex: 2 }}>
+          <div className="text-center mb-4">
+            <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--teal)' }}>
+              CONDITIONS WE TREAT
+            </span>
+          </div>
+          <div className="flex justify-center mb-6">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.8 }}>
+              <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 16v-4"/><path d="M12 8h.01"/><path d="M8 12h8"/>
+              <path d="M12 2c0 3-2 6-5 6"/><path d="M12 22c0-3 2-6 5-6"/>
+            </svg>
+          </div>
+          <h2 ref={addToRefs} className="trust-title reveal reveal-delay-1" style={{ marginBottom: '16px', fontSize: 'clamp(2.4rem, 4vw, 3.2rem)' }}>Conditions We Treat</h2>
+          <p ref={addToRefs} className="trust-sub reveal reveal-delay-2" style={{ maxWidth: '650px', margin: '0 auto 48px' }}>
+            Your RD is trained to manage these conditions clinically — not with generic advice,
+            but with a personalised plan designed around your specific case.
           </p>
           <div ref={addToRefs} className="conditions-grid reveal reveal-delay-2">
             {conditions.map((c, i) => (
               <div key={i} className="condition-pill">
-                <div className="cicon">{c.icon}</div>
+                <div className="cicon">
+                  <img src={c.icon} alt={c.name} />
+                </div>
                 <div className="ctxt">{c.name}</div>
               </div>
             ))}
+          </div>
+          <div className="flex justify-center mt-12 mb-4">
+            <svg className="conditions-bg-leaf bottom" viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ position: 'relative', width: '32px', opacity: 0.6, transform: 'none', left: 'auto', bottom: 'auto' }}>
+              <path d="M0 50C40 50 80 80 100 120C120 160 110 210 90 250C100 230 110 190 90 150C70 110 30 80 0 80V50Z" fill="var(--teal)" />
+              <path d="M0 120C50 110 90 140 120 180C150 220 140 270 120 300C130 280 140 230 110 190C80 150 30 140 0 150V120Z" fill="var(--teal)" opacity="0.6"/>
+            </svg>
           </div>
         </div>
       </section>
