@@ -732,9 +732,10 @@ const Index = () => {
           className="absolute bottom-0 right-0 h-[92%] object-contain object-right-bottom z-0 pointer-events-none"
           style={{ 
             mixBlendMode: 'multiply',
-            WebkitMaskImage: 'linear-gradient(to right, black 60%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 8%, black 100%)',
+            filter: 'brightness(1.08) contrast(1.05)',
+            WebkitMaskImage: 'linear-gradient(to right, black 70%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 5%, black 100%)',
             WebkitMaskComposite: 'destination-in',
-            maskImage: 'linear-gradient(to right, black 60%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 8%, black 100%)',
+            maskImage: 'linear-gradient(to right, black 70%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 5%, black 100%)',
             maskComposite: 'intersect',
           }}
         />
