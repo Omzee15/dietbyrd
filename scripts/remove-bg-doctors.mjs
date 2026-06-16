@@ -17,7 +17,9 @@ async function removeWhiteBackground() {
   const visited = new Uint8Array(width * height);
   const isNearWhite = (idx) => {
     const r = data[idx], g = data[idx + 1], b = data[idx + 2];
-    return r > 225 && g > 225 && b > 225;
+    // Background is around 234, 233, 236
+    // Allow a tolerance of ~12
+    return Math.abs(r - 234) < 12 && Math.abs(g - 233) < 12 && Math.abs(b - 236) < 12;
   };
 
   // BFS from all edge pixels
@@ -96,9 +98,9 @@ async function removeWhiteBackground() {
         if (visited[i + width]) transparentCount++;
         
         if (transparentCount >= 2) {
-          output[i * 4 + 3] = Math.floor(output[i * 4 + 3] * 0.7);
+          output[i * 4 + 3] = Math.floor(output[i * 4 + 3] * 0.85);
         } else if (transparentCount === 1) {
-          output[i * 4 + 3] = Math.floor(output[i * 4 + 3] * 0.9);
+          output[i * 4 + 3] = Math.floor(output[i * 4 + 3] * 0.95);
         }
       }
     }

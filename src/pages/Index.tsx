@@ -722,10 +722,10 @@ const Index = () => {
         <div className="w-full max-w-[1400px] h-full relative mx-auto">
           {showJoinForm ? (
             <img 
-              src="/doctors on sign in page.png" 
+              src="/doctors-nobg.png" 
               alt="Professional Doctors and Dietitians" 
               className="absolute bottom-0 right-[-8%] h-[85%] xl:h-[90%] object-contain object-right-bottom translate-x-[15%] xl:translate-x-[20%]"
-              style={{ mixBlendMode: 'multiply', filter: 'brightness(1.08) contrast(1.05)' }}
+              style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.06))' }}
             />
           ) : (
             <img 
