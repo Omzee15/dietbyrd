@@ -725,7 +725,7 @@ const Index = () => {
               src="/doctors on sign in page.png" 
               alt="Professional Doctors and Dietitians" 
               className="absolute bottom-0 right-[-8%] h-[85%] xl:h-[90%] object-contain object-right-bottom translate-x-[15%] xl:translate-x-[20%]"
-              style={{ mixBlendMode: 'multiply' }}
+              style={{ mixBlendMode: 'multiply', filter: 'brightness(1.08) contrast(1.05)' }}
             />
           ) : (
             <img 
