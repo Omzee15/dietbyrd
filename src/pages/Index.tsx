@@ -367,8 +367,8 @@ const Index = () => {
 
     return (
       <>
-        <h2 className="text-[32px] leading-tight text-[#0A1628] mb-2" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 800 }}>Welcome to<br/>DietByRD</h2>
-        <p className="text-slate-500 text-[15px]">Enter your phone number</p>
+        <h2 className="text-[36px] leading-tight text-[#0A1628] mb-1" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 800 }}>Welcome to<br/>DietByRD</h2>
+        <p className="text-slate-500 text-[15px] mb-8">Enter your phone number</p>
       </>
     );
   };
@@ -461,20 +461,22 @@ const Index = () => {
         <form onSubmit={handlePhoneSubmit} className="space-y-6">
           {renderPhoneField(false)}
 
-          <Button
-            type="submit"
-            disabled={loading || !isValidIndianMobile(phone)}
-            className="w-full h-12 rounded-xl bg-[#33654A] hover:bg-[#2B543D] text-white font-medium text-[15px] transition-all duration-300 group"
-          >
-            {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                Continue
-                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-              </>
-            )}
-          </Button>
+          <Button 
+          type="submit" 
+          disabled={loading || phone.length < 10}
+          className="w-full h-12 text-[15px] font-semibold rounded-xl bg-[#2B5239] hover:bg-[#1E3B29] text-white transition-all shadow-[0_4px_12px_rgba(43,82,57,0.15)] mt-4 disabled:opacity-50 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
+        >
+          {loading ? (
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span>Please wait...</span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-2">
+              Continue <ArrowRight className="w-[18px] h-[18px]" />
+            </div>
+          )}
+        </Button>
         </form>
       )}
 
@@ -592,19 +594,21 @@ const Index = () => {
 
       {/* Image - proper transparent cutout, no blend modes needed */}
       <div className="absolute inset-0 z-[5] pointer-events-none overflow-hidden">
-        <img 
-          src="/signin-image-nobg.png" 
-          alt="Happy patient eating salad" 
-          className="absolute bottom-0 right-0 h-[88%] object-contain object-right-bottom"
-          style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.08))' }}
-        />
+        <div className="w-full max-w-[1400px] h-full relative mx-auto">
+          <img 
+            src="/signin-image-nobg.png" 
+            alt="Happy patient eating salad" 
+            className="absolute bottom-0 right-[-2%] h-[92%] xl:h-[95%] object-contain object-right-bottom"
+            style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.08))' }}
+          />
+        </div>
       </div>
 
       {/* Main Content Wrapper */}
-      <div className="w-full max-w-[1240px] xl:max-w-[1340px] h-[90vh] min-h-[700px] max-h-[850px] flex relative z-10 pointer-events-none">
+      <div className="w-full max-w-[1240px] xl:max-w-[1340px] h-[90vh] min-h-[740px] max-h-[900px] flex relative z-10 pointer-events-none">
         
         {/* Left Side: Auth Form Card */}
-        <div className="flex-none w-full lg:w-[340px] xl:w-[380px] m-5 bg-white rounded-[28px] shadow-[0_4px_30px_rgba(0,0,0,0.06)] px-10 py-10 flex flex-col z-20 overflow-y-auto pointer-events-auto">
+        <div className="flex-none w-full lg:w-[380px] xl:w-[420px] m-6 bg-white rounded-[32px] shadow-[0_8px_40px_rgba(0,0,0,0.04)] px-10 xl:px-12 py-10 flex flex-col z-20 overflow-y-auto pointer-events-auto">
           <div className="flex-1 flex flex-col justify-center">
             {sessionExpired && step === "phone" && !showJoinForm && (
               <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
@@ -637,18 +641,24 @@ const Index = () => {
               <>
                 {renderAuthForm()}
 
-                <p className="text-left text-[13px] text-slate-500 leading-relaxed mt-8">
+                <p className="text-left text-[13px] text-slate-500 leading-relaxed mt-6">
                   By using DietByRD, you agree to our{" "}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#0A1628] font-semibold hover:underline">
-                    Terms and Conditions
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#2B5239] font-medium hover:underline">
+                    Terms
                   </a>{" "}
                   and{" "}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#0A1628] font-semibold hover:underline">
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#2B5239] font-medium hover:underline">
+                    Conditions
+                  </a>{" "}
+                  and{" "}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#2B5239] font-medium hover:underline">
                     Privacy Policy
                   </a>
                 </p>
 
-                <div className="mt-16 text-center">
+                <div className="w-full h-px bg-slate-200/60 my-8"></div>
+
+                <div className="text-center">
                   <div className="text-[13px] text-slate-500 mb-1">
                     Healthcare Professional?
                   </div>
@@ -656,7 +666,7 @@ const Index = () => {
                     className="text-[13px] text-slate-500 hover:text-[#33654A] transition-colors"
                     onClick={() => setShowJoinForm(true)}
                   >
-                    Join as <span className="font-semibold text-[#33654A]">Doctor</span> or <span className="font-semibold text-[#33654A]">Dietitian</span>
+                    Join as <span className="font-semibold text-[#2B5239]">Doctor</span> or <span className="font-semibold text-[#2B5239]">Dietitian</span>
                   </button>
                 </div>
               </>
@@ -681,41 +691,41 @@ const Index = () => {
                 </div>
               </div>
 
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[12px] font-medium mb-4">
-                <span className="text-[14px]">⭐</span>
-                Trusted By Doctors across India
-              </div>
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[12px] font-medium mb-5">
+              <span className="text-[14px]">⭐</span>
+              Trusted By Doctors across India
+            </div>
 
-              <h2 className="text-[40px] xl:text-[48px] font-bold text-[#0A1628] leading-[1.1] mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>
-                Diet,
-                <br />
-                Do not need to be a
-                <br />
-                Rocket Science 🚀
-              </h2>
+            <h2 className="text-[48px] xl:text-[56px] font-bold text-[#0A1628] leading-[1.05] mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>
+              Diet,
+              <br />
+              Do not need to be a
+              <br />
+              Rocket Science 🚀
+            </h2>
 
-              <p className="text-[14px] text-slate-600 leading-relaxed mb-6 max-w-[420px]">
-                Our Registered Dietitians make easy-peasy personalised diet plans that fit your not-so-easy-peasy, extremely busy schedule and pocket (promise 🥺).
-              </p>
+            <p className="text-[15px] text-slate-600 leading-relaxed mb-8 max-w-[460px]">
+              Our Registered Dietitians make easy-peasy personalised diet plans that fit your not-so-easy-peasy, extremely busy schedule and pocket (promise 🥺).
+            </p>
 
-              <div className="space-y-3 mb-6">
-                <div className="flex items-start gap-3 p-4 rounded-[14px] bg-[#F6F4EE]/80 border border-[#EBE7DF] max-w-[460px]">
-                  <div className="w-9 h-9 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10">
-                    <ShieldCheck className="w-[17px] h-[17px] text-[#33654A]" strokeWidth={2.5} />
+              <div className="space-y-4 mb-8">
+                <div className="flex items-start gap-4 p-5 rounded-[20px] bg-[#F9F8F5]/80 border border-[#EBE7DF]/60 max-w-[480px]">
+                  <div className="w-10 h-10 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10 mt-0.5">
+                    <ShieldCheck className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2.5} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-[#0A1628] text-[13px] mb-0.5">No supplement upsell, only what is required</h3>
-                    <p className="text-[12px] text-slate-500 leading-relaxed">Every recommendation is made with your wellbeing in mind, not a sales target. When food is enough, we say so. When a supplement is necessary, we explain why.</p>
+                    <h3 className="font-bold text-[#0A1628] text-[14px] mb-1">No supplement upsell, only what is required</h3>
+                    <p className="text-[13px] text-slate-500 leading-relaxed">Every recommendation is made with your wellbeing in mind, not a sales target. When food is enough, we say so. When a supplement is necessary, we explain why.</p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 p-4 rounded-[14px] bg-[#F6F4EE]/80 border border-[#EBE7DF] max-w-[460px]">
-                  <div className="w-9 h-9 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10">
-                    <Activity className="w-[17px] h-[17px] text-[#33654A]" strokeWidth={2.5} />
+                <div className="flex items-start gap-4 p-5 rounded-[20px] bg-[#F9F8F5]/80 border border-[#EBE7DF]/60 max-w-[480px]">
+                  <div className="w-10 h-10 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10 mt-0.5">
+                    <Activity className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2.5} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-[#0A1628] text-[13px] mb-0.5">There's always a space for your comfort food.</h3>
-                    <p className="text-[12px] text-slate-500 leading-relaxed">Be it your sweet tooth, chocolate cravings or momos treat.</p>
+                    <h3 className="font-bold text-[#0A1628] text-[14px] mb-1">There's always a space for your comfort food.</h3>
+                    <p className="text-[13px] text-slate-500 leading-relaxed">Be it your sweet tooth, chocolate cravings or momos treat.</p>
                   </div>
                 </div>
               </div>
@@ -723,18 +733,18 @@ const Index = () => {
           </div>
 
           {/* Stats bar pinned to bottom - spans full right section width */}
-          <div className="flex gap-3 px-12 xl:px-16 pb-6 relative z-10 w-full max-w-[650px]">
-            <div className="flex-1 bg-[#F2F0EA] border border-[#E8E4DB] rounded-[14px] py-3 px-4 text-center">
-              <div className="text-[24px] font-bold text-[#33654A]">95%</div>
-              <div className="text-[11px] text-slate-600 font-medium">Satisfaction Rate</div>
+          <div className="flex gap-4 px-12 xl:px-16 pb-8 relative z-10 w-full max-w-[700px]">
+            <div className="flex-1 bg-[#F5F3EC] border border-[#EBE7DF]/80 rounded-[18px] py-4 px-4 text-center">
+              <div className="text-[26px] font-bold text-[#2B5239]">95%</div>
+              <div className="text-[12px] text-slate-600 font-medium mt-0.5">Satisfaction Rate</div>
             </div>
-            <div className="flex-1 bg-[#F2F0EA] border border-[#E8E4DB] rounded-[14px] py-3 px-4 text-center">
-              <div className="text-[24px] font-bold text-[#33654A]">100%</div>
-              <div className="text-[11px] text-slate-600 font-medium">Real Reviews</div>
+            <div className="flex-1 bg-[#F5F3EC] border border-[#EBE7DF]/80 rounded-[18px] py-4 px-4 text-center">
+              <div className="text-[26px] font-bold text-[#2B5239]">100%</div>
+              <div className="text-[12px] text-slate-600 font-medium mt-0.5">Real Reviews</div>
             </div>
-            <div className="flex-1 bg-[#F2F0EA] border border-[#E8E4DB] rounded-[14px] py-3 px-4 text-center">
-              <div className="text-[24px] font-bold text-[#33654A]">110%</div>
-              <div className="text-[11px] text-slate-600 font-medium">Patient centric care</div>
+            <div className="flex-1 bg-[#F5F3EC] border border-[#EBE7DF]/80 rounded-[18px] py-4 px-4 text-center">
+              <div className="text-[26px] font-bold text-[#2B5239]">110%</div>
+              <div className="text-[12px] text-slate-600 font-medium mt-0.5">Patient centric care</div>
             </div>
           </div>
         </div>
