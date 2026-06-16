@@ -582,6 +582,131 @@ const Index = () => {
     );
   }
 
+  const renderPatientRightSide = () => (
+    <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-6">
+      <div className="relative z-10 w-full max-w-[520px]">
+        {/* Header/Logo */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-11 h-11 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
+            <Leaf className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-[20px] font-bold text-[#0A1628] leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>Diet By RD</h1>
+            <p className="text-[12px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
+          </div>
+        </div>
+
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[12px] font-medium mb-5">
+          <span className="text-[14px]">⭐</span>
+          Trusted By Doctors across India
+        </div>
+
+        <h2 className="text-[48px] xl:text-[56px] font-bold text-[#0A1628] leading-[1.05] mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>
+          Diet,
+          <br />
+          Do not need to be a
+          <br />
+          Rocket Science 🚀
+        </h2>
+
+        <p className="text-[15px] text-slate-600 leading-relaxed mb-8 max-w-[460px]">
+          Our Registered Dietitians make easy-peasy personalised diet plans that fit your not-so-easy-peasy, extremely busy schedule and pocket (promise 🥺).
+        </p>
+
+        <div className="space-y-4 mb-8">
+          <div className="flex items-start gap-4 p-5 rounded-[20px] bg-[#F9F8F5]/80 border border-[#EBE7DF]/60 max-w-[480px]">
+            <div className="w-10 h-10 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10 mt-0.5">
+              <ShieldCheck className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2.5} />
+            </div>
+            <div>
+              <h3 className="font-bold text-[#0A1628] text-[14px] mb-1">No supplement upsell, only what is required</h3>
+              <p className="text-[13px] text-slate-500 leading-relaxed">Every recommendation is made with your wellbeing in mind, not a sales target. When food is enough, we say so. When a supplement is necessary, we explain why.</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-4 p-5 rounded-[20px] bg-[#F9F8F5]/80 border border-[#EBE7DF]/60 max-w-[480px]">
+            <div className="w-10 h-10 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10 mt-0.5">
+              <Activity className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2.5} />
+            </div>
+            <div>
+              <h3 className="font-bold text-[#0A1628] text-[14px] mb-1">There's always a space for your comfort food.</h3>
+              <p className="text-[13px] text-slate-500 leading-relaxed">Be it your sweet tooth, chocolate cravings or momos treat.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderProfessionalRightSide = () => (
+    <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-6">
+      <div className="relative z-10 w-full max-w-[600px] xl:max-w-[700px]">
+        {/* Header/Logo (Professional version) */}
+        <div className="mb-4">
+          <h1 className="text-[32px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <span className="text-[#33654A]">Diet By </span>
+            <span className="text-[#D49B2A]">RD</span>
+          </h1>
+          <p className="text-[13px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
+        </div>
+
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[12px] font-medium mb-6">
+          <span className="text-[14px]">⭐</span>
+          Trusted By Doctors across India
+        </div>
+
+        <h2 className="text-[36px] xl:text-[42px] font-bold text-[#0A1628] leading-[1.1] mb-8 max-w-[500px]" style={{ fontFamily: "'Playfair Display', serif" }}>
+          Qualifications to join DietByRD as a professional:
+        </h2>
+
+        <div className="flex flex-col sm:flex-row gap-6 items-stretch">
+          {/* Dietitian Column */}
+          <div className="flex-1 bg-white/60 backdrop-blur-sm border border-[#EBE7DF] rounded-[20px] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
+            <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-[#33654A] w-fit">
+              <div className="w-8 h-8 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#33654A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4项 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <h3 className="font-bold text-[#33654A] text-[16px]">Registered Dietitian</h3>
+            </div>
+
+            <div className="space-y-4 mt-6">
+              {[
+                "Be an IDA recognized registered dietitian.",
+                "Should have the habit of reading and analyzing scientific literature on nutrition and dietetics.",
+                "Third, must be a critical thinker.",
+                "Must not have any connections with supplement brands.",
+                "Must be super empathetic, a good listener, and have good conversation skills.",
+                "Must speak Hindi and English fluently. (Additional Indian languages are plus point)",
+                "Should have the will to serve patients with utmost sincerity and love."
+              ].map((text, idx) => (
+                <div key={idx} className="flex items-start gap-3">
+                  <div className="w-[22px] h-[22px] rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 text-[#33654A] font-bold text-[11px]">
+                    {idx + 1}
+                  </div>
+                  <p className="text-[13px] text-[#0A1628] font-medium leading-relaxed pt-0.5">{text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Doctors Column */}
+          <div className="flex-1 bg-white/60 backdrop-blur-sm border border-[#EBE7DF] rounded-[20px] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
+            <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-[#33654A] w-fit">
+              <div className="w-8 h-8 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#33654A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              </div>
+              <h3 className="font-bold text-[#33654A] text-[16px]">Doctors</h3>
+            </div>
+
+            <p className="text-[13px] text-[#0A1628] font-medium leading-relaxed mt-6">
+              Should have a valid Medical licence, a MBBS degree and will to help patients via Diet By RD.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="h-screen w-full bg-[#FDFBF7] flex justify-center items-center relative overflow-hidden page-fade-in">
       {/* Dotted background pattern */}
@@ -592,15 +717,23 @@ const Index = () => {
         maskImage: 'radial-gradient(circle at 80% 20%, black 20%, transparent 60%)'
       }} />
 
-      {/* Image - proper transparent cutout, no blend modes needed */}
+      {/* Image Container - Conditional based on showJoinForm */}
       <div className="absolute inset-0 z-[5] pointer-events-none overflow-hidden">
         <div className="w-full max-w-[1400px] h-full relative mx-auto">
-          <img 
-            src="/signin-image-nobg.png" 
-            alt="Happy patient eating salad" 
-            className="absolute bottom-0 right-0 h-[92%] xl:h-[95%] object-contain object-right-bottom translate-x-[20%] xl:translate-x-[28%]"
-            style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.08))' }}
-          />
+          {showJoinForm ? (
+            <img 
+              src="/doctors-nobg.png" 
+              alt="Professional Doctors and Dietitians" 
+              className="absolute bottom-0 right-[-5%] h-[85%] xl:h-[90%] object-contain object-right-bottom translate-x-[15%] xl:translate-x-[20%]"
+            />
+          ) : (
+            <img 
+              src="/signin-image-nobg.png" 
+              alt="Happy patient eating salad" 
+              className="absolute bottom-0 right-0 h-[92%] xl:h-[95%] object-contain object-right-bottom translate-x-[20%] xl:translate-x-[28%]"
+              style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.08))' }}
+            />
+          )}
         </div>
       </div>
 
@@ -676,77 +809,25 @@ const Index = () => {
 
         {/* Right Side: Visual Section */}
         <div className="hidden lg:flex flex-1 relative flex-col z-10 pointer-events-auto">
+          {showJoinForm ? renderProfessionalRightSide() : renderPatientRightSide()}
           
-          {/* Content area - vertically centered */}
-          <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-6">
-            <div className="relative z-10 w-full max-w-[520px]">
-              {/* Header/Logo */}
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-11 h-11 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
-                  <Leaf className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-[20px] font-bold text-[#0A1628] leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>Diet By RD</h1>
-                  <p className="text-[12px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
-                </div>
+          {/* Stats bar pinned to bottom - only shown on patient side */}
+          {!showJoinForm && (
+            <div className="flex gap-4 px-12 xl:px-16 pb-8 relative z-10 w-full max-w-[700px]">
+              <div className="flex-1 bg-[#F5F3EC] border border-[#EBE7DF]/80 rounded-[18px] py-4 px-4 text-center">
+                <div className="text-[26px] font-bold text-[#2B5239]">95%</div>
+                <div className="text-[12px] text-slate-600 font-medium mt-0.5">Satisfaction Rate</div>
               </div>
-
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[12px] font-medium mb-5">
-              <span className="text-[14px]">⭐</span>
-              Trusted By Doctors across India
-            </div>
-
-            <h2 className="text-[48px] xl:text-[56px] font-bold text-[#0A1628] leading-[1.05] mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>
-              Diet,
-              <br />
-              Do not need to be a
-              <br />
-              Rocket Science 🚀
-            </h2>
-
-            <p className="text-[15px] text-slate-600 leading-relaxed mb-8 max-w-[460px]">
-              Our Registered Dietitians make easy-peasy personalised diet plans that fit your not-so-easy-peasy, extremely busy schedule and pocket (promise 🥺).
-            </p>
-
-              <div className="space-y-4 mb-8">
-                <div className="flex items-start gap-4 p-5 rounded-[20px] bg-[#F9F8F5]/80 border border-[#EBE7DF]/60 max-w-[480px]">
-                  <div className="w-10 h-10 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10 mt-0.5">
-                    <ShieldCheck className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-[#0A1628] text-[14px] mb-1">No supplement upsell, only what is required</h3>
-                    <p className="text-[13px] text-slate-500 leading-relaxed">Every recommendation is made with your wellbeing in mind, not a sales target. When food is enough, we say so. When a supplement is necessary, we explain why.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4 p-5 rounded-[20px] bg-[#F9F8F5]/80 border border-[#EBE7DF]/60 max-w-[480px]">
-                  <div className="w-10 h-10 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10 mt-0.5">
-                    <Activity className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-[#0A1628] text-[14px] mb-1">There's always a space for your comfort food.</h3>
-                    <p className="text-[13px] text-slate-500 leading-relaxed">Be it your sweet tooth, chocolate cravings or momos treat.</p>
-                  </div>
-                </div>
+              <div className="flex-1 bg-[#F5F3EC] border border-[#EBE7DF]/80 rounded-[18px] py-4 px-4 text-center">
+                <div className="text-[26px] font-bold text-[#2B5239]">100%</div>
+                <div className="text-[12px] text-slate-600 font-medium mt-0.5">Real Reviews</div>
+              </div>
+              <div className="flex-1 bg-[#F5F3EC] border border-[#EBE7DF]/80 rounded-[18px] py-4 px-4 text-center">
+                <div className="text-[26px] font-bold text-[#2B5239]">110%</div>
+                <div className="text-[12px] text-slate-600 font-medium mt-0.5">Patient centric care</div>
               </div>
             </div>
-          </div>
-
-          {/* Stats bar pinned to bottom - spans full right section width */}
-          <div className="flex gap-4 px-12 xl:px-16 pb-8 relative z-10 w-full max-w-[700px]">
-            <div className="flex-1 bg-[#F5F3EC] border border-[#EBE7DF]/80 rounded-[18px] py-4 px-4 text-center">
-              <div className="text-[26px] font-bold text-[#2B5239]">95%</div>
-              <div className="text-[12px] text-slate-600 font-medium mt-0.5">Satisfaction Rate</div>
-            </div>
-            <div className="flex-1 bg-[#F5F3EC] border border-[#EBE7DF]/80 rounded-[18px] py-4 px-4 text-center">
-              <div className="text-[26px] font-bold text-[#2B5239]">100%</div>
-              <div className="text-[12px] text-slate-600 font-medium mt-0.5">Real Reviews</div>
-            </div>
-            <div className="flex-1 bg-[#F5F3EC] border border-[#EBE7DF]/80 rounded-[18px] py-4 px-4 text-center">
-              <div className="text-[26px] font-bold text-[#2B5239]">110%</div>
-              <div className="text-[12px] text-slate-600 font-medium mt-0.5">Patient centric care</div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
