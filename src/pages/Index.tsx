@@ -581,105 +581,99 @@ const Index = () => {
   }
 
   return (
-    <div className="h-screen w-full bg-[#FDFBF7] flex justify-center items-center relative overflow-hidden page-fade-in">
-      {/* Subtle dotted background pattern for the whole right side */}
-      <div className="absolute inset-0 right-0 top-0 pointer-events-none" style={{
+    <div className="h-screen w-full bg-[#FDFBF7] flex relative overflow-hidden page-fade-in">
+      {/* Dotted background pattern */}
+      <div className="absolute inset-0 pointer-events-none" style={{
         backgroundImage: 'radial-gradient(#E8E4DB 1.5px, transparent 1.5px)',
         backgroundSize: '24px 24px',
-        opacity: 0.6,
-        maskImage: 'radial-gradient(circle at top right, black 30%, transparent 80%)'
+        opacity: 0.5,
+        maskImage: 'radial-gradient(circle at 80% 20%, black 20%, transparent 60%)'
       }} />
 
-      {/* Main Content Wrapper to constrain width */}
-      <div className="w-full max-w-[1240px] xl:max-w-[1340px] h-[90vh] min-h-[700px] max-h-[850px] flex relative z-10">
-        
-        {/* Left Side: Auth Form Card */}
-        <div className="flex-none w-[400px] xl:w-[440px] bg-white rounded-[32px] shadow-[0_8px_40px_rgba(0,0,0,0.06)] p-10 xl:p-12 flex flex-col z-20 overflow-y-auto">
-          <div className="flex-1 flex flex-col justify-center">
-            {sessionExpired && step === "phone" && !showJoinForm && (
-              <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
-                <p className="font-semibold text-sm">Your session has expired for security purposes.</p>
-                <p className="text-sm mt-0.5">Please log in again to continue.</p>
+      {/* Left Side: Auth Form Card */}
+      <div className="flex-none w-full lg:w-[340px] xl:w-[380px] m-5 bg-white rounded-[28px] shadow-[0_4px_30px_rgba(0,0,0,0.06)] px-10 py-10 flex flex-col z-20 overflow-y-auto">
+        <div className="flex-1 flex flex-col justify-center">
+          {sessionExpired && step === "phone" && !showJoinForm && (
+            <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
+              <p className="font-semibold text-sm">Your session has expired for security purposes.</p>
+              <p className="text-sm mt-0.5">Please log in again to continue.</p>
+            </div>
+          )}
+
+          {showJoinForm ? (
+            <JoinRequestForm
+              inline
+              onBack={() => {
+                if (window.location.pathname === '/join') {
+                  navigate('/');
+                } else {
+                  setShowJoinForm(false);
+                }
+              }}
+              onComplete={() => {
+                if (window.location.pathname === '/join') {
+                  navigate('/login?joinSuccess=1');
+                } else {
+                  setJoinSuccess("Thanks for your interest! Our team will review your request.");
+                  setShowJoinForm(false);
+                  setStep("phone");
+                }
+              }}
+            />
+          ) : (
+            <>
+              {renderAuthForm()}
+
+              <p className="text-left text-[13px] text-slate-500 leading-relaxed mt-8">
+                By using DietByRD, you agree to our{" "}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#0A1628] font-semibold hover:underline">
+                  Terms and Conditions
+                </a>{" "}
+                and{" "}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#0A1628] font-semibold hover:underline">
+                  Privacy Policy
+                </a>
+              </p>
+
+              <div className="mt-16 text-center">
+                <div className="text-[13px] text-slate-500 mb-1">
+                  Healthcare Professional?
+                </div>
+                <button
+                  className="text-[13px] text-slate-500 hover:text-[#33654A] transition-colors"
+                  onClick={() => setShowJoinForm(true)}
+                >
+                  Join as <span className="font-semibold text-[#33654A]">Doctor</span> or <span className="font-semibold text-[#33654A]">Dietitian</span>
+                </button>
               </div>
-            )}
-
-            {showJoinForm ? (
-              <JoinRequestForm
-                inline
-                onBack={() => {
-                  if (window.location.pathname === '/join') {
-                    navigate('/');
-                  } else {
-                    setShowJoinForm(false);
-                  }
-                }}
-                onComplete={() => {
-                  if (window.location.pathname === '/join') {
-                    navigate('/login?joinSuccess=1');
-                  } else {
-                    setJoinSuccess("Thanks for your interest! Our team will review your request.");
-                    setShowJoinForm(false);
-                    setStep("phone");
-                  }
-                }}
-              />
-            ) : (
-              <>
-                {renderAuthForm()}
-
-                <div className="mt-8 mb-12">
-                  <div className="h-px bg-slate-100 w-full mb-6"></div>
-                  <p className="text-left text-[13px] text-slate-500 leading-relaxed">
-                    By using DietByRD, you agree to our{" "}
-                    <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#33654A] font-semibold hover:underline">
-                      Terms and Conditions
-                    </a>{" "}
-                    and{" "}
-                    <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#33654A] font-semibold hover:underline">
-                      Privacy Policy
-                    </a>
-                  </p>
-                </div>
-
-                <div className="mt-auto text-center">
-                  <div className="text-[13px] text-slate-500 mb-1">
-                    Healthcare Professional?
-                  </div>
-                  <button
-                    className="text-[13px] text-slate-500 hover:text-[#33654A] transition-colors"
-                    onClick={() => setShowJoinForm(true)}
-                  >
-                    Join as <span className="font-semibold text-[#33654A]">Doctor</span> or <span className="font-semibold text-[#33654A]">Dietitian</span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+            </>
+          )}
         </div>
+      </div>
 
-        {/* Right Side: Visual Section */}
-        <div className="hidden lg:flex flex-1 relative flex-col justify-center z-10 pl-12 xl:pl-16">
-          
-          <div className="relative z-10 w-full max-w-[480px] xl:max-w-[540px]">
+      {/* Right Side: Visual Section */}
+      <div className="hidden lg:flex flex-1 relative flex-col z-10">
+        
+        {/* Content area - vertically centered */}
+        <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-6">
+          <div className="relative z-10 w-full max-w-[520px]">
             {/* Header/Logo */}
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-11 h-11 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
                 <Leaf className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-[19px] font-bold text-[#0A1628] leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>Diet By RD</h1>
+                <h1 className="text-[20px] font-bold text-[#0A1628] leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>Diet By RD</h1>
                 <p className="text-[12px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
               </div>
             </div>
 
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[12px] font-medium mb-6">
-              <div className="w-[18px] h-[18px] rounded-full bg-[#33654A] flex items-center justify-center">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
-              </div>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[12px] font-medium mb-4">
+              <span className="text-[14px]">⭐</span>
               Trusted By Doctors across India
             </div>
 
-            <h2 className="text-[38px] xl:text-[46px] font-bold text-[#0A1628] leading-[1.1] mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h2 className="text-[40px] xl:text-[48px] font-bold text-[#0A1628] leading-[1.1] mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>
               Diet,
               <br />
               Do not need to be a
@@ -687,55 +681,57 @@ const Index = () => {
               Rocket Science 🚀
             </h2>
 
-            <p className="text-[14px] text-slate-600 leading-relaxed mb-8 max-w-[420px]">
+            <p className="text-[14px] text-slate-600 leading-relaxed mb-6 max-w-[420px]">
               Our Registered Dietitians make easy-peasy personalised diet plans that fit your not-so-easy-peasy, extremely busy schedule and pocket (promise 🥺).
             </p>
 
-            <div className="space-y-3 mb-8 max-w-[460px]">
-              <div className="flex items-start gap-4 p-4 rounded-[16px] bg-[#F6F4EE]/80 border border-[#EBE7DF]">
-                <div className="w-[38px] h-[38px] rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10">
-                  <ShieldCheck className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2.5} />
+            <div className="space-y-3 mb-6">
+              <div className="flex items-start gap-3 p-4 rounded-[14px] bg-[#F6F4EE]/80 border border-[#EBE7DF] max-w-[500px]">
+                <div className="w-9 h-9 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10">
+                  <ShieldCheck className="w-[17px] h-[17px] text-[#33654A]" strokeWidth={2.5} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-[#0A1628] text-[14px] mb-1">No supplement upsell, only what is required</h3>
-                  <p className="text-[12px] text-slate-600 leading-relaxed">Every recommendation is made with your wellbeing in mind, not a sales target. When food is enough, we say so. When a supplement is necessary, we explain why.</p>
+                  <h3 className="font-bold text-[#0A1628] text-[13px] mb-0.5">No supplement upsell, only what is required</h3>
+                  <p className="text-[12px] text-slate-500 leading-relaxed">Every recommendation is made with your wellbeing in mind, not a sales target. When food is enough, we say so. When a supplement is necessary, we explain why.</p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-4 p-4 rounded-[16px] bg-[#F6F4EE]/80 border border-[#EBE7DF]">
-                <div className="w-[38px] h-[38px] rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10">
-                  <Activity className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2.5} />
+              <div className="flex items-start gap-3 p-4 rounded-[14px] bg-[#F6F4EE]/80 border border-[#EBE7DF] max-w-[500px]">
+                <div className="w-9 h-9 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10">
+                  <Activity className="w-[17px] h-[17px] text-[#33654A]" strokeWidth={2.5} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-[#0A1628] text-[14px] mb-1">There's always a space for your comfort food.</h3>
-                  <p className="text-[12px] text-slate-600 leading-relaxed">Be it your sweet tooth, chocolate cravings or momos treat.</p>
+                  <h3 className="font-bold text-[#0A1628] text-[13px] mb-0.5">There's always a space for your comfort food.</h3>
+                  <p className="text-[12px] text-slate-500 leading-relaxed">Be it your sweet tooth, chocolate cravings or momos treat.</p>
                 </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 max-w-[460px]">
-              <div className="flex-1 bg-[#F6F4EE]/80 border border-[#EBE7DF] rounded-[16px] p-3 text-center">
-                <div className="text-[24px] font-bold text-[#33654A]">95%</div>
-                <div className="text-[11px] text-slate-600 font-medium mt-0.5">Satisfaction Rate</div>
-              </div>
-              <div className="flex-1 bg-[#F6F4EE]/80 border border-[#EBE7DF] rounded-[16px] p-3 text-center">
-                <div className="text-[24px] font-bold text-[#33654A]">100%</div>
-                <div className="text-[11px] text-slate-600 font-medium mt-0.5">Real Reviews</div>
-              </div>
-              <div className="flex-1 bg-[#F6F4EE]/80 border border-[#EBE7DF] rounded-[16px] p-3 text-center">
-                <div className="text-[24px] font-bold text-[#33654A]">110%</div>
-                <div className="text-[11px] text-slate-600 font-medium mt-0.5">Patient centric care</div>
               </div>
             </div>
           </div>
-
-          <img 
-            src="/signin-image.png" 
-            alt="Happy patient eating salad" 
-            className="absolute bottom-0 right-0 h-[95%] xl:h-[105%] max-h-[850px] object-contain object-right-bottom z-0 pointer-events-none"
-            style={{ filter: 'drop-shadow(-10px 10px 20px rgba(0,0,0,0.05))', right: '-40px' }}
-          />
         </div>
+
+        {/* Stats bar pinned to bottom - spans full right section width */}
+        <div className="flex gap-3 px-12 xl:px-16 pb-6 relative z-10">
+          <div className="flex-1 bg-[#F2F0EA] border border-[#E8E4DB] rounded-[14px] py-3 px-4 text-center">
+            <div className="text-[24px] font-bold text-[#33654A]">95%</div>
+            <div className="text-[11px] text-slate-600 font-medium">Satisfaction Rate</div>
+          </div>
+          <div className="flex-1 bg-[#F2F0EA] border border-[#E8E4DB] rounded-[14px] py-3 px-4 text-center">
+            <div className="text-[24px] font-bold text-[#33654A]">100%</div>
+            <div className="text-[11px] text-slate-600 font-medium">Real Reviews</div>
+          </div>
+          <div className="flex-1 bg-[#F2F0EA] border border-[#E8E4DB] rounded-[14px] py-3 px-4 text-center">
+            <div className="text-[24px] font-bold text-[#33654A]">110%</div>
+            <div className="text-[11px] text-slate-600 font-medium">Patient centric care</div>
+          </div>
+        </div>
+
+        {/* Image - anchored bottom-right, overlapping content */}
+        <img 
+          src="/signin-image.png" 
+          alt="Happy patient eating salad" 
+          className="absolute bottom-0 right-0 h-[92%] object-contain object-right-bottom z-0 pointer-events-none"
+          style={{ filter: 'drop-shadow(-10px 10px 20px rgba(0,0,0,0.04))' }}
+        />
       </div>
     </div>
   );
