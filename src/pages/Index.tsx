@@ -642,12 +642,12 @@ const Index = () => {
     <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-6">
       <div className="relative z-10 w-full max-w-[600px] xl:max-w-[700px]">
         {/* Header/Logo (Professional version) */}
-        <div className="mb-4">
-          <h1 className="text-[32px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+        <div className="mb-6">
+          <h1 className="text-[36px] xl:text-[42px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
             <span className="text-[#33654A]">Diet By </span>
             <span className="text-[#D49B2A]">RD</span>
           </h1>
-          <p className="text-[13px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
+          <p className="text-[14px] text-[#33654A] font-medium tracking-wide mt-1">The Gold Standard Clinical Nutrition</p>
         </div>
 
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[12px] font-medium mb-6">
@@ -655,13 +655,13 @@ const Index = () => {
           Trusted By Doctors across India
         </div>
 
-        <h2 className="text-[36px] xl:text-[42px] font-bold text-[#0A1628] leading-[1.1] mb-8 max-w-[500px]" style={{ fontFamily: "'Playfair Display', serif" }}>
+        <h2 className="text-[38px] xl:text-[46px] font-bold text-[#0A1628] leading-[1.1] mb-8 max-w-[550px]" style={{ fontFamily: "'Playfair Display', serif" }}>
           Qualifications to join DietByRD as a professional:
         </h2>
 
-        <div className="flex flex-col sm:flex-row gap-6 items-stretch">
+        <div className="flex flex-col sm:flex-row gap-5 xl:gap-6 items-stretch max-w-[650px] relative z-20">
           {/* Dietitian Column */}
-          <div className="flex-1 bg-white/60 backdrop-blur-sm border border-[#EBE7DF] rounded-[20px] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
+          <div className="flex-[1.4] bg-white/90 border border-[#33654A]/15 rounded-[16px] p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-[#33654A] w-fit">
               <div className="w-8 h-8 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#33654A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4项 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -680,17 +680,17 @@ const Index = () => {
                 "Should have the will to serve patients with utmost sincerity and love."
               ].map((text, idx) => (
                 <div key={idx} className="flex items-start gap-3">
-                  <div className="w-[22px] h-[22px] rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 text-[#33654A] font-bold text-[11px]">
+                  <div className="w-[20px] h-[20px] rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 text-[#33654A] font-bold text-[11px] mt-0.5">
                     {idx + 1}
                   </div>
-                  <p className="text-[13px] text-[#0A1628] font-medium leading-relaxed pt-0.5">{text}</p>
+                  <p className="text-[12px] text-[#0A1628] font-medium leading-relaxed">{text}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Doctors Column */}
-          <div className="flex-1 bg-white/60 backdrop-blur-sm border border-[#EBE7DF] rounded-[20px] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
+          <div className="flex-1 bg-white/90 border border-[#33654A]/15 rounded-[16px] p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-[#33654A] w-fit">
               <div className="w-8 h-8 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#33654A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
@@ -698,7 +698,7 @@ const Index = () => {
               <h3 className="font-bold text-[#33654A] text-[16px]">Doctors</h3>
             </div>
 
-            <p className="text-[13px] text-[#0A1628] font-medium leading-relaxed mt-6">
+            <p className="text-[12px] text-[#0A1628] font-medium leading-relaxed mt-6">
               Should have a valid Medical licence, a MBBS degree and will to help patients via Diet By RD.
             </p>
           </div>
@@ -722,9 +722,10 @@ const Index = () => {
         <div className="w-full max-w-[1400px] h-full relative mx-auto">
           {showJoinForm ? (
             <img 
-              src="/doctors-nobg.png" 
+              src="/doctors on sign in page.png" 
               alt="Professional Doctors and Dietitians" 
-              className="absolute bottom-0 right-[-5%] h-[85%] xl:h-[90%] object-contain object-right-bottom translate-x-[15%] xl:translate-x-[20%]"
+              className="absolute bottom-0 right-[-8%] h-[85%] xl:h-[90%] object-contain object-right-bottom translate-x-[15%] xl:translate-x-[20%]"
+              style={{ mixBlendMode: 'multiply' }}
             />
           ) : (
             <img 
