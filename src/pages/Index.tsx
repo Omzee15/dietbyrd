@@ -590,19 +590,14 @@ const Index = () => {
         maskImage: 'radial-gradient(circle at 80% 20%, black 20%, transparent 60%)'
       }} />
 
-      {/* Image moved to root level so it perfectly blends with the background without stacking context interference */}
-      <div className="absolute inset-0 z-[5] pointer-events-none overflow-hidden flex justify-end">
-        <div className="w-full max-w-[1340px] h-full relative mx-auto">
-          <img 
-            src="/signin-image.png" 
-            alt="Happy patient eating salad" 
-            className="absolute bottom-0 right-0 h-[92%] object-contain object-right-bottom"
-            style={{ 
-              mixBlendMode: 'multiply',
-              filter: 'brightness(1.05)'
-            }}
-          />
-        </div>
+      {/* Image - proper transparent cutout, no blend modes needed */}
+      <div className="absolute inset-0 z-[5] pointer-events-none overflow-hidden">
+        <img 
+          src="/signin-image-nobg.png" 
+          alt="Happy patient eating salad" 
+          className="absolute bottom-0 right-0 h-[88%] object-contain object-right-bottom"
+          style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.08))' }}
+        />
       </div>
 
       {/* Main Content Wrapper */}
