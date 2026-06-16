@@ -367,17 +367,17 @@ const Index = () => {
 
     return (
       <>
-        <h2 className="text-3xl font-bold text-slate-900">Welcome to DietByRD</h2>
-        <p className="text-slate-500 mt-2 text-base">Enter your phone number</p>
+        <h2 className="text-[32px] leading-tight text-[#0A1628] mb-2" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 800 }}>Welcome to<br/>DietByRD</h2>
+        <p className="text-slate-500 text-[15px]">Enter your phone number</p>
       </>
     );
   };
 
   const renderPhoneField = (readOnly = false) => (
-    <div className="space-y-2">
-      <label className="text-base font-medium text-slate-700">Phone Number</label>
+    <div className="space-y-1.5">
+      <label className="text-[13px] font-bold text-[#0A1628]">Phone Number</label>
       <div className="relative">
-        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400" />
         <Input
           ref={phoneInputRef}
           type="tel"
@@ -435,7 +435,7 @@ const Index = () => {
           tabIndex={-1}
         >
           <ArrowLeft className="h-4 w-4" />
-          <span className="text-sm">Back to home</span>
+          <span className="text-sm font-medium">Back to home</span>
         </Link>
         {renderHeading()}
       </div>
@@ -464,14 +464,14 @@ const Index = () => {
           <Button
             type="submit"
             disabled={loading || !isValidIndianMobile(phone)}
-            className="w-full h-14 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-base shadow-lg shadow-emerald-500/25 transition-all duration-300 group"
+            className="w-full h-12 rounded-xl bg-[#33654A] hover:bg-[#2B543D] text-white font-medium text-[15px] transition-all duration-300 group"
           >
             {loading ? (
-              <Loader2 className="w-6 h-6 animate-spin" />
+              <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
                 Continue
-                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
               </>
             )}
           </Button>
@@ -515,9 +515,9 @@ const Index = () => {
           <Button
             type="submit"
             disabled={loading || password.length < 6}
-            className="w-full h-14 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-base shadow-lg shadow-emerald-500/25 transition-all duration-300"
+            className="w-full h-12 rounded-xl bg-[#33654A] hover:bg-[#2B543D] text-white font-medium text-[15px] transition-all duration-300"
           >
-            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : "Sign In"}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Sign In"}
           </Button>
         </form>
       )}
@@ -563,9 +563,9 @@ const Index = () => {
           <Button
             type="submit"
             disabled={loading || otp.length !== 6}
-            className="w-full h-14 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-base shadow-lg shadow-emerald-500/25 transition-all duration-300"
+            className="w-full h-12 rounded-xl bg-[#33654A] hover:bg-[#2B543D] text-white font-medium text-[15px] transition-all duration-300"
           >
-            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : "Verify & Continue"}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify & Continue"}
           </Button>
         </form>
       )}
@@ -581,20 +581,12 @@ const Index = () => {
   }
 
   return (
-    <div className="h-screen bg-slate-200 p-4 lg:p-6 xl:p-8 flex page-fade-in">
-      <div className="w-full h-full flex flex-col lg:flex-row gap-4 lg:gap-5">
-        <div className="flex-1 lg:w-[30%] flex flex-col items-center justify-center bg-white rounded-3xl shadow-xl p-8 lg:p-10 overflow-y-auto">
-          <div className="lg:hidden flex items-center gap-3 mb-10">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <Leaf className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">DietByRD</h1>
-              <p className="text-xs text-slate-500 font-medium">Clinical Nutrition Platform</p>
-            </div>
-          </div>
-
-          <div className="w-full max-w-md">
+    <div className="h-screen bg-[#FAF9F5] p-4 lg:p-8 flex page-fade-in relative overflow-hidden">
+      <div className="w-full h-full flex flex-col lg:flex-row gap-8 lg:gap-16 max-w-[1600px] mx-auto relative z-10">
+        
+        {/* Left Side: Auth Form */}
+        <div className="flex-none w-full lg:w-[400px] xl:w-[460px] h-full flex flex-col bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 lg:p-12 overflow-y-auto">
+          <div className="flex-1 flex flex-col justify-center">
             {sessionExpired && step === "phone" && !showJoinForm && (
               <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
                 <p className="font-semibold text-sm">Your session has expired for security purposes.</p>
@@ -626,108 +618,116 @@ const Index = () => {
               <>
                 {renderAuthForm()}
 
-                <div className="mt-8 mb-6 text-center">
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-slate-200" />
-                    </div>
-                    <div className="relative flex justify-center text-xs">
-                      <span className="px-2 bg-white text-slate-500">Healthcare Professional?</span>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="w-full mt-4 border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 transition-all"
-                    onClick={() => setShowJoinForm(true)}
-                  >
-                    Join as Doctor or Dietician
-                  </Button>
-                </div>
-
-                <p className="text-center text-sm text-slate-400 mt-8">
+                <p className="text-left text-[13px] text-slate-500 mt-8 mb-12">
                   By using DietByRD, you agree to our{" "}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#33654A] font-medium hover:underline">
                     Terms and Conditions
                   </a>{" "}
                   and{" "}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#33654A] font-medium hover:underline">
                     Privacy Policy
                   </a>
                 </p>
+
+                <div className="mt-auto text-center">
+                  <div className="text-[13px] text-slate-500 mb-1">
+                    Healthcare Professional?
+                  </div>
+                  <button
+                    className="text-[13px] text-slate-500 hover:text-[#33654A] transition-colors"
+                    onClick={() => setShowJoinForm(true)}
+                  >
+                    Join as <span className="font-semibold text-[#33654A]">Doctor</span> or <span className="font-semibold text-[#33654A]">Dietitian</span>
+                  </button>
+                </div>
               </>
             )}
           </div>
         </div>
 
-        <div className="hidden lg:flex lg:w-[70%] flex-col justify-between p-10 xl:p-12 bg-gradient-to-br from-emerald-700 via-teal-700 to-emerald-900 rounded-3xl shadow-xl relative overflow-hidden">
-          <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-white/5 animate-float-slow-1" />
-          <div className="absolute bottom-0 -left-16 w-64 h-64 rounded-full bg-teal-500/10 animate-float-slow-2" />
-          <div className="absolute top-1/2 right-8 w-40 h-40 rounded-full bg-emerald-400/10 animate-float-slow-3" />
-          <div className="absolute inset-0 opacity-[0.06] dot-grid" />
+        {/* Right Side: Visual Section */}
+        <div className="hidden lg:flex flex-1 flex-col justify-center relative">
+          {/* Subtle dotted background pattern */}
+          <div className="absolute inset-0 right-[-100px] top-[-100px]" style={{
+            backgroundImage: 'radial-gradient(#E8E4DB 1px, transparent 1px)',
+            backgroundSize: '24px 24px',
+            opacity: 0.5,
+            maskImage: 'radial-gradient(circle at top right, black 40%, transparent 80%)'
+          }} />
 
-          <Link to="/" className="relative flex items-center gap-3 hover:opacity-90 transition-opacity cursor-pointer">
-            <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-lg">
-              <Leaf className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">DietByRD</h1>
-              <p className="text-xs text-emerald-200 font-medium tracking-wide">Clinical Nutrition Platform</p>
-            </div>
-          </Link>
-
-          <div className="relative max-w-lg">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 border border-white/20 rounded-full text-emerald-100 text-sm font-medium mb-6">
-              <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
-              Trusted by 500+ Healthcare Providers
+          <div className="relative z-10 max-w-xl xl:max-w-2xl pl-4 xl:pl-12 pb-24 pt-12">
+            {/* Header/Logo */}
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-12 h-12 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
+                <Leaf className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-[#0A1628] leading-tight">Diet By RD</h1>
+                <p className="text-[13px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
+              </div>
             </div>
 
-            <h2 className="text-5xl xl:text-6xl font-bold text-white leading-[1.1] tracking-tight">
-              Nutrition care,
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[13px] font-medium mb-8">
+              <span className="text-[#33654A]">⭐</span>
+              Trusted By Doctors across India
+            </div>
+
+            <h2 className="text-[44px] xl:text-[56px] font-bold text-[#0A1628] leading-[1.15] mb-6" style={{ fontFamily: "'Playfair Display', serif" }}>
+              Diet,
               <br />
-              <span className="text-emerald-300">reimagined.</span>
+              Do not need to be a
+              <br />
+              Rocket Science 🚀
             </h2>
 
-            <p className="mt-5 text-base text-emerald-100/80 leading-relaxed">
-              Connect doctors with registered dietitians seamlessly. Create personalized diet plans and track patient
-              outcomes in real-time.
+            <p className="text-[15px] text-slate-600 leading-relaxed mb-10 max-w-md">
+              Our Registered Dietitians make easy-peasy personalised diet plans that fit your not-so-easy-peasy, extremely busy schedule and pocket (promise 🥺).
             </p>
 
-            <div className="mt-8 space-y-3">
-              {[
-                { icon: Heart, label: "Patient-Centric Care", desc: "Holistic approach to nutrition management" },
-                { icon: Activity, label: "Real-time Collaboration", desc: "Doctors and dietitians work together" },
-              ].map((feature, i) => (
-                <div
-                  key={i}
-                  className="flex items-start gap-4 p-4 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-sm hover:bg-white/15 transition-all duration-200"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
-                    <feature.icon className="w-5 h-5 text-emerald-200" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white text-sm">{feature.label}</h3>
-                    <p className="text-xs text-emerald-200/70 mt-0.5">{feature.desc}</p>
-                  </div>
+            <div className="space-y-4 mb-12">
+              <div className="flex items-start gap-4 p-5 rounded-2xl bg-[#F6F4EE]/60 border border-[#EBE7DF]">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm border border-[#EBE7DF]">
+                  <ShieldCheck className="w-5 h-5 text-[#33654A]" />
                 </div>
-              ))}
+                <div>
+                  <h3 className="font-bold text-[#0A1628] text-[15px] mb-1">No supplement upsell, only what is required</h3>
+                  <p className="text-[13px] text-slate-600 leading-relaxed">Every recommendation is made with your wellbeing in mind, not a sales target. When food is enough, we say so. When a supplement is necessary, we explain why.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 p-5 rounded-2xl bg-[#F6F4EE]/60 border border-[#EBE7DF] max-w-[400px]">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm border border-[#EBE7DF]">
+                  <Activity className="w-5 h-5 text-[#33654A]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#0A1628] text-[15px] mb-1">There's always a space for your comfort food.</h3>
+                  <p className="text-[13px] text-slate-600 leading-relaxed">Be it your sweet tooth, chocolate cravings or momos treat.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <div className="flex-1 bg-[#F6F4EE]/80 border border-[#EBE7DF] rounded-2xl p-4 text-center">
+                <div className="text-[28px] font-bold text-[#33654A]">95%</div>
+                <div className="text-[13px] text-slate-600 font-medium mt-1">Satisfaction Rate</div>
+              </div>
+              <div className="flex-1 bg-[#F6F4EE]/80 border border-[#EBE7DF] rounded-2xl p-4 text-center">
+                <div className="text-[28px] font-bold text-[#33654A]">100%</div>
+                <div className="text-[13px] text-slate-600 font-medium mt-1">Real Reviews</div>
+              </div>
+              <div className="flex-1 bg-[#F6F4EE]/80 border border-[#EBE7DF] rounded-2xl p-4 text-center">
+                <div className="text-[28px] font-bold text-[#33654A]">110%</div>
+                <div className="text-[13px] text-slate-600 font-medium mt-1">Patient centric care</div>
+              </div>
             </div>
           </div>
 
-          <div className="relative grid grid-cols-3 gap-3">
-            {[
-              { value: "10k+", label: "Patients Helped" },
-              { value: "95%", label: "Satisfaction Rate" },
-              { value: "200+", label: "Active Dietitians" },
-            ].map((stat, i) => (
-              <div
-                key={i}
-                className="flex flex-col items-center justify-center gap-1 p-4 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-sm hover:bg-white/15 transition-all duration-200"
-              >
-                <span className="text-3xl font-bold text-white leading-none">{stat.value}</span>
-                <span className="text-xs text-emerald-200/80 text-center leading-tight">{stat.label}</span>
-              </div>
-            ))}
-          </div>
+          <img 
+            src="/signin-image.png" 
+            alt="Happy patient eating salad" 
+            className="absolute bottom-0 right-0 h-[90%] object-contain object-right-bottom z-0 max-w-[50vw]"
+            style={{ filter: 'drop-shadow(-20px 0 30px rgba(0,0,0,0.05))' }}
+          />
         </div>
       </div>
     </div>
