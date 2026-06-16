@@ -377,39 +377,39 @@ const Index = () => {
     <div className="space-y-1.5">
       <label className="text-[13px] font-bold text-[#0A1628]">Phone Number</label>
       <div className="relative">
-        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400" />
-        <Input
-          ref={phoneInputRef}
-          type="tel"
-          inputMode="numeric"
-          placeholder="Enter your phone number"
-          value={phone}
-          onChange={(e) => {
-            setPhone(normalizeIndianMobileInput(e.target.value));
-            setError(null);
-          }}
-          onKeyDown={(e) => {
-            if (!readOnly && e.key === "Enter") {
-              if (phone.trim() === "") {
-                e.preventDefault();
-              } else if (!isValidIndianMobile(phone)) {
-                e.preventDefault();
-                setError("Please enter a valid mobile number");
-                phoneInputRef.current?.focus();
-                phoneInputRef.current?.select();
+          <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400" />
+          <Input
+            ref={phoneInputRef}
+            type="tel"
+            inputMode="numeric"
+            placeholder="Enter your phone number"
+            value={phone}
+            onChange={(e) => {
+              setPhone(normalizeIndianMobileInput(e.target.value));
+              setError(null);
+            }}
+            onKeyDown={(e) => {
+              if (!readOnly && e.key === "Enter") {
+                if (phone.trim() === "") {
+                  e.preventDefault();
+                } else if (!isValidIndianMobile(phone)) {
+                  e.preventDefault();
+                  setError("Please enter a valid mobile number");
+                  phoneInputRef.current?.focus();
+                  phoneInputRef.current?.select();
+                }
               }
-            }
-          }}
-          autoFocus={!readOnly}
-          className={`pl-12 h-14 rounded-xl border-slate-200 transition-all text-base ${
-            readOnly
-              ? "pr-12 bg-slate-100 text-slate-600"
-              : "bg-slate-50/70 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/20"
-          }`}
-          maxLength={10}
-          readOnly={readOnly}
-          required
-        />
+            }}
+            autoFocus={!readOnly}
+            className={`pl-12 h-12 rounded-xl border-[#33654A] transition-all text-[15px] ${
+              readOnly
+                ? "pr-12 bg-slate-50 text-slate-600 border-slate-200"
+                : "bg-white focus:ring-2 focus:ring-[#33654A]/20"
+            }`}
+            maxLength={10}
+            readOnly={readOnly}
+            required
+          />
         {readOnly && (
           <button
             type="button"
@@ -581,11 +581,19 @@ const Index = () => {
   }
 
   return (
-    <div className="h-screen bg-[#FAF9F5] p-4 lg:p-8 flex page-fade-in relative overflow-hidden">
-      <div className="w-full h-full flex flex-col lg:flex-row gap-8 lg:gap-16 max-w-[1600px] mx-auto relative z-10">
+    <div className="min-h-screen bg-[#242120] flex items-center justify-center p-4 sm:p-8 page-fade-in">
+      <div className="w-full max-w-[1300px] h-[85vh] min-h-[700px] max-h-[850px] bg-[#FDFBF7] rounded-[32px] flex relative overflow-hidden shadow-2xl">
         
-        {/* Left Side: Auth Form */}
-        <div className="flex-none w-full lg:w-[400px] xl:w-[460px] h-full flex flex-col bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 lg:p-12 overflow-y-auto">
+        {/* Subtle dotted background pattern for the whole right side */}
+        <div className="absolute inset-0 right-0 top-0 pointer-events-none" style={{
+          backgroundImage: 'radial-gradient(#E8E4DB 1.5px, transparent 1.5px)',
+          backgroundSize: '24px 24px',
+          opacity: 0.6,
+          maskImage: 'radial-gradient(circle at top right, black 30%, transparent 80%)'
+        }} />
+
+        {/* Left Side: Auth Form Card */}
+        <div className="flex-none w-full lg:w-[400px] m-4 lg:m-6 bg-white rounded-[24px] shadow-[0_4px_24px_rgba(0,0,0,0.04)] p-8 lg:p-10 flex flex-col z-20 overflow-y-auto">
           <div className="flex-1 flex flex-col justify-center">
             {sessionExpired && step === "phone" && !showJoinForm && (
               <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
@@ -618,16 +626,19 @@ const Index = () => {
               <>
                 {renderAuthForm()}
 
-                <p className="text-left text-[13px] text-slate-500 mt-8 mb-12">
-                  By using DietByRD, you agree to our{" "}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#33654A] font-medium hover:underline">
-                    Terms and Conditions
-                  </a>{" "}
-                  and{" "}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#33654A] font-medium hover:underline">
-                    Privacy Policy
-                  </a>
-                </p>
+                <div className="mt-8 mb-12">
+                  <div className="h-px bg-slate-100 w-full mb-6"></div>
+                  <p className="text-left text-[13px] text-slate-500 leading-relaxed">
+                    By using DietByRD, you agree to our{" "}
+                    <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#33654A] font-semibold hover:underline">
+                      Terms and Conditions
+                    </a>{" "}
+                    and{" "}
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#33654A] font-semibold hover:underline">
+                      Privacy Policy
+                    </a>
+                  </p>
+                </div>
 
                 <div className="mt-auto text-center">
                   <div className="text-[13px] text-slate-500 mb-1">
@@ -646,33 +657,28 @@ const Index = () => {
         </div>
 
         {/* Right Side: Visual Section */}
-        <div className="hidden lg:flex flex-1 flex-col justify-center relative">
-          {/* Subtle dotted background pattern */}
-          <div className="absolute inset-0 right-[-100px] top-[-100px]" style={{
-            backgroundImage: 'radial-gradient(#E8E4DB 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
-            opacity: 0.5,
-            maskImage: 'radial-gradient(circle at top right, black 40%, transparent 80%)'
-          }} />
-
-          <div className="relative z-10 max-w-xl xl:max-w-2xl pl-4 xl:pl-12 pb-24 pt-12">
+        <div className="hidden lg:flex flex-1 relative flex-col z-10 p-12 pr-0 pl-8">
+          
+          <div className="relative z-10 w-full max-w-[500px] xl:max-w-[550px]">
             {/* Header/Logo */}
-            <div className="flex items-center gap-4 mb-8">
-              <div className="w-12 h-12 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
-                <Leaf className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
+                <Leaf className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-[#0A1628] leading-tight">Diet By RD</h1>
-                <p className="text-[13px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
+                <h1 className="text-[19px] font-bold text-[#0A1628] leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>Diet By RD</h1>
+                <p className="text-[12px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
               </div>
             </div>
 
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[13px] font-medium mb-8">
-              <span className="text-[#33654A]">⭐</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[12px] font-medium mb-6">
+              <div className="w-[18px] h-[18px] rounded-full bg-[#33654A] flex items-center justify-center">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+              </div>
               Trusted By Doctors across India
             </div>
 
-            <h2 className="text-[44px] xl:text-[56px] font-bold text-[#0A1628] leading-[1.15] mb-6" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h2 className="text-[38px] xl:text-[46px] font-bold text-[#0A1628] leading-[1.1] mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>
               Diet,
               <br />
               Do not need to be a
@@ -680,44 +686,44 @@ const Index = () => {
               Rocket Science 🚀
             </h2>
 
-            <p className="text-[15px] text-slate-600 leading-relaxed mb-10 max-w-md">
+            <p className="text-[14px] text-slate-600 leading-relaxed mb-8 max-w-[420px]">
               Our Registered Dietitians make easy-peasy personalised diet plans that fit your not-so-easy-peasy, extremely busy schedule and pocket (promise 🥺).
             </p>
 
-            <div className="space-y-4 mb-12">
-              <div className="flex items-start gap-4 p-5 rounded-2xl bg-[#F6F4EE]/60 border border-[#EBE7DF]">
-                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm border border-[#EBE7DF]">
-                  <ShieldCheck className="w-5 h-5 text-[#33654A]" />
+            <div className="space-y-3 mb-8 max-w-[460px]">
+              <div className="flex items-start gap-4 p-4 rounded-[16px] bg-[#F6F4EE]/80 border border-[#EBE7DF]">
+                <div className="w-[38px] h-[38px] rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10">
+                  <ShieldCheck className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2.5} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-[#0A1628] text-[15px] mb-1">No supplement upsell, only what is required</h3>
-                  <p className="text-[13px] text-slate-600 leading-relaxed">Every recommendation is made with your wellbeing in mind, not a sales target. When food is enough, we say so. When a supplement is necessary, we explain why.</p>
+                  <h3 className="font-bold text-[#0A1628] text-[14px] mb-1">No supplement upsell, only what is required</h3>
+                  <p className="text-[12px] text-slate-600 leading-relaxed">Every recommendation is made with your wellbeing in mind, not a sales target. When food is enough, we say so. When a supplement is necessary, we explain why.</p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-4 p-5 rounded-2xl bg-[#F6F4EE]/60 border border-[#EBE7DF] max-w-[400px]">
-                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm border border-[#EBE7DF]">
-                  <Activity className="w-5 h-5 text-[#33654A]" />
+              <div className="flex items-start gap-4 p-4 rounded-[16px] bg-[#F6F4EE]/80 border border-[#EBE7DF]">
+                <div className="w-[38px] h-[38px] rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10">
+                  <Activity className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2.5} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-[#0A1628] text-[15px] mb-1">There's always a space for your comfort food.</h3>
-                  <p className="text-[13px] text-slate-600 leading-relaxed">Be it your sweet tooth, chocolate cravings or momos treat.</p>
+                  <h3 className="font-bold text-[#0A1628] text-[14px] mb-1">There's always a space for your comfort food.</h3>
+                  <p className="text-[12px] text-slate-600 leading-relaxed">Be it your sweet tooth, chocolate cravings or momos treat.</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-4">
-              <div className="flex-1 bg-[#F6F4EE]/80 border border-[#EBE7DF] rounded-2xl p-4 text-center">
-                <div className="text-[28px] font-bold text-[#33654A]">95%</div>
-                <div className="text-[13px] text-slate-600 font-medium mt-1">Satisfaction Rate</div>
+            <div className="flex gap-3 max-w-[460px]">
+              <div className="flex-1 bg-[#F6F4EE]/80 border border-[#EBE7DF] rounded-[16px] p-3 text-center">
+                <div className="text-[24px] font-bold text-[#33654A]">95%</div>
+                <div className="text-[11px] text-slate-600 font-medium mt-0.5">Satisfaction Rate</div>
               </div>
-              <div className="flex-1 bg-[#F6F4EE]/80 border border-[#EBE7DF] rounded-2xl p-4 text-center">
-                <div className="text-[28px] font-bold text-[#33654A]">100%</div>
-                <div className="text-[13px] text-slate-600 font-medium mt-1">Real Reviews</div>
+              <div className="flex-1 bg-[#F6F4EE]/80 border border-[#EBE7DF] rounded-[16px] p-3 text-center">
+                <div className="text-[24px] font-bold text-[#33654A]">100%</div>
+                <div className="text-[11px] text-slate-600 font-medium mt-0.5">Real Reviews</div>
               </div>
-              <div className="flex-1 bg-[#F6F4EE]/80 border border-[#EBE7DF] rounded-2xl p-4 text-center">
-                <div className="text-[28px] font-bold text-[#33654A]">110%</div>
-                <div className="text-[13px] text-slate-600 font-medium mt-1">Patient centric care</div>
+              <div className="flex-1 bg-[#F6F4EE]/80 border border-[#EBE7DF] rounded-[16px] p-3 text-center">
+                <div className="text-[24px] font-bold text-[#33654A]">110%</div>
+                <div className="text-[11px] text-slate-600 font-medium mt-0.5">Patient centric care</div>
               </div>
             </div>
           </div>
@@ -725,8 +731,8 @@ const Index = () => {
           <img 
             src="/signin-image.png" 
             alt="Happy patient eating salad" 
-            className="absolute bottom-0 right-0 h-[90%] object-contain object-right-bottom z-0 max-w-[50vw]"
-            style={{ filter: 'drop-shadow(-20px 0 30px rgba(0,0,0,0.05))' }}
+            className="absolute bottom-0 right-0 h-[95%] xl:h-[105%] max-h-[800px] object-contain object-right-bottom z-0 pointer-events-none"
+            style={{ filter: 'drop-shadow(-10px 10px 20px rgba(0,0,0,0.05))', right: '-20px' }}
           />
         </div>
       </div>
