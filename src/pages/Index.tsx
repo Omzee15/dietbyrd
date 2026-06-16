@@ -731,12 +731,8 @@ const Index = () => {
           alt="Happy patient eating salad" 
           className="absolute bottom-0 right-0 h-[92%] object-contain object-right-bottom z-0 pointer-events-none"
           style={{ 
-            mixBlendMode: 'multiply',
-            filter: 'brightness(1.08) contrast(1.05)',
-            WebkitMaskImage: 'linear-gradient(to right, black 70%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 5%, black 100%)',
-            WebkitMaskComposite: 'destination-in',
-            maskImage: 'linear-gradient(to right, black 70%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 5%, black 100%)',
-            maskComposite: 'intersect',
+            mixBlendMode: 'darken',
+            filter: 'contrast(1.15) brightness(1.05)'
           }}
         />
       </div>
