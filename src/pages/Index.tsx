@@ -581,20 +581,18 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#242120] flex items-center justify-center p-4 sm:p-8 page-fade-in">
-      <div className="w-full max-w-[1300px] h-[85vh] min-h-[700px] max-h-[850px] bg-[#FDFBF7] rounded-[32px] flex relative overflow-hidden shadow-2xl">
-        
-        {/* Subtle dotted background pattern for the whole right side */}
-        <div className="absolute inset-0 right-0 top-0 pointer-events-none" style={{
-          backgroundImage: 'radial-gradient(#E8E4DB 1.5px, transparent 1.5px)',
-          backgroundSize: '24px 24px',
-          opacity: 0.6,
-          maskImage: 'radial-gradient(circle at top right, black 30%, transparent 80%)'
-        }} />
+    <div className="h-screen w-full bg-[#FDFBF7] flex relative overflow-hidden page-fade-in">
+      {/* Subtle dotted background pattern for the whole right side */}
+      <div className="absolute inset-0 right-0 top-0 pointer-events-none" style={{
+        backgroundImage: 'radial-gradient(#E8E4DB 1.5px, transparent 1.5px)',
+        backgroundSize: '24px 24px',
+        opacity: 0.6,
+        maskImage: 'radial-gradient(circle at top right, black 30%, transparent 80%)'
+      }} />
 
-        {/* Left Side: Auth Form Card */}
-        <div className="flex-none w-full lg:w-[400px] m-4 lg:m-6 bg-white rounded-[24px] shadow-[0_4px_24px_rgba(0,0,0,0.04)] p-8 lg:p-10 flex flex-col z-20 overflow-y-auto">
-          <div className="flex-1 flex flex-col justify-center">
+      {/* Left Side: Auth Form Card */}
+      <div className="flex-none w-full lg:w-[440px] xl:w-[480px] m-4 lg:m-6 bg-white rounded-[24px] shadow-[0_4px_30px_rgba(0,0,0,0.06)] p-8 lg:p-12 flex flex-col z-20 overflow-y-auto">
+        <div className="flex-1 flex flex-col justify-center">
             {sessionExpired && step === "phone" && !showJoinForm && (
               <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
                 <p className="font-semibold text-sm">Your session has expired for security purposes.</p>
@@ -731,11 +729,10 @@ const Index = () => {
           <img 
             src="/signin-image.png" 
             alt="Happy patient eating salad" 
-            className="absolute bottom-0 right-0 h-[95%] xl:h-[105%] max-h-[800px] object-contain object-right-bottom z-0 pointer-events-none"
+            className="absolute bottom-0 right-0 h-[85%] xl:h-[95%] max-h-[900px] object-contain object-right-bottom z-0 pointer-events-none"
             style={{ filter: 'drop-shadow(-10px 10px 20px rgba(0,0,0,0.05))', right: '-20px' }}
           />
         </div>
-      </div>
     </div>
   );
 };
