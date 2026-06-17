@@ -644,16 +644,12 @@ const Index = () => {
     <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-6">
       <div className="relative z-10 w-full max-w-[600px] xl:max-w-[700px]">
         {/* Header/Logo (Professional version) */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
-            <Leaf className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-[22px] font-bold text-[#0A1628] leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-              Diet By <span className="text-[#33654A]">RD</span>
-            </h1>
-            <p className="text-[12px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
-          </div>
+        <div className="mb-6">
+          <h1 className="text-[36px] xl:text-[42px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <span className="text-[#33654A]">Diet By </span>
+            <span className="text-[#D49B2A]">RD</span>
+          </h1>
+          <p className="text-[14px] text-[#33654A] font-medium tracking-wide mt-1">The Gold Standard Clinical Nutrition</p>
         </div>
 
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[12px] font-medium mb-6">
