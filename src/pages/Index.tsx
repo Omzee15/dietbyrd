@@ -710,35 +710,7 @@ const Index = () => {
   );
 
   return (
-    <div className="h-screen w-full bg-[#FDFBF7] flex justify-center items-center relative overflow-hidden page-fade-in">
-      {/* Dotted background pattern */}
-      <div className="absolute inset-0 z-0 pointer-events-none" style={{
-        backgroundImage: 'radial-gradient(#E8E4DB 1.5px, transparent 1.5px)',
-        backgroundSize: '24px 24px',
-        opacity: 0.5,
-        maskImage: 'radial-gradient(circle at 80% 20%, black 20%, transparent 60%)'
-      }} />
-
-      {/* Image Container - Conditional based on showJoinForm */}
-      <div className="absolute inset-0 z-[5] pointer-events-none overflow-hidden">
-        <div className="w-full max-w-[1400px] h-full relative mx-auto">
-          {showJoinForm ? (
-            <img 
-              src="/doctors-nobg.png" 
-              alt="Professional Doctors and Dietitians" 
-              className="absolute bottom-0 right-[-8%] h-[80%] xl:h-[85%] object-contain object-right-bottom translate-x-[15%] xl:translate-x-[20%]"
-              style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.06))' }}
-            />
-          ) : (
-            <img 
-              src="/signin-image-nobg.png" 
-              alt="Happy patient eating salad" 
-              className="absolute bottom-[-2%] right-[-5%] h-[98%] xl:h-[105%] object-contain object-right-bottom translate-x-[15%] xl:translate-x-[20%]"
-              style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.08))', zIndex: 10 }}
-            />
-          )}
-        </div>
-      </div>
+    <div className="h-screen w-full bg-[#F4F3F0] flex justify-center items-center relative overflow-hidden page-fade-in">
 
       {/* Main Content Wrapper */}
       <div className="w-full max-w-[1240px] xl:max-w-[1340px] h-[90vh] min-h-[740px] max-h-[900px] flex relative z-10 pointer-events-none">
@@ -811,10 +783,55 @@ const Index = () => {
         </div>
 
         {/* Right Side: Visual Section */}
-        <div className="hidden lg:flex flex-1 relative flex-col z-10 pointer-events-auto">
-          {showJoinForm ? renderProfessionalRightSide() : renderPatientRightSide()}
-          
-          {/* Stats bar removed to match mockup */}
+        <div className="hidden lg:flex flex-1 relative flex-col z-10 pointer-events-auto bg-[#FDFBF7] rounded-[32px] my-6 mr-6 overflow-hidden shadow-sm border border-black/5">
+          {/* Dotted background pattern */}
+          <div className="absolute inset-0 z-0 pointer-events-none" style={{
+            backgroundImage: 'radial-gradient(#E8E4DB 1.5px, transparent 1.5px)',
+            backgroundSize: '24px 24px',
+            opacity: 0.5,
+            maskImage: 'radial-gradient(circle at 50% 50%, black 40%, transparent 80%)'
+          }} />
+
+          {/* Image Container */}
+          <div className="absolute inset-0 z-[5] pointer-events-none">
+            {showJoinForm ? (
+              <img 
+                src="/doctors-nobg.png" 
+                alt="Professional Doctors and Dietitians" 
+                className="absolute bottom-[-5%] right-[-10%] h-[85%] xl:h-[90%] object-contain object-right-bottom translate-x-[10%] xl:translate-x-[15%]"
+                style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.06))' }}
+              />
+            ) : (
+              <img 
+                src="/signin-image-nobg.png" 
+                alt="Happy patient eating salad" 
+                className="absolute bottom-[-4%] right-[-10%] h-[105%] xl:h-[110%] object-contain object-right-bottom translate-x-[15%] xl:translate-x-[20%]"
+                style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.08))', zIndex: 10 }}
+              />
+            )}
+          </div>
+
+          <div className="relative z-10 flex-1 flex flex-col h-full">
+            {showJoinForm ? renderProfessionalRightSide() : renderPatientRightSide()}
+            
+            {/* Stats bar pinned to bottom - only shown on patient side */}
+            {!showJoinForm && (
+              <div className="flex gap-4 px-12 xl:px-16 pb-10 mt-auto relative z-20 w-full max-w-[650px]">
+                <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-4 px-4 text-center">
+                  <div className="text-[26px] font-bold text-[#2B5239]">95%</div>
+                  <div className="text-[12px] text-slate-600 font-medium mt-0.5">Satisfaction Rate</div>
+                </div>
+                <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-4 px-4 text-center">
+                  <div className="text-[26px] font-bold text-[#2B5239]">100%</div>
+                  <div className="text-[12px] text-slate-600 font-medium mt-0.5">Real Reviews</div>
+                </div>
+                <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-4 px-4 text-center">
+                  <div className="text-[26px] font-bold text-[#2B5239]">110%</div>
+                  <div className="text-[12px] text-slate-600 font-medium mt-0.5">Patient centric care</div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
