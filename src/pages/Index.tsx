@@ -659,7 +659,7 @@ const Index = () => {
           Trusted By Doctors across India
         </div>
 
-        <h2 className="text-[36px] xl:text-[42px] font-bold text-[#0A1628] leading-[1.1] mb-6 max-w-[500px]" style={{ fontFamily: "'Playfair Display', serif" }}>
+        <h2 className="text-[32px] xl:text-[38px] font-bold text-[#0A1628] leading-[1.1] mb-6 max-w-[420px]" style={{ fontFamily: "'Playfair Display', serif" }}>
           Qualifications to join DietByRD as a professional:
         </h2>
 
@@ -727,29 +727,7 @@ const Index = () => {
               </div>
             )}
 
-            {showJoinForm ? (
-              <JoinRequestForm
-                inline
-                onBack={() => {
-                  if (window.location.pathname === '/join') {
-                    navigate('/');
-                  } else {
-                    setShowJoinForm(false);
-                  }
-                }}
-                onComplete={() => {
-                  if (window.location.pathname === '/join') {
-                    navigate('/login?joinSuccess=1');
-                  } else {
-                    setJoinSuccess("Thanks for your interest! Our team will review your request.");
-                    setShowJoinForm(false);
-                    setStep("phone");
-                  }
-                }}
-              />
-            ) : (
-              <>
-                {renderAuthForm()}
+            {renderAuthForm()}
 
                 <p className="text-left text-[13px] text-slate-500 leading-relaxed mt-6">
                   By using DietByRD, you agree to our{" "}
@@ -774,13 +752,11 @@ const Index = () => {
                   </div>
                   <button
                     className="text-[13px] text-slate-500 hover:text-[#33654A] transition-colors"
-                    onClick={() => setShowJoinForm(true)}
+                    onClick={() => setShowJoinForm(!showJoinForm)}
                   >
                     Join as <span className="font-semibold text-[#2B5239]">Doctor</span> or <span className="font-semibold text-[#2B5239]">Dietitian</span>
                   </button>
                 </div>
-              </>
-            )}
           </div>
         </div>
 
@@ -800,7 +776,7 @@ const Index = () => {
               <img 
                 src="/doctors-nobg.png" 
                 alt="Professional Doctors and Dietitians" 
-                className="absolute bottom-[0%] right-[0%] h-[78%] xl:h-[84%] object-contain object-right-bottom"
+                className="absolute bottom-[0%] right-[-2%] h-[82%] xl:h-[88%] object-contain object-right-bottom"
                 style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.06))' }}
               />
             ) : (
