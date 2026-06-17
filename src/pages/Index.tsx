@@ -663,14 +663,14 @@ const Index = () => {
           Qualifications to join DietByRD as a professional:
         </h2>
 
-        <div className="flex flex-col sm:flex-row gap-4 xl:gap-5 items-stretch max-w-[580px] xl:max-w-[620px] relative z-20">
+        <div className="flex flex-col sm:flex-row gap-3 xl:gap-4 items-stretch max-w-[480px] xl:max-w-[540px] relative z-20">
           {/* Dietitian Column */}
-          <div className="flex-[1.2] bg-white border border-[#33654A]/20 rounded-[16px] p-5 shadow-sm">
+          <div className="flex-[1.2] bg-white border border-[#33654A]/20 rounded-[16px] p-4 xl:p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-[#33654A]/20 w-fit">
               <div className="w-8 h-8 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10">
                 <User className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2} />
               </div>
-              <h3 className="font-bold text-[#33654A] text-[16px]">Registered Dietitian</h3>
+              <h3 className="font-bold text-[#33654A] text-[15px] xl:text-[16px]">Registered Dietitian</h3>
             </div>
 
             <div className="space-y-4 mt-6">
@@ -687,22 +687,22 @@ const Index = () => {
                   <div className="w-[18px] h-[18px] rounded-full bg-[#F4F4F5] flex items-center justify-center shrink-0 text-[#0A1628] font-bold text-[10px] mt-0.5 border border-slate-200">
                     {idx + 1}
                   </div>
-                  <p className="text-[12px] text-[#0A1628] font-medium leading-relaxed">{text}</p>
+                  <p className="text-[11px] xl:text-[12px] text-[#0A1628] font-medium leading-relaxed">{text}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Doctors Column */}
-          <div className="flex-1 bg-white border border-[#33654A]/20 rounded-[16px] p-5 shadow-sm">
+          <div className="flex-1 bg-white border border-[#33654A]/20 rounded-[16px] p-4 xl:p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-[#33654A]/20 w-fit">
               <div className="w-8 h-8 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10">
                 <Stethoscope className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2} />
               </div>
-              <h3 className="font-bold text-[#33654A] text-[16px]">Doctors</h3>
+              <h3 className="font-bold text-[#33654A] text-[15px] xl:text-[16px]">Doctors</h3>
             </div>
 
-            <p className="text-[12px] text-[#0A1628] font-medium leading-relaxed mt-6">
+            <p className="text-[11px] xl:text-[12px] text-[#0A1628] font-medium leading-relaxed mt-6">
               Should have a valid Medical licence, a MBBS degree and will to help patients via Diet By RD.
             </p>
           </div>
@@ -800,7 +800,7 @@ const Index = () => {
               <img 
                 src="/doctors-nobg.png" 
                 alt="Professional Doctors and Dietitians" 
-                className="absolute bottom-[-2%] right-[-10%] h-[80%] xl:h-[88%] object-contain object-right-bottom translate-x-[5%] xl:translate-x-[15%]"
+                className="absolute bottom-[0%] right-[0%] h-[78%] xl:h-[84%] object-contain object-right-bottom"
                 style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.06))' }}
               />
             ) : (
