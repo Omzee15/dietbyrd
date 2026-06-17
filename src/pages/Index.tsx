@@ -800,7 +800,7 @@ const Index = () => {
               <img 
                 src="/doctors-nobg.png" 
                 alt="Professional Doctors and Dietitians" 
-                className="absolute bottom-[0%] right-[-4%] h-[85%] xl:h-[92%] object-contain object-right-bottom"
+                className="absolute bottom-[0%] right-[-12%] h-[90%] xl:h-[96%] object-contain object-right-bottom"
                 style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.06))' }}
               />
             ) : (
