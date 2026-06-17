@@ -584,7 +584,7 @@ const Index = () => {
 
   const renderPatientRightSide = () => (
     <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-6">
-      <div className="relative z-10 w-full max-w-[520px]">
+      <div className="relative z-20 w-full max-w-[700px] xl:max-w-[800px]">
         {/* Header/Logo */}
         <div className="flex items-center gap-3 mb-5">
           <div className="w-11 h-11 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
@@ -603,15 +603,15 @@ const Index = () => {
           Trusted By Doctors across India
         </div>
 
-        <h2 className="text-[52px] xl:text-[62px] font-bold text-[#0A1628] leading-[1.05] mb-5 max-w-[550px]" style={{ fontFamily: "'Playfair Display', serif" }}>
+        <h2 className="text-[60px] xl:text-[72px] font-bold text-[#0A1628] leading-[1.05] mb-5 w-[120%] xl:w-[130%] max-w-none relative z-30" style={{ fontFamily: "'Playfair Display', serif" }}>
           Diet,
           <br />
           Do not need to be a
           <br />
-          Rocket Science 🚀
+          Rocket Science <span className="inline-block relative -top-1">🚀</span>
         </h2>
 
-        <p className="text-[15px] text-slate-600 leading-relaxed mb-8 max-w-[480px]">
+        <p className="text-[15px] text-slate-600 leading-relaxed mb-8 max-w-[520px] relative z-20">
           Our Registered Dietitians make easy-peasy personalised diet plans that fit your not-so-easy-peasy, extremely busy schedule and pocket (promise 🥺).
         </p>
 
