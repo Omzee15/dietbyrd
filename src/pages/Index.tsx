@@ -586,22 +586,24 @@ const Index = () => {
     <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-6">
       <div className="relative z-10 w-full max-w-[520px]">
         {/* Header/Logo */}
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-5">
           <div className="w-11 h-11 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
             <Leaf className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-[20px] font-bold text-[#0A1628] leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>Diet By RD</h1>
+            <h1 className="text-[22px] font-bold text-[#0A1628] leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+              Diet By <span className="text-[#33654A]">RD</span>
+            </h1>
             <p className="text-[12px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
           </div>
         </div>
 
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[12px] font-medium mb-5">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[12px] font-medium mb-6">
           <span className="text-[14px]">⭐</span>
           Trusted By Doctors across India
         </div>
 
-        <h2 className="text-[48px] xl:text-[56px] font-bold text-[#0A1628] leading-[1.05] mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>
+        <h2 className="text-[52px] xl:text-[62px] font-bold text-[#0A1628] leading-[1.05] mb-5 max-w-[550px]" style={{ fontFamily: "'Playfair Display', serif" }}>
           Diet,
           <br />
           Do not need to be a
@@ -609,12 +611,12 @@ const Index = () => {
           Rocket Science 🚀
         </h2>
 
-        <p className="text-[15px] text-slate-600 leading-relaxed mb-8 max-w-[460px]">
+        <p className="text-[15px] text-slate-600 leading-relaxed mb-8 max-w-[480px]">
           Our Registered Dietitians make easy-peasy personalised diet plans that fit your not-so-easy-peasy, extremely busy schedule and pocket (promise 🥺).
         </p>
 
         <div className="space-y-4 mb-8">
-          <div className="flex items-start gap-4 p-5 rounded-[20px] bg-[#F9F8F5]/80 border border-[#EBE7DF]/60 max-w-[480px]">
+          <div className="flex items-start gap-4 p-5 rounded-[20px] bg-white border border-[#33654A]/10 shadow-[0_4px_24px_rgba(0,0,0,0.02)] max-w-[480px] relative z-20">
             <div className="w-10 h-10 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10 mt-0.5">
               <ShieldCheck className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2.5} />
             </div>
@@ -624,7 +626,7 @@ const Index = () => {
             </div>
           </div>
 
-          <div className="flex items-start gap-4 p-5 rounded-[20px] bg-[#F9F8F5]/80 border border-[#EBE7DF]/60 max-w-[480px]">
+          <div className="flex items-start gap-4 p-5 rounded-[20px] bg-white border border-[#33654A]/10 shadow-[0_4px_24px_rgba(0,0,0,0.02)] max-w-[480px] relative z-20">
             <div className="w-10 h-10 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10 mt-0.5">
               <Activity className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2.5} />
             </div>
@@ -731,8 +733,8 @@ const Index = () => {
             <img 
               src="/signin-image-nobg.png" 
               alt="Happy patient eating salad" 
-              className="absolute bottom-0 right-0 h-[92%] xl:h-[95%] object-contain object-right-bottom translate-x-[20%] xl:translate-x-[28%]"
-              style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.08))' }}
+              className="absolute bottom-[-2%] right-[-5%] h-[98%] xl:h-[105%] object-contain object-right-bottom translate-x-[15%] xl:translate-x-[20%]"
+              style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.08))', zIndex: 10 }}
             />
           )}
         </div>
@@ -812,23 +814,7 @@ const Index = () => {
         <div className="hidden lg:flex flex-1 relative flex-col z-10 pointer-events-auto">
           {showJoinForm ? renderProfessionalRightSide() : renderPatientRightSide()}
           
-          {/* Stats bar pinned to bottom - only shown on patient side */}
-          {!showJoinForm && (
-            <div className="flex gap-4 px-12 xl:px-16 pb-8 relative z-10 w-full max-w-[700px]">
-              <div className="flex-1 bg-[#F5F3EC] border border-[#EBE7DF]/80 rounded-[18px] py-4 px-4 text-center">
-                <div className="text-[26px] font-bold text-[#2B5239]">95%</div>
-                <div className="text-[12px] text-slate-600 font-medium mt-0.5">Satisfaction Rate</div>
-              </div>
-              <div className="flex-1 bg-[#F5F3EC] border border-[#EBE7DF]/80 rounded-[18px] py-4 px-4 text-center">
-                <div className="text-[26px] font-bold text-[#2B5239]">100%</div>
-                <div className="text-[12px] text-slate-600 font-medium mt-0.5">Real Reviews</div>
-              </div>
-              <div className="flex-1 bg-[#F5F3EC] border border-[#EBE7DF]/80 rounded-[18px] py-4 px-4 text-center">
-                <div className="text-[26px] font-bold text-[#2B5239]">110%</div>
-                <div className="text-[12px] text-slate-600 font-medium mt-0.5">Patient centric care</div>
-              </div>
-            </div>
-          )}
+          {/* Stats bar removed to match mockup */}
         </div>
       </div>
     </div>
