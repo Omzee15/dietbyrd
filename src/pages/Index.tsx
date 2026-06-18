@@ -660,7 +660,9 @@ const Index = () => {
         </div>
 
         <h2 className="text-[28px] xl:text-[34px] font-bold text-[#0A1628] leading-[1.1] mb-5 max-w-[400px]" style={{ fontFamily: "'Playfair Display', serif" }}>
-          Qualifications to join DietByRD as a professional:
+          Qualifications to join <br />
+          DietByRD as a <br />
+          professional:
         </h2>
 
         <div className="flex flex-col sm:flex-row gap-3 items-stretch max-w-[460px] xl:max-w-[500px] relative z-20">
@@ -802,7 +804,7 @@ const Index = () => {
               <img 
                 src="/doctors-nobg.png" 
                 alt="Professional Doctors and Dietitians" 
-                className="absolute bottom-[0%] right-[-45%] xl:right-[-50%] h-[68%] xl:h-[72%] object-contain object-right-bottom"
+                className="absolute bottom-[0%] right-[-5%] xl:right-[-8%] h-[60%] xl:h-[65%] object-contain object-right-bottom"
                 style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.06))' }}
               />
             ) : (
