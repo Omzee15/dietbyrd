@@ -719,7 +719,7 @@ const Index = () => {
     <div className="h-screen w-full bg-[#F4F3F0] flex justify-center items-center relative overflow-hidden page-fade-in">
 
       {/* Main Content Wrapper */}
-      <div className="w-full max-w-[1240px] xl:max-w-[1340px] h-[90vh] min-h-[740px] max-h-[900px] flex relative z-10 pointer-events-none">
+      <div className="w-full max-w-[1340px] xl:max-w-[1480px] h-[90vh] min-h-[740px] max-h-[900px] flex relative z-10 pointer-events-none">
         
         {/* Left Side: Auth Form Card */}
         <div className="flex-none w-full lg:w-[380px] xl:w-[420px] m-6 bg-white rounded-[32px] shadow-[0_8px_40px_rgba(0,0,0,0.04)] px-10 xl:px-12 py-10 flex flex-col z-20 overflow-y-auto pointer-events-auto">
@@ -804,7 +804,7 @@ const Index = () => {
               <img 
                 src="/doctors-nobg.png" 
                 alt="Professional Doctors and Dietitians" 
-                className="absolute bottom-[0%] right-[-5%] xl:right-[-8%] h-[60%] xl:h-[65%] object-contain object-right-bottom"
+                className="absolute bottom-[0%] right-[-2%] xl:right-[-4%] h-[60%] xl:h-[65%] object-contain object-right-bottom"
                 style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.06))' }}
               />
             ) : (
