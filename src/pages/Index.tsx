@@ -800,7 +800,7 @@ const Index = () => {
           <div className={`absolute inset-0 pointer-events-none ${showJoinForm ? 'z-30' : 'z-[5]'}`}>
             {showJoinForm ? (
               <img 
-                src="/doctors on sign in page.png" 
+                src="/doctors-nobg.png" 
                 alt="Professional Doctors and Dietitians" 
                 className="absolute bottom-[-2%] right-[-5%] h-[82%] xl:h-[88%] object-contain object-right-bottom"
                 style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.06))' }}
