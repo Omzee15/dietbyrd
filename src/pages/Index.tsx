@@ -802,17 +802,17 @@ const Index = () => {
           <div className={`absolute inset-0 pointer-events-none ${showJoinForm ? 'z-30' : 'z-[5]'}`}>
             {showJoinForm ? (
               <img 
-                src="/doctors-nobg.png" 
+                src="/doctors-nobg.webp" 
                 alt="Professional Doctors and Dietitians" 
                 className="absolute bottom-[10%] xl:bottom-[15%] right-[0%] xl:right-[-2%] h-[55%] xl:h-[60%] max-w-[50%] xl:max-w-[55%] object-contain object-right-bottom"
                 style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.06))' }}
               />
             ) : (
               <img 
-                src="/signin-image-nobg.png" 
-                alt="Happy patient eating salad" 
+                src="/signin-image-nobg.webp" 
+                alt="Happy Patient Eating Healthy" 
                 className="absolute bottom-[-4%] right-[-10%] h-[105%] xl:h-[110%] object-contain object-right-bottom translate-x-[15%] xl:translate-x-[20%]"
-                style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.08))', zIndex: 10 }}
+                style={{ filter: 'drop-shadow(-8px 8px 24px rgba(0,0,0,0.1))' }}
               />
             )}
           </div>
