@@ -1287,28 +1287,36 @@ const Landing = () => {
               </p>
               <div className="approach-features">
                 <div ref={addToRefs} className="feature-item reveal reveal-delay-1">
-                  <div className="feature-icon">🔬</div>
+                  <div className="w-[64px] h-[64px] xl:w-[76px] xl:h-[76px] rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] overflow-hidden flex-shrink-0 border border-black/5 bg-[#FCFBF7]">
+                    <img src="/approach/evidence.png" alt="Evidence based icon" className="w-full h-full object-cover scale-[1.15]" />
+                  </div>
                   <div className="feature-text">
                     <h4>Evidence-based, always</h4>
                     <p>Every recommendation is backed by clinical research and ICMR nutritional standards — not trends, not viral videos, not someone's personal experience.</p>
                   </div>
                 </div>
                 <div ref={addToRefs} className="feature-item reveal reveal-delay-2">
-                  <div className="feature-icon">🌾</div>
+                  <div className="w-[64px] h-[64px] xl:w-[76px] xl:h-[76px] rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] overflow-hidden flex-shrink-0 border border-black/5 bg-[#FCFBF7]">
+                    <img src="/approach/plate.png" alt="Personalised plate icon" className="w-full h-full object-cover scale-[1.15]" />
+                  </div>
                   <div className="feature-text">
                     <h4>Built around your plate, not a stranger's</h4>
                     <p>Your RD understands that a Tamilian's plate looks nothing like a Punjabi's. Your diet plan works with what you already eat — not against it.</p>
                   </div>
                 </div>
                 <div ref={addToRefs} className="feature-item reveal reveal-delay-3">
-                  <div className="feature-icon">💰</div>
+                  <div className="w-[64px] h-[64px] xl:w-[76px] xl:h-[76px] rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] overflow-hidden flex-shrink-0 border border-black/5 bg-[#FCFBF7]">
+                    <img src="/approach/affordable.png" alt="Affordable icon" className="w-full h-full object-cover scale-[1.15]" />
+                  </div>
                   <div className="feature-text">
                     <h4>Affordable without compromise</h4>
                     <p>Clinical expertise should not be a luxury. At ₹999/month, you get the same standard of care that hospitals charge ten times more for.</p>
                   </div>
                 </div>
                 <div ref={addToRefs} className="feature-item reveal reveal-delay-3">
-                  <div className="feature-icon">🔄</div>
+                  <div className="w-[64px] h-[64px] xl:w-[76px] xl:h-[76px] rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] overflow-hidden flex-shrink-0 border border-black/5 bg-[#FCFBF7]">
+                    <img src="/approach/supplement.png" alt="No supplement upsell icon" className="w-full h-full object-cover scale-[1.15]" />
+                  </div>
                   <div className="feature-text">
                     <h4>No supplement upsell, Only what is required</h4>
                     <p>We recommend supplements only when there is a genuine nutritional need—not because they are profitable to sell. Your health deserves evidence-based guidance, not unnecessary products added to a bill.</p>
