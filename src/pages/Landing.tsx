@@ -1659,6 +1659,9 @@ const Landing = () => {
         <div className="section-inner trust-inner">
           <div ref={addToRefs} className="doctor-trust-banner reveal">
             <span className="section-eyebrow">Referred by leading clinicians</span>
+            <p className="text-center text-[15.5px] md:text-[17px] text-[#0A1628]/80 max-w-[700px] mx-auto mt-6 mb-12 leading-[1.8] font-medium" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              Doctors across India recommends Diet By RD to their patients because they know exactly who will pick up - a Registered Dietitian, not a certificate coach.
+            </p>
             <div className="trust-proof-row">
               <div className="trust-proof">
                 <div className="tp-num">100%</div>
