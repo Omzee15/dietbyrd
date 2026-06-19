@@ -588,22 +588,12 @@ const Index = () => {
     <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-4 min-h-0">
       <div className="relative z-10 w-full max-w-[550px]">
         {/* Header/Logo */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M8 12C8 12 9.5 9 12 9C14.5 9 16 12 16 12" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M12 15C12 15 11 15 10 14" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M12 22V15" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-[22px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-              <span className="text-[#0A1628]">Diet By </span>
-              <span className="text-[#33654A]">RD</span>
-            </h1>
-            <p className="text-[12px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
-          </div>
+        <div className="mb-4">
+          <h1 className="text-[28px] xl:text-[34px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <span className="text-[#0A1628]">Diet By </span>
+            <span className="text-[#33654A]">RD</span>
+          </h1>
+          <p className="text-[13px] text-[#33654A] font-medium tracking-wide mt-1">The Gold Standard Clinical Nutrition</p>
         </div>
 
         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[11px] font-medium mb-5">
@@ -652,22 +642,12 @@ const Index = () => {
     <div className="flex-1 flex flex-col justify-center pl-10 xl:pl-14 pr-4 py-4">
       <div className="relative z-10 w-full max-w-[480px] xl:max-w-[540px]">
         {/* Header/Logo (Professional version) */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M8 12C8 12 9.5 9 12 9C14.5 9 16 12 16 12" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M12 15C12 15 11 15 10 14" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M12 22V15" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-[22px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-              <span className="text-[#0A1628]">Diet By </span>
-              <span className="text-[#33654A]">RD</span>
-            </h1>
-            <p className="text-[12px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
-          </div>
+        <div className="mb-4">
+          <h1 className="text-[28px] xl:text-[34px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <span className="text-[#0A1628]">Diet By </span>
+            <span className="text-[#33654A]">RD</span>
+          </h1>
+          <p className="text-[13px] text-[#33654A] font-medium tracking-wide mt-1">The Gold Standard Clinical Nutrition</p>
         </div>
 
         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[11px] font-medium mb-4">
