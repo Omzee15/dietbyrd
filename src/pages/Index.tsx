@@ -805,7 +805,7 @@ const Index = () => {
                 src="/new-docs-full.png" 
                 alt="Professional Doctors and Dietitians" 
                 className="absolute bottom-[-2%] xl:bottom-[-4%] right-[-5%] xl:right-[-8%] h-[85%] xl:h-[90%] object-contain object-right-bottom"
-                style={{ filter: 'drop-shadow(-8px 8px 16px rgba(0,0,0,0.06))' }}
+                style={{ mixBlendMode: 'darken' }}
               />
             ) : (
               <img 
