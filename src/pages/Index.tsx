@@ -585,10 +585,10 @@ const Index = () => {
   }
 
   const renderPatientRightSide = () => (
-    <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-8 min-h-0">
+    <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-4 min-h-0">
       <div className="relative z-10 w-full max-w-[550px]">
         {/* Header/Logo */}
-        <div className="mb-8">
+        <div className="mb-4">
           <h1 className="text-[28px] xl:text-[34px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
             <span className="text-[#0A1628]">Diet By </span>
             <span className="text-[#D49B2A]">RD</span>
@@ -596,12 +596,12 @@ const Index = () => {
           <p className="text-[13px] text-[#33654A] font-medium tracking-wide mt-1">The Gold Standard Clinical Nutrition</p>
         </div>
 
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[11px] font-medium mb-6">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[11px] font-medium mb-5">
           <span className="text-[13px]">⭐</span>
           Trusted By Doctors across India
         </div>
 
-        <h2 className="text-[40px] xl:text-[46px] font-bold text-[#0A1628] leading-[1.05] mb-6 max-w-[500px]" style={{ fontFamily: "'Playfair Display', serif" }}>
+        <h2 className="text-[40px] xl:text-[46px] font-bold text-[#0A1628] leading-[1.05] mb-4 max-w-[500px]" style={{ fontFamily: "'Playfair Display', serif" }}>
           Diet,
           <br />
           Do not need to be a
@@ -609,7 +609,7 @@ const Index = () => {
           Rocket Science 🚀
         </h2>
 
-        <p className="text-[14px] text-[#4A5568] leading-relaxed mb-8 max-w-[460px]">
+        <p className="text-[14px] text-[#4A5568] leading-relaxed mb-5 max-w-[460px]">
           Our Registered Dietitians make easy-peasy personalised diet plans that fit your not-so-easy-peasy, extremely busy schedule and pocket (promise 🥺).
         </p>
 
@@ -639,10 +639,10 @@ const Index = () => {
   );
 
   const renderProfessionalRightSide = () => (
-    <div className="flex-1 flex flex-col justify-center pl-10 xl:pl-14 pr-4 py-8">
+    <div className="flex-1 flex flex-col justify-center pl-10 xl:pl-14 pr-4 py-4">
       <div className="relative z-10 w-full max-w-[480px] xl:max-w-[540px]">
         {/* Header/Logo (Professional version) */}
-        <div className="mb-8">
+        <div className="mb-4">
           <h1 className="text-[28px] xl:text-[34px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
             <span className="text-[#0A1628]">Diet By </span>
             <span className="text-[#D49B2A]">RD</span>
@@ -650,12 +650,12 @@ const Index = () => {
           <p className="text-[13px] text-[#33654A] font-medium tracking-wide mt-1">The Gold Standard Clinical Nutrition</p>
         </div>
 
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[11px] font-medium mb-6">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[11px] font-medium mb-4">
           <span className="text-[13px]">⭐</span>
           Trusted By Doctors across India
         </div>
 
-        <h2 className="text-[28px] xl:text-[34px] font-bold text-[#0A1628] leading-[1.1] mb-8 max-w-[400px]" style={{ fontFamily: "'Playfair Display', serif" }}>
+        <h2 className="text-[28px] xl:text-[34px] font-bold text-[#0A1628] leading-[1.1] mb-5 max-w-[400px]" style={{ fontFamily: "'Playfair Display', serif" }}>
           Qualifications to join <br />
           DietByRD as a <br />
           professional:
