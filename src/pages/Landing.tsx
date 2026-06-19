@@ -80,6 +80,7 @@ const conditions = [
   { icon: '/conditions/vegan.png', name: 'Healthy Vegan Diet' },
   { icon: '/conditions/sports.png', name: 'Sports Nutrition' },
   { icon: '/conditions/gym.png', name: 'Gym Diet' },
+  { icon: '/conditions/and_many_more.png', name: 'And Many More' },
 ];
 
 const patientNavItems = [
