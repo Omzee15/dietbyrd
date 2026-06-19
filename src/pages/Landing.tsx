@@ -1757,6 +1757,18 @@ const Landing = () => {
             <Leaf className="w-6 h-6 text-[var(--teal)]" strokeWidth={1.5} />
             <div className="h-px w-16 bg-slate-200" />
           </div>
+          
+          <div className="text-center max-w-[650px] mx-auto mt-8 reveal reveal-delay-3" ref={addToRefs}>
+            <p className="text-[18px] md:text-[20px] text-[var(--navy)] font-bold mb-3 leading-relaxed" style={{ fontFamily: "'Playfair Display', serif" }}>
+              Your health is more than a diagnosis.
+            </p>
+            <p className="text-[15px] text-gray-600 mb-8 leading-relaxed">
+              Work with a Registered Dietitian who understands the science, the condition, and the person behind it.
+            </p>
+            <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
+              Speak With Your RD
+            </button>
+          </div>
         </div>
       </section>
 
