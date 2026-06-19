@@ -32,6 +32,7 @@ import {
   TrendingUp,
   Dumbbell,
   Flower2,
+  Leaf
 } from "lucide-react";
 
 const fallbackTestimonials = [
@@ -39,7 +40,7 @@ const fallbackTestimonials = [
     text: 'My dietitian gave me a plan that helped me <strong>reverse diabetes</strong> — I went from HbA1c 6.3 to 5.9 in three months. And I didn\'t have to give up a single meal that matters to me. Idli, dosa, rice — it\'s all still there.',
     name: 'Suresh K.',
     detail: 'Chennai, Tamil Nadu · 54 years',
-    condition: 'Type 2 Diabetes',
+    condition: 'Diabetes',
     avatar: '🧑'
   },
   {
@@ -66,7 +67,7 @@ const fallbackTestimonials = [
 ];
 
 const conditions = [
-  { icon: '/conditions/diabetes.png', name: 'Type 2 Diabetes' },
+  { icon: '/conditions/diabetes.png', name: 'Diabetes' },
   { icon: '/conditions/cholesterol.png', name: 'High Cholesterol' },
   { icon: '/conditions/blood_pressure.png', name: 'High Blood Pressure' },
   { icon: '/conditions/pcos.png', name: 'PCOS' },
@@ -1723,11 +1724,10 @@ const Landing = () => {
               CONDITIONS WE TREAT
             </span>
           </div>
-          <div className="flex justify-center mb-6">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.8 }}>
-              <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 16v-4"/><path d="M12 8h.01"/><path d="M8 12h8"/>
-              <path d="M12 2c0 3-2 6-5 6"/><path d="M12 22c0-3 2-6 5-6"/>
-            </svg>
+          <div className="flex items-center justify-center gap-4 mb-6">
+            <div className="h-px w-16 bg-slate-200" />
+            <Leaf className="w-6 h-6 text-[var(--teal)]" strokeWidth={1.5} />
+            <div className="h-px w-16 bg-slate-200" />
           </div>
           <h2 ref={addToRefs} className="trust-title reveal reveal-delay-1" style={{ marginBottom: '16px', fontSize: 'clamp(2.4rem, 4vw, 3.2rem)' }}>Conditions We Treat</h2>
           <p ref={addToRefs} className="trust-sub reveal reveal-delay-2" style={{ maxWidth: '650px', margin: '0 auto 48px' }}>
@@ -1744,11 +1744,10 @@ const Landing = () => {
               </div>
             ))}
           </div>
-          <div className="flex justify-center mt-12 mb-4">
-            <svg className="conditions-bg-leaf bottom" viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ position: 'relative', width: '32px', opacity: 0.6, transform: 'none', left: 'auto', bottom: 'auto' }}>
-              <path d="M0 50C40 50 80 80 100 120C120 160 110 210 90 250C100 230 110 190 90 150C70 110 30 80 0 80V50Z" fill="var(--teal)" />
-              <path d="M0 120C50 110 90 140 120 180C150 220 140 270 120 300C130 280 140 230 110 190C80 150 30 140 0 150V120Z" fill="var(--teal)" opacity="0.6"/>
-            </svg>
+          <div className="flex items-center justify-center gap-4 mt-12 mb-4">
+            <div className="h-px w-16 bg-slate-200" />
+            <Leaf className="w-6 h-6 text-[var(--teal)]" strokeWidth={1.5} />
+            <div className="h-px w-16 bg-slate-200" />
           </div>
         </div>
       </section>
