@@ -751,7 +751,7 @@ const Index = () => {
               <>
                 {renderAuthForm()}
 
-                <p className="text-left text-[13px] text-slate-500 leading-relaxed mt-6">
+                <p className="text-center text-[13px] text-slate-500 leading-relaxed mt-6">
                   By using DietByRD, you agree to our<br />
                   <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#2B5239] font-medium hover:underline">
                     Terms of services
