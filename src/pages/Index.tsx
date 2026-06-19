@@ -799,13 +799,15 @@ const Index = () => {
           }} />
 
           {/* Image Container */}
-          <div className={`absolute inset-0 pointer-events-none ${showJoinForm ? 'z-30' : 'z-[5]'}`}>
+          <div 
+            className={`absolute inset-0 pointer-events-none ${showJoinForm ? 'z-30' : 'z-[5]'}`}
+            style={{ mixBlendMode: showJoinForm ? 'darken' : 'normal' }}
+          >
             {showJoinForm ? (
               <img 
                 src="/new-docs-full.png" 
                 alt="Professional Doctors and Dietitians" 
                 className="absolute bottom-[0%] xl:bottom-[0%] right-[0%] xl:right-[0%] h-[95%] xl:h-[95%] object-contain object-right-bottom"
-                style={{ mixBlendMode: 'darken' }}
               />
             ) : (
               <img 
