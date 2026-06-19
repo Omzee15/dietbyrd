@@ -1638,7 +1638,7 @@ const Landing = () => {
       <section className="clinician-referral-section reveal" style={{ background: 'var(--cream)' }}>
         <div className="section-inner">
           <div className="clinician-referral-inner">
-            <span ref={addToRefs} className="section-eyebrow reveal">REFERRED BY LEADING CLINICIANS</span>
+            <span ref={addToRefs} className="section-eyebrow reveal">RECOMMENDED BY LEADING CLINICIANS</span>
             <h2 ref={addToRefs} className="clinician-title reveal reveal-delay-1">Trusted by Doctors Across India</h2>
 
             {/* Referred by Leading Clinicians + Conditions — Page 7 */}
