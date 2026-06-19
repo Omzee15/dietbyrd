@@ -1635,29 +1635,6 @@ const Landing = () => {
         </div>
       </section>
 
-      <section className="clinician-referral-section reveal" style={{ background: 'var(--cream)' }}>
-        <div className="section-inner">
-          <div className="clinician-referral-inner">
-            <span ref={addToRefs} className="section-eyebrow reveal">REFERRED BY LEADING CLINICIANS</span>
-            <h2 ref={addToRefs} className="clinician-title reveal reveal-delay-1">Trusted by Doctors Across India</h2>
-
-            <div ref={addToRefs} className="trust-marquee reveal reveal-delay-2" style={{ padding: '0', marginTop: '40px' }}>
-              <div className="trust-marquee__track">
-                {[...Array(4)].map((_, i) => (
-                  <div key={`h-row-${i}`} style={{ display: 'flex', gap: '48px' }}>
-                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
-                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
-                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
-                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
-                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Referred by Leading Clinicians + Conditions — Page 7 */}
       <section id="trust" className="section trust-section" style={{ background: 'var(--cream)' }}>
         <div className="section-inner trust-inner">
@@ -1676,6 +1653,29 @@ const Landing = () => {
               <div className="trust-proof">
                 <div className="tp-num">₹999</div>
                 <div className="tp-lbl">Honest pricing</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="clinician-referral-section reveal" style={{ background: 'var(--cream)' }}>
+        <div className="section-inner">
+          <div className="clinician-referral-inner">
+            <span ref={addToRefs} className="section-eyebrow reveal">REFERRED BY LEADING CLINICIANS</span>
+            <h2 ref={addToRefs} className="clinician-title reveal reveal-delay-1">Trusted by Doctors Across India</h2>
+
+            <div ref={addToRefs} className="trust-marquee reveal reveal-delay-2" style={{ padding: '0', marginTop: '40px' }}>
+              <div className="trust-marquee__track">
+                {[...Array(4)].map((_, i) => (
+                  <div key={`h-row-${i}`} style={{ display: 'flex', gap: '48px' }}>
+                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
+                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
+                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
+                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
+                    <div className="clinician-logo" role="img" aria-label="Hospital icon">Hospital</div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
