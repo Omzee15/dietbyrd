@@ -789,16 +789,14 @@ const Index = () => {
         </div>
 
         {/* Right Side: Visual Section */}
-        <div className={`hidden lg:flex flex-1 relative flex-col z-10 pointer-events-auto rounded-[32px] my-6 mr-6 overflow-hidden shadow-sm border border-black/5 ${showJoinForm ? 'bg-white' : 'bg-[#FDFBF7]'}`}>
+        <div className="hidden lg:flex flex-1 relative flex-col z-10 pointer-events-auto bg-[#FDFBF7] rounded-[32px] my-6 mr-6 overflow-hidden shadow-sm border border-black/5">
           {/* Dotted background pattern */}
-          {!showJoinForm && (
-            <div className="absolute inset-0 z-0 pointer-events-none" style={{
-              backgroundImage: 'radial-gradient(#E8E4DB 1.5px, transparent 1.5px)',
-              backgroundSize: '24px 24px',
-              opacity: 0.5,
-              maskImage: 'radial-gradient(circle at 50% 50%, black 40%, transparent 80%)'
-            }} />
-          )}
+          <div className="absolute inset-0 z-0 pointer-events-none" style={{
+            backgroundImage: 'radial-gradient(#E8E4DB 1.5px, transparent 1.5px)',
+            backgroundSize: '24px 24px',
+            opacity: 0.5,
+            maskImage: 'radial-gradient(circle at 50% 50%, black 40%, transparent 80%)'
+          }} />
 
           {/* Image Container */}
           <div className={`absolute inset-0 pointer-events-none ${showJoinForm ? 'z-30' : 'z-[5]'}`}>
@@ -806,7 +804,7 @@ const Index = () => {
               <img 
                 src="/new-docs-full.png" 
                 alt="Professional Doctors and Dietitians" 
-                className="absolute bottom-[0%] xl:bottom-[0%] right-[0%] xl:right-[0%] h-[100%] xl:h-[100%] object-contain object-right-bottom"
+                className="absolute bottom-[0%] xl:bottom-[0%] right-[0%] xl:right-[0%] h-[95%] xl:h-[95%] object-contain object-right-bottom"
                 style={{ mixBlendMode: 'darken' }}
               />
             ) : (
