@@ -1339,9 +1339,7 @@ const Reviews = () => {
               </ul>
             </div>
             <div id="contact" className="footer-col">
-              <h5>Legal & Support</h5>
-              <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>
-              <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
+              <h5>Support</h5>
               <Link to="/contact">Contact / Support</Link>
               <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer">hello@dietbyrd.com</a>
               <div style={{ fontSize: '13.5px', color: 'var(--text3)', marginBottom: '10px' }}>
