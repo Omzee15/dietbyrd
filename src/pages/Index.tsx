@@ -586,7 +586,7 @@ const Index = () => {
 
   const renderPatientRightSide = () => (
     <div className="flex-1 flex flex-col pt-8 xl:pt-12 pb-4 pl-12 xl:pl-16 pr-4 min-h-0 overflow-y-auto no-scrollbar">
-      <div className="relative z-10 w-full max-w-[550px] my-auto">
+      <div className="relative z-10 w-full max-w-[550px] flex flex-col justify-center min-h-full py-4">
         {/* Header/Logo */}
         <div className="mb-6">
           <h1 className="text-[28px] xl:text-[34px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
@@ -640,7 +640,7 @@ const Index = () => {
 
   const renderProfessionalRightSide = () => (
     <div className="flex-1 flex flex-col pt-8 xl:pt-12 pb-4 pl-10 xl:pl-14 pr-4 overflow-y-auto no-scrollbar">
-      <div className="relative z-10 w-full max-w-[480px] xl:max-w-[540px] my-auto">
+      <div className="relative z-10 w-full max-w-[480px] xl:max-w-[540px] flex flex-col justify-center min-h-full py-4">
         {/* Header/Logo (Professional version) */}
         <div className="mb-6">
           <h1 className="text-[28px] xl:text-[34px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
