@@ -606,7 +606,7 @@ const Index = () => {
           <br />
           Do not need to be a
           <br />
-          Rocket Science 🚀
+          Rocket Science <img src="/rocket-icon.png" alt="rocket" className="inline-block h-[1.2em] w-auto ml-1 align-[-0.2em]" />
         </h2>
 
         <p className="text-[12.5px] xl:text-[14px] text-[#4A5568] leading-relaxed mb-3 max-w-[460px]">
