@@ -718,7 +718,7 @@ const Index = () => {
       <div className="w-full max-w-[1440px] 2xl:max-w-[1600px] h-[90vh] min-h-[740px] max-h-[900px] flex relative z-10 pointer-events-none">
         
         {/* Left Side: Auth Form Card */}
-        <div className="flex-none w-full lg:w-[380px] xl:w-[420px] m-6 bg-white rounded-[32px] shadow-[0_8px_40px_rgba(0,0,0,0.04)] px-10 xl:px-12 py-10 flex flex-col z-20 overflow-y-auto pointer-events-auto">
+        <div className="flex-none w-full lg:w-[380px] xl:w-[420px] m-6 bg-white rounded-[32px] shadow-[0_8px_40px_rgba(0,0,0,0.04)] px-12 xl:px-14 py-10 flex flex-col z-20 overflow-y-auto pointer-events-auto">
           <div className="flex-1 flex flex-col justify-center">
             {sessionExpired && step === "phone" && !showJoinForm && (
               <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">

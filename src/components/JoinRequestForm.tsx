@@ -261,7 +261,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
       return (
         <form onSubmit={handleSendOtp} className="space-y-6">
           {onBack && (
-            <Button type="button" variant="ghost" onClick={onBack} className="mb-2 -ml-2">
+            <Button type="button" variant="ghost" onClick={onBack} className="mb-2">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
@@ -666,7 +666,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
 
   if (inline) {
     return (
-      <div className="w-full max-h-[calc(100vh-280px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+      <div className="w-full max-h-[calc(100vh-280px)] overflow-y-auto px-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
         {renderStepContent()}
       </div>
     );
