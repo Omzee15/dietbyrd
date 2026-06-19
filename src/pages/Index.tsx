@@ -585,7 +585,7 @@ const Index = () => {
   }
 
   const renderPatientRightSide = () => (
-    <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-6 min-h-0 overflow-y-auto custom-scrollbar">
+    <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-6">
       <div className="relative z-10 w-full max-w-[550px]">
         {/* Header/Logo */}
         <div className="flex items-center gap-3 mb-5">
@@ -643,19 +643,15 @@ const Index = () => {
   );
 
   const renderProfessionalRightSide = () => (
-    <div className="flex-1 flex flex-col justify-center pl-10 xl:pl-14 pr-4 py-4 min-h-0 overflow-y-auto custom-scrollbar">
+    <div className="flex-1 flex flex-col justify-center pl-10 xl:pl-14 pr-4 py-4">
       <div className="relative z-10 w-full max-w-[480px] xl:max-w-[540px]">
-        {/* Header/Logo (Consistent Leaf Logo) */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
-            <Leaf className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-[22px] font-bold text-[#0A1628] leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-              Diet By <span className="text-[#33654A]">RD</span>
-            </h1>
-            <p className="text-[12px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
-          </div>
+        {/* Header/Logo (Professional version) */}
+        <div className="mb-4">
+          <h1 className="text-[28px] xl:text-[34px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <span className="text-[#33654A]">Diet By </span>
+            <span className="text-[#D49B2A]">RD</span>
+          </h1>
+          <p className="text-[13px] text-[#33654A] font-medium tracking-wide mt-1">The Gold Standard Clinical Nutrition</p>
         </div>
 
         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[11px] font-medium mb-4">
@@ -826,21 +822,23 @@ const Index = () => {
           <div className="relative z-10 flex-1 flex flex-col h-full">
             {showJoinForm ? renderProfessionalRightSide() : renderPatientRightSide()}
             
-            {/* Stats bar pinned to bottom - shown on both sides now */}
-            <div className="flex gap-4 px-12 xl:px-16 pb-10 mt-auto relative z-40 w-full max-w-[650px]">
-              <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-4 px-4 text-center shadow-sm">
-                <div className="text-[26px] font-bold text-[#2B5239]">95%</div>
-                <div className="text-[12px] text-slate-600 font-medium mt-0.5">Satisfaction Rate</div>
+            {/* Stats bar pinned to bottom - only shown on patient side */}
+            {!showJoinForm && (
+              <div className="flex gap-4 px-12 xl:px-16 pb-10 mt-auto relative z-20 w-full max-w-[650px]">
+                <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-4 px-4 text-center">
+                  <div className="text-[26px] font-bold text-[#2B5239]">95%</div>
+                  <div className="text-[12px] text-slate-600 font-medium mt-0.5">Satisfaction Rate</div>
+                </div>
+                <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-4 px-4 text-center">
+                  <div className="text-[26px] font-bold text-[#2B5239]">100%</div>
+                  <div className="text-[12px] text-slate-600 font-medium mt-0.5">Real Reviews</div>
+                </div>
+                <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-4 px-4 text-center">
+                  <div className="text-[26px] font-bold text-[#2B5239]">110%</div>
+                  <div className="text-[12px] text-slate-600 font-medium mt-0.5">Patient centric care</div>
+                </div>
               </div>
-              <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-4 px-4 text-center shadow-sm">
-                <div className="text-[26px] font-bold text-[#2B5239]">100%</div>
-                <div className="text-[12px] text-slate-600 font-medium mt-0.5">Real Reviews</div>
-              </div>
-              <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-4 px-4 text-center shadow-sm">
-                <div className="text-[26px] font-bold text-[#2B5239]">110%</div>
-                <div className="text-[12px] text-slate-600 font-medium mt-0.5">Patient centric care</div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
