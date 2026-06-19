@@ -67,8 +67,8 @@ const fallbackTestimonials = [
 ];
 
 const conditions = [
-  { icon: '/conditions/diabetes.png', name: 'Diabetes' },
-  { icon: '/conditions/cholesterol.png', name: 'High Cholesterol' },
+  { icon: '/conditions/diabetes_hands.png', name: 'Type 2 Diabetes' },
+  { icon: '/conditions/cholesterol_heart.png', name: 'High Cholesterol' },
   { icon: '/conditions/blood_pressure.png', name: 'High Blood Pressure' },
   { icon: '/conditions/pcos.png', name: 'PCOS' },
   { icon: '/conditions/hormonal.png', name: 'Hormonal Imbalance' },
@@ -1717,16 +1717,8 @@ const Landing = () => {
 
 
       <section id="conditions" className="section trust-section" style={{ background: '#FDFBF7', position: 'relative' }}>
-        <svg className="conditions-bg-leaf left" viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M0 50C40 50 80 80 100 120C120 160 110 210 90 250C100 230 110 190 90 150C70 110 30 80 0 80V50Z" fill="var(--teal)" />
-          <path d="M0 120C50 110 90 140 120 180C150 220 140 270 120 300C130 280 140 230 110 190C80 150 30 140 0 150V120Z" fill="var(--teal)" opacity="0.6"/>
-          <path d="M0 0C60 10 120 50 160 110C200 170 190 240 160 300C180 260 190 190 140 130C90 70 30 40 0 40V0Z" fill="var(--teal)" opacity="0.3"/>
-        </svg>
-        <svg className="conditions-bg-leaf right" viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M0 50C40 50 80 80 100 120C120 160 110 210 90 250C100 230 110 190 90 150C70 110 30 80 0 80V50Z" fill="var(--teal)" />
-          <path d="M0 120C50 110 90 140 120 180C150 220 140 270 120 300C130 280 140 230 110 190C80 150 30 140 0 150V120Z" fill="var(--teal)" opacity="0.6"/>
-          <path d="M0 0C60 10 120 50 160 110C200 170 190 240 160 300C180 260 190 190 140 130C90 70 30 40 0 40V0Z" fill="var(--teal)" opacity="0.3"/>
-        </svg>
+        <img src="/conditions/botanical_leaf.png" className="conditions-bg-leaf left" alt="" style={{ mixBlendMode: 'multiply' }} />
+        <img src="/conditions/botanical_leaf.png" className="conditions-bg-leaf right" alt="" style={{ mixBlendMode: 'multiply' }} />
         
         <div className="section-inner trust-inner" style={{ position: 'relative', zIndex: 2 }}>
           <div className="text-center mb-4">
