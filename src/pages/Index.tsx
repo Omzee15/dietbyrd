@@ -591,7 +591,7 @@ const Index = () => {
         <div className="mb-4">
           <h1 className="text-[28px] xl:text-[34px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
             <span className="text-[#0A1628]">Diet By </span>
-            <span className="text-[#33654A]">RD</span>
+            <span className="text-[#D49B2A]">RD</span>
           </h1>
           <p className="text-[13px] text-[#33654A] font-medium tracking-wide mt-1">The Gold Standard Clinical Nutrition</p>
         </div>
@@ -645,7 +645,7 @@ const Index = () => {
         <div className="mb-4">
           <h1 className="text-[28px] xl:text-[34px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
             <span className="text-[#0A1628]">Diet By </span>
-            <span className="text-[#33654A]">RD</span>
+            <span className="text-[#D49B2A]">RD</span>
           </h1>
           <p className="text-[13px] text-[#33654A] font-medium tracking-wide mt-1">The Gold Standard Clinical Nutrition</p>
         </div>
