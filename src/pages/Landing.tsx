@@ -993,7 +993,7 @@ const Landing = () => {
         .trust-title { font-family: 'Playfair Display', serif; font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: var(--navy); text-align: center; margin-bottom: 12px; }
         .trust-sub { text-align: center; color: var(--text2); font-size: 1rem; margin-bottom: 56px; font-weight: 300; }
         .trust-section .section-eyebrow { color: var(--teal); }
-        .doctor-trust-banner { background: linear-gradient(135deg, #E8F5F0 0%, #D1F0E4 100%); border: 1px solid rgba(11,110,79,0.15); border-radius: 20px; padding: 40px; text-align: center; margin-bottom: 56px; }
+        .doctor-trust-banner { padding: 40px; text-align: center; margin-bottom: 56px; }
         .trust-quote-big { font-family: 'Playfair Display', serif; font-size: clamp(1.1rem, 2vw, 1.4rem); font-style: italic; color: var(--text); line-height: 1.6; max-width: 700px; margin: 0 auto 20px; }
         .trust-proof-row { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
         .trust-proof { text-align: center; }
@@ -1645,7 +1645,7 @@ const Landing = () => {
 
             {/* Referred by Leading Clinicians + Conditions — Page 7 */}
             <div ref={addToRefs} className="doctor-trust-banner reveal" style={{ marginTop: '40px', marginBottom: '60px' }}>
-              <p className="trust-quote-big">"Doctors across India recommends Diet By RD to their patients because they know exactly who will pick up - a Registered Dietitian, not a certificate coach."</p>
+              <p className="trust-quote-big">"Doctors across India recommends Diet By RD to their patients because they know exactly who will pick up<br />a Registered Dietitian, not a certificate coach."</p>
               <div className="trust-proof-row">
                 <div className="trust-proof">
                   <div className="tp-num">100%</div>
