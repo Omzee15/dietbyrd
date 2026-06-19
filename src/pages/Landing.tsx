@@ -996,6 +996,9 @@ const Landing = () => {
         .doctor-trust-banner { background: linear-gradient(135deg, #E8F5F0 0%, #D1F0E4 100%); border: 1px solid rgba(11,110,79,0.15); border-radius: 20px; padding: 40px; text-align: center; margin-bottom: 56px; }
         .trust-quote-big { font-family: 'Playfair Display', serif; font-size: clamp(1.1rem, 2vw, 1.4rem); font-style: italic; color: var(--text); line-height: 1.6; max-width: 700px; margin: 0 auto 20px; }
         .trust-proof-row { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
+        .trust-proof { text-align: center; }
+        .trust-proof .tp-num { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 700; color: var(--teal); }
+        .trust-proof .tp-lbl { font-size: 12px; color: var(--text3); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
         .conditions-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-bottom: 64px; max-width: 1100px; margin-left: auto; margin-right: auto; position: relative; z-index: 2; }
         .condition-pill { background: #FFFFFF; border: 1px solid rgba(0,0,0,0.06); border-radius: 16px; padding: 24px 16px; text-align: center; transition: all 0.2s; cursor: default; width: 140px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 4px 14px rgba(0,0,0,0.03); }
         .condition-pill:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: rgba(11,110,79,0.15); }
@@ -1660,9 +1663,7 @@ const Landing = () => {
         <div className="section-inner trust-inner">
           <div ref={addToRefs} className="doctor-trust-banner reveal">
             <span className="section-eyebrow">Referred by leading clinicians</span>
-            <p className="text-center text-[15.5px] md:text-[17px] text-[#0A1628]/80 max-w-[700px] mx-auto mt-6 mb-12 leading-[1.8] font-medium" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-              Doctors across India recommends Diet By RD to their patients because they know exactly who will pick up - a Registered Dietitian, not a certificate coach.
-            </p>
+            <p className="trust-quote-big">"Doctors across India recommends Diet By RD to their patients because they know exactly who will pick up - a Registered Dietitian, not a certificate coach."</p>
             <div className="trust-proof-row">
               <div className="trust-proof">
                 <div className="tp-num">100%</div>
