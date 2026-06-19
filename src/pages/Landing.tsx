@@ -1814,7 +1814,7 @@ const Landing = () => {
         <div className="footer-inner">
           <div className="footer-top">
             <div className="footer-brand">
-              <div className="fb-logo">Diet <span>By RD</span></div>
+              <div className="fb-logo">Diet By <span>RD</span></div>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: '-6px', marginBottom: '10px' }}>The Gold Standard Clinical Nutrition</div>
               <p>India's first clinical nutrition platform where every consultation is exclusively with a Registered Dietitian. Evidence-based. Affordable. Honest.</p>
               <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer" className="footer-email">✉️ hello@dietbyrd.com</a>
