@@ -588,16 +588,12 @@ const Index = () => {
     <div className="flex-1 flex flex-col justify-center pl-12 xl:pl-16 pr-4 py-6">
       <div className="relative z-10 w-full max-w-[550px]">
         {/* Header/Logo */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 rounded-full bg-[#33654A] flex items-center justify-center shrink-0">
-            <Leaf className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-[22px] font-bold text-[#0A1628] leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-              Diet By <span className="text-[#33654A]">RD</span>
-            </h1>
-            <p className="text-[12px] text-[#33654A] font-medium tracking-wide">The Gold Standard Clinical Nutrition</p>
-          </div>
+        <div className="mb-4">
+          <h1 className="text-[28px] xl:text-[34px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <span className="text-[#33654A]">Diet By </span>
+            <span className="text-[#D49B2A]">RD</span>
+          </h1>
+          <p className="text-[13px] text-[#33654A] font-medium tracking-wide mt-1">The Gold Standard Clinical Nutrition</p>
         </div>
 
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#EEF2ED] rounded-full text-[#33654A] text-[12px] font-medium mb-6">
@@ -613,11 +609,11 @@ const Index = () => {
           Rocket Science 🚀
         </h2>
 
-        <p className="text-[15px] text-slate-600 leading-relaxed mb-8 max-w-[460px]">
+        <p className="text-[15px] text-slate-600 leading-relaxed mb-4 max-w-[460px]">
           Our Registered Dietitians make easy-peasy personalised diet plans that fit your not-so-easy-peasy, extremely busy schedule and pocket (promise 🥺).
         </p>
 
-        <div className="space-y-4 mb-8">
+        <div className="space-y-3 mb-2">
           <div className="flex items-start gap-4 p-5 rounded-[20px] bg-white border border-[#33654A]/10 shadow-[0_4px_24px_rgba(0,0,0,0.02)] max-w-[480px] relative z-20">
             <div className="w-10 h-10 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10 mt-0.5">
               <ShieldCheck className="w-[18px] h-[18px] text-[#33654A]" strokeWidth={2.5} />
@@ -824,16 +820,16 @@ const Index = () => {
             
             {/* Stats bar pinned to bottom - only shown on patient side */}
             {!showJoinForm && (
-              <div className="flex gap-4 px-12 xl:px-16 pb-10 mt-auto relative z-20 w-full max-w-[650px]">
-                <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-4 px-4 text-center">
+              <div className="flex gap-4 px-12 xl:px-16 pb-6 mt-auto relative z-40 w-full max-w-[650px]">
+                <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-3 px-3 text-center shadow-sm">
                   <div className="text-[26px] font-bold text-[#2B5239]">95%</div>
                   <div className="text-[12px] text-slate-600 font-medium mt-0.5">Satisfaction Rate</div>
                 </div>
-                <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-4 px-4 text-center">
+                <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-3 px-3 text-center shadow-sm">
                   <div className="text-[26px] font-bold text-[#2B5239]">100%</div>
                   <div className="text-[12px] text-slate-600 font-medium mt-0.5">Real Reviews</div>
                 </div>
-                <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-4 px-4 text-center">
+                <div className="flex-1 bg-[#F5F3EC]/90 backdrop-blur-sm border border-[#EBE7DF]/80 rounded-[16px] py-3 px-3 text-center shadow-sm">
                   <div className="text-[26px] font-bold text-[#2B5239]">110%</div>
                   <div className="text-[12px] text-slate-600 font-medium mt-0.5">Patient centric care</div>
                 </div>
