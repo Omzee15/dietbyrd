@@ -792,7 +792,6 @@ const Index = () => {
           {/* Image Container */}
           <div 
             className={`absolute inset-0 pointer-events-none ${showJoinForm ? 'z-30' : 'z-[5]'}`}
-            style={{ mixBlendMode: showJoinForm ? 'darken' : 'normal' }}
           >
             {showJoinForm ? (
               <img 
