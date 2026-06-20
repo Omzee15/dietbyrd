@@ -804,7 +804,7 @@ const Index = () => {
               <img 
                 src="/signin-image-nobg.webp" 
                 alt="Happy Patient Eating Healthy" 
-                className="absolute bottom-[-4%] right-[-8%] xl:right-[-12%] h-[100%] xl:h-[105%] object-contain object-right-bottom translate-x-[8%] xl:translate-x-[11%]"
+                className="absolute bottom-[-4%] right-[-8%] xl:right-[-12%] h-[100%] xl:h-[105%] object-contain object-right-bottom translate-x-[11%] xl:translate-x-[14%]"
                 style={{ filter: 'drop-shadow(-8px 8px 24px rgba(0,0,0,0.1))' }}
               />
             )}
