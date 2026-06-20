@@ -1312,7 +1312,7 @@ const Landing = () => {
                 </div>
                 <div ref={addToRefs} className="feature-item reveal reveal-delay-3">
                   <div className="w-[64px] h-[64px] xl:w-[76px] xl:h-[76px] rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] overflow-hidden flex-shrink-0 border border-black/5 bg-[#FCFBF7]">
-                    <img src="/approach/affordable.png" alt="Affordable icon" className="w-full h-full object-cover scale-[1.15]" />
+                    <img src="/approach/affordable_exact.png" alt="Affordable icon" className="w-full h-full object-cover scale-[1.15]" />
                   </div>
                   <div className="feature-text">
                     <h4>Affordable without compromise</h4>
