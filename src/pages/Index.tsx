@@ -660,7 +660,7 @@ const Index = () => {
           DietByRD as a professional:
         </h2>
 
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch max-w-[420px] xl:max-w-[460px] relative z-20">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch max-w-[400px] xl:max-w-[440px] relative z-20">
           {/* Dietitian Column */}
           <div className="flex-[1.2] bg-white border border-[#33654A]/20 sm:border-r-transparent rounded-[14px] p-3.5 xl:p-4 shadow-sm">
             <div className="flex items-center gap-2.5 mb-3 pb-2.5 border-b-2 border-[#33654A]/20 w-fit">
