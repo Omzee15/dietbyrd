@@ -660,7 +660,7 @@ const Index = () => {
           DietByRD as a professional:
         </h2>
 
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch max-w-[460px] xl:max-w-[500px] relative z-20">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch max-w-[420px] xl:max-w-[460px] relative z-20">
           {/* Dietitian Column */}
           <div className="flex-[1.2] bg-white border border-[#33654A]/20 rounded-[14px] p-3.5 xl:p-4 shadow-sm">
             <div className="flex items-center gap-2.5 mb-3 pb-2.5 border-b-2 border-[#33654A]/20 w-fit">
@@ -700,7 +700,7 @@ const Index = () => {
                 <h3 className="font-bold text-[#33654A] text-[13px] xl:text-[14px]">Doctors</h3>
               </div>
 
-              <p className="text-[10px] xl:text-[11px] text-[#0A1628] font-medium leading-snug mt-3 relative z-10">
+              <p className="text-[10px] xl:text-[11px] text-[#0A1628] font-medium leading-snug mt-3 relative z-10 pr-6 xl:pr-10">
                 Should have a valid Medical licence, a MBBS degree and will to help patients via Diet By RD.
               </p>
             </div>
