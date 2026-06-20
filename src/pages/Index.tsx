@@ -657,8 +657,7 @@ const Index = () => {
 
         <h2 className="text-[26px] xl:text-[32px] font-bold text-[#0A1628] leading-[1.1] mb-4 max-w-[400px]" style={{ fontFamily: "'Playfair Display', serif" }}>
           Qualifications to join <br />
-          DietByRD as a <br />
-          professional:
+          DietByRD as a professional:
         </h2>
 
         <div className="flex flex-col sm:flex-row gap-3 items-stretch max-w-[460px] xl:max-w-[500px] relative z-20">
