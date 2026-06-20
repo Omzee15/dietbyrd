@@ -370,7 +370,7 @@ const Index = () => {
     return (
       <>
         <h2 className="text-[36px] leading-tight text-[#0A1628] mb-1" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 800 }}>Welcome to<br/>DietByRD</h2>
-        <p className="text-slate-500 text-[15px] mb-8">Enter your phone number</p>
+        <p className="text-slate-500 text-[15px] mb-2">Enter your phone number</p>
       </>
     );
   };
