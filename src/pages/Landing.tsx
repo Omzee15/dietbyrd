@@ -78,8 +78,8 @@ const conditions = [
   { icon: '/conditions/deficiency_exact.png', name: 'Deficiency Management' },
   { icon: '/conditions/general_health_exact.png', name: 'General Health' },
   { icon: '/conditions/vegan.png', name: 'Healthy Vegan Diet' },
-  { icon: '/conditions/sports.png', name: 'Sports Nutrition' },
-  { icon: '/conditions/gym.png', name: 'Gym Diet' },
+  { icon: '/conditions/sports_exact.png', name: 'Sports Nutrition' },
+  { icon: '/conditions/gym_exact.png', name: 'Gym Diet' },
   { icon: '/conditions/and_many_more.png', name: 'And Many More' },
 ];
 
