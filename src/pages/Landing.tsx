@@ -492,7 +492,7 @@ const Landing = () => {
           cursor: pointer; font-family: 'DM Sans', sans-serif;
           padding: 14px 28px; border-radius: 8px;
         }
-        .btn-outline-navy:hover { background: var(--navy); color: #fff; }
+        .btn-outline-navy:hover { opacity: 0.8; }
         .hero-stats {
           display: flex; gap: 40px; margin-top: 56px; padding-top: 40px;
           border-top: 1px solid var(--border);
