@@ -610,7 +610,7 @@ const Index = () => {
         </h2>
 
         <p className="text-[12.5px] xl:text-[14px] text-[#4A5568] leading-relaxed mb-3 max-w-[460px]">
-          Our Registered Dietitians make easy-peasy personalised diet plans that fit your not-so-easy-peasy, extremely busy schedule and pocket (promise 🥺).
+          Our Registered Dietitians make easy-peasy personalised diet plans that fit your not-so-easy-peasy, extremely busy schedule and pocket (promise 😉).
         </p>
 
         <div className="space-y-2 mb-1">
@@ -805,7 +805,7 @@ const Index = () => {
               <img 
                 src="/signin-image-nobg.webp" 
                 alt="Happy Patient Eating Healthy" 
-                className="absolute bottom-[-4%] right-[-8%] xl:right-[-12%] h-[100%] xl:h-[105%] object-contain object-right-bottom translate-x-[5%] xl:translate-x-[8%]"
+                className="absolute bottom-[-4%] right-[-8%] xl:right-[-12%] h-[100%] xl:h-[105%] object-contain object-right-bottom translate-x-[8%] xl:translate-x-[11%]"
                 style={{ filter: 'drop-shadow(-8px 8px 24px rgba(0,0,0,0.1))' }}
               />
             )}
