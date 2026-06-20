@@ -1321,7 +1321,7 @@ const Landing = () => {
                 </div>
                 <div ref={addToRefs} className="feature-item reveal reveal-delay-3">
                   <div className="w-[64px] h-[64px] xl:w-[76px] xl:h-[76px] rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] overflow-hidden flex-shrink-0 border border-black/5 bg-[#FCFBF7]">
-                    <img src="/approach/supplement.png" alt="No supplement upsell icon" className="w-full h-full object-cover scale-[1.15]" />
+                    <img src="/approach/supplement_exact.png" alt="No supplement upsell icon" className="w-full h-full object-cover scale-[1.15]" />
                   </div>
                   <div className="feature-text">
                     <h4>No supplement upsell, Only what is required</h4>
