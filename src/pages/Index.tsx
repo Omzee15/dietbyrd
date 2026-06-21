@@ -783,25 +783,28 @@ const Index = () => {
         <div className="hidden lg:flex flex-1 relative flex-col z-10 pointer-events-auto bg-[#FDFBF7] rounded-[32px] my-6 mr-6 overflow-hidden shadow-sm border border-black/5">
 
 
-          {/* Image Container */}
+          {/* Image Container - Patient (Default) */}
           <div 
-            className={`absolute inset-0 pointer-events-none ${showJoinForm ? 'z-30' : 'z-[5]'}`}
-            style={{ mixBlendMode: showJoinForm ? 'darken' : 'normal' }}
+            className={`absolute inset-0 pointer-events-none z-[5] transition-opacity duration-500 ease-in-out ${showJoinForm ? 'opacity-0' : 'opacity-100'}`}
           >
-            {showJoinForm ? (
-              <img 
-                src="/new-docs-full.png" 
-                alt="Professional Doctors and Dietitians" 
-                className="absolute bottom-[0%] xl:bottom-[0%] right-[0%] xl:right-[0%] h-[95%] xl:h-[95%] object-contain object-right-bottom"
-              />
-            ) : (
-              <img 
-                src="/signin-image-nobg.webp" 
-                alt="Happy Patient Eating Healthy" 
-                className="absolute bottom-[-4%] right-[-8%] xl:right-[-12%] h-[100%] xl:h-[105%] object-contain object-right-bottom translate-x-[11%] xl:translate-x-[14%]"
-                style={{ filter: 'drop-shadow(-8px 8px 24px rgba(0,0,0,0.1))' }}
-              />
-            )}
+            <img 
+              src="/signin-image-nobg.webp" 
+              alt="Happy Patient Eating Healthy" 
+              className="absolute bottom-[-4%] right-[-8%] xl:right-[-12%] h-[100%] xl:h-[105%] object-contain object-right-bottom translate-x-[11%] xl:translate-x-[14%]"
+              style={{ filter: 'drop-shadow(-8px 8px 24px rgba(0,0,0,0.1))' }}
+            />
+          </div>
+
+          {/* Image Container - Professional (Join Form) */}
+          <div 
+            className={`absolute inset-0 pointer-events-none z-30 transition-opacity duration-500 ease-in-out ${showJoinForm ? 'opacity-100' : 'opacity-0'}`}
+            style={{ mixBlendMode: 'darken' }}
+          >
+            <img 
+              src="/new-docs-full.png" 
+              alt="Professional Doctors and Dietitians" 
+              className="absolute bottom-[0%] xl:bottom-[0%] right-[0%] xl:right-[0%] h-[95%] xl:h-[95%] object-contain object-right-bottom"
+            />
           </div>
 
           <div className="relative z-10 flex-1 flex flex-col h-full">
