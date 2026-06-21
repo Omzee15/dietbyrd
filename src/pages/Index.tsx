@@ -781,13 +781,7 @@ const Index = () => {
 
         {/* Right Side: Visual Section */}
         <div className="hidden lg:flex flex-1 relative flex-col z-10 pointer-events-auto bg-[#FDFBF7] rounded-[32px] my-6 mr-6 overflow-hidden shadow-sm border border-black/5">
-          {/* Dotted background pattern */}
-          <div className="absolute inset-0 z-0 pointer-events-none" style={{
-            backgroundImage: 'radial-gradient(#E8E4DB 1.5px, transparent 1.5px)',
-            backgroundSize: '24px 24px',
-            opacity: 0.5,
-            maskImage: 'radial-gradient(circle at 50% 50%, black 40%, transparent 80%)'
-          }} />
+
 
           {/* Image Container */}
           <div 
