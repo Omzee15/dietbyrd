@@ -789,10 +789,8 @@ const Index = () => {
             maskImage: 'radial-gradient(circle at 50% 50%, black 40%, transparent 80%)'
           }} />
 
-          {/* Image Container */}
           <div 
             className={`absolute inset-0 pointer-events-none ${showJoinForm ? 'z-30' : 'z-[5]'}`}
-            style={{ mixBlendMode: showJoinForm ? 'darken' : 'normal' }}
           >
             {showJoinForm ? (
               <img 
