@@ -72,10 +72,10 @@ const conditions = [
   { icon: '/conditions/blood_pressure.png', name: 'High Blood Pressure' },
   { icon: '/conditions/pcos.png', name: 'PCOS' },
   { icon: '/conditions/hormonal_molecule.png', name: 'Hormonal Imbalance' },
-  { icon: '/conditions/gut.png', name: 'Gut Issues' },
+  { icon: '/conditions/gut_exact.png', name: 'Gut Issues' },
   { icon: '/conditions/ibs_intestines.png', name: 'IBS' },
   { icon: '/conditions/weight.png', name: 'Weight Management' },
-  { icon: '/conditions/deficiency_exact.png', name: 'Deficiency Management' },
+  { icon: '/conditions/deficiency_exact_v2.png', name: 'Deficiency Management' },
   { icon: '/conditions/general_health_exact.png', name: 'General Health' },
   { icon: '/conditions/vegan.png', name: 'Healthy Vegan Diet' },
   { icon: '/conditions/sports_exact.png', name: 'Sports Nutrition' },
@@ -1744,7 +1744,7 @@ const Landing = () => {
             {conditions.map((c, i) => (
               <div key={i} className="condition-pill">
                 <div className="cicon">
-                  <img src={c.icon} alt={c.name} />
+                  <img src={c.icon} alt={c.name} style={c.name === 'General Health' ? { transform: 'scale(1.2)' } : undefined} />
                 </div>
                 <div className="ctxt">{c.name}</div>
               </div>
