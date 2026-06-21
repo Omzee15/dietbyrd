@@ -67,7 +67,7 @@ const fallbackTestimonials = [
 ];
 
 const conditions = [
-  { icon: '/conditions/diabetes_hands.png', name: 'Type 2 Diabetes' },
+  { icon: '/conditions/diabetes_hands.png', name: 'Diabetes' },
   { icon: '/conditions/cholesterol_heart.png', name: 'High Cholesterol' },
   { icon: '/conditions/blood_pressure.png', name: 'High Blood Pressure' },
   { icon: '/conditions/pcos.png', name: 'PCOS' },
