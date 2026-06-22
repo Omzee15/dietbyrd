@@ -1038,8 +1038,8 @@ const Landing = () => {
         .footer-col li { margin-bottom: 10px; }
         .footer-col ul li a { font-size: 13px; color: rgba(255,255,255,.6); text-decoration: none; transition: color 0.2s; }
         .footer-col ul li a:hover { color: #fff; }
-        .footer-bottom { display: flex; flex-direction: column; align-items: flex-end; padding-top: 28px; gap: 16px; border-top: 1px solid rgba(255,255,255,0.1); }
-        .footer-bottom p { font-size: 13px; color: rgba(255,255,255,0.5); text-align: right; }
+        .footer-bottom { display: flex; align-items: center; justify-content: space-between; padding-top: 28px; flex-wrap: wrap; gap: 16px; border-top: 1px solid rgba(255,255,255,0.1); }
+        .footer-bottom p { font-size: 13px; color: rgba(255,255,255,0.5); }
         .footer-badges { display: flex; gap: 10px; flex-wrap: wrap; }
         .f-badge { font-size: 11px; padding: 4px 10px; border-radius: 6px; font-weight: 500; background: var(--teal-l); color: var(--teal); border: 1px solid rgba(11,110,79,0.15); }
 
@@ -1058,7 +1058,7 @@ const Landing = () => {
           .hero-content { padding: 0; }
           .cta-section { padding: 64px 24px; }
           .cta-actions > * { width: 100%; justify-content: center; }
-          .footer-bottom { align-items: flex-start; }
+          .footer-bottom { flex-direction: column; align-items: flex-start; }
           .footer-bottom p { text-align: left; }
           .privacy-section,
           .about-section,
@@ -1879,7 +1879,6 @@ const Landing = () => {
                 <span className="f-badge">DPDPA Compliant</span>
                 <span className="f-badge">EUGDPR Aligned</span>
                 <span className="f-badge">256-bit SSL</span>
-                <span className="f-badge">IDA Verified RDs</span>
               </div>
             </div>
           </div>
