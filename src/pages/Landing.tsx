@@ -1644,7 +1644,7 @@ const Landing = () => {
             <h2 ref={addToRefs} className="clinician-title reveal reveal-delay-1">Trusted by Doctors Across India</h2>
 
             {/* Referred by Leading Clinicians + Conditions — Page 7 */}
-            <div ref={addToRefs} className="doctor-trust-banner reveal" style={{ marginTop: '40px', marginBottom: '60px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            <div ref={addToRefs} className="doctor-trust-banner reveal" style={{ marginTop: '10px', paddingTop: '10px', marginBottom: '40px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <div className="trust-proof-row">
                 <div className="trust-proof">
                   <div className="tp-num">100%</div>
