@@ -1644,12 +1644,7 @@ const Landing = () => {
             <h2 ref={addToRefs} className="clinician-title reveal reveal-delay-1">Trusted by Doctors Across India</h2>
 
             {/* Referred by Leading Clinicians + Conditions — Page 7 */}
-            <div ref={addToRefs} className="doctor-trust-banner reveal" style={{ marginTop: '40px', marginBottom: '60px' }}>
-              <p className="trust-quote-big">
-                <span className="hidden md:inline whitespace-nowrap">"Doctors across India recommends Diet By RD to their patients because they know exactly who will pick up</span>
-                <span className="md:hidden">"Doctors across India recommends Diet By RD to their patients because they know exactly who will pick up</span>
-                <br /> - a Registered Dietitian, not a certificate coach."
-              </p>
+            <div ref={addToRefs} className="doctor-trust-banner reveal" style={{ marginTop: '40px', marginBottom: '60px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
               <div className="trust-proof-row">
                 <div className="trust-proof">
                   <div className="tp-num">100%</div>
@@ -1664,6 +1659,11 @@ const Landing = () => {
                   <div className="tp-lbl">Honest pricing</div>
                 </div>
               </div>
+              <p className="trust-quote-big" style={{ margin: 0 }}>
+                <span className="hidden md:inline whitespace-nowrap">"Doctors across India recommends Diet By RD to their patients because they know exactly who will pick up</span>
+                <span className="md:hidden">"Doctors across India recommends Diet By RD to their patients because they know exactly who will pick up</span>
+                <br /> - a Registered Dietitian, not a certificate coach."
+              </p>
             </div>
 
             <div ref={addToRefs} className="trust-marquee reveal reveal-delay-2" style={{ padding: '0' }}>
