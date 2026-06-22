@@ -743,7 +743,7 @@ const Landing = () => {
         .vision-card {
           background: var(--navy);
           border-radius: 20px;
-          padding: 56px;
+          padding: 36px 56px;
           max-width: 1100px;
           margin: 0 auto;
         }
