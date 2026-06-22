@@ -743,49 +743,49 @@ const Landing = () => {
         .vision-card {
           background: var(--navy);
           border-radius: 20px;
-          padding: 36px 56px;
+          padding: 32px 48px;
           max-width: 1100px;
           margin: 0 auto;
         }
         .vision-title {
           font-family: 'Playfair Display', serif;
-          font-size: 40px;
+          font-size: 32px;
           font-weight: 700;
           color: #fff;
-          margin-bottom: 40px;
+          margin-bottom: 32px;
         }
         .vision-pillars {
           display: flex;
           flex-direction: column;
-          gap: 32px;
+          gap: 24px;
         }
         .vision-pillar {
           display: flex;
-          gap: 20px;
-          align-items: flex-start;
+          gap: 16px;
+          align-items: center;
         }
         .vision-icon {
-          width: 56px;
-          height: 56px;
+          width: 48px;
+          height: 48px;
           border-radius: 12px;
           background: rgba(255,255,255,0.06);
           display: flex;
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
-          font-size: 28px;
+          font-size: 22px;
         }
         .vision-pillar h3 {
-          font-size: 22px;
+          font-size: 18px;
           font-weight: 700;
           color: #fff;
-          margin-bottom: 6px;
+          margin-bottom: 2px;
         }
         .vision-pillar p {
-          font-size: 17px;
+          font-size: 14.5px;
           font-weight: 400;
           color: rgba(255,255,255,0.78);
-          line-height: 1.7;
+          line-height: 1.6;
         }
 
         /* Founder Story — WHITE */
