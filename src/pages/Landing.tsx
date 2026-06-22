@@ -1611,7 +1611,7 @@ const Landing = () => {
                 <div className="story-name">Aryan Bhagat</div>
                 <div className="story-role">Founder, Diet By RD</div>
                 <div className="story-quote" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
-                  <span>"Healthcare works best when integrity comes before profit - the belief that started it all"</span>
+                  <span className="md:whitespace-nowrap" style={{ fontSize: 'clamp(13px, 1.2vw, 15px)' }}>"Healthcare works best when integrity comes before profit - the belief that started it all"</span>
                   <span style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 500, color: 'var(--teal)', background: '#E8F5F1', padding: '6px 12px', borderRadius: '100px', width: 'fit-content' }}>
                     <ShieldCheck size={14} /> Built with purpose and intent.
                   </span>
