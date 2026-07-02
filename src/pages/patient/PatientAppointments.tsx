@@ -553,7 +553,7 @@ const PatientAppointments = () => {
 
       <AppSidebar
         title="DietByRD"
-        subtitle={user?.name || "Patient Portal"}
+        subtitle={patient?.name || user?.name || "Patient Portal"}
         sections={sidebarSections}
         bottomContent={bottomContent}
       />

@@ -11,6 +11,7 @@ import {
   LogOut,
   Minus,
   Plus,
+  Save,
   Scale,
   Search,
   Settings,
@@ -1428,7 +1429,25 @@ const CreateDiet = () => {
               )}
             </div>
           </div>
-          <DropdownMenu>
+          <div className="flex items-center gap-3">
+            {/* Prominent Save Button */}
+            <Button
+              onClick={handleSaveDietPlan}
+              disabled={savePlanMutation.isPending}
+              className="flex items-center gap-2 bg-primary hover:bg-primary/90"
+            >
+              {savePlanMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              {savePlanMutation.isPending
+                ? "Saving..."
+                : isEditMode
+                ? "Update Plan"
+                : "Save Plan"}
+            </Button>
+            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 hover:bg-muted rounded-lg px-2 py-1.5 transition-colors">
                 {currentDietician ? (
@@ -1456,6 +1475,7 @@ const CreateDiet = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
 
         {/* Loading state */}

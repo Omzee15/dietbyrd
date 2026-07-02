@@ -269,7 +269,7 @@ const PatientSupport = () => {
     <div className="flex min-h-screen">
       <AppSidebar
         title="DietByRD"
-        subtitle={user?.name || "Patient Portal"}
+        subtitle={patient?.name || user?.name || "Patient Portal"}
         sections={sidebarSections}
         bottomContent={bottomContent}
       />

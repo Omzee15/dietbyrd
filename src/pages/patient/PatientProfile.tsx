@@ -320,7 +320,7 @@ const PatientProfile = () => {
     <div className="flex min-h-screen">
       <AppSidebar
         title="DietByRD"
-        subtitle={user?.name || "Patient Portal"}
+        subtitle={patient?.name || user?.name || "Patient Portal"}
         sections={sidebarSections}
         bottomContent={bottomContent}
       />
@@ -457,10 +457,12 @@ const PatientProfile = () => {
                     {isEditingPersonal ? (
                       <div className="flex-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Name</p>
-                        <Input
+                         <Input
+                          id="personal-name"
                           type="text"
                           value={personalDetails.name}
                           onChange={(e) => setPersonalDetails({ ...personalDetails, name: e.target.value.replace(/[^a-zA-Z\s.\-']/g, "") })}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('personal-age')?.focus(); } }}
                           placeholder="Your name"
                           className="h-8"
                         />
@@ -482,12 +484,13 @@ const PatientProfile = () => {
                       <div className="flex-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Age (years)</p>
                         <Input
+                          id="personal-age"
                           type="number"
                           value={personalDetails.age || ""}
                           onChange={(e) => setPersonalDetails({ ...personalDetails, age: parseInt(e.target.value) || 0 })}
                           min={1}
                           max={100}
-                          onKeyDown={(e) => ['e', 'E', '+', '-', '.'].includes(e.key) && e.preventDefault()}
+                          onKeyDown={(e) => { if (['e', 'E', '+', '-', '.'].includes(e.key)) { e.preventDefault(); } else if (e.key === 'Enter') { e.preventDefault(); document.getElementById('personal-email')?.focus(); } }}
                           placeholder="Your age"
                           className="h-8"
                         />
@@ -539,9 +542,11 @@ const PatientProfile = () => {
                       <div className="flex-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Email</p>
                         <Input
+                          id="personal-email"
                           type="email"
                           value={personalDetails.email}
                           onChange={(e) => setPersonalDetails({ ...personalDetails, email: e.target.value })}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('personal-address')?.focus(); } }}
                           placeholder="your@email.com"
                           className="h-8"
                         />
@@ -563,9 +568,11 @@ const PatientProfile = () => {
                       <div className="flex-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Address</p>
                         <Input
+                          id="personal-address"
                           type="text"
                           value={personalDetails.address}
                           onChange={(e) => setPersonalDetails({ ...personalDetails, address: e.target.value })}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSavePersonal(); } }}
                           placeholder="Your address"
                           className="h-8"
                         />
@@ -632,13 +639,14 @@ const PatientProfile = () => {
                       <div className="flex-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Age (years)</p>
                         <Input
+                          id="body-age"
                           type="number"
                           value={bodyDetails.age}
                           min={1}
                           max={100}
                           step={1}
                           onChange={(e) => updateBodyField("age", e.target.value)}
-                          onKeyDown={(e) => ["e", "E", "+", "-", "."].includes(e.key) && e.preventDefault()}
+                          onKeyDown={(e) => { if (["e", "E", "+", "-", "."].includes(e.key)) { e.preventDefault(); } else if (e.key === 'Enter') { e.preventDefault(); document.getElementById('body-height')?.focus(); } }}
                           onBlur={() =>
                             setBodyErrors((prev) => ({
                               ...prev,
@@ -669,13 +677,14 @@ const PatientProfile = () => {
                       <div className="flex-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Height (ft)</p>
                         <Input
+                          id="body-height"
                           type="number"
                           value={bodyDetails.height}
                           min={2}
                           max={9}
                           step={0.1}
                           onChange={(e) => updateBodyField("height", e.target.value)}
-                          onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
+                          onKeyDown={(e) => { if (["e", "E", "+", "-"].includes(e.key)) { e.preventDefault(); } else if (e.key === 'Enter') { e.preventDefault(); document.getElementById('body-weight')?.focus(); } }}
                           onBlur={() =>
                             setBodyErrors((prev) => ({
                               ...prev,
@@ -706,13 +715,14 @@ const PatientProfile = () => {
                       <div className="flex-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Weight (kg)</p>
                         <Input
+                          id="body-weight"
                           type="number"
                           value={bodyDetails.weight}
                           min={10}
                           max={300}
                           step={0.1}
                           onChange={(e) => updateBodyField("weight", e.target.value)}
-                          onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
+                          onKeyDown={(e) => { if (["e", "E", "+", "-"].includes(e.key)) { e.preventDefault(); } else if (e.key === 'Enter') { e.preventDefault(); if (!hasBodyErrors) handleSaveBody(); } }}
                           onBlur={() =>
                             setBodyErrors((prev) => ({
                               ...prev,
