@@ -1680,6 +1680,12 @@ const CreateDiet = () => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onFocus={() => setSearchFocused(true)}
                     onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && searchResults.length > 0) {
+                        e.preventDefault();
+                        handleFoodClick(searchResults[0]);
+                      }
+                    }}
                     className="pl-12 h-12 text-base rounded-xl border-2"
                   />
                   {searchFocused && searchResults.length > 0 && (
@@ -1692,7 +1698,10 @@ const CreateDiet = () => {
                       {searchResults.map((food, i) => (
                         <button
                           key={i}
-                          onClick={() => handleFoodClick(food)}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            handleFoodClick(food);
+                          }}
                           className="w-full flex items-center justify-between p-3 hover:bg-muted transition-colors text-left"
                         >
                           <div className="flex items-center gap-3">
