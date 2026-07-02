@@ -7531,7 +7531,7 @@ app.get("/api/support/patients/:id/details", async (req, res) => {
     const patient = patientResult.rows[0];
 
     const apptResult = await query(
-      `SELECT c.id, c.scheduled_at, c.status, u.name AS dietitian_name, rd.qualification, c.duration_minutes
+      `SELECT c.id, c.scheduled_at, c.status, u.name AS dietitian_name, rd.qualification, 60 AS duration_minutes
        FROM dietbyrd_consultations c
        JOIN dietbyrd_registered_dietitians rd ON rd.id = c.rd_id
        JOIN dietbyrd_users u ON u.id = rd.user_id
@@ -7544,9 +7544,10 @@ app.get("/api/support/patients/:id/details", async (req, res) => {
     const dietitianResult = await query(
       `SELECT u.name, rd.qualification, dp.created_at as assigned_at
        FROM dietbyrd_diet_plans dp
-       JOIN dietbyrd_registered_dietitians rd ON rd.id = dp.dietitian_id
+       JOIN dietbyrd_registered_dietitians rd ON rd.id = dp.rd_id
        JOIN dietbyrd_users u ON u.id = rd.user_id
-       WHERE dp.patient_id = $1
+       JOIN dietbyrd_registered_patients rp ON rp.id = dp.registered_patient_id
+       WHERE rp.patient_id = $1
        ORDER BY dp.created_at DESC LIMIT 1`,
       [id]
     );
