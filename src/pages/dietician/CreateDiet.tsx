@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { jsPDF } from "jspdf";
+import { parseHeightToCm } from "@/lib/diet-utils";
 import {
   ArrowLeft,
   CalendarDays,
@@ -200,7 +201,7 @@ const CreateDiet = () => {
   // Calculate BMI
   const calculateBMI = (weight: string, heightCm: string): string | null => {
     const w = parseFloat(weight);
-    const h = parseFloat(heightCm);
+    const h = parseHeightToCm(heightCm);
     if (!w || !h || h === 0) return null;
     const heightM = h / 100;
     return (w / (heightM * heightM)).toFixed(1);
@@ -1540,8 +1541,8 @@ const CreateDiet = () => {
                       Height (cm)
                     </label>
                     <Input
-                      type="number"
-                      placeholder="e.g. 170"
+                      type="text"
+                      placeholder="e.g. 170 or 5'9"
                       value={height}
                       onChange={(e) => setHeight(e.target.value)}
                       className="h-9"

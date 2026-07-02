@@ -9359,8 +9359,8 @@ app.get("/api/rd/patients/:patientId/documents", async (req, res) => {
     }
 
     const result = await query(
-      "SELECT id, document_type as kind, file_name as original_filename, file_url as file_path, created_at FROM dietbyrd_documents WHERE registered_patient_id = $1 ORDER BY created_at DESC",
-      [regId]
+      "SELECT * FROM dietbyrd_patient_documents WHERE patient_profile_id = $1 ORDER BY created_at DESC",
+      [patientProfileId]
     );
     res.json({ success: true, data: await attachDocumentUrls(result.rows) });
   } catch (err) {
