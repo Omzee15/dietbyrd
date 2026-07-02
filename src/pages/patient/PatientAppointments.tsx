@@ -510,7 +510,9 @@ const PatientAppointments = () => {
 
   // Separate appointments
   const isUpcomingAppointment = (appointment: Appointment) =>
-    (appointment.status === "confirmed" || appointment.status === "scheduled") &&
+    appointment.status !== "completed" && 
+    appointment.status !== "cancelled" && 
+    appointment.status !== "no_show" &&
     parseIST(appointment.scheduled_at) > new Date();
 
   const upcomingAppointments = (appointments || [])

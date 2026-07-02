@@ -779,7 +779,7 @@ const PatientDashboard = () => {
 
   const upcomingAppointments = (appointments || [])
     .filter((a) =>
-      (a.status === "confirmed" || a.status === "scheduled") && parseIST(a.scheduled_at) > new Date()
+      a.status !== "completed" && a.status !== "cancelled" && a.status !== "no_show" && parseIST(a.scheduled_at) > new Date()
     )
     .sort((a, b) => parseIST(a.scheduled_at).getTime() - parseIST(b.scheduled_at).getTime());
 
