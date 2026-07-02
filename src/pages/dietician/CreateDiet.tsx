@@ -229,7 +229,26 @@ const CreateDiet = () => {
   const [initialDraftSnapshot, setInitialDraftSnapshot] = useState<string>("");
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
 
-  const dailyTarget = { calories: 1800, protein: 90, carbs: 200, fat: 60 };
+  const calculatedTDEE = useMemo(() => {
+    if (!patient?.weight || !patient?.height || !patient?.age) return 1800;
+    let bmr = patient.gender === "male" 
+      ? 10 * patient.weight + 6.25 * patient.height - 5 * patient.age + 5
+      : 10 * patient.weight + 6.25 * patient.height - 5 * patient.age - 161;
+    let act = 1.2;
+    const f = patient.workout_frequency ?? 0;
+    if (f <= 2 && f > 0) act = 1.375;
+    else if (f <= 4 && f > 2) act = 1.55;
+    else if (f <= 6 && f > 4) act = 1.725;
+    else if (f > 6) act = 1.9;
+    return Math.round(bmr * act);
+  }, [patient]);
+
+  const dailyTarget = { 
+    calories: calculatedTDEE, 
+    protein: Math.round((calculatedTDEE * 0.3) / 4), 
+    carbs: Math.round((calculatedTDEE * 0.4) / 4), 
+    fat: Math.round((calculatedTDEE * 0.3) / 9) 
+  };
 
   const createDraftSnapshot = (
     draftPrototypes: DietPrototype[],

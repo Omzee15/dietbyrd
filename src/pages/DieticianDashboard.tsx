@@ -635,7 +635,26 @@ const DieticianDashboard = () => {
   const [searchedFoods, setSearchedFoods] = useState<FoodLibraryItem[]>([]);
   const [autoAssignResult, setAutoAssignResult] = useState<AutoAssignResult | null>(null);
 
-  const dailyTarget = { calories: 1800, protein: 90, carbs: 200, fat: 60 };
+  const calculatedTDEE = useMemo(() => {
+    if (!selectedPatient?.weight || !selectedPatient?.height || !selectedPatient?.age) return 1800;
+    let bmr = selectedPatient.gender === "male" 
+      ? 10 * selectedPatient.weight + 6.25 * selectedPatient.height - 5 * selectedPatient.age + 5
+      : 10 * selectedPatient.weight + 6.25 * selectedPatient.height - 5 * selectedPatient.age - 161;
+    let act = 1.2;
+    const f = selectedPatient.workout_frequency ?? 0;
+    if (f <= 2 && f > 0) act = 1.375;
+    else if (f <= 4 && f > 2) act = 1.55;
+    else if (f <= 6 && f > 4) act = 1.725;
+    else if (f > 6) act = 1.9;
+    return Math.round(bmr * act);
+  }, [selectedPatient]);
+
+  const dailyTarget = { 
+    calories: calculatedTDEE, 
+    protein: Math.round((calculatedTDEE * 0.3) / 4), 
+    carbs: Math.round((calculatedTDEE * 0.4) / 4), 
+    fat: Math.round((calculatedTDEE * 0.3) / 9) 
+  };
 
   // Filtered data
   const filteredPatients = displayPatients.filter((p) =>

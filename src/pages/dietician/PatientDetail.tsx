@@ -29,6 +29,8 @@ import {
   ChevronUp,
   Check,
   X,
+  Activity,
+  Flame,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -185,7 +187,26 @@ const PatientDetail = () => {
   const [showAddMeal, setShowAddMeal] = useState(false);
   const [newMealName, setNewMealName] = useState<string>("");
 
-  const dailyTarget = { calories: 1800, protein: 90, carbs: 200, fat: 60 };
+  const calculatedTDEE = useMemo(() => {
+    if (!patient?.weight || !patient?.height || !patient?.age) return 1800;
+    let bmr = patient.gender === "male" 
+      ? 10 * patient.weight + 6.25 * patient.height - 5 * patient.age + 5
+      : 10 * patient.weight + 6.25 * patient.height - 5 * patient.age - 161;
+    let act = 1.2;
+    const f = patient.workout_frequency ?? 0;
+    if (f <= 2 && f > 0) act = 1.375;
+    else if (f <= 4 && f > 2) act = 1.55;
+    else if (f <= 6 && f > 4) act = 1.725;
+    else if (f > 6) act = 1.9;
+    return Math.round(bmr * act);
+  }, [patient]);
+
+  const dailyTarget = { 
+    calories: calculatedTDEE, 
+    protein: Math.round((calculatedTDEE * 0.3) / 4), 
+    carbs: Math.round((calculatedTDEE * 0.4) / 4), 
+    fat: Math.round((calculatedTDEE * 0.3) / 9) 
+  };
 
   const resetMeals = () => {
     setMeals([
@@ -696,6 +717,7 @@ const PatientDetail = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Basic Details */}
                   <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                     <Phone className="w-5 h-5 text-muted-foreground" />
                     <div>
@@ -713,7 +735,7 @@ const PatientDetail = () => {
                   <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                     <FileText className="w-5 h-5 text-muted-foreground" />
                     <div>
-                      <p className="text-xs text-muted-foreground">Dietary Preference</p>
+                      <p className="text-xs text-muted-foreground">Diet Preference</p>
                       <p className="font-medium capitalize">{patient.dietary_preference || "Not set"}</p>
                     </div>
                   </div>
@@ -722,6 +744,60 @@ const PatientDetail = () => {
                     <div>
                       <p className="text-xs text-muted-foreground">Registered</p>
                       <p className="font-medium">{formatDate(patient.created_at)}</p>
+                    </div>
+                  </div>
+
+                  {/* Body Stats */}
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <Scale className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Height & Weight</p>
+                      <p className="font-medium">
+                        {patient.height ? `${patient.height} cm` : "N/A"} / {patient.weight ? `${patient.weight} kg` : "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <Target className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Workout Freq.</p>
+                      <p className="font-medium">
+                        {patient.workout_frequency !== null && patient.workout_frequency !== undefined 
+                          ? `${patient.workout_frequency} days/wk` 
+                          : "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <Activity className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">BMI</p>
+                      <p className="font-medium">
+                        {patient.weight && patient.height && patient.height > 0
+                          ? (patient.weight / ((patient.height / 100) * (patient.height / 100))).toFixed(1)
+                          : "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <Flame className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Est. TDEE (BMR)</p>
+                      <p className="font-medium">
+                        {(() => {
+                          if (!patient.weight || !patient.height || !patient.age) return "N/A";
+                          let bmr = patient.gender === "male" 
+                            ? 10 * patient.weight + 6.25 * patient.height - 5 * patient.age + 5
+                            : 10 * patient.weight + 6.25 * patient.height - 5 * patient.age - 161;
+                          let act = 1.2;
+                          const f = patient.workout_frequency ?? 0;
+                          if (f <= 2 && f > 0) act = 1.375;
+                          else if (f <= 4 && f > 2) act = 1.55;
+                          else if (f <= 6 && f > 4) act = 1.725;
+                          else if (f > 6) act = 1.9;
+                          return `${Math.round(bmr * act)} kcal (${Math.round(bmr)})`;
+                        })()}
+                      </p>
                     </div>
                   </div>
                 </div>
