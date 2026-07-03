@@ -932,21 +932,54 @@ const PatientProfile = () => {
                     <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center shrink-0">
                       <Scale className="w-5 h-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Weight</p>
-                      <p className="font-semibold capitalize">{(patient as any)?.current_weight || latestWeight?.current ? `${(patient as any)?.current_weight || latestWeight?.current} kg` : "Not recorded"}</p>
-                    </div>
+                    {isEditingHealth ? (
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Current Weight (kg)</p>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          placeholder="e.g. 72"
+                          className="h-8"
+                          value={healthDetails.current_weight}
+                          onChange={(e) => setHealthDetails({ ...healthDetails, current_weight: e.target.value })}
+                          min={20}
+                          max={300}
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Weight</p>
+                        <p className="font-semibold capitalize">{(patient as any)?.current_weight || latestWeight?.current ? `${(patient as any)?.current_weight || latestWeight?.current} kg` : "Not recorded"}</p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
                     <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center shrink-0">
                       <Scale className="w-5 h-5 text-green-600" />
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Target Weight</p>
-                      <p className="font-semibold capitalize">{(patient as any)?.target_weight || latestWeight?.target ? `${(patient as any)?.target_weight || latestWeight?.target} kg` : "Not set"}</p>
-                    </div>
+                    {isEditingHealth ? (
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Target Weight (kg)</p>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          placeholder="e.g. 65"
+                          className="h-8"
+                          value={healthDetails.target_weight}
+                          onChange={(e) => setHealthDetails({ ...healthDetails, target_weight: e.target.value })}
+                          min={20}
+                          max={300}
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Target Weight</p>
+                        <p className="font-semibold capitalize">{(patient as any)?.target_weight || latestWeight?.target ? `${(patient as any)?.target_weight || latestWeight?.target} kg` : "Not set"}</p>
+                      </div>
+                    )}
                   </div>
+
                 </div>
 
                 {patient.diagnosis_description && (
