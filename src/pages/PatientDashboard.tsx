@@ -89,6 +89,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatTime12, formatDateTime12, parseIST } from "@/lib/utils";
+import { estimateBodyFat, calculateBMI, getBMICategory, calculatePatientTDEE } from "../lib/diet-utils";
 import { getPatientSidebarSections } from "@/lib/patient-sidebar";
 
 // ─── Height Input Helpers ───────────────────────────────────────────────────────
@@ -183,42 +184,7 @@ const getBMICategory = (bmi: number): { label: string; color: string } => {
   return { label: "Obese", color: "text-red-500" };
 };
 
-// TDEE using Mifflin-St Jeor equation with activity level based on workout frequency
-const calculateTDEE = (
-  weight: number,
-  heightCm: number,
-  age: number | null,
-  gender: string | null,
-  workoutFrequency: number | null | undefined
-): number | null => {
-  if (!weight || !heightCm || !age) return null;
-  
-  // Mifflin-St Jeor BMR equation
-  let bmr: number;
-  if (gender === "male") {
-    bmr = 10 * weight + 6.25 * heightCm - 5 * age + 5;
-  } else {
-    // For female and other, use female formula
-    bmr = 10 * weight + 6.25 * heightCm - 5 * age - 161;
-  }
-  
-  // Activity multiplier based on workout frequency
-  let activityFactor: number;
-  const freq = workoutFrequency ?? 0;
-  if (freq === 0) {
-    activityFactor = 1.2; // Sedentary
-  } else if (freq <= 2) {
-    activityFactor = 1.375; // Lightly active
-  } else if (freq <= 4) {
-    activityFactor = 1.55; // Moderately active
-  } else if (freq <= 6) {
-    activityFactor = 1.725; // Very active
-  } else {
-    activityFactor = 1.9; // Extra active (daily)
-  }
-  
-  return Math.round(bmr * activityFactor);
-};
+// Note: calculatePatientTDEE is imported from diet-utils
 
 // ─── Component ────────────────────────────────────────────────────────────────
 const PatientDashboard = () => {
@@ -703,7 +669,7 @@ const PatientDashboard = () => {
     ? calculateBMI(patient.weight, patient.height) 
     : null;
   const currentTDEE = patient?.weight && patient?.height && patient?.age
-    ? calculateTDEE(patient.weight, patient.height, patient.age, patient.gender, patient.workout_frequency)
+    ? calculatePatientTDEE(patient.weight, patient.height, patient.age, patient.gender, patient.workout_frequency)
     : null;
 
   // Get patient diet plans

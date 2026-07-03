@@ -7,9 +7,39 @@ export const calculateBMR = (weight: number, height: number, age: number, sex: '
   return 10 * weight + 6.25 * height - 5 * age + s;
 };
 
-// Calculate TDEE
+// Calculate TDEE using Mifflin-St Jeor Equation with activity factor
 export const calculateTDEE = (bmr: number, activityLevel: number): number => {
-  return bmr * activityLevel;
+  return Math.round(bmr * activityLevel);
+};
+
+// Robust helper to calculate TDEE directly from patient attributes
+export const calculatePatientTDEE = (
+  weight: number | null | undefined,
+  height: number | string | null | undefined,
+  age: number | null | undefined,
+  gender: string | null | undefined,
+  workoutFrequency: number | null | undefined
+): number => {
+  if (!weight || !height || !age) return 1800;
+  
+  // Parse height to cm using the existing robust parser
+  let heightCm = typeof height === "string" ? parseHeightToCm(height) : parseHeightToCm(String(height));
+  if (!heightCm) heightCm = 170; // Fallback to 170cm if parsing fails
+
+  // Calculate BMR
+  let bmr = (gender === "male" || gender === "M")
+    ? 10 * weight + 6.25 * heightCm - 5 * age + 5
+    : 10 * weight + 6.25 * heightCm - 5 * age - 161;
+
+  // Calculate Activity Factor
+  let act = 1.2;
+  const f = workoutFrequency ?? 0;
+  if (f > 0 && f <= 2) act = 1.375;
+  else if (f > 2 && f <= 4) act = 1.55;
+  else if (f > 4 && f <= 6) act = 1.725;
+  else if (f > 6) act = 1.9;
+
+  return Math.round(bmr * act);
 };
 
 // Estimate Body Fat percentage

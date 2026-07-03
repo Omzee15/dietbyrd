@@ -18,7 +18,7 @@ import { getDietician, getDieticianPatients, getConsultations, getReferrals, get
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { foodService } from "@/lib/food-service";
 import type { Food as FoodLibraryItem } from "@/lib/diet-types";
-import { getRDA } from "@/lib/diet-utils";
+import { getRDA, calculatePatientTDEE } from "@/lib/diet-utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { FoodLibraryAddDialog } from "@/components/diet";
@@ -636,17 +636,13 @@ const DieticianDashboard = () => {
   const [autoAssignResult, setAutoAssignResult] = useState<AutoAssignResult | null>(null);
 
   const calculatedTDEE = useMemo(() => {
-    if (!selectedPatient?.weight || !selectedPatient?.height || !selectedPatient?.age) return 1800;
-    let bmr = selectedPatient.gender === "male" 
-      ? 10 * selectedPatient.weight + 6.25 * selectedPatient.height - 5 * selectedPatient.age + 5
-      : 10 * selectedPatient.weight + 6.25 * selectedPatient.height - 5 * selectedPatient.age - 161;
-    let act = 1.2;
-    const f = selectedPatient.workout_frequency ?? 0;
-    if (f <= 2 && f > 0) act = 1.375;
-    else if (f <= 4 && f > 2) act = 1.55;
-    else if (f <= 6 && f > 4) act = 1.725;
-    else if (f > 6) act = 1.9;
-    return Math.round(bmr * act);
+    return calculatePatientTDEE(
+      selectedPatient?.weight,
+      selectedPatient?.height,
+      selectedPatient?.age,
+      selectedPatient?.gender,
+      selectedPatient?.workout_frequency
+    );
   }, [selectedPatient]);
 
   const dailyTarget = { 

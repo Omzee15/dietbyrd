@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { formatRelative } from "date-fns";
 import { jsPDF } from "jspdf";
-import { parseHeightToCm } from "@/lib/diet-utils";
+import { parseHeightToCm, calculatePatientTDEE } from "@/lib/diet-utils";
 import {
   ArrowLeft,
   CalendarDays,
@@ -188,17 +188,13 @@ const PatientDetail = () => {
   const [newMealName, setNewMealName] = useState<string>("");
 
   const calculatedTDEE = useMemo(() => {
-    if (!patient?.weight || !patient?.height || !patient?.age) return 1800;
-    let bmr = patient.gender === "male" 
-      ? 10 * patient.weight + 6.25 * patient.height - 5 * patient.age + 5
-      : 10 * patient.weight + 6.25 * patient.height - 5 * patient.age - 161;
-    let act = 1.2;
-    const f = patient.workout_frequency ?? 0;
-    if (f <= 2 && f > 0) act = 1.375;
-    else if (f <= 4 && f > 2) act = 1.55;
-    else if (f <= 6 && f > 4) act = 1.725;
-    else if (f > 6) act = 1.9;
-    return Math.round(bmr * act);
+    return calculatePatientTDEE(
+      patient?.weight,
+      patient?.height,
+      patient?.age,
+      patient?.gender,
+      patient?.workout_frequency
+    );
   }, [patient]);
 
   const dailyTarget = { 
