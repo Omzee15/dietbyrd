@@ -23,9 +23,14 @@ const getStoredAuthHeaders = (): Record<string, string> => {
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const isFormData = typeof FormData !== "undefined" && options?.body instanceof FormData;
   const { headers: customHeaders, ...restOptions } = options || {};
+  const authHeaders = getStoredAuthHeaders();
   const res = await fetch(`${BASE_URL}${path}`, {
     ...restOptions,
-    headers: { ...(isFormData ? {} : { "Content-Type": "application/json" }), ...customHeaders },
+    headers: {
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
+      ...authHeaders,
+      ...customHeaders,
+    },
   });
   const data = await res.json();
   if (!res.ok || !data.success) {
@@ -33,6 +38,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
   return data.data as T;
 }
+
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 export const healthCheck = () =>

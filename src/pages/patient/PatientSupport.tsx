@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Plus, LogOut, ChevronDown, Eye, X, Send } from "lucide-react";
+import { MessageSquare, Plus, LogOut, ChevronDown, Eye, X, Send, CheckCircle } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import { DashboardFooter } from "@/components/DashboardFooter";
 import { Button } from "@/components/ui/button";
@@ -188,6 +188,26 @@ const PatientSupport = () => {
       queryClient.invalidateQueries({ queryKey: ["patient-ticket-detail", selectedTicketId, user?.id] });
       queryClient.invalidateQueries({ queryKey: ["patient-tickets", user?.id] });
       toast.success("Ticket re-opened");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const closeTicketMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedTicketId) throw new Error("Missing ticket");
+      const res = await fetch(`/api/support/tickets/${selectedTicketId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "closed" }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["patient-ticket-detail", selectedTicketId, user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["patient-tickets", user?.id] });
+      toast.success("Ticket closed");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -482,7 +502,7 @@ const PatientSupport = () => {
                         </button>
                       </div>
 
-                      {selectedTicket.status === "closed" && (
+                      {selectedTicket.status === "closed" ? (
                         <div className="mt-3">
                           <Button
                             size="sm"
@@ -491,6 +511,19 @@ const PatientSupport = () => {
                             onClick={() => reopenTicketMutation.mutate()}
                           >
                             Re-open
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="mt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-green-700 border-green-300 hover:bg-green-50"
+                            disabled={closeTicketMutation.isPending}
+                            onClick={() => closeTicketMutation.mutate()}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Mark as Resolved
                           </Button>
                         </div>
                       )}

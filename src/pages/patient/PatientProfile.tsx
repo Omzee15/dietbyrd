@@ -45,10 +45,52 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { getPatientSidebarSections } from "@/lib/patient-sidebar";
 
+// ─── Indian Cities (comprehensive) ──────────────────────────────────────────
+const INDIAN_CITIES = [
+  "Agra","Ahmedabad","Aizawl","Ajmer","Aligarh","Alwar","Ambala","Amravati","Amritsar","Anand",
+  "Aurangabad","Bangalore","Bareilly","Belgaum","Bhavnagar","Bhopal","Bhubaneswar","Bikaner",
+  "Bilaspur","Chandigarh","Chennai","Coimbatore","Cuttack","Daman","Davangere","Dehradun",
+  "Delhi","Dhanbad","Durgapur","Erode","Faridabad","Gandhinagar","Goa","Gorakhpur",
+  "Guntur","Gurgaon","Guwahati","Gwalior","Haridwar","Hubli","Hyderabad","Imphal",
+  "Indore","Itanagar","Jabalpur","Jaipur","Jalandhar","Jalgaon","Jammu","Jamnagar",
+  "Jamshedpur","Jodhpur","Kakinada","Kalyan","Kanpur","Karnal","Kochi","Kohima",
+  "Kolhapur","Kolkata","Kota","Kozhikode","Kurnool","Lucknow","Ludhiana","Madurai",
+  "Mangalore","Mathura","Meerut","Moradabad","Mumbai","Mysore","Nagpur","Nashik",
+  "Navi Mumbai","Noida","Panaji","Patna","Pondicherry","Pune","Raipur","Rajkot",
+  "Ranchi","Rohtak","Saharanpur","Salem","Shillong","Shimla","Siliguri","Solapur",
+  "Srinagar","Surat","Thane","Thiruvananthapuram","Thrissur","Tiruchirappalli",
+  "Tirupati","Tirupur","Ujjain","Vadodara","Varanasi","Vijayawada","Visakhapatnam",
+  "Warangal","Agartala","Aligarh","Allahabad","Ambattur","Amroha","Anantapur","Asansol",
+  "Bahadurgarh","Bahraich","Ballia","Bally","Banda","Barabanki","Barasat","Bardhaman",
+  "Bareilley","Begusarai","Bellary","Bhagalpur","Bharatpur","Bhilai","Bhillwara","Bhiwandi",
+  "Bhiwani","Bidar","Bijapur","Bilaspur","Bokaro","Bongaigaon","Brahmapur","Bulandshahr",
+  "Chandrapur","Chirala","Chittoor","Cuddapah","Deoghar","Dewas","Dibrugarh","Dindigul",
+  "Etawah","Firozabad","Gaya","Giridih","Gulbarga","Hapur","Hassan","Hazaribagh",
+  "Hisar","Hoshiarpur","Hospet","Hosur","Ichalkaranji","Jhansi","Junagadh","Kadapa",
+  "Kalyani","Kamarhati","Karimnagar","Katni","Khammam","Kharagpur","Kirari","Korba",
+  "Latur","Loni","Maheshtala","Malegaon","Mango","Manipal","Mandsaur","Medak",
+  "Mirzapur","Muzaffarnagar","Muzaffarpur","Nagercoil","Nanded","Nandyal","Narasaraopeta",
+  "Nellore","New Delhi","Nizamabad","Pali","Parbhani","Pathankot","Patiala","Phagwara",
+  "Pimpri-Chinchwad","Port Blair","Proddatur","Raebareli","Rajahmundry","Rajapalayam",
+  "Rajnandgaon","Ramagundam","Rampur","Raurkela","Rewa","Rohtak","Sagar","Sambalpur",
+  "Sangli","Satna","Sawai Madhopur","Secunderabad","Shahjahanpur","Shimoga","Silchar",
+  "Sirsa","Sitapur","Siwan","Sonipat","South Dumdum","Sri Ganganagar","Srinagar",
+  "Tenali","Tezpur","Thoothukudi","Tiruvottiyur","Tumkur","Udaipur","Ulhasnagar",
+  "Unnao","Vellore","Yamuna Nagar","Yamunanagar","Yavatmal","Yelahanka","Zirakpur",
+].sort();
+
 const PatientProfile = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
+
+  // City search state for address combobox
+  const [citySearch, setCitySearch] = useState("");
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
+
+  const filteredCities = citySearch.trim().length > 0
+    ? INDIAN_CITIES.filter(c => c.toLowerCase().includes(citySearch.toLowerCase())).slice(0, 12)
+    : [];
 
   // Edit state for body details
   const [isEditingBody, setIsEditingBody] = useState(false);
@@ -565,17 +607,46 @@ const PatientProfile = () => {
                       <MapPin className="w-5 h-5 text-primary" />
                     </div>
                     {isEditingPersonal ? (
-                      <div className="flex-1">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Address</p>
+                      <div className="flex-1 relative">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">City / Address</p>
                         <Input
                           id="personal-address"
                           type="text"
-                          value={personalDetails.address}
-                          onChange={(e) => setPersonalDetails({ ...personalDetails, address: e.target.value })}
+                          value={citySearch || personalDetails.address}
+                          onChange={(e) => {
+                            setCitySearch(e.target.value);
+                            setPersonalDetails({ ...personalDetails, address: e.target.value });
+                            setShowCityDropdown(true);
+                          }}
+                          onFocus={() => {
+                            setCitySearch(personalDetails.address);
+                            setShowCityDropdown(true);
+                          }}
+                          onBlur={() => setTimeout(() => setShowCityDropdown(false), 150)}
                           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSavePersonal(); } }}
-                          placeholder="Your address"
+                          placeholder="Search city..."
                           className="h-8"
+                          autoComplete="off"
                         />
+                        {showCityDropdown && filteredCities.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1 bg-background border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                            {filteredCities.map((city) => (
+                              <button
+                                key={city}
+                                type="button"
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setPersonalDetails({ ...personalDetails, address: city });
+                                  setCitySearch("");
+                                  setShowCityDropdown(false);
+                                }}
+                              >
+                                {city}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div>
