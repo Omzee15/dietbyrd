@@ -56,7 +56,7 @@ interface DoctorDashboardProps {
   defaultTab?: ActiveView;
 }
 
-const DoctorDashboard = ({ defaultTab = "overview" }: DoctorDashboardProps) => {
+const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -100,7 +100,6 @@ const DoctorDashboard = ({ defaultTab = "overview" }: DoctorDashboardProps) => {
   // For assistants, get the doctor ID from user.doctorId, for doctors use profileId
   const doctorId = isAssistant ? user?.doctorId : user?.profileId;
 
-  // Sync activeView with URL
   useEffect(() => {
     if (location.pathname === "/doctor/patients") {
       setActiveView("patients");
@@ -111,7 +110,8 @@ const DoctorDashboard = ({ defaultTab = "overview" }: DoctorDashboardProps) => {
     } else if (location.pathname === "/doctor/referrals") {
       setActiveView("refer_patient");
     } else if (location.pathname === "/doctor") {
-      setActiveView("overview");
+      // Redirect root /doctor to /doctor/referrals
+      navigate("/doctor/referrals", { replace: true });
     }
   }, [location.pathname]);
 
@@ -561,6 +561,50 @@ const DoctorDashboard = ({ defaultTab = "overview" }: DoctorDashboardProps) => {
                         <>Send Referral <Send className="w-4 h-4" /></>
                       )}
                     </Button>
+                  </div>
+                </div>
+
+                {/* Recent Referrals below the form */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold">Recent Referrals</h2>
+                    <span className="text-sm text-muted-foreground">{referrals.length} total referred</span>
+                  </div>
+                  <div className="bg-card rounded-xl border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
+                          <th className="text-left p-4 font-semibold">Patient</th>
+                          <th className="text-left p-4 font-semibold">Diagnosis</th>
+                          <th className="text-left p-4 font-semibold">Date</th>
+                          <th className="text-right p-4 font-semibold">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {referrals.slice(0, 10).map((r) => (
+                          <tr key={r.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => setSelectedPatient(r)}>
+                            <td className="p-4">
+                              <div className="font-medium">{r.patient_name || "Unknown"}</div>
+                              <div className="text-xs text-muted-foreground">{r.patient_phone}</div>
+                            </td>
+                            <td className="p-4 capitalize">{r.diagnosis || "—"}</td>
+                            <td className="p-4 text-muted-foreground">{formatReferralDate(r)}</td>
+                            <td className="p-4 text-right">
+                              <Button variant="outline" size="sm" className="text-xs">View</Button>
+                            </td>
+                          </tr>
+                        ))}
+                        {referrals.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="p-12 text-center">
+                              <div className="text-3xl mb-2">🌱</div>
+                              <p className="font-medium text-foreground">No referrals yet</p>
+                              <p className="text-sm text-muted-foreground mt-1">Your referred patients will appear here after you send your first referral.</p>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
