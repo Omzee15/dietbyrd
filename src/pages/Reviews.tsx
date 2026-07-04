@@ -1317,7 +1317,7 @@ const Reviews = () => {
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: '-6px', marginBottom: '10px' }}>The Gold Standard Clinical Nutrition</div>
               <p>India's first clinical nutrition platform where every consultation is exclusively with a Registered Dietitian. Evidence-based. Affordable. Honest.</p>
               <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer" className="footer-email">✉️ hello@dietbyrd.com</a>
-              <div style={{ marginTop: '16px', fontSize: '11px', color: 'rgba(255,255,255,0.7)', lineHeight: '1.5', maxWidth: '320px', textAlign: 'left' }}>
+              <div style={{ marginTop: '16px', fontSize: '11px', color: 'rgba(255,255,255,0.7)', lineHeight: '1.5', width: 'max-content', maxWidth: '100%', textAlign: 'left' }}>
                 Registered Office: DPT 808B F 79 &amp; 80, 8TH FLOOR DLF PRIME TOWER,<br />
                 Okhla Industrial Estate, New Delhi, South Delhi- 110020, Delhi
               </div>

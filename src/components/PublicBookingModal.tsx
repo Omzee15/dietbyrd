@@ -42,6 +42,7 @@ interface MergedSlot {
   datetime: string;
   duration_minutes: number;
   dietician_id: number;
+  is_booked?: boolean;
 }
 
 type BookingStep = "slots" | "contact" | "otp" | "payment" | "success";
@@ -138,24 +139,34 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
           getAvailableSlots(d.id, weekDateRange.start, weekDateRange.end)
             .then((slots) =>
               slots
-                .filter((s) => !s.is_booked)
                 .map((s) => ({ ...s, dietician_id: d.id }))
             )
-            .catch(() => [] as (typeof active[0] & { dietician_id: number })[])
+            .catch(() => [] as any[])
         )
       );
 
-      // Merge: first dietitian to offer each time slot wins
+      // Merge: first dietitian to offer each time slot wins (available slots beat booked slots)
       const seen = new Map<string, MergedSlot>();
       for (const slotList of results) {
         for (const slot of slotList) {
-          if (!seen.has(slot.datetime)) {
+          const existing = seen.get(slot.datetime);
+          if (!existing) {
             seen.set(slot.datetime, {
               date: slot.date,
               start_time: slot.start_time,
               datetime: slot.datetime,
               duration_minutes: slot.duration_minutes,
               dietician_id: slot.dietician_id,
+              is_booked: slot.is_booked,
+            });
+          } else if (existing.is_booked && !slot.is_booked) {
+            seen.set(slot.datetime, {
+              date: slot.date,
+              start_time: slot.start_time,
+              datetime: slot.datetime,
+              duration_minutes: slot.duration_minutes,
+              dietician_id: slot.dietician_id,
+              is_booked: false,
             });
           }
         }
@@ -623,19 +634,32 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                         {slots.length > 0 ? (
                           <div className="flex flex-wrap gap-2">
                             {slots.map((slot) => (
-                              <Button
+                              <div
                                 key={slot.datetime}
-                                variant={selectedSlot?.datetime === slot.datetime ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => setSelectedSlot(slot)}
-                                className={
-                                  selectedSlot?.datetime === slot.datetime
-                                    ? "bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
-                                    : "hover:border-emerald-400"
-                                }
+                                title={slot.is_booked ? "This time has already been reserved for another patient. Please choose another convenient time." : undefined}
                               >
-                                {formatTime12(slot.start_time)}
-                              </Button>
+                                <Button
+                                  variant={selectedSlot?.datetime === slot.datetime ? "default" : "outline"}
+                                  size="sm"
+                                  disabled={slot.is_booked}
+                                  onClick={(e) => {
+                                    if (slot.is_booked) {
+                                      e.preventDefault();
+                                      return;
+                                    }
+                                    setSelectedSlot(slot);
+                                  }}
+                                  className={
+                                    selectedSlot?.datetime === slot.datetime
+                                      ? "bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
+                                      : slot.is_booked
+                                        ? "opacity-50 cursor-not-allowed bg-muted text-muted-foreground border-muted-foreground/30 pointer-events-none"
+                                        : "hover:border-emerald-400"
+                                  }
+                                >
+                                  {formatTime12(slot.start_time)}
+                                </Button>
+                              </div>
                             ))}
                           </div>
                         ) : (
