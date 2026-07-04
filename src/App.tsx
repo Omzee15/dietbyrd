@@ -169,7 +169,6 @@ const App = () => (
             </Route>
 
             {/* 404 */}
-            <Route path="/pay" element={<Pay />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

@@ -3,10 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Loader2, ArrowLeft, CheckCircle2, Stethoscope, UtensilsCrossed, Phone, MessageSquare, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { isValidIndianMobile, normalizeIndianMobileInput } from "@/lib/validation";
@@ -70,7 +66,6 @@ const RD_SPECIALIZATIONS = [
   "Others"
 ];
 
-import { INDIAN_CITIES } from "@/lib/indian-cities";
 import { CitySearchCombobox } from "@/components/CitySearchCombobox";
 
 interface JoinRequestFormProps {
@@ -84,14 +79,6 @@ type JoinStep = "otp-send" | "otp-verify" | "password" | "details";
 export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequestFormProps) {
   const [step, setStep] = useState<JoinStep>("otp-send");
   const [isSubmitting, setIsSubmitting] = useState(false);
-    const [emailError, setEmailError] = useState("");
-    const emailInputRef = React.useRef<HTMLInputElement>(null);
-    const [openCitySelect, setOpenCitySelect] = useState(false);
-    const [citySearch, setCitySearch] = useState("");
-    
-    const filteredCities = citySearch.trim().length > 0
-      ? INDIAN_CITIES.filter(c => c.toLowerCase().includes(citySearch.toLowerCase())).slice(0, 15)
-      : [];
 
   const [submitted, setSubmitted] = useState(false);
   const [otp, setOtp] = useState("");
