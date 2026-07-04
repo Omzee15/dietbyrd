@@ -11,27 +11,64 @@ import { Loader2, ArrowLeft, CheckCircle2, Stethoscope, UtensilsCrossed, Phone, 
 import { toast } from "sonner";
 import { isValidIndianMobile, normalizeIndianMobileInput } from "@/lib/validation";
 
-const QUALIFICATION_OPTIONS = [
-  "MBBS","MD","MS","BDS","BAMS","BHMS","BUMS",
-  "BSc Nutrition","MSc Nutrition","BSc Dietetics","MSc Dietetics",
-  "PG Diploma in Dietetics","PG Diploma in Clinical Nutrition",
-  "PhD Nutrition","RD (Registered Dietitian)","Others",
+const DOCTOR_QUALIFICATIONS = [
+  "MBBS",
+  "MD - (Doctor of Medicine)",
+  "MS- (Master of Surgery)",
+  "DM (Doctorate of Medicine)",
+  "DNB- (Diplomate of National Board)",
+  "MCh- (Magister Chirurgiae)",
+  "Others",
+];
+
+const RD_QUALIFICATIONS = [
+  "Bsc Nutrition and Dietetics+ RD",
+  "MSc Nutrition and Dietetics+ RD",
+  "Phd In Nutrition and Dietetics + RD",
+  "Msc Clinical Nutrition+ RD",
+  "Others + RD",
 ];
 
 const DOCTOR_SPECIALIZATIONS = [
-  "General Medicine", "Endocrinology", "Diabetology", "Gastroenterology",
-  "Cardiology", "Nephrology", "Neurology", "Oncology", "Pediatrics",
-  "Obstetrics & Gynecology", "Orthopedics", "Psychiatry", "Dermatology",
-  "Pulmonology", "Urology", "Rheumatology", "Ophthalmology", "ENT",
-  "General Surgery", "Others"
-].sort();
+  "Bariatrics",
+  "Cardiology",
+  "Dermatology",
+  "Diabetology",
+  "Endocrinology",
+  "ENT",
+  "Gastroenterology",
+  "General Medicine",
+  "General Physician",
+  "General Surgery",
+  "Nephrology",
+  "Neurology",
+  "Obstetrics & Gynaecology",
+  "Oncology",
+  "Ophthalmology",
+  "Orthopedics",
+  "Pediatrics",
+  "Psychiatry",
+  "Pulmonology",
+  "Rheumatology",
+  "Sports Medicine",
+  "Urology",
+  "Others"
+];
 
 const RD_SPECIALIZATIONS = [
-  "Clinical Nutrition", "Weight Management", "Diabetes Management",
-  "Thyroid & PCOS Management", "Gut Health & IBS", "Renal Nutrition",
-  "Oncology Nutrition", "Sports Nutrition", "Pediatric Nutrition",
-  "Pregnancy & Lactation", "Bariatric Nutrition", "Others"
-].sort();
+  "Bariatric Nutrition",
+  "Clinical Nutrition",
+  "Diabetes Management",
+  "Gut Health & IBS",
+  "Oncology Nutrition",
+  "Pediatric Nutrition",
+  "Pregnancy & Lactation",
+  "Renal Nutrition",
+  "Sports Nutrition",
+  "Thyroid & PCOS Management",
+  "Weight Management",
+  "Others"
+];
 
 import { INDIAN_CITIES } from "@/lib/indian-cities";
 import { CitySearchCombobox } from "@/components/CitySearchCombobox";
@@ -469,7 +506,11 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
           <label className="text-sm font-medium flex items-center gap-2">
             I want to join as <span className="text-red-500">*</span>
           </label>
-          <Select value={formData.role} onValueChange={(value) => handleChange("role", value)} required>
+          <Select value={formData.role} onValueChange={(value) => {
+            handleChange("role", value);
+            handleChange("qualification", "");
+            handleChange("specialization", "");
+          }} required>
             <SelectTrigger>
               <SelectValue placeholder="Select your role" />
             </SelectTrigger>
@@ -514,20 +555,21 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
           />
         </div>
 
-        {/* Professional Information */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">
-            Qualification <span className="text-red-500">*</span>
-          </label>
-          <Select value={formData.qualification} onValueChange={(v) => handleChange("qualification", v)} required>
-            <SelectTrigger><SelectValue placeholder="Select qualification" /></SelectTrigger>
-            <SelectContent>
-              {QUALIFICATION_OPTIONS.map((q) => (
-                <SelectItem key={q} value={q}>{q}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {formData.role && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Qualification <span className="text-red-500">*</span>
+            </label>
+            <Select value={formData.qualification} onValueChange={(v) => handleChange("qualification", v)} required>
+              <SelectTrigger><SelectValue placeholder="Select qualification" /></SelectTrigger>
+              <SelectContent>
+                {(formData.role === "doctor" ? DOCTOR_QUALIFICATIONS : RD_QUALIFICATIONS).map((q) => (
+                  <SelectItem key={q} value={q}>{q}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {formData.role === "doctor" && (
           <>
