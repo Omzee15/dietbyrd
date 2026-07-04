@@ -429,7 +429,7 @@ const MLTInternDashboard = () => {
         { label: "Dieticians", href: "/mlt-intern/dieticians", icon: UtensilsCrossed, badge: dieticians.length },
         { label: "Dietician Leaves", href: "/mlt-intern/leaves", icon: CalendarOff, badge: leaves.length || undefined },
         { label: "Join Requests", href: "/mlt-intern/join-requests", icon: UserPlus, badge: joinRequests.length || undefined },
-        { label: "Unregistered Referrals", href: "/mlt-intern/unregistered-referrals", icon: UserX, badge: unregisteredReferrals.length || undefined },
+        { label: "Unregistered Recommendations", href: "/mlt-intern/unregistered-referrals", icon: UserX, badge: unregisteredReferrals.length || undefined },
         { label: "Food Library", href: "/mlt-intern/food-library", icon: Apple, badge: foods.length },
       ],
     },
@@ -515,7 +515,7 @@ const MLTInternDashboard = () => {
             <div className="flex flex-wrap items-center gap-3">
               <Select value={referredByFilter} onValueChange={setReferredByFilter}>
                 <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Referred By" />
+                  <SelectValue placeholder="Recommended By" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Sources</SelectItem>
@@ -617,7 +617,7 @@ const MLTInternDashboard = () => {
             {isLoading ? (
               <div className="p-12 text-center text-gray-500">Loading...</div>
             ) : activeSection === 'patients' ? (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" key="patients">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -654,7 +654,7 @@ const MLTInternDashboard = () => {
                           </div>
                         </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Referred By</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recommended By</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assign Dietician</th>
                     </tr>
                   </thead>
@@ -734,7 +734,7 @@ const MLTInternDashboard = () => {
                               return (
                             <div title={!hasPaid ? "Patient must pay before a dietician can be assigned" : undefined}>
                             <Select
-                              value={patient.assigned_rd_id?.toString() || "unassigned"}
+                              value={hasPaid ? (patient.assigned_rd_id?.toString() || "unassigned") : undefined}
                               disabled={!hasPaid}
                               onValueChange={(value) => {
                                 assignDieticianMutation.mutate({
@@ -795,7 +795,7 @@ const MLTInternDashboard = () => {
                 )}
               </div>
             ) : activeSection === 'doctors' ? (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" key="doctors">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -855,7 +855,7 @@ const MLTInternDashboard = () => {
                 </table>
               </div>
             ) : activeSection === 'join-requests' ? (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" key="join-requests">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -942,15 +942,15 @@ const MLTInternDashboard = () => {
                 </table>
               </div>
             ) : activeSection === 'unregistered-referrals' ? (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" key="unregistered-referrals">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Diagnosis</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Referred By</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Referred On</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recommended By</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recommended On</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Message Status</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                     </tr>
@@ -959,7 +959,7 @@ const MLTInternDashboard = () => {
                     {unregisteredReferrals.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                          No unregistered referrals found. All referred patients have completed registration!
+                          No unregistered recommendations found. All recommended patients have completed registration!
                         </td>
                       </tr>
                     ) : (
@@ -1016,7 +1016,7 @@ const MLTInternDashboard = () => {
                 </table>
               </div>
             ) : activeSection === 'leaves' ? (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" key="leaves">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -1051,7 +1051,7 @@ const MLTInternDashboard = () => {
                 </table>
               </div>
             ) : activeSection === 'food-library' ? (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" key="food-library">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -1090,7 +1090,7 @@ const MLTInternDashboard = () => {
                 </table>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" key="dieticians">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>

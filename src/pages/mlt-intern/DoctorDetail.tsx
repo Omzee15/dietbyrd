@@ -107,7 +107,7 @@ const MLTInternDoctorDetail = () => {
                     <p className="font-medium flex items-center gap-2"><Phone className="w-4 h-4" />{doctor.phone || "N/A"}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Total Referrals</p>
+                    <p className="text-xs text-gray-500">Total Recommendations</p>
                     <p className="font-medium">{doctor.total_referrals ?? 0}</p>
                   </div>
                 </CardContent>
@@ -154,14 +154,14 @@ const MLTInternDoctorDetail = () => {
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2">
                     <Users className="w-4 h-4" />
-                    Referred Patients
+                    Recommended Patients
                   </CardTitle>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setShowReferredPatients((prev) => !prev)}
                   >
-                    {showReferredPatients ? "Hide List" : "View Patients Referred List"}
+                    {showReferredPatients ? "Hide List" : "View Recommended Patients List"}
                   </Button>
                 </CardHeader>
                 {showReferredPatients && (
@@ -178,7 +178,7 @@ const MLTInternDoctorDetail = () => {
                               <th className="text-left py-2">Patient</th>
                               <th className="text-left py-2">Phone</th>
                               <th className="text-left py-2">Diagnosis</th>
-                              <th className="text-left py-2">Referred On</th>
+                              <th className="text-left py-2">Recommended On</th>
                             </tr>
                           </thead>
                           <tbody>

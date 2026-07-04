@@ -465,7 +465,7 @@ const AdminDashboard = () => {
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
                       { label: "Diagnosis", value: selectedPatient.diagnosis || "Not specified" },
-                      { label: "Referred By", value: selectedPatient.referredBy || "Direct" },
+                      { label: "Recommended By", value: selectedPatient.referredBy || "Direct" },
                       { label: "Created", value: new Date(selectedPatient.created_at).toLocaleDateString() },
                       { label: "Diet Preference", value: selectedPatient.dietary_preference || "Not set" },
                     ].map((item) => (
@@ -547,7 +547,7 @@ const AdminDashboard = () => {
                       </div>
                       <Select value={referredByFilter} onValueChange={setReferredByFilter}>
                         <SelectTrigger className="w-[160px]">
-                          <SelectValue placeholder="Referred By" />
+                          <SelectValue placeholder="Recommended By" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Sources</SelectItem>
@@ -633,7 +633,7 @@ const AdminDashboard = () => {
                           <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
                             <th className="text-left p-4 font-semibold">Patient</th>
                             <th className="text-left p-4 font-semibold">Progress</th>
-                            <th className="text-left p-4 font-semibold">Referred By</th>
+                            <th className="text-left p-4 font-semibold">Recommended By</th>
                             <th className="text-left p-4 font-semibold">Dietician</th>
                             <th className="text-right p-4 font-semibold">Actions</th>
                           </tr>

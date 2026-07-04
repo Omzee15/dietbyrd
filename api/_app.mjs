@@ -4332,7 +4332,7 @@ app.post("/api/referrals", async (req, res) => {
     const existingPatient = await query(`SELECT id FROM dietbyrd_patients WHERE phone = $1`, [phone]);
 
     if (existingPatient.rows.length > 0) {
-      patientId = existingPatient.rows[0].id;
+      return res.status(409).json({ success: false, error: "The recommended patient is already an existing DietByRD patient." });
     } else {
       isNewPatient = true;
 

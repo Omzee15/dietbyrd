@@ -1317,6 +1317,10 @@ const Reviews = () => {
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: '-6px', marginBottom: '10px' }}>The Gold Standard Clinical Nutrition</div>
               <p>India's first clinical nutrition platform where every consultation is exclusively with a Registered Dietitian. Evidence-based. Affordable. Honest.</p>
               <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer" className="footer-email">✉️ hello@dietbyrd.com</a>
+              <div style={{ marginTop: '16px', fontSize: '11px', color: 'rgba(255,255,255,0.7)', lineHeight: '1.5', maxWidth: '320px', textAlign: 'left' }}>
+                Registered Office: DPT 808B F 79 &amp; 80, 8TH FLOOR DLF PRIME TOWER,<br />
+                Okhla Industrial Estate, New Delhi, South Delhi- 110020, Delhi
+              </div>
             </div>
             <div id="footer-platform" className="footer-col">
               <h5>Platform</h5>
@@ -1336,6 +1340,8 @@ const Reviews = () => {
                 <li><a href="/terms" target="_blank" rel="noopener">Terms of Service</a></li>
                 <li><a href="/refund" target="_blank" rel="noopener">Refund Policy</a></li>
                 <li><a href="/cancellation" target="_blank" rel="noopener">Cancellation Policy</a></li>
+                <li style={{ marginTop: '12px', fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>CIN: U86909DL2026PTC466538</li>
+                <li style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>Udyam: UDYAM-DL-08-0127249</li>
               </ul>
             </div>
             <div id="contact" className="footer-col">

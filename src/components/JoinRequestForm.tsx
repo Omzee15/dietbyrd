@@ -19,16 +19,19 @@ const QUALIFICATION_OPTIONS = [
 ];
 
 const DOCTOR_SPECIALIZATIONS = [
-  "General Medicine","Endocrinology","Cardiology","Nephrology",
-  "Gastroenterology","Diabetology","Internal Medicine","Pulmonology",
-  "Neurology","Oncology","Others",
-];
+  "General Medicine", "Endocrinology", "Diabetology", "Gastroenterology",
+  "Cardiology", "Nephrology", "Neurology", "Oncology", "Pediatrics",
+  "Obstetrics & Gynecology", "Orthopedics", "Psychiatry", "Dermatology",
+  "Pulmonology", "Urology", "Rheumatology", "Ophthalmology", "ENT",
+  "General Surgery", "Others"
+].sort();
 
 const RD_SPECIALIZATIONS = [
-  "Clinical Nutrition","Sports Nutrition","Pediatric Nutrition","Renal Nutrition",
-  "Oncology Nutrition","Bariatric Nutrition","Diabetes Nutrition","Gut Health & IBS",
-  "Weight Management","Women's Health & PCOS","Others",
-];
+  "Clinical Nutrition", "Weight Management", "Diabetes Management",
+  "Thyroid & PCOS Management", "Gut Health & IBS", "Renal Nutrition",
+  "Oncology Nutrition", "Sports Nutrition", "Pediatric Nutrition",
+  "Pregnancy & Lactation", "Bariatric Nutrition", "Others"
+].sort();
 
 import { INDIAN_CITIES } from "@/lib/indian-cities";
 import { CitySearchCombobox } from "@/components/CitySearchCombobox";
@@ -48,6 +51,11 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
     const emailInputRef = React.useRef<HTMLInputElement>(null);
     const [openCitySelect, setOpenCitySelect] = useState(false);
     const [citySearch, setCitySearch] = useState("");
+    
+    const filteredCities = citySearch.trim().length > 0
+      ? INDIAN_CITIES.filter(c => c.toLowerCase().includes(citySearch.toLowerCase())).slice(0, 15)
+      : [];
+
   const [submitted, setSubmitted] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpTimer, setOtpTimer] = useState(0);
@@ -306,8 +314,12 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
     if (step === "otp-verify") {
       return (
         <form onSubmit={handleVerifyOtp} className="space-y-6">
+          <Button type="button" variant="ghost" onClick={() => setStep("otp-send")} className="mb-2 -ml-4 px-4 text-slate-500 hover:text-slate-900">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
           <div className="mb-6">
-            <h2 className="text-2xl font-bold text-slate-900">Verify OTP</h2>
+            <h2 className="text-2xl font-bold text-slate-900">Verify your phone</h2>
             <p className="text-slate-600 text-sm mt-1">
               Step 1 of 3: Enter the 6-digit code sent to {formData.phone}
             </p>
@@ -364,6 +376,10 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
     if (step === "password") {
       return (
         <form onSubmit={handlePasswordSubmit} className="space-y-6">
+          <Button type="button" variant="ghost" onClick={() => setStep("otp-verify")} className="mb-2 -ml-4 px-4 text-slate-500 hover:text-slate-900">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-slate-900">Create Password</h2>
             <p className="text-slate-600 text-sm mt-1">
@@ -437,6 +453,10 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
     // Step 4: Details Form
     return (
       <form onSubmit={handleSubmit} className="space-y-4">
+        <Button type="button" variant="ghost" onClick={() => setStep("password")} className="mb-2 -ml-4 px-4 text-slate-500 hover:text-slate-900">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-slate-900">Professional Details</h2>
           <p className="text-slate-600 text-sm mt-1">

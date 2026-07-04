@@ -156,7 +156,7 @@ const MLTInternPatientDetail = () => {
                     <p className="font-medium">{patient.diagnosis || "N/A"}</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs text-gray-500">Referral Source</p>
+                    <p className="text-xs text-gray-500">Recommendation Source</p>
                     <p className="font-medium">{patient.referral_source || "Direct"}</p>
                   </div>
                 </CardContent>
@@ -177,7 +177,7 @@ const MLTInternPatientDetail = () => {
                       <p className="text-sm text-gray-500">{patient.assigned_dietician_qualification || ""}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500">Referring Doctor</p>
+                      <p className="text-xs text-gray-500">Recommending Doctor</p>
                       <p className="font-medium">{patient.referring_doctor_name || "N/A"}</p>
                       <p className="text-sm text-gray-500">{patient.referring_doctor_qualification || ""}</p>
                       <p className="text-sm text-gray-500">{patient.referring_doctor_clinic || ""}</p>
@@ -414,7 +414,7 @@ const MLTInternPatientDetail = () => {
                           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
                             <span>Sent: {new Date(message.sent_at).toLocaleString()}</span>
                             {message.doctorName && (
-                              <span>Referred by: Dr. {message.doctorName}</span>
+                              <span>Recommended by: Dr. {message.doctorName}</span>
                             )}
                             {message.error && (
                               <span className="text-red-500">Error: {message.error}</span>

@@ -12,6 +12,7 @@ import { DropdownMenu,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { getDoctorReferrals, getDoctor, getDoctorStats, getDoctorAssistants, createAssistant, deleteAssistant, createReferral, lookupPhoneNumber, getDoctorPatients, getMe, updatePatientImprovementScore, MeUser, Referral, DoctorPatientSummary } from "@/lib/api";
@@ -63,6 +64,7 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
   const queryClient = useQueryClient();
   const [activeView, setActiveView] = useState<ActiveView>(defaultTab);
   const [selectedPatient, setSelectedPatient] = useState<Referral | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [patientSearch, setPatientSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "unpaid">("all");
   const [userChip, setUserChip] = useState<MeUser | "loading" | "error">("loading");
@@ -169,7 +171,17 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
 
   const filteredDoctorPatients = useMemo(() => {
     const query = patientSearch.trim().toLowerCase();
-    return doctorPatients.filter((patient: DoctorPatientSummary) => {
+    
+    // Deduplicate patients by ID to handle cases with multiple referrals or payments
+    const uniqueMap = new Map<number, DoctorPatientSummary>();
+    doctorPatients.forEach(p => {
+      if (!uniqueMap.has(p.id)) {
+        uniqueMap.set(p.id, p);
+      }
+    });
+    const uniquePatients = Array.from(uniqueMap.values());
+
+    return uniquePatients.filter((patient: DoctorPatientSummary) => {
       const paymentStatus = String(patient.payment_status || "unpaid").toLowerCase();
       if (paymentFilter !== "all" && paymentStatus !== paymentFilter) return false;
       if (!query) return true;
@@ -188,6 +200,8 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
       queryClient.invalidateQueries({ queryKey: ["doctorReferrals"] });
       queryClient.invalidateQueries({ queryKey: ["referrals"] });
       queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["doctorPatients"] });
+      queryClient.invalidateQueries({ queryKey: ["doctorStats"] });
 
       if (data?.referral_sms?.sent) {
         const referredPatientName = data.patient_name?.trim() || patientName.trim() || "patient";
@@ -204,7 +218,8 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
     },
   });
 
-  const handleSubmitReferral = () => {
+  const handleSubmitReferral = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!patientPhone || !currentDoctor?.id) {
       toast.error("Please enter patient phone number");
       return;
@@ -213,12 +228,21 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
       toast.error("Please enter a valid 10-digit Indian mobile number starting with 6-9");
       return;
     }
+    if (isExistingPatient) {
+      toast.error("The number entered is a registered Dietbyrd patient");
+      return;
+    }
+    setShowConfirmDialog(true);
+  };
+
+  const confirmRecommendation = () => {
+    setShowConfirmDialog(false);
     createReferralMutation.mutate({
       patient_name: patientName,
       phone: patientPhone,
       diagnosis,
       diagnosis_description: clinicalNotes,
-      doctor_id: currentDoctor.id,
+      doctor_id: currentDoctor?.id,
     } as any);
   };
 
@@ -304,7 +328,7 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
     {
       title: "Workspace",
       items: [
-        { label: "Refer Patient", href: "/doctor/referrals", icon: UserPlus },
+        { label: "Recommend Patient", href: "/doctor/referrals", icon: UserPlus },
         { label: "Overview", href: "/doctor", icon: BarChart3 },
         { label: "My Patients", href: "/doctor/patients", icon: Users, badge: referrals.length },
         // Only show for doctors, not assistants
@@ -480,9 +504,9 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
             {/* Help Patient view */}
             {!selectedPatient && activeView === "refer_patient" && (
               <div className="p-6 space-y-6">
-                {/* Refer Patient Form */}
-                <div className="bg-card rounded-xl border p-6">
-                  <h2 className="text-lg font-semibold mb-4">Refer a New Patient</h2>
+                {/* Recommend Patient Form */}
+                <form className="bg-card rounded-xl border p-6" onSubmit={handleSubmitReferral}>
+                  <h2 className="text-lg font-semibold mb-4">Recommend a New Patient</h2>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Patient Name</label>
@@ -510,28 +534,7 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                       )}
                       {patientPhone.length === 10 && isValidIndianPhone(patientPhone) && isExistingPatient && (
                         <div className="mt-2 space-y-2">
-                          <p className="text-xs text-amber-600">Patient found in our records:</p>
-                          {phoneSuggestions.map((patient: any) => (
-                            <div key={patient.id} className="p-2.5 bg-amber-50/50 border border-amber-200/50 rounded-lg flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium text-amber-900">{patient.name || "Unknown"}</p>
-                                <p className="text-xs text-amber-700/70 capitalize">{patient.diagnosis || "No diagnosis"}</p>
-                              </div>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="h-7 text-xs border-amber-200 hover:bg-amber-100 hover:text-amber-900 text-amber-800"
-                                onClick={() => {
-                                  if (patient.name) setPatientName(patient.name);
-                                  if (patient.diagnosis && diagnosisOptions.includes(patient.diagnosis.toLowerCase())) {
-                                    setDiagnosis(patient.diagnosis.toLowerCase());
-                                  }
-                                }}
-                              >
-                                Autofill
-                              </Button>
-                            </div>
-                          ))}
+                          <p className="text-xs text-red-500 font-medium">The number entered is a registered Dietbyrd patient</p>
                         </div>
                       )}
                     </div>
@@ -551,24 +554,39 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                       />
                     </div>
                     <Button 
+                      type="submit"
                       className="gap-2 px-6 w-full md:w-auto" 
-                      onClick={handleSubmitReferral}
                       disabled={createReferralMutation.isPending}
                     >
                       {createReferralMutation.isPending ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
-                        <>Send Referral <Send className="w-4 h-4" /></>
+                        <>Send Recommendation <Send className="w-4 h-4" /></>
                       )}
                     </Button>
                   </div>
-                </div>
+                </form>
 
-                {/* Recent Referrals below the form */}
+                <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Confirm Recommendation</DialogTitle>
+                      <DialogDescription>
+                        Are you sure you want to send this recommendation? An SMS will be sent to the patient to complete their registration.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>Cancel</Button>
+                      <Button onClick={confirmRecommendation}>Send Recommendation</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                {/* Recent Recommendations below the form */}
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold">Recent Referrals</h2>
-                    <span className="text-sm text-muted-foreground">{referrals.length} total referred</span>
+                    <h2 className="text-lg font-semibold">Recent Recommendations</h2>
+                    <span className="text-sm text-muted-foreground">{referrals.length} total recommended</span>
                   </div>
                   <div className="bg-card rounded-xl border overflow-hidden">
                     <table className="w-full text-sm">
@@ -598,8 +616,8 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                           <tr>
                             <td colSpan={4} className="p-12 text-center">
                               <div className="text-3xl mb-2">🌱</div>
-                              <p className="font-medium text-foreground">No referrals yet</p>
-                              <p className="text-sm text-muted-foreground mt-1">Your referred patients will appear here after you send your first referral.</p>
+                              <p className="font-medium text-foreground">No recommendations yet</p>
+                              <p className="text-sm text-muted-foreground mt-1">Your recommended patients will appear here after you send your first recommendation.</p>
                             </td>
                           </tr>
                         )}
@@ -633,17 +651,15 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                       <div className="text-sm text-muted-foreground">Onboarded Patients</div>
                     </div>
                   </div>
-                  {!isAssistant && (
-                    <div className="bg-card rounded-xl border p-5 flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-info">
-                        <IndianRupee className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold">₹{(doctorStats?.total_commission || 0).toLocaleString()}</div>
-                        <div className="text-sm text-muted-foreground">Total Fees Earned</div>
-                      </div>
+                  <div className="bg-card rounded-xl border p-5 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-info">
+                      <IndianRupee className="w-6 h-6" />
                     </div>
-                  )}
+                    <div>
+                      <div className="text-2xl font-bold">₹{(doctorStats?.total_commission || 0).toLocaleString()}</div>
+                      <div className="text-sm text-muted-foreground">Total Fees Earned</div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Recent patients helped */}
