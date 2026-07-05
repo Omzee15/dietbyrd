@@ -1639,6 +1639,11 @@ const Landing = () => {
 
             {/* Referred by Leading Clinicians + Conditions — Page 7 */}
             <div ref={addToRefs} className="doctor-trust-banner reveal" style={{ marginTop: '10px', paddingTop: '10px', marginBottom: '40px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <p className="trust-quote-big" style={{ margin: 0 }}>
+                <span className="hidden md:inline whitespace-nowrap">"Doctors across India recommends Diet By RD to their patients because they know exactly who will pick up</span>
+                <span className="md:hidden">"Doctors across India recommends Diet By RD to their patients because they know exactly who will pick up</span>
+                <br /> - a Registered Dietitian, not a certificate coach."
+              </p>
               <div className="trust-proof-row">
                 <div className="trust-proof">
                   <div className="tp-num">100%</div>
@@ -1646,18 +1651,13 @@ const Landing = () => {
                 </div>
                 <div className="trust-proof">
                   <div className="tp-num">IDA</div>
-                  <div className="tp-lbl">Certified dietitians</div>
+                  <div className="tp-lbl">Recognised dietitians</div>
                 </div>
                 <div className="trust-proof">
                   <div className="tp-num">₹999</div>
                   <div className="tp-lbl">Honest pricing</div>
                 </div>
               </div>
-              <p className="trust-quote-big" style={{ margin: 0 }}>
-                <span className="hidden md:inline whitespace-nowrap">"Doctors across India recommends Diet By RD to their patients because they know exactly who will pick up</span>
-                <span className="md:hidden">"Doctors across India recommends Diet By RD to their patients because they know exactly who will pick up</span>
-                <br /> - a Registered Dietitian, not a certificate coach."
-              </p>
             </div>
 
             <div ref={addToRefs} className="trust-marquee reveal reveal-delay-2" style={{ padding: '0' }}>
