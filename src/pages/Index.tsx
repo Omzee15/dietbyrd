@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getDashboardPath, useAuth, type AuthUser } from "@/contexts/AuthContext";
 import { JoinRequestForm } from "@/components/JoinRequestForm";
+import { PatientWelcomeForm } from "@/components/PatientWelcomeForm";
 import { isValidIndianMobile, normalizeIndianMobileInput } from "@/lib/validation";
 
 type Step = "phone" | "password" | "otp";
@@ -118,6 +119,7 @@ const Index = () => {
   const [showJoinForm, setShowJoinForm] = useState(() => window.location.pathname === '/join');
   const [joinSuccess, setJoinSuccess] = useState(() => new URLSearchParams(window.location.search).get('joinSuccess') ? "Thanks for your interest! Our team will review your request." : "");
   const [secondsRemaining, setSecondsRemaining] = useState(0);
+  const [pendingAuthUser, setPendingAuthUser] = useState<AuthUser | null>(null);
   const phoneInputRef = useRef<HTMLInputElement>(null);
 
   const formattedPhone = useMemo(() => `+91 ${phone}`, [phone]);
@@ -337,6 +339,13 @@ const Index = () => {
       const authUser = extractAuthUser(data);
       if (!authUser) {
         setError("Invalid OTP. Please try again.");
+        return;
+      }
+
+      // New patient → show welcome form before completing login
+      if (authUser.isNewPatient || authUser.requiresWelcomeForm) {
+        setPendingAuthUser(authUser);
+        setLoading(false);
         return;
       }
 
@@ -726,7 +735,22 @@ const Index = () => {
               </div>
             )}
 
-            {showJoinForm ? (
+            {pendingAuthUser ? (
+              <PatientWelcomeForm
+                phone={phone}
+                inline
+                onBack={() => {
+                  setPendingAuthUser(null);
+                  setStep("phone");
+                  setOtp("");
+                  setOtpExpiresAt(null);
+                }}
+                onComplete={(updatedUserData) => {
+                  const authUser = extractAuthUser(updatedUserData as AuthResponse);
+                  completeLogin(authUser || { ...pendingAuthUser, isNewPatient: false, requiresWelcomeForm: false }, "/patient");
+                }}
+              />
+            ) : showJoinForm ? (
               <JoinRequestForm
                 inline
                 onBack={() => {
