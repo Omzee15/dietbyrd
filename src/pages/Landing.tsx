@@ -261,15 +261,6 @@ const Landing = () => {
     return () => window.clearInterval(intervalId);
   }, [testimonialItems.length, isApproachPaused]);
 
-  useEffect(() => {
-    if (!isProfileMenuOpen) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest(".profile-menu-wrap")) setIsProfileMenuOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [isProfileMenuOpen]);
 
   const addToRefs = (el: HTMLElement | null) => {
     if (el && !revealRefs.current.includes(el)) revealRefs.current.push(el);
@@ -1092,10 +1083,13 @@ const Landing = () => {
             <Link to="/contact" className="nav-mid">Contact Us</Link>
             <a href="/privacy" target="_blank" rel="noopener" className="nav-link">Privacy Policy</a>
             {isAuthenticated ? (
-              <div className="profile-menu-wrap">
+              <div 
+                className="profile-menu-wrap"
+                onMouseEnter={() => setIsProfileMenuOpen(true)}
+                onMouseLeave={() => setIsProfileMenuOpen(false)}
+              >
                 <button
                   className="profile-avatar"
-                  onClick={() => setIsProfileMenuOpen((p) => !p)}
                   aria-label="Profile menu"
                 >
                   <User size={18} />

@@ -988,10 +988,13 @@ const Reviews = () => {
             <Link to="/contact" className="nav-mid">Contact Us</Link>
             <a href="/privacy" target="_blank" rel="noopener" className="nav-link">Privacy Policy</a>
             {isAuthenticated ? (
-              <div className="profile-menu-wrap">
+              <div 
+                className="profile-menu-wrap"
+                onMouseEnter={() => setIsProfileMenuOpen(true)}
+                onMouseLeave={() => setIsProfileMenuOpen(false)}
+              >
                 <button
                   className="profile-avatar"
-                  onClick={() => setIsProfileMenuOpen((p) => !p)}
                   aria-label="Profile menu"
                 >
                   <User size={18} />
