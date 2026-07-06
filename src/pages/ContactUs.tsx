@@ -1109,7 +1109,7 @@ const ContactUs = () => {
           </div>
 
           {/* Call / WhatsApp Us Block (Hidden until real phone number is provided) */}
-          {/* <div className="bg-white border border-[#EBE7DF] rounded-2xl p-8 flex flex-col items-center text-center transition-all hover:shadow-sm hover:border-[#427A5B]/30">
+          <div className="bg-white border border-[#EBE7DF] rounded-2xl p-8 flex flex-col items-center text-center transition-all hover:shadow-sm hover:border-[#427A5B]/30">
             <div className="w-16 h-16 rounded-full bg-[#F3F4EE] flex items-center justify-center mb-6">
               <Phone className="w-7 h-7 text-[#427A5B]" strokeWidth={1.5} />
             </div>
@@ -1121,7 +1121,7 @@ const ContactUs = () => {
             <a href="tel:+91XXXXXXXXXX" className="text-[15px] font-bold text-[#427A5B] hover:opacity-80 transition-opacity mt-auto">
               +91 XXXXX XXXXX
             </a>
-          </div> */}
+          </div>
         </div>
 
         {/* Safe Hands Banner */}
