@@ -1423,7 +1423,7 @@ const Landing = () => {
             display: 'grid',
             gridTemplateColumns: '1fr 1.1fr',
             gap: '64px',
-            alignItems: 'start'
+            alignItems: 'stretch'
           }}
         >
           <div className="about-inner">
@@ -1441,7 +1441,7 @@ const Landing = () => {
           </div>
           <div
             className="vision-card reveal about-vision-card"
-            style={{ position: 'sticky', top: '96px', alignSelf: 'start' }}
+            style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}
           >
             <h2 ref={addToRefs} className="vision-title reveal">Our Vision</h2>
             <div className="vision-pillars">
