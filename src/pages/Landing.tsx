@@ -1441,7 +1441,7 @@ const Landing = () => {
           </div>
           <div
             className="vision-card reveal about-vision-card"
-            style={{ position: 'sticky', top: '96px', alignSelf: 'start' }}
+            style={{ alignSelf: 'end' }}
           >
             <h2 ref={addToRefs} className="vision-title reveal">Our Vision</h2>
             <div className="vision-pillars">
