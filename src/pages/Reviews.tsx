@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { Loader2, ShieldCheck, Star, UserX, Lock, MessageCircle, Heart, Quote, Mail, ArrowLeft, ArrowRight } from "lucide-react";
+import { Loader2, ShieldCheck, Star, UserX, Lock, MessageCircle, Heart, Quote, Mail, ArrowLeft, ArrowRight, Menu, X, Leaf } from "lucide-react";
 import { getApprovedReviews, getReviewEligibility, submitReview, getMyReview, updateMyReview } from "@/lib/api";
 import { PublicBookingModal } from "@/components/PublicBookingModal";
 import { useAuth } from "@/contexts/AuthContext";
@@ -105,6 +105,7 @@ const Reviews = () => {
   const [conditionTag, setConditionTag] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -951,6 +952,8 @@ const Reviews = () => {
           .stats-bar-inner { grid-template-columns: 1fr 1fr; }
           .footer-top { grid-template-columns: 1fr 1fr; }
           .nav-links .nav-mid { display: none; }
+          .nav-links .nav-link { display: none; }
+          .hamburger-btn { display: flex !important; }
           .clinician-logo-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         }
         @media (max-width: 600px) {
@@ -958,6 +961,8 @@ const Reviews = () => {
           .hero-content { padding: 0; }
           .cta-section { padding: 64px 24px; }
           .cta-actions > * { width: 100%; justify-content: center; }
+          .footer-bottom { flex-direction: column; align-items: flex-start; }
+          .footer-bottom p { text-align: left; }
           .privacy-section,
           .about-section,
           .vision-section,
@@ -970,20 +975,151 @@ const Reviews = () => {
           .founder-brand-card { padding: 28px 24px; }
           .road-ahead-section { padding: 64px 24px; }
           .road-ahead-card { padding: 28px 24px; }
-          .clinician-logo-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .footer-top { grid-template-columns: 1fr; }
           .nav-links { gap: 12px; }
           .section { padding: 64px 24px; }
           .stats-bar-inner { grid-template-columns: 1fr 1fr; }
         }
+
+        /* Hamburger button */
+        .hamburger-btn {
+          display: none;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.15);
+          background: transparent;
+          color: white;
+          cursor: pointer;
+          transition: background 0.2s;
+          z-index: 1001;
+        }
+        .hamburger-btn:hover { background: rgba(255,255,255,0.1); }
+        .landing-nav:not(.scrolled) .hamburger-btn { border-color: rgba(27,43,58,0.2); color: var(--navy); }
+        .landing-nav:not(.scrolled) .hamburger-btn:hover { background: rgba(27,43,58,0.06); }
+
+        /* Mobile drawer */
+        .mobile-drawer-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.4);
+          z-index: 9998;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.3s ease;
+        }
+        .mobile-drawer-overlay.open { opacity: 1; pointer-events: auto; }
+
+        .mobile-drawer {
+          position: fixed;
+          top: 0;
+          right: 0;
+          width: 280px;
+          max-width: 85vw;
+          height: 100vh;
+          height: 100dvh;
+          background: var(--navy);
+          z-index: 9999;
+          transform: translateX(100%);
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          display: flex;
+          flex-direction: column;
+          padding: 0;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .mobile-drawer.open { transform: translateX(0); }
+
+        .mobile-drawer-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 16px 20px;
+          border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .mobile-drawer-header .fb-logo {
+          font-family: 'Playfair Display', serif;
+          font-weight: 700;
+          font-size: 18px;
+          color: #FDFCF8;
+        }
+        .mobile-drawer-header .fb-logo span { color: var(--teal); }
+        .mobile-drawer-close {
+          width: 36px;
+          height: 36px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.15);
+          background: transparent;
+          color: white;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.2s;
+        }
+        .mobile-drawer-close:hover { background: rgba(255,255,255,0.1); }
+
+        .mobile-drawer-links {
+          display: flex;
+          flex-direction: column;
+          padding: 12px 0;
+        }
+        .mobile-drawer-links a,
+        .mobile-drawer-links button {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 14px 24px;
+          color: rgba(255,255,255,0.85);
+          text-decoration: none;
+          font-size: 15px;
+          font-weight: 500;
+          font-family: 'DM Sans', sans-serif;
+          transition: background 0.15s, color 0.15s;
+          border: none;
+          background: none;
+          width: 100%;
+          text-align: left;
+          cursor: pointer;
+          min-height: 48px;
+        }
+        .mobile-drawer-links a:hover,
+        .mobile-drawer-links button:hover {
+          background: rgba(255,255,255,0.06);
+          color: white;
+        }
+        .mobile-drawer-divider {
+          height: 1px;
+          background: rgba(255,255,255,0.1);
+          margin: 8px 20px;
+        }
+        .mobile-drawer-cta {
+          margin: 16px 20px;
+          padding: 14px 24px;
+          background: var(--teal);
+          color: white !important;
+          border-radius: 10px;
+          font-weight: 700;
+          font-size: 15px;
+          text-align: center;
+          cursor: pointer;
+          border: none;
+          transition: opacity 0.2s;
+          min-height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .mobile-drawer-cta:hover { opacity: 0.9; }
       `}</style>
-<nav className={`landing-nav ${scrolled ? 'scrolled' : ''}`}>
+      <nav className={`landing-nav ${scrolled ? 'scrolled' : ''}`}>
         <div className="nav-inner">
           <Logo />
           <div className="nav-links">
             <Link to="/" className="nav-mid">Home</Link>
-
-                        <a href="#about" className="nav-mid" onClick={scrollTo('about')}>About Us</a>
+            <a href="#about" className="nav-mid" onClick={scrollTo('about')}>About Us</a>
             <Link to="/reviews" className="nav-mid">Real Reviews</Link>
             <Link to="/contact" className="nav-mid">Contact Us</Link>
             <a href="/privacy" target="_blank" rel="noopener" className="nav-link">Privacy Policy</a>
@@ -1026,9 +1162,54 @@ const Reviews = () => {
                 <button onClick={() => setIsBookingModalOpen(true)} className="nav-cta">Book — ₹999</button>
               </>
             )}
+            <button className="hamburger-btn" onClick={() => setIsMobileMenuOpen(true)} aria-label="Open menu">
+              <Menu size={22} />
+            </button>
           </div>
         </div>
       </nav>
+
+      {/* Mobile Drawer */}
+      <div className={`mobile-drawer-overlay${isMobileMenuOpen ? ' open' : ''}`} onClick={() => setIsMobileMenuOpen(false)} />
+      <div className={`mobile-drawer${isMobileMenuOpen ? ' open' : ''}`}>
+        <div className="mobile-drawer-header">
+          <div className="fb-logo">Diet By <span>RD</span></div>
+          <button className="mobile-drawer-close" onClick={() => setIsMobileMenuOpen(false)} aria-label="Close menu">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="mobile-drawer-links">
+          <Link to="/" onClick={() => setIsMobileMenuOpen(false)}>Home</Link>
+          <a href="#about" onClick={(e) => { scrollTo('about')(e); setIsMobileMenuOpen(false); }}>About Us</a>
+          <Link to="/reviews" onClick={() => setIsMobileMenuOpen(false)}>Real Reviews</Link>
+          <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)}>Contact Us</Link>
+          <a href="/privacy" target="_blank" rel="noopener" onClick={() => setIsMobileMenuOpen(false)}>Privacy Policy</a>
+          <div className="mobile-drawer-divider" />
+          {isAuthenticated ? (
+            <>
+              {patientNavItems.map((item) => (
+                <Link key={item.href} to={item.href} onClick={() => setIsMobileMenuOpen(false)}>
+                  <item.icon size={18} />
+                  {item.label}
+                </Link>
+              ))}
+              <div className="mobile-drawer-divider" />
+              <button onClick={() => { handleProfileLogout(); setIsMobileMenuOpen(false); }}>
+                <LogOut size={18} />
+                Log out
+              </button>
+            </>
+          ) : (
+            <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
+              <User size={18} />
+              Login / Sign Up
+            </Link>
+          )}
+        </div>
+        <button className="mobile-drawer-cta" onClick={() => { setIsBookingModalOpen(true); setIsMobileMenuOpen(false); }}>
+          Book Consultation — ₹999
+        </button>
+      </div>
 
         <div className="text-center mb-16 max-w-4xl mx-auto">
           <p className="text-[11px] font-bold tracking-[0.15em] text-[#427A5B] uppercase mb-4">

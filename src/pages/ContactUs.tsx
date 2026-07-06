@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PublicBookingModal } from "@/components/PublicBookingModal";
 import { motion } from "framer-motion";
 import { CalendarDays, UtensilsCrossed, MessageSquare, User, LogOut, Heart } from "lucide-react";
-import { Mail, Phone, ShieldCheck, Heart, ChevronDown, Leaf } from "lucide-react";
+import { Mail, Phone, ShieldCheck, ChevronDown, Leaf, Menu, X } from "lucide-react";
 
 const faqs = [
   {
@@ -182,6 +182,7 @@ const ContactUs = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -941,6 +942,201 @@ const ContactUs = () => {
         .footer-col li { margin-bottom: 10px; }
         .footer-col ul li a { font-size: 13px; color: rgba(255,255,255,.6); text-decoration: none; transition: color 0.2s; }
         .footer-col ul li a:hover { color: #fff; }
+          color: var(--navy);
+          margin-bottom: 32px;
+        }
+        .founder-brand-line span { color: var(--gold); }
+        .founder-brand-card h3 {
+          font-family: 'Playfair Display', serif;
+          font-size: 28px;
+          font-weight: 700;
+          color: var(--navy);
+        }
+        .founder-info-role { font-size: 14px; font-weight: 500; color: var(--text2); }
+        .founder-info-location { font-size: 13px; font-weight: 400; color: var(--text3); }
+        .founder-card-divider {
+          width: 100%;
+          height: 1px;
+          background: var(--border);
+          margin: 24px 0;
+        }
+        .founder-story-quote {
+          border-left: 3px solid var(--teal);
+          padding-left: 16px;
+          font-family: 'Playfair Display', serif;
+          font-style: italic;
+          font-size: 16px;
+          color: var(--text);
+          line-height: 1.6;
+        }
+        .founder-purpose-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          width: fit-content;
+          background: rgba(11,110,79,0.10);
+          color: var(--teal);
+          padding: 6px 14px;
+          border-radius: 100px;
+          font-size: 13px;
+          font-weight: 500;
+          margin-top: 16px;
+        }
+        .road-ahead-section {
+          padding: 96px 24px;
+        }
+        .road-ahead-inner {
+          max-width: 800px;
+          margin: 0 auto;
+        }
+        .road-ahead-copy {
+          font-size: 15px;
+          color: var(--text2);
+          line-height: 1.85;
+          margin-bottom: 18px;
+        }
+        .road-ahead-copy strong { color: var(--navy); font-weight: 600; }
+        .road-ahead-card {
+          background: var(--navy);
+          border-radius: 16px;
+          padding: 36px;
+          max-width: 800px;
+          margin: 32px auto 0;
+        }
+        .road-ahead-card h3 {
+          font-family: 'Playfair Display', serif;
+          font-size: 24px;
+          font-weight: 700;
+          color: #fff;
+          margin-bottom: 12px;
+        }
+        .road-ahead-card p {
+          font-size: 15px;
+          font-weight: 400;
+          color: rgba(255,255,255,0.75);
+          line-height: 1.75;
+        }
+
+        /* Clinician Referral */
+        .clinician-referral-section {
+          padding: 96px 24px;
+        }
+        .clinician-referral-inner {
+          max-width: 900px;
+          margin: 0 auto;
+          text-align: center;
+        }
+        .clinician-title {
+          font-family: 'Playfair Display', serif;
+          font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+          font-weight: 700;
+          color: var(--navy);
+          margin-bottom: 12px;
+        }
+        .clinician-body {
+          color: var(--text2);
+          font-size: 15px;
+          line-height: 1.8;
+          max-width: 720px;
+          margin: 0 auto;
+        }
+        .clinician-logo-row {
+          margin-top: 28px;
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 16px;
+          align-items: center;
+        }
+        .clinician-logo {
+          height: 56px;
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          background: #f8fafc;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--text3);
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+          font-size: 11px;
+          font-weight: 600;
+          opacity: 0.6;
+          filter: grayscale(1);
+          transition: opacity 0.2s ease;
+          width: 160px;
+          flex-shrink: 0;
+        }
+        .clinician-logo:hover { opacity: 1; }
+
+        /* Industry Standards */
+        .standards-section {
+          padding: 96px 24px;
+        }
+        .standards-section .section-eyebrow { color: var(--teal); }
+        .standards-section .section-title { color: var(--navy); }
+        .standards-section .section-sub { color: var(--text2); }
+        .standards-inner { max-width: 1000px; margin: 0 auto; }
+        .standards-list { display: flex; flex-direction: column; gap: 20px; margin-top: 48px; }
+        .standard-card {
+          background: #fafafa;
+          border: 1px solid var(--border); border-radius: 16px;
+          padding: 28px 32px; display: flex; gap: 20px; align-items: flex-start;
+        }
+        .standard-icon { width: 46px; height: 46px; background: rgba(11,110,79,0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+        .standard-content h4 { font-size: 15px; font-weight: 600; color: var(--navy); margin-bottom: 6px; }
+        .standard-content p { font-size: 14px; color: var(--text2); line-height: 1.7; }
+
+        /* Trust section */
+        .trust-section { position: relative; overflow: hidden; }
+        .trust-inner { position: relative; z-index: 1; }
+        .trust-title { font-family: 'Playfair Display', serif; font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: var(--navy); text-align: center; margin-bottom: 12px; }
+        .trust-sub { text-align: center; color: var(--text2); font-size: 1rem; margin-bottom: 56px; font-weight: 300; }
+        .trust-section .section-eyebrow { color: var(--teal); }
+        .doctor-trust-banner { padding: 40px; text-align: center; margin-bottom: 56px; }
+        .trust-quote-big { font-family: 'Playfair Display', serif; font-size: clamp(0.9rem, 1.5vw, 1.25rem); font-style: italic; color: var(--text); line-height: 1.6; max-width: 100%; margin: 0 auto 20px; }
+        .trust-proof-row { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
+        .trust-proof { text-align: center; }
+        .trust-proof .tp-num { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 700; color: var(--teal); }
+        .trust-proof .tp-lbl { font-size: 12px; color: var(--text3); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+        .conditions-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-bottom: 64px; max-width: 1100px; margin-left: auto; margin-right: auto; position: relative; z-index: 2; }
+        .condition-pill { background: #FFFFFF; border: 1px solid rgba(0,0,0,0.06); border-radius: 16px; padding: 24px 16px; text-align: center; transition: all 0.2s; cursor: default; width: 140px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 4px 14px rgba(0,0,0,0.03); }
+        .condition-pill:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: rgba(11,110,79,0.15); }
+        .condition-pill .cicon { width: 64px; height: 64px; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; }
+        .condition-pill .cicon img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .condition-pill .ctxt { font-family: 'Playfair Display', serif; font-size: 15px; color: var(--navy); font-weight: 700; line-height: 1.3; }
+
+        .conditions-bg-leaf { position: absolute; opacity: 0.15; z-index: 0; pointer-events: none; }
+        .conditions-bg-leaf.left { top: 0; left: 0; width: 200px; }
+        .conditions-bg-leaf.right { top: 0; right: 0; width: 200px; transform: scaleX(-1); }
+        .conditions-bg-leaf.bottom { bottom: 0; left: 50%; transform: translateX(-50%); width: 120px; opacity: 0.2; }
+
+        /* Footer */
+        .landing-footer {
+          background: var(--navy);
+          color: rgba(255,255,255,0.68); padding: 64px 24px 40px; border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        .footer-email {
+          display: inline-flex; align-items: center; gap: 7px;
+          font-size: 13.5px; color: rgba(255, 255, 255, 0.8);
+          text-decoration: none; margin-top: 14px;
+          padding: 8px 14px;
+          background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15);
+          border-radius: 8px; transition: all 0.2s;
+        }
+        .footer-email:hover { color: #fff; background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.25); }
+        .footer-inner { max-width: 1200px; margin: 0 auto; }
+        .footer-top { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 40px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .footer-brand .fb-logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 10px; }
+        .footer-brand .fb-logo span { color: var(--gold); }
+        .footer-brand p { font-size: 13.5px; line-height: 1.8; color: rgba(255,255,255,0.58); font-weight: 300; max-width: 280px; }
+        .footer-col h5 { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; margin-bottom: 16px; }
+        .footer-col h4 { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 12px; }
+        .footer-col a { display: block; font-size: 13.5px; color: rgba(255,255,255,0.6); text-decoration: none; margin-bottom: 10px; transition: color 0.2s; }
+        .footer-col a:hover { color: #fff; }
+        .footer-col ul { list-style: none; padding: 0; margin: 0; }
+        .footer-col li { margin-bottom: 10px; }
+        .footer-col ul li a { font-size: 13px; color: rgba(255,255,255,.6); text-decoration: none; transition: color 0.2s; }
+        .footer-col ul li a:hover { color: #fff; }
         .footer-bottom { display: flex; align-items: center; justify-content: space-between; padding-top: 28px; flex-wrap: wrap; gap: 16px; border-top: 1px solid rgba(255,255,255,0.1); }
         .footer-bottom p { font-size: 13px; color: rgba(255,255,255,0.5); }
         .footer-badges { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -954,6 +1150,8 @@ const ContactUs = () => {
           .stats-bar-inner { grid-template-columns: 1fr 1fr; }
           .footer-top { grid-template-columns: 1fr 1fr; }
           .nav-links .nav-mid { display: none; }
+          .nav-links .nav-link { display: none; }
+          .hamburger-btn { display: flex !important; }
           .clinician-logo-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         }
         @media (max-width: 600px) {
@@ -981,6 +1179,139 @@ const ContactUs = () => {
           .section { padding: 64px 24px; }
           .stats-bar-inner { grid-template-columns: 1fr 1fr; }
         }
+
+        /* Hamburger button */
+        .hamburger-btn {
+          display: none;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.15);
+          background: transparent;
+          color: white;
+          cursor: pointer;
+          transition: background 0.2s;
+          z-index: 1001;
+        }
+        .hamburger-btn:hover { background: rgba(255,255,255,0.1); }
+        .landing-nav:not(.scrolled) .hamburger-btn { border-color: rgba(27,43,58,0.2); color: var(--navy); }
+        .landing-nav:not(.scrolled) .hamburger-btn:hover { background: rgba(27,43,58,0.06); }
+
+        /* Mobile drawer */
+        .mobile-drawer-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.4);
+          z-index: 9998;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.3s ease;
+        }
+        .mobile-drawer-overlay.open { opacity: 1; pointer-events: auto; }
+
+        .mobile-drawer {
+          position: fixed;
+          top: 0;
+          right: 0;
+          width: 280px;
+          max-width: 85vw;
+          height: 100vh;
+          height: 100dvh;
+          background: var(--navy);
+          z-index: 9999;
+          transform: translateX(100%);
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          display: flex;
+          flex-direction: column;
+          padding: 0;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .mobile-drawer.open { transform: translateX(0); }
+
+        .mobile-drawer-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 16px 20px;
+          border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .mobile-drawer-header .fb-logo {
+          font-family: 'Playfair Display', serif;
+          font-weight: 700;
+          font-size: 18px;
+          color: #FDFCF8;
+        }
+        .mobile-drawer-header .fb-logo span { color: var(--teal); }
+        .mobile-drawer-close {
+          width: 36px;
+          height: 36px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.15);
+          background: transparent;
+          color: white;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.2s;
+        }
+        .mobile-drawer-close:hover { background: rgba(255,255,255,0.1); }
+
+        .mobile-drawer-links {
+          display: flex;
+          flex-direction: column;
+          padding: 12px 0;
+        }
+        .mobile-drawer-links a,
+        .mobile-drawer-links button {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 14px 24px;
+          color: rgba(255,255,255,0.85);
+          text-decoration: none;
+          font-size: 15px;
+          font-weight: 500;
+          font-family: 'DM Sans', sans-serif;
+          transition: background 0.15s, color 0.15s;
+          border: none;
+          background: none;
+          width: 100%;
+          text-align: left;
+          cursor: pointer;
+          min-height: 48px;
+        }
+        .mobile-drawer-links a:hover,
+        .mobile-drawer-links button:hover {
+          background: rgba(255,255,255,0.06);
+          color: white;
+        }
+        .mobile-drawer-divider {
+          height: 1px;
+          background: rgba(255,255,255,0.1);
+          margin: 8px 20px;
+        }
+        .mobile-drawer-cta {
+          margin: 16px 20px;
+          padding: 14px 24px;
+          background: var(--teal);
+          color: white !important;
+          border-radius: 10px;
+          font-weight: 700;
+          font-size: 15px;
+          text-align: center;
+          cursor: pointer;
+          border: none;
+          transition: opacity 0.2s;
+          min-height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .mobile-drawer-cta:hover { opacity: 0.9; }
       `}</style>
       <nav className={`landing-nav ${scrolled ? 'scrolled' : ''}`}>
         <div className="nav-inner">
@@ -988,7 +1319,7 @@ const ContactUs = () => {
           <div className="nav-links">
             <Link to="/" className="nav-mid">Home</Link>
 
-                        <a href="#about" className="nav-mid" onClick={(e) => { e.preventDefault(); navigate("/#about"); }}>About Us</a>
+                        <a href="/#about" className="nav-mid" onClick={(e) => { e.preventDefault(); navigate("/#about"); }}>About Us</a>
             <Link to="/reviews" className="nav-mid">Real Reviews</Link>
             <Link to="/contact" className="nav-mid">Contact Us</Link>
             <a href="/privacy" target="_blank" rel="noopener" className="nav-link">Privacy Policy</a>
@@ -1031,9 +1362,54 @@ const ContactUs = () => {
                 <button onClick={() => setIsBookingModalOpen(true)} className="nav-cta">Book — ₹999</button>
               </>
             )}
+            <button className="hamburger-btn" onClick={() => setIsMobileMenuOpen(true)} aria-label="Open menu">
+              <Menu size={22} />
+            </button>
           </div>
         </div>
       </nav>
+
+      {/* Mobile Drawer */}
+      <div className={`mobile-drawer-overlay${isMobileMenuOpen ? ' open' : ''}`} onClick={() => setIsMobileMenuOpen(false)} />
+      <div className={`mobile-drawer${isMobileMenuOpen ? ' open' : ''}`}>
+        <div className="mobile-drawer-header">
+          <div className="fb-logo">Diet By <span>RD</span></div>
+          <button className="mobile-drawer-close" onClick={() => setIsMobileMenuOpen(false)} aria-label="Close menu">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="mobile-drawer-links">
+          <Link to="/" onClick={() => setIsMobileMenuOpen(false)}>Home</Link>
+          <a href="/#about" onClick={(e) => { e.preventDefault(); navigate("/#about"); setIsMobileMenuOpen(false); }}>About Us</a>
+          <Link to="/reviews" onClick={() => setIsMobileMenuOpen(false)}>Real Reviews</Link>
+          <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)}>Contact Us</Link>
+          <a href="/privacy" target="_blank" rel="noopener" onClick={() => setIsMobileMenuOpen(false)}>Privacy Policy</a>
+          <div className="mobile-drawer-divider" />
+          {isAuthenticated ? (
+            <>
+              {patientNavItems.map((item) => (
+                <Link key={item.href} to={item.href} onClick={() => setIsMobileMenuOpen(false)}>
+                  <item.icon size={18} />
+                  {item.label}
+                </Link>
+              ))}
+              <div className="mobile-drawer-divider" />
+              <button onClick={() => { handleProfileLogout(); setIsMobileMenuOpen(false); }}>
+                <LogOut size={18} />
+                Log out
+              </button>
+            </>
+          ) : (
+            <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
+              <User size={18} />
+              Login / Sign Up
+            </Link>
+          )}
+        </div>
+        <button className="mobile-drawer-cta" onClick={() => { setIsBookingModalOpen(true); setIsMobileMenuOpen(false); }}>
+          Book Consultation — ₹999
+        </button>
+      </div>
 
       {/* Decorative Leaves (Top Left) */}
       <img 

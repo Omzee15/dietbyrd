@@ -2,23 +2,40 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DietByRD</title>
-    <meta name="description" content="DietByRD - Nutrition Management Platform for Doctors and Dietitians" />
-    <meta name="author" content="DietByRD" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Diet By RD — India's Gold Standard Clinical Nutrition</title>
+    <meta name="description" content="India's first clinical nutrition platform where every consultation is exclusively with a Registered Dietitian. Evidence-based. Affordable. Honest." />
+    <meta name="author" content="Diet By RD Private Limited" />
 
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#1B2B3A" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Diet By RD" />
+
+    <!-- Icons -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥗</text></svg>" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <!-- Preload critical assets -->
     <link rel="preload" href="/signin-image-nobg.webp" as="image" type="image/webp" />
     <link rel="preload" href="/doctors-nobg.webp" as="image" type="image/webp" />
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
 
-    <meta property="og:title" content="DietByRD" />
-    <meta property="og:description" content="DietByRD - Nutrition Management Platform for Doctors and Dietitians" />
+    <!-- Open Graph -->
+    <meta property="og:title" content="Diet By RD — India's Gold Standard Clinical Nutrition" />
+    <meta property="og:description" content="India's first clinical nutrition platform where every consultation is exclusively with a Registered Dietitian." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta property="og:url" content="https://dietbyrd.buildc3.tech" />
+    <meta property="og:image" content="https://dietbyrd.buildc3.tech/icons/icon-512x512.png" />
 
+    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@DietByRD" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta name="twitter:image" content="https://dietbyrd.buildc3.tech/icons/icon-512x512.png" />
   </head>
 
   <body>
