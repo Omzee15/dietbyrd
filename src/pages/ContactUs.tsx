@@ -1151,13 +1151,16 @@ const ContactUs = () => {
           .footer-top { grid-template-columns: 1fr 1fr; }
           .nav-links .nav-mid { display: none; }
           .nav-links .nav-link { display: none; }
-          .hamburger-btn { display: flex !important; }
+          .nav-links .nav-cta { display: none; }
+          .nav-links .profile-menu-wrap { display: none; }
+          .hamburger-btn { display: flex !important; margin-left: auto; }
           .clinician-logo-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         }
         @media (max-width: 600px) {
-          .hero { padding: 64px 24px; }
+          .hero { padding: 48px 20px; }
           .hero-content { padding: 0; }
-          .cta-section { padding: 64px 24px; }
+          .cta-section { padding: 48px 20px; }
+          .cta-actions { flex-direction: column; width: 100%; }
           .cta-actions > * { width: 100%; justify-content: center; }
           .footer-bottom { flex-direction: column; align-items: flex-start; }
           .footer-bottom p { text-align: left; }
@@ -1165,19 +1168,28 @@ const ContactUs = () => {
           .about-section,
           .vision-section,
           .clinician-referral-section,
-          .standards-section { padding: 64px 24px; }
+          .standards-section { padding: 48px 20px; }
           .vision-card { padding: 32px 24px; }
-          .founder-section { padding: 64px 24px 0; }
-          .founder-profile-grid { margin: 40px auto; padding: 0; }
-          .founder-photo-card { min-height: 0; }
+          .founder-section { padding: 48px 20px 0; }
+          .founder-profile-grid { margin: 40px auto; padding: 0; gap: 32px; }
+          .founder-photo-card { min-height: 380px; }
           .founder-brand-card { padding: 28px 24px; }
-          .road-ahead-section { padding: 64px 24px; }
+          .founder-brand-card h3 { font-size: 24px; }
+          .founder-title { font-size: 2.2rem; }
+          .road-ahead-section { padding: 48px 20px; }
           .road-ahead-card { padding: 28px 24px; }
           .clinician-logo-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-          .footer-top { grid-template-columns: 1fr; }
+          .footer-top { grid-template-columns: 1fr; gap: 32px; }
           .nav-links { gap: 12px; }
-          .section { padding: 64px 24px; }
-          .stats-bar-inner { grid-template-columns: 1fr 1fr; }
+          .section { padding: 48px 20px; }
+          .stats-bar-inner { grid-template-columns: 1fr 1fr; gap: 16px; }
+          .stat-item { padding: 12px; }
+          .stat-num { font-size: 24px; }
+          .trust-proof-row { gap: 24px; }
+          .conditions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+          .condition-pill { width: 100%; padding: 20px 12px; }
+          .standard-card { flex-direction: column; padding: 24px; gap: 16px; }
+          .approach-card { padding: 24px; }
         }
 
         /* Hamburger button */
