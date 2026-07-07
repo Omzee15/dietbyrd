@@ -420,7 +420,7 @@ const Landing = () => {
         .hero {
           min-height: auto; background: transparent;
           display: flex; align-items: center;
-          padding: 96px 24px;
+          padding: clamp(48px, 8vw, 96px) clamp(20px, 5vw, 32px);
           position: relative; overflow: hidden;
         }
         .hero-bg {
@@ -595,7 +595,7 @@ const Landing = () => {
 
         /* Privacy carousel */
         .privacy-section {
-          padding: 96px 24px; overflow: hidden; position: relative;
+          padding: clamp(48px, 8vw, 96px) clamp(20px, 5vw, 32px); overflow: hidden; position: relative;
           border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
         }
         .privacy-inner { max-width: 1100px; margin: 0 auto; text-align: center; padding: 0; }
@@ -708,9 +708,10 @@ const Landing = () => {
         .stat-item-num .gold { color: var(--gold); }
         .stat-item-lbl { font-size: 13px; color: var(--text3); line-height: 1.55; font-weight: 400; max-width: 130px; }
 
-        /* About Us & Our Vision */
+        /* About & Vision */
         .about-section {
-          padding: 96px 24px;
+          background: var(--teal-l); padding: clamp(48px, 8vw, 96px) clamp(20px, 5vw, 32px);
+          border-bottom: 1px solid rgba(11,110,79,0.1);
         }
         .about-section .section-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; color: var(--teal); }
         .about-section .section-title {
@@ -732,7 +733,7 @@ const Landing = () => {
         .about-body .bold { color: var(--navy); font-weight: 600; }
 
         .vision-section {
-          padding: 96px 24px;
+          padding: clamp(48px, 8vw, 96px) clamp(20px, 5vw, 32px);
         }
         .vision-card {
           background: var(--navy);
@@ -878,7 +879,7 @@ const Landing = () => {
           margin-top: 16px;
         }
         .road-ahead-section {
-          padding: 96px 24px;
+          padding: clamp(48px, 8vw, 96px) clamp(20px, 5vw, 32px);
         }
         .road-ahead-inner {
           max-width: 800px;
@@ -914,7 +915,7 @@ const Landing = () => {
 
         /* Clinician Referral */
         .clinician-referral-section {
-          padding: 96px 24px;
+          padding: clamp(48px, 8vw, 96px) clamp(20px, 5vw, 32px);
         }
         .clinician-referral-inner {
           max-width: 900px;
@@ -965,7 +966,7 @@ const Landing = () => {
 
         /* Industry Standards */
         .standards-section {
-          padding: 96px 24px;
+          padding: clamp(48px, 8vw, 96px) clamp(20px, 5vw, 32px);
         }
         .standards-section .section-eyebrow { color: var(--teal); }
         .standards-section .section-title { color: var(--navy); }
@@ -1008,7 +1009,7 @@ const Landing = () => {
         /* Footer */
         .landing-footer {
           background: var(--navy);
-          color: rgba(255,255,255,0.68); padding: 64px 24px 40px; border-top: 1px solid rgba(255,255,255,0.08);
+          color: rgba(255,255,255,0.68); padding: clamp(48px, 8vw, 64px) clamp(20px, 5vw, 32px) 40px; border-top: 1px solid rgba(255,255,255,0.08);
         }
         .footer-email {
           display: inline-flex; align-items: center; gap: 7px;
@@ -1052,31 +1053,21 @@ const Landing = () => {
           .hamburger-btn { display: flex !important; margin-left: auto; }
         }
         @media (max-width: 600px) {
-          .hero { padding: 48px 20px; }
           .hero-content { padding: 0; }
-          .cta-section { padding: 48px 20px; }
           .cta-actions { flex-direction: column; width: 100%; }
           .cta-actions > * { width: 100%; justify-content: center; }
           .footer-bottom { flex-direction: column; align-items: flex-start; }
           .footer-bottom p { text-align: left; }
-          .privacy-section,
-          .about-section,
-          .vision-section,
-          .clinician-referral-section,
-          .standards-section { padding: 48px 20px; }
           .vision-card { padding: 32px 24px; }
-          .founder-section { padding: 48px 20px 0; }
           .founder-profile-grid { margin: 40px auto; padding: 0; gap: 32px; }
           .founder-photo-card { min-height: 380px; }
           .founder-brand-card { padding: 28px 24px; }
           .founder-brand-card h3 { font-size: 24px; }
           .founder-title { font-size: 2.2rem; }
-          .road-ahead-section { padding: 48px 20px; }
           .road-ahead-card { padding: 28px 24px; }
           .clinician-logo-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .footer-top { grid-template-columns: 1fr; gap: 32px; }
           .nav-links { gap: 12px; }
-          .section { padding: 48px 20px; }
           .stats-bar-inner { grid-template-columns: 1fr 1fr; gap: 16px; }
           .stat-item { padding: 12px; }
           .stat-num { font-size: 24px; }
