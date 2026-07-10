@@ -163,6 +163,7 @@ export const getPatientMessages = (patientId: number) =>
 // ─── Doctors ──────────────────────────────────────────────────────────────────
 export interface Doctor {
   id: number;
+  user_id?: number;
   name: string;
   qualification: string;
   clinic_name: string | null;
@@ -208,6 +209,7 @@ export const deleteAssistant = (id: number) =>
 // ─── Dieticians ───────────────────────────────────────────────────────────────
 export interface Dietician {
   id: number;
+  user_id?: number;
   name: string;
   qualification: string;
   specializations: string[] | null;
@@ -848,3 +850,28 @@ export function getMe(): StoredUser | null {
 }
 
 export const updatePassword = (data: { currentPassword: string; newPassword: string }) => request<void>("/user/password", { method: "PUT", body: JSON.stringify(data) });
+
+// ─── Admin Session Management ──────────────────────────────────────────────────────────────
+export interface UserSession {
+  session_token: string;
+  ip_address: string;
+  user_agent: string;
+  created_at: string;
+  expires_at: string;
+}
+
+export const getUserSessions = (userId: number) =>
+  request<UserSession[]>(`/admin/users/${userId}/sessions`, { headers: getStoredAuthHeaders() });
+
+export const logoutAllUserSessions = (userId: number) =>
+  request<{ success: boolean; message: string }>(`/admin/users/${userId}/sessions/logout-all`, {
+    method: "POST",
+    headers: getStoredAuthHeaders(),
+  });
+
+export const logoutDeviceSession = (sessionToken: string) =>
+  request<{ success: boolean; message: string }>(`/admin/sessions/logout-device`, {
+    method: "POST",
+    headers: { ...getStoredAuthHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ session_token: sessionToken }),
+  });

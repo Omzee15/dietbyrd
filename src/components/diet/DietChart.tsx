@@ -372,7 +372,7 @@ export const DietChart: React.FC<DietChartProps> = ({
     const isQty = item.entered_mode === 'quantity';
     const step = isQty ? 1 : 10;
     const min = isQty ? 1 : 10;
-    let newVal = item.entered_value + (direction * step);
+    const newVal = item.entered_value + (direction * step);
     if (newVal < min) return;
     
     let rawGrams = 0, displayQty = '';
@@ -612,7 +612,7 @@ export const DietChart: React.FC<DietChartProps> = ({
       }
       const currentY = (col > 0 ? y : microStartY) + (row * 6);
       const x = margin + (col * colWidth);
-      // @ts-ignore
+      // @ts-expect-error dynamic key access
       const val = totals[m.key] || 0;
       const pct = m.target > 0 ? (val / m.target) * 100 : 0;
       doc.text(`${m.label}: ${val.toFixed(1)} / ${m.target} ${m.unit}`, x, currentY);

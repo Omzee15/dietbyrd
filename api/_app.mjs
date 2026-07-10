@@ -788,44 +788,62 @@ const ADMIN_DOCTOR_ASSISTANT_ROLES = ["admin", "ops_manager", "founder", "tech_l
 const JOIN_REQUEST_RECIPIENT_ROLES = ["doctor", "rd"];
 
 const getAuthContextFromHeaders = async (req) => {
-  const rawId = req.headers["x-user-id"];
-  const rawRole = req.headers["x-user-role"];
-  const rawPatientId = req.headers["x-patient-id"];
-  const idValue = Array.isArray(rawId) ? rawId[0] : rawId;
-  const roleValue = Array.isArray(rawRole) ? rawRole[0] : rawRole;
-  const patientIdValue = Array.isArray(rawPatientId) ? rawPatientId[0] : rawPatientId;
-
-  if (!idValue || !roleValue) {
-    return { error: "Missing auth headers" };
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const rawId = req.headers["x-user-id"];
+    const rawRole = req.headers["x-user-role"];
+    if (rawId && rawRole) {
+      const idValue = Array.isArray(rawId) ? rawId[0] : rawId;
+      const roleValue = Array.isArray(rawRole) ? rawRole[0] : rawRole;
+      const userId = parseInt(String(idValue), 10);
+      if (!Number.isInteger(userId)) return { error: "Invalid user id" };
+      const userResult = await query("SELECT id, role, email, phone, name FROM dietbyrd_users WHERE id = $1", [userId]);
+      if (userResult.rows.length === 0) return { error: "User not found" };
+      const user = userResult.rows[0];
+      const role = String(roleValue).trim();
+      if (user.role !== role) return { error: "Role mismatch" };
+      return { userId, role, user, patientProfileId: req.headers["x-patient-id"] ? parseInt(String(req.headers["x-patient-id"]), 10) : null };
+    }
+    return { error: "Missing or invalid authorization header" };
   }
 
-  const userId = parseInt(String(idValue), 10);
-  if (!Number.isInteger(userId)) {
-    return { error: "Invalid user id" };
-  }
-
-  const userResult = await query(
-    "SELECT id, role, email, phone, name FROM dietbyrd_users WHERE id = $1",
-    [userId]
+  const token = authHeader.substring(7);
+  
+  const sessionResult = await query(
+    `SELECT s.user_id, s.is_active, s.expires_at, u.role, u.email, u.phone, u.name 
+     FROM dietbyrd_user_sessions s
+     JOIN dietbyrd_users u ON s.user_id = u.id
+     WHERE s.session_token = $1`,
+    [token]
   );
 
-  if (userResult.rows.length === 0) {
-    return { error: "User not found" };
+  if (sessionResult.rows.length === 0) {
+    return { error: "Invalid session token" };
   }
 
-  const user = userResult.rows[0];
-  const role = String(roleValue).trim();
+  const session = sessionResult.rows[0];
 
-  if (user.role !== role) {
-    return { error: "Role mismatch" };
+  if (!session.is_active) {
+    return { error: "Session has been invalidated" };
   }
 
-  const patientProfileId = patientIdValue ? parseInt(String(patientIdValue), 10) : null;
+  if (new Date() > new Date(session.expires_at)) {
+    await query("UPDATE dietbyrd_user_sessions SET is_active = false WHERE session_token = $1", [token]);
+    return { error: "Session has expired" };
+  }
+
+  const patientProfileId = req.headers["x-patient-id"] ? parseInt(String(req.headers["x-patient-id"]), 10) : null;
 
   return {
-    userId,
-    role,
-    user,
+    userId: session.user_id,
+    role: session.role,
+    user: {
+      id: session.user_id,
+      role: session.role,
+      email: session.email,
+      phone: session.phone,
+      name: session.name
+    },
     patientProfileId: Number.isInteger(patientProfileId) ? patientProfileId : null,
   };
 };
@@ -1127,6 +1145,27 @@ app.post("/api/auth/login", async (req, res) => {
       [user.id]
     );
 
+    // Generate session token
+    const sessionToken = crypto.randomUUID();
+    const deviceFingerprint = req.body.device_fingerprint || req.headers["user-agent"] || "unknown";
+    const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    await query(
+      `INSERT INTO dietbyrd_user_sessions (user_id, session_token, device_fingerprint, ip_address, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [user.id, sessionToken, deviceFingerprint, ipAddress, expiresAt]
+    );
+
+    // Consent logging for patients if provided
+    if (user.role === "patient" && req.body.consent) {
+      await query(
+        `INSERT INTO dietbyrd_user_consents (user_id, consent_text_version, ip_address)
+         VALUES ($1, $2, $3)`,
+        [user.id, "v1", ipAddress]
+      );
+    }
+
     res.json({
       success: true,
       data: {
@@ -1137,6 +1176,7 @@ app.post("/api/auth/login", async (req, res) => {
         profileId,
         doctorId,
         isVerified: user.is_verified ?? true,
+        token: sessionToken,
       },
     });
   } catch (err) {
@@ -1312,6 +1352,27 @@ app.post("/api/auth/signup", async (req, res) => {
       [user.id, normalizedPhone, name || null]
     );
 
+    // Generate session token
+    const sessionToken = crypto.randomUUID();
+    const deviceFingerprint = req.body.device_fingerprint || req.headers["user-agent"] || "unknown";
+    const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    await query(
+      `INSERT INTO dietbyrd_user_sessions (user_id, session_token, device_fingerprint, ip_address, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [user.id, sessionToken, deviceFingerprint, ipAddress, expiresAt]
+    );
+
+    // Consent logging for patients if provided
+    if (user.role === "patient" && req.body.consent) {
+      await query(
+        `INSERT INTO dietbyrd_user_consents (user_id, consent_text_version, ip_address)
+         VALUES ($1, $2, $3)`,
+        [user.id, "v1", ipAddress]
+      );
+    }
+
     res.status(201).json({
       success: true,
       data: {
@@ -1320,6 +1381,7 @@ app.post("/api/auth/signup", async (req, res) => {
         role: user.role,
         name: user.name,
         profileId: patientResult.rows[0].id,
+        token: sessionToken,
       },
     });
   } catch (err) {
@@ -1471,9 +1533,23 @@ app.post("/api/auth/employee/login", async (req, res) => {
 
     await query("UPDATE dietbyrd_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
 
+    const sessionToken = crypto.randomUUID();
+    const deviceFingerprint = req.body.device_fingerprint || req.headers["user-agent"] || "unknown";
+    const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    await query(
+      `INSERT INTO dietbyrd_user_sessions (user_id, session_token, device_fingerprint, ip_address, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [user.id, sessionToken, deviceFingerprint, ipAddress, expiresAt]
+    );
+
+    const payload = await buildAuthUserPayload(user);
+    payload.token = sessionToken;
+
     return res.json({
       success: true,
-      data: await buildAuthUserPayload(user),
+      data: payload,
     });
   } catch (err) {
     console.error("[Auth] employee login error:", err);
@@ -1651,9 +1727,32 @@ app.post("/api/auth/patient/verify-otp", async (req, res) => {
 
     await query("UPDATE dietbyrd_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
 
+    const sessionToken = crypto.randomUUID();
+    const deviceFingerprint = req.body.device_fingerprint || req.headers["user-agent"] || "unknown";
+    const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    await query(
+      `INSERT INTO dietbyrd_user_sessions (user_id, session_token, device_fingerprint, ip_address, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [user.id, sessionToken, deviceFingerprint, ipAddress, expiresAt]
+    );
+
+    // Consent logging for patients if provided
+    if (req.body.consent) {
+      await query(
+        `INSERT INTO dietbyrd_user_consents (user_id, consent_text_version, ip_address)
+         VALUES ($1, $2, $3)`,
+        [user.id, "v1", ipAddress]
+      );
+    }
+
+    const payload = await buildAuthUserPayload(user);
+    payload.token = sessionToken;
+
     return res.json({
       success: true,
-      data: await buildAuthUserPayload(user),
+      data: payload,
     });
   } catch (err) {
     console.error("[OTP] Patient verify route error:", err);
@@ -1954,6 +2053,17 @@ app.post("/api/auth/verify-otp", async (req, res) => {
     // Update last login
     await query("UPDATE dietbyrd_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
 
+    const sessionToken = crypto.randomUUID();
+    const deviceFingerprint = req.body.device_fingerprint || req.headers["user-agent"] || "unknown";
+    const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    await query(
+      `INSERT INTO dietbyrd_user_sessions (user_id, session_token, device_fingerprint, ip_address, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [user.id, sessionToken, deviceFingerprint, ipAddress, expiresAt]
+    );
+
     res.json({
       success: true,
       data: {
@@ -1965,6 +2075,7 @@ app.post("/api/auth/verify-otp", async (req, res) => {
         doctorId,
         isVerified: user.is_verified ?? true,
         isNewPatient: false,
+        token: sessionToken,
       },
     });
   } catch (err) {
@@ -2112,6 +2223,26 @@ app.post("/api/auth/complete-welcome", async (req, res) => {
     // Update last login
     await query("UPDATE dietbyrd_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1", [userId]);
 
+    const sessionToken = crypto.randomUUID();
+    const deviceFingerprint = req.body.device_fingerprint || req.headers["user-agent"] || "unknown";
+    const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    await query(
+      `INSERT INTO dietbyrd_user_sessions (user_id, session_token, device_fingerprint, ip_address, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [userId, sessionToken, deviceFingerprint, ipAddress, expiresAt]
+    );
+
+    // Consent logging for patients if provided
+    if (req.body.consent) {
+      await query(
+        `INSERT INTO dietbyrd_user_consents (user_id, consent_text_version, ip_address)
+         VALUES ($1, $2, $3)`,
+        [userId, "v1", ipAddress]
+      );
+    }
+
     // Return user session data
     res.json({
       success: true,
@@ -2123,6 +2254,7 @@ app.post("/api/auth/complete-welcome", async (req, res) => {
         profileId: patientId,
         isVerified: true,
         isNewPatient: false,
+        token: sessionToken,
       },
     });
   } catch (err) {
@@ -2130,6 +2262,57 @@ app.post("/api/auth/complete-welcome", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// Logout current session
+app.post("/api/auth/logout", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      await query("DELETE FROM dietbyrd_user_sessions WHERE session_token = $1", [token]);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[Auth] Logout error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Log user consent
+app.post("/api/auth/consent", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromReq(req);
+    if (!auth) return res.status(401).json({ success: false, error: "Unauthorized" });
+
+    const { user_id, consent_version } = req.body;
+    if (auth.id !== user_id) return res.status(403).json({ success: false, error: "Forbidden" });
+
+    const ip_address = req.headers['x-forwarded-for'] || req.socket.remoteAddress || null;
+    
+    await query(
+      "INSERT INTO dietbyrd_user_consents (user_id, consent_version, ip_address) VALUES ($1, $2, $3)",
+      [user_id, consent_version, ip_address]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[Auth] Consent error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+async function getAuthContextFromReq(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  const token = authHeader.split(" ")[1];
+  const { rows } = await query(`
+    SELECT u.id, u.role, u.phone 
+    FROM dietbyrd_users u
+    JOIN dietbyrd_user_sessions s ON u.id = s.user_id
+    WHERE s.session_token = $1 AND s.expires_at > NOW()
+  `, [token]);
+  return rows[0] || null;
+}
+
 
 // Verify OTP only (without login), used for referred-user password setup
 app.post("/api/auth/verify-otp-only", async (req, res) => {
@@ -9501,6 +9684,49 @@ app.put("/api/user/password", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: "Failed to update password" });
+  }
+});
+
+// Admin Session Management
+app.get("/api/admin/users/:id/sessions", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json(auth);
+    if (auth.role !== 'admin' && auth.role !== 'owner') return res.status(403).json({ success: false, error: "Forbidden" });
+
+    const userId = parseInt(req.params.id);
+    const { rows } = await query("SELECT session_token, ip_address, user_agent, created_at, expires_at FROM dietbyrd_user_sessions WHERE user_id = $1 ORDER BY created_at DESC", [userId]);
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/admin/users/:id/sessions/logout-all", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json(auth);
+    if (auth.role !== 'admin' && auth.role !== 'owner') return res.status(403).json({ success: false, error: "Forbidden" });
+
+    const userId = parseInt(req.params.id);
+    await query("DELETE FROM dietbyrd_user_sessions WHERE user_id = $1", [userId]);
+    res.json({ success: true, message: "All sessions terminated" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/admin/sessions/logout-device", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json(auth);
+    if (auth.role !== 'admin' && auth.role !== 'owner') return res.status(403).json({ success: false, error: "Forbidden" });
+
+    const { session_token } = req.body;
+    await query("DELETE FROM dietbyrd_user_sessions WHERE session_token = $1", [session_token]);
+    res.json({ success: true, message: "Session terminated" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { getDashboardPath, useAuth, type AuthUser } from "@/contexts/AuthContext";
 import { JoinRequestForm } from "@/components/JoinRequestForm";
 import { PatientWelcomeForm } from "@/components/PatientWelcomeForm";
@@ -120,6 +121,8 @@ const Index = () => {
   const [joinSuccess, setJoinSuccess] = useState(() => new URLSearchParams(window.location.search).get('joinSuccess') ? "Thanks for your interest! Our team will review your request." : "");
   const [secondsRemaining, setSecondsRemaining] = useState(0);
   const [pendingAuthUser, setPendingAuthUser] = useState<AuthUser | null>(null);
+  const [consent, setConsent] = useState(false);
+  const [consentError, setConsentError] = useState(false);
   const phoneInputRef = useRef<HTMLInputElement>(null);
 
   const formattedPhone = useMemo(() => `+91 ${phone}`, [phone]);
@@ -171,8 +174,27 @@ const Index = () => {
     return () => window.clearInterval(intervalId);
   }, [otpExpiresAt]);
 
-  const completeLogin = (authUser: AuthUser, fallbackPath?: string) => {
+  const completeLogin = async (authUser: AuthUser, fallbackPath?: string) => {
     const normalizedUser = normalizeAuthUser(authUser);
+    
+    // Send consent log if they checked the box
+    if (consent) {
+      try {
+        await fetch("/api/auth/consent", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            user_id: normalizedUser.id,
+            consent_version: "v1.0"
+          })
+        });
+      } catch (err) {
+        console.error("Failed to log consent", err);
+      }
+    }
+
     loginWithData(normalizedUser);
     navigate(fallbackPath || getLoginDestination(normalizedUser.role), { replace: true });
   };
@@ -226,11 +248,17 @@ const Index = () => {
     e.preventDefault();
     setJoinSuccess("");
     setError(null);
+    setConsentError(false);
 
     if (!isValidIndianMobile(phone)) {
       setError("Please enter a valid mobile number");
       phoneInputRef.current?.focus();
       phoneInputRef.current?.select();
+      return;
+    }
+
+    if (step === "phone" && !consent) {
+      setConsentError(true);
       return;
     }
 
@@ -773,17 +801,40 @@ const Index = () => {
             ) : (
               <>
                 {renderAuthForm()}
-
-                <p className="text-center text-[13px] text-slate-500 leading-relaxed mt-6">
-                  By using DietByRD, you agree to our<br />
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#2B5239] font-medium hover:underline">
-                    Terms of services
-                  </a>{" "}
-                  and{" "}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#2B5239] font-medium hover:underline">
-                    Privacy Policy
-                  </a>
-                </p>
+  
+                  <div className="mt-6 flex flex-col gap-3">
+                    {step === "phone" && (
+                      <div className="flex items-start gap-2 text-left">
+                        <Checkbox 
+                          id="consent" 
+                          checked={consent}
+                          onCheckedChange={(checked) => {
+                            setConsent(!!checked);
+                            if (checked) setConsentError(false);
+                          }}
+                          className={`mt-1 border-[#2B5239] data-[state=checked]:bg-[#2B5239] ${consentError ? "border-red-500" : ""}`}
+                        />
+                        <div className="flex-1">
+                          <label 
+                            htmlFor="consent" 
+                            className={`text-[12px] leading-tight ${consentError ? "text-red-500 font-medium" : "text-slate-600"}`}
+                          >
+                            I consent to Diet By RD collecting and using my personal and health information to provide me account access, consultations, diet plans and support. I understand that I can withdraw my consent or request deletion of my data at any time.
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-center text-[13px] text-slate-500 leading-relaxed">
+                      By using DietByRD, you agree to our<br />
+                      <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#2B5239] font-medium hover:underline">
+                        Terms of services
+                      </a>{" "}
+                      and{" "}
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#2B5239] font-medium hover:underline">
+                        Privacy Policy
+                      </a>
+                    </p>
+                  </div>
 
                 <div className="w-full h-px bg-slate-200/60 my-8"></div>
 

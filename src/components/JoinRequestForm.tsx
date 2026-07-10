@@ -587,7 +587,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
                   onChange={(e) => {
                     let val = e.target.value;
                     if (val !== "") {
-                      let num = parseInt(val);
+                      const num = parseInt(val);
                       if (num > 80) val = "80";
                       if (num < 0) val = "0";
                     }
@@ -635,7 +635,7 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
                 onChange={(e) => {
                     let val = e.target.value;
                     if (val !== "") {
-                      let num = parseInt(val);
+                      const num = parseInt(val);
                       if (num > 80) val = "80";
                       if (num < 0) val = "0";
                     }

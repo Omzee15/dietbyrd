@@ -666,7 +666,7 @@ const CreateDiet = () => {
         }
         const currentY = (col > 0 ? y : microStartY) + row * 6;
         const x = margin + col * colWidth;
-        // @ts-ignore
+        // @ts-expect-error dynamic key access
         const value = prototypeMicros[item.key] || 0;
         const rdaAge = patient?.age || 30;
         const rdaSex: "M" | "F" = patient?.gender === "female" ? "F" : "M";

@@ -1901,7 +1901,7 @@ const PatientDashboard = () => {
                             <>
                               {(() => {
                                 const diffHours = (parseIST(appointment.scheduled_at).getTime() - new Date().getTime()) / (1000 * 60 * 60);
-                                if (true) {
+                                if (diffHours > 0) {
                                   const daysLeft = Math.floor(diffHours / 24);
                                   const hoursRemaining = Math.floor(diffHours % 24);
                                   let timeLeftStr = "";

@@ -334,6 +334,12 @@ const PatientDetail = () => {
       doc.setFontSize(10);
       doc.setTextColor(0);
       doc.setFont("helvetica", "normal");
+      const bmr = calculateBMR(
+        (patient as any)?.weight ? Number((patient as any).weight) : 0,
+        (patient as any)?.height ? Number((patient as any).height) : 0,
+        (patient as any)?.age || 30,
+        (patient as any)?.gender === 'Male' ? 'male' : 'female'
+      );
       doc.text(`Patient: ${patient.name || "N/A"} (${patient.age || "N/A"}y)`, margin, y);
       doc.text(`Date: ${formatDate(plan.issued_at || plan.created_at)}`, margin + 90, y);
       y += 5;
@@ -782,7 +788,7 @@ const PatientDetail = () => {
                       <p className="font-medium">
                         {(() => {
                           if (!patient.weight || !patient.height || !patient.age) return "N/A";
-                          let bmr = patient.gender === "male" 
+                          const bmr = patient.gender === "male" 
                             ? 10 * patient.weight + 6.25 * patient.height - 5 * patient.age + 5
                             : 10 * patient.weight + 6.25 * patient.height - 5 * patient.age - 161;
                           let act = 1.2;

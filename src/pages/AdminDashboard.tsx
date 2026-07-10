@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { getPatients, getDoctors, getDieticians, getAnalytics, getReferrals, assignDietician, getJoinRequests, Patient, Doctor, Dietician, Referral } from "@/lib/api";
+import { getPatients, getDoctors, getDieticians, getAnalytics, getReferrals, assignDietician, getJoinRequests, Patient, Doctor, Dietician, Referral, getUserSessions, logoutAllUserSessions, logoutDeviceSession } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAdminSidebarSections } from "@/lib/admin-sidebar";
 
@@ -56,6 +56,109 @@ const isPatientPaid = (patient: Pick<Patient, "payment_status" | "payment_histor
   patient.payment_status === "paid" ||
   (patient.payment_history?.some((payment) => paidPaymentStatuses.has(String(payment.status).toLowerCase())) ?? false);
 
+const ManageUserSessionsDialog = ({ userId, onClose }: { userId: number | null; onClose: () => void }) => {
+  const queryClient = useQueryClient();
+
+  const { data: sessions, isLoading } = useQuery({
+    queryKey: ["userSessions", userId],
+    queryFn: () => userId ? getUserSessions(userId) : Promise.resolve([]),
+    enabled: !!userId,
+  });
+
+  const logoutAllMutation = useMutation({
+    mutationFn: () => logoutAllUserSessions(userId!),
+    onSuccess: () => {
+      toast.success("All sessions terminated successfully");
+      queryClient.invalidateQueries({ queryKey: ["userSessions", userId] });
+      onClose();
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to terminate all sessions");
+    }
+  });
+
+  const logoutDeviceMutation = useMutation({
+    mutationFn: (sessionToken: string) => logoutDeviceSession(sessionToken),
+    onSuccess: () => {
+      toast.success("Session terminated successfully");
+      queryClient.invalidateQueries({ queryKey: ["userSessions", userId] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to terminate session");
+    }
+  });
+
+  return (
+    <Dialog open={!!userId} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Manage Active Sessions</DialogTitle>
+          <DialogDescription>
+            View and terminate active sessions for this user.
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        ) : !sessions || sessions.length === 0 ? (
+          <div className="text-center p-8 text-muted-foreground">No active sessions found.</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={() => logoutAllMutation.mutate()}
+                disabled={logoutAllMutation.isPending}
+                className="gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                {logoutAllMutation.isPending ? "Terminating..." : "Logout All Devices"}
+              </Button>
+            </div>
+            <div className="border rounded-md overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>IP Address</TableHead>
+                    <TableHead>Device / Browser</TableHead>
+                    <TableHead>Created At</TableHead>
+                    <TableHead>Expires At</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sessions.map((session, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="font-mono text-xs">{session.ip_address}</TableCell>
+                      <TableCell className="max-w-[200px] truncate text-xs" title={session.user_agent}>
+                        {session.user_agent || "Unknown"}
+                      </TableCell>
+                      <TableCell className="text-xs">{new Date(session.created_at).toLocaleString()}</TableCell>
+                      <TableCell className="text-xs">{new Date(session.expires_at).toLocaleString()}</TableCell>
+                      <TableCell className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => logoutDeviceMutation.mutate(session.session_token)}
+                          disabled={logoutDeviceMutation.isPending}
+                        >
+                          Revoke
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -73,6 +176,7 @@ const AdminDashboard = () => {
   const [commissionDrafts, setCommissionDrafts] = useState<Record<number, string>>({});
   const [savingCommissionId, setSavingCommissionId] = useState<number | null>(null);
   const [selectedAssistantDoctorId, setSelectedAssistantDoctorId] = useState<number | null>(null);
+  const [sessionUserId, setSessionUserId] = useState<number | null>(null);
 
   // Patient list filter state
   const [referredByFilter, setReferredByFilter] = useState<string>("all");
@@ -460,7 +564,12 @@ const AdminDashboard = () => {
                         </Badge>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedPatient(null)}><X className="w-4 h-4" /></Button>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setSessionUserId(selectedPatient.id)} className="gap-2 text-muted-foreground h-8">
+                        <Settings className="w-3.5 h-3.5" /> Sessions
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedPatient(null)} className="h-8"><X className="w-4 h-4" /></Button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
@@ -788,14 +897,26 @@ const AdminDashboard = () => {
                           <div className="mt-3 pt-3 border-t space-y-2 text-xs text-muted-foreground">
                             <div className="flex items-center justify-between">
                               <span>{d.total_referrals || 0} patients referred</span>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-xs h-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "doctor", id: d.id, name: d.name }); }}
-                              >
-                                <Trash2 className="w-3 h-3 mr-1" /> Delete
-                              </Button>
+                              <div className="flex gap-1">
+                                {d.user_id && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-xs h-7 text-muted-foreground hover:bg-muted"
+                                    onClick={(e) => { e.stopPropagation(); setSessionUserId(d.user_id!); }}
+                                  >
+                                    <Settings className="w-3 h-3 mr-1" /> Sessions
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-xs h-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "doctor", id: d.id, name: d.name }); }}
+                                >
+                                  <Trash2 className="w-3 h-3 mr-1" /> Delete
+                                </Button>
+                              </div>
                             </div>
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-[11px]">Commission %</span>
@@ -950,14 +1071,26 @@ const AdminDashboard = () => {
                           </div>
                           <div className="mt-3 pt-3 border-t flex justify-between text-xs text-muted-foreground">
                             <span>{d.active_patients || 0} active patients</span>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-xs h-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                              onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "dietician", id: d.id, name: d.name }); }}
-                            >
-                              <Trash2 className="w-3 h-3 mr-1" /> Delete
-                            </Button>
+                            <div className="flex gap-1">
+                              {d.user_id && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-xs h-7 text-muted-foreground hover:bg-muted"
+                                  onClick={(e) => { e.stopPropagation(); setSessionUserId(d.user_id!); }}
+                                >
+                                  <Settings className="w-3 h-3 mr-1" /> Sessions
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-xs h-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "dietician", id: d.id, name: d.name }); }}
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" /> Delete
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1182,6 +1315,7 @@ const AdminDashboard = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ManageUserSessionsDialog userId={sessionUserId} onClose={() => setSessionUserId(null)} />
     </div>
   );
 };

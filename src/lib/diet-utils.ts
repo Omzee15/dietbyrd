@@ -27,7 +27,7 @@ export const calculatePatientTDEE = (
   if (!heightCm) heightCm = 170; // Fallback to 170cm if parsing fails
 
   // Calculate BMR
-  let bmr = (gender === "male" || gender === "M")
+  const bmr = (gender === "male" || gender === "M")
     ? 10 * weight + 6.25 * heightCm - 5 * age + 5
     : 10 * weight + 6.25 * heightCm - 5 * age - 161;
 

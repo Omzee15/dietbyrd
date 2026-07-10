@@ -1,23 +1,56 @@
-import pg from "pg";
 import dotenv from "dotenv";
-dotenv.config();
+import pg from "pg";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
 
-const { Pool } = pg;
-const pool = new Pool({
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+dotenv.config({ path: resolve(__dirname, ".env"), override: true });
+
+const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
 async function run() {
   try {
+    console.log("Running migration...");
+
     await pool.query(`
-      ALTER TABLE dietbyrd_patients
-        ADD COLUMN IF NOT EXISTS improvement_score SMALLINT CHECK (improvement_score IS NULL OR (improvement_score BETWEEN 1 AND 10)),
-        ADD COLUMN IF NOT EXISTS improvement_updated_by INT REFERENCES dietbyrd_users(id) ON DELETE SET NULL,
-        ADD COLUMN IF NOT EXISTS improvement_updated_at TIMESTAMP NULL;
+      CREATE TABLE IF NOT EXISTS dietbyrd_user_sessions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES dietbyrd_users(id) ON DELETE CASCADE,
+        session_token UUID NOT NULL UNIQUE,
+        device_fingerprint VARCHAR(255) NULL,
+        ip_address VARCHAR(45) NULL,
+        expires_at TIMESTAMP NOT NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_dietbyrd_sessions_token ON dietbyrd_user_sessions(session_token);
+      CREATE INDEX IF NOT EXISTS idx_dietbyrd_sessions_user ON dietbyrd_user_sessions(user_id);
     `);
-    console.log("Improvement columns added to dietbyrd_patients successfully.");
-  } catch (err) {
-    console.error("Error running migration:", err);
+    console.log("Table dietbyrd_user_sessions created or already exists.");
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS dietbyrd_user_consents (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES dietbyrd_users(id) ON DELETE CASCADE,
+        consent_text_version TEXT NOT NULL,
+        ip_address VARCHAR(45) NULL,
+        accepted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_dietbyrd_consents_user ON dietbyrd_user_consents(user_id);
+    `);
+    console.log("Table dietbyrd_user_consents created or already exists.");
+
+    // Update schema.sql to match for future
+    console.log("Migration successful.");
+  } catch (error) {
+    console.error("Migration failed:", error);
   } finally {
     await pool.end();
   }

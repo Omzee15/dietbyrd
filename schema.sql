@@ -990,3 +990,38 @@ CREATE TRIGGER update_dietbyrd_doctor_earnings_updated_at
 -- 27. dietbyrd_whatsapp_messages        - WhatsApp messages
 -- 28. dietbyrd_notifications            - Push notifications
 -- 29. dietbyrd_audit_log                - Audit trail (DPDPA)
+- -   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+ - -   S E S S I O N S   A N D   C O N S E N T 
+ - -   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+ 
+ C R E A T E   T A B L E   d i e t b y r d _ u s e r _ s e s s i o n s   ( 
+     i d   S E R I A L   P R I M A R Y   K E Y , 
+     u s e r _ i d   I N T E G E R   N O T   N U L L   R E F E R E N C E S   d i e t b y r d _ u s e r s ( i d )   O N   D E L E T E   C A S C A D E , 
+     s e s s i o n _ t o k e n   U U I D   N O T   N U L L   U N I Q U E , 
+     d e v i c e _ f i n g e r p r i n t   V A R C H A R ( 2 5 5 )   N U L L , 
+     i p _ a d d r e s s   V A R C H A R ( 4 5 )   N U L L , 
+     e x p i r e s _ a t   T I M E S T A M P   N O T   N U L L , 
+     i s _ a c t i v e   B O O L E A N   D E F A U L T   T R U E , 
+     c r e a t e d _ a t   T I M E S T A M P   D E F A U L T   C U R R E N T _ T I M E S T A M P 
+ ) ; 
+ 
+ C R E A T E   I N D E X   i d x _ d i e t b y r d _ s e s s i o n s _ t o k e n   O N   d i e t b y r d _ u s e r _ s e s s i o n s ( s e s s i o n _ t o k e n ) ; 
+ C R E A T E   I N D E X   i d x _ d i e t b y r d _ s e s s i o n s _ u s e r   O N   d i e t b y r d _ u s e r _ s e s s i o n s ( u s e r _ i d ) ; 
+ 
+ C R E A T E   T A B L E   d i e t b y r d _ u s e r _ c o n s e n t s   ( 
+     i d   S E R I A L   P R I M A R Y   K E Y , 
+     u s e r _ i d   I N T E G E R   N O T   N U L L   R E F E R E N C E S   d i e t b y r d _ u s e r s ( i d )   O N   D E L E T E   C A S C A D E , 
+     c o n s e n t _ t e x t _ v e r s i o n   T E X T   N O T   N U L L , 
+     i p _ a d d r e s s   V A R C H A R ( 4 5 )   N U L L , 
+     a c c e p t e d _ a t   T I M E S T A M P   D E F A U L T   C U R R E N T _ T I M E S T A M P 
+ ) ; 
+ 
+ C R E A T E   I N D E X   i d x _ d i e t b y r d _ c o n s e n t s _ u s e r   O N   d i e t b y r d _ u s e r _ c o n s e n t s ( u s e r _ i d ) ; 
+  
+ CREATE TABLE IF NOT EXISTS dietbyrd_user_consents (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES dietbyrd_users(id) ON DELETE CASCADE,
+    consent_version TEXT NOT NULL,
+    ip_address TEXT,
+    accepted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
