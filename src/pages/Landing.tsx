@@ -1321,7 +1321,7 @@ const Landing = () => {
             Your health deserves a
             <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}> Registered Dietitian</em>,
             <br />
-            <span className="whitespace-nowrap">not an Instagram influencer.</span>
+            <span className="md:whitespace-nowrap">not an Instagram influencer.</span>
           </h1>
           <p ref={addToRefs} className="hero-sub reveal reveal-delay-2" style={{ lineHeight: '1.6', maxWidth: '800px' }}>
             India's First RD - Only Platform for Clinical Nutrition Consultations.
@@ -1589,7 +1589,13 @@ const Landing = () => {
         style={{ background: 'var(--cream)', padding: '96px 24px' }}
       >
         <style>
-          {`@media (max-width: 900px) {
+.about-vision-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 64px;
+  align-items: start;
+}
+@media (max-width: 900px) {
   .about-vision-grid {
     grid-template-columns: 1fr;
     gap: 32px;
@@ -1605,11 +1611,7 @@ const Landing = () => {
           className="about-vision-grid"
           style={{
             maxWidth: '1200px',
-            margin: '0 auto',
-            display: 'grid',
-            gridTemplateColumns: '1fr 1.1fr',
-            gap: '64px',
-            alignItems: 'start'
+            margin: '0 auto'
           }}
         >
           <div className="about-inner">
@@ -1729,6 +1731,17 @@ const Landing = () => {
 .story-road-card {
   margin-top: 24px; background: var(--navy); border-radius: 16px; padding: 32px 36px;
 }
+.story-action-wrap {
+  margin-top: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .story-action-wrap {
+    margin-top: 60px;
+  }
+}
 .story-road-title {
   font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700;
   color: #fff; margin-bottom: 12px;
@@ -1779,7 +1792,7 @@ const Landing = () => {
                   }}
                 />
               </div>
-              <div style={{ marginTop: '160px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="story-action-wrap">
                 <p style={{ fontWeight: 600, color: 'var(--teal)', fontSize: '14px', textAlign: 'center' }}>Turn your One Day to Day One</p>
                 <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary" style={{ padding: '12px 16px', fontSize: '14px', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   Book your consultation from the Best Of The Industry <ArrowRight size={16} />
