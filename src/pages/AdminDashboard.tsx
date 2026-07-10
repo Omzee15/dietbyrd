@@ -736,7 +736,7 @@ const AdminDashboard = () => {
                         </Select>
                       </div>
                     </div>
-                    <div className="bg-card rounded-xl border overflow-hidden">
+                    <div className="bg-card rounded-xl border overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">

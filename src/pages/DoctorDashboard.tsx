@@ -588,7 +588,7 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                     <h2 className="text-lg font-semibold">Recent Recommendations</h2>
                     <span className="text-sm text-muted-foreground">{referrals.length} total recommended</span>
                   </div>
-                  <div className="bg-card rounded-xl border overflow-hidden">
+                  <div className="bg-card rounded-xl border overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
@@ -668,7 +668,7 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                     <h2 className="text-lg font-semibold">Recent Patients Helped</h2>
                     <span className="text-sm text-muted-foreground">{referrals.length} patients helped</span>
                   </div>
-                  <div className="bg-card rounded-xl border overflow-hidden">
+                  <div className="bg-card rounded-xl border overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
@@ -730,7 +730,7 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input placeholder="Search patients..." value={patientSearch} onChange={(e) => setPatientSearch(e.target.value)} className="pl-9" />
                 </div>
-                <div className="bg-card rounded-xl border overflow-hidden">
+                <div className="bg-card rounded-xl border overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
