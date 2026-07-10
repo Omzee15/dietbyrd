@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ScrollToTop } from "@/components/ScrollToTop";
+import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 
 // Pages
 import Landing from "./pages/Landing";
@@ -78,6 +79,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <PWAInstallPrompt />
         <BrowserRouter>
           <ScrollToTop />
           <Routes>
