@@ -1680,9 +1680,14 @@ const Landing = () => {
   font-weight: 700; color: var(--navy); margin-bottom: 48px;
 }
 .story-grid {
-  display: grid; grid-template-columns: 1fr 1.2fr; gap: 48px; align-items: start;
+  display: grid; 
+  grid-template-columns: 1fr 1.2fr; 
+  grid-template-areas: "image bio" "action bio";
+  gap: 0 48px; 
+  align-items: start;
 }
 .story-card {
+  grid-area: image;
   background: transparent; border-radius: 0; overflow: visible;
   box-shadow: none; border: 0;
 }
@@ -1714,7 +1719,7 @@ const Landing = () => {
   font-family: 'Playfair Display', serif; font-style: italic; font-size: 15px;
   color: var(--text); line-height: 1.6;
 }
-.story-bio { display: flex; flex-direction: column; gap: 16px; }
+.story-bio { grid-area: bio; display: flex; flex-direction: column; gap: 16px; }
 .story-bio-text {
   font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 400;
   color: var(--text); line-height: 1.75; margin: 0;
@@ -1723,16 +1728,13 @@ const Landing = () => {
   margin-top: 24px; background: var(--navy); border-radius: 16px; padding: 32px 36px;
 }
 .story-action-wrap {
-  margin-top: 160px;
+  grid-area: action;
+  margin-top: 48px;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-@media (max-width: 900px) {
-  .story-action-wrap {
-    margin-top: 60px;
-  }
-}
+
 .story-road-title {
   font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700;
   color: #fff; margin-bottom: 12px;
@@ -1760,7 +1762,21 @@ const Landing = () => {
 
 @media (max-width: 900px) {
   .founder-section { padding: 64px 24px; }
-  .story-grid { grid-template-columns: 1fr; gap: 32px; }
+  .story-grid { 
+    grid-template-columns: 1fr; 
+    grid-template-areas: "image" "bio" "action";
+    gap: 32px; 
+  }
+  .story-monogram {
+    min-height: auto;
+    height: 400px;
+  }
+  .story-monogram img {
+    transform: scale(1.1) translate(0, 20px) !important;
+  }
+  .story-action-wrap {
+    margin-top: 0;
+  }
 }
 @media (max-width: 700px) {
   .story-feature-grid { grid-template-columns: 1fr; }
@@ -1791,13 +1807,15 @@ const Landing = () => {
                   }}
                 />
               </div>
-              <div className="story-action-wrap">
-                <p style={{ fontWeight: 600, color: 'var(--teal)', fontSize: '14px', textAlign: 'center' }}>Turn your One Day to Day One</p>
-                <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary" style={{ padding: '12px 16px', fontSize: '14px', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  Book your consultation from the Best Of The Industry <ArrowRight size={16} />
-                </button>
-              </div>
             </div>
+
+            <div className="story-action-wrap">
+              <p style={{ fontWeight: 600, color: 'var(--teal)', fontSize: '14px', textAlign: 'center' }}>Turn your One Day to Day One</p>
+              <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary" style={{ padding: '12px 16px', fontSize: '14px', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                Book your consultation from the Best Of The Industry <ArrowRight size={16} />
+              </button>
+            </div>
+
             <div className="story-bio">
               <div className="story-card-body">
                 <div className="story-name">Aryan Bhagat</div>
