@@ -1668,16 +1668,7 @@ const Landing = () => {
       {/* The Story Behind Diet By RD — Page 5 */}
       <section className="founder-section reveal" style={{ background: 'var(--cream)' }}>
         <style>
-          {`@media (max-width: 900px) {
-  .founder-section { padding: 64px 24px; }
-  .story-grid { grid-template-columns: 1fr; gap: 32px; }
-}
-
-@media (max-width: 700px) {
-  .story-feature-grid { grid-template-columns: 1fr; }
-}
-
-.founder-section { padding: 96px 24px; }
+          {`.founder-section { padding: 96px 24px; }
 .story-inner { max-width: 1200px; margin: 0 auto; }
 .story-eyebrow {
   font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 700;
@@ -1765,6 +1756,14 @@ const Landing = () => {
 .story-feature-body {
   font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 400;
   color: var(--text2); line-height: 1.6; margin: 0;
+}
+
+@media (max-width: 900px) {
+  .founder-section { padding: 64px 24px; }
+  .story-grid { grid-template-columns: 1fr; gap: 32px; }
+}
+@media (max-width: 700px) {
+  .story-feature-grid { grid-template-columns: 1fr; }
 }
 `}
         </style>
