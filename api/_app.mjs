@@ -9734,6 +9734,12 @@ app.use((_req, res) => {
   res.status(404).json({ success: false, error: "Route not found" });
 });
 
+// Global Error Handler to prevent app crashes
+app.use((err, req, res, next) => {
+  console.error("Unhandled API Error:", err);
+  res.status(500).json({ success: false, error: "Internal Server Error. Please try again later." });
+});
+
 export default app;
 
 

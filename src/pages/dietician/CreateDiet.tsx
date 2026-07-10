@@ -299,7 +299,7 @@ const CreateDiet = () => {
     [prototypes, activePrototypeId],
   );
 
-  const meals = activePrototype?.meals || [];
+  const meals = useMemo(() => activePrototype?.meals || [], [activePrototype?.meals]);
 
   const setActivePrototypeMeals = (updater: (previousMeals: MealSlot[]) => MealSlot[]) => {
     if (!activePrototype) return;

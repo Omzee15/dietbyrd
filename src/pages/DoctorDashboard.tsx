@@ -115,7 +115,7 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
       // Redirect root /doctor to /doctor/referrals
       navigate("/doctor/referrals", { replace: true });
     }
-  }, [location.pathname]);
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
     if (!user) return;
