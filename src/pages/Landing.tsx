@@ -1589,7 +1589,7 @@ const Landing = () => {
         style={{ background: 'var(--cream)', padding: '96px 24px' }}
       >
         <style>
-.about-vision-grid {
+          {`.about-vision-grid {
   display: grid;
   grid-template-columns: 1fr 1.1fr;
   gap: 64px;
