@@ -4440,59 +4440,12 @@ app.get("/api/dieticians/:id/patients", requireAuth(DIETICIAN_OR_ADMIN_ROLES), a
   }
 });
 
-// â”€â”€â”€ Dietitian Blocked Slots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/dieticians/:id/blocked-slots", requireAuth(), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { start_date, end_date } = req.query;
-    let queryStr = "SELECT * FROM dietbyrd_dietitian_blocked_slots WHERE rd_id = $1";
-    const params = [id];
-
-    if (start_date && end_date) {
-      queryStr += " AND blocked_date BETWEEN $2 AND $3";
-      params.push(start_date, end_date);
-    }
-
-    queryStr += " ORDER BY blocked_date ASC, start_time ASC";
-    const result = await query(queryStr, params);
-    res.json({ success: true, data: result.rows });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.post("/api/dieticians/:id/blocked-slots", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { blocked_date, start_time, end_time, reason } = req.body;
-    const result = await query(
-      `INSERT INTO dietbyrd_dietitian_blocked_slots (rd_id, blocked_date, start_time, end_time, reason)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [id, blocked_date, start_time || null, end_time || null, reason || null]
-    );
-    res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.delete("/api/dieticians/:id/blocked-slots/:slotId", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
-  try {
-    const { id, slotId } = req.params;
-    const result = await query(
-      "DELETE FROM dietbyrd_dietitian_blocked_slots WHERE id = $1 AND rd_id = $2 RETURNING *",
-      [slotId, id]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "Slot not found" });
-    }
-    res.json({ success: true, message: "Blocked slot removed successfully" });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
+// NOTE: dietician blocked-slots routes (GET/POST/DELETE) are defined
+// further down, right before the "Dietician Appointments" section. An
+// earlier, broken duplicate set used to live here, querying a table
+// (dietbyrd_dietitian_blocked_slots) that no migration ever created —
+// every call to it threw a database error. Removed in favor of the
+// correct, already-validated versions below.
 // â”€â”€â”€ Referrals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/referrals", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
   try {
