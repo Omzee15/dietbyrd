@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import AppSidebar from "@/components/AppSidebar";
-import { getJoinRequests, approveJoinRequest, rejectJoinRequest, scheduleInterview, getPatients, getDoctors, getDieticians, JoinRequest } from "@/lib/api";
+import { getJoinRequests, approveJoinRequest, rejectJoinRequest, scheduleInterview, getPatients, getDoctors, getDieticians, JoinRequest, getAuthHeaders } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 type JoinRequestWithUserId = JoinRequest & { user_id?: number };
@@ -291,8 +291,7 @@ const JoinRequests = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": String(user.id),
-          "x-user-role": String(user.role),
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
           message: trimmedMessage,

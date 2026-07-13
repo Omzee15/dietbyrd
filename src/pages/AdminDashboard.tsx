@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { getPatients, getDoctors, getDieticians, getAnalytics, getReferrals, assignDietician, getJoinRequests, Patient, Doctor, Dietician, Referral, getUserSessions, logoutAllUserSessions, logoutDeviceSession } from "@/lib/api";
+import { getPatients, getDoctors, getDieticians, getAnalytics, getReferrals, assignDietician, getJoinRequests, Patient, Doctor, Dietician, Referral, getUserSessions, logoutAllUserSessions, logoutDeviceSession, getAuthHeaders } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAdminSidebarSections } from "@/lib/admin-sidebar";
 
@@ -235,10 +235,7 @@ const AdminDashboard = () => {
       if (!user || !selectedAssistantDoctorId) return [];
 
       const response = await fetch(`/api/admin/doctors/${selectedAssistantDoctorId}/assistants`, {
-        headers: {
-          "x-user-id": String(user.id),
-          "x-user-role": String(user.role),
-        },
+        headers: getAuthHeaders(),
       });
       const data = await response.json();
 
@@ -275,8 +272,7 @@ const AdminDashboard = () => {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": String(user.id),
-          "x-user-role": String(user.role),
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({ percent }),
       });

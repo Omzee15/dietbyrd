@@ -12,6 +12,7 @@ export interface AuthUser {
   isVerified?: boolean; // For doctors/dieticians - false until admin approves
   isNewPatient?: boolean; // Flag for new patients who need to complete welcome form
   requiresWelcomeForm?: boolean; // Requires welcome form to be filled
+  token?: string; // Server-issued session token — the credential used to authenticate every API call
 }
 
 interface AuthContextType {

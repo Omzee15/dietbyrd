@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
-import { getPatient } from "@/lib/api";
+import { getPatient, getAuthHeaders } from "@/lib/api";
 import { toast } from "sonner";
 import { User, Heart, UtensilsCrossed, CalendarDays } from "lucide-react";
 import { getPatientSidebarSections } from "@/lib/patient-sidebar";
@@ -84,11 +84,7 @@ const PatientSupport = () => {
     queryFn: async () => {
       if (!user?.id) return [];
       const res = await fetch("/api/patient/me/tickets", {
-        headers: {
-          "x-user-id": String(user.id),
-          "x-user-role": String(user.role),
-          ...(user.profileId ? { "x-patient-id": String(user.profileId) } : {}),
-        },
+        headers: getAuthHeaders(),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
@@ -102,11 +98,7 @@ const PatientSupport = () => {
     queryFn: async () => {
       if (!selectedTicketId || !user?.id) return null;
       const res = await fetch(`/api/patient/me/tickets/${selectedTicketId}`, {
-        headers: {
-          "x-user-id": String(user.id),
-          "x-user-role": String(user.role),
-          ...(user.profileId ? { "x-patient-id": String(user.profileId) } : {}),
-        },
+        headers: getAuthHeaders(),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);

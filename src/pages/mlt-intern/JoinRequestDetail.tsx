@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { getJoinRequests, JoinRequest } from "@/lib/api";
+import { getJoinRequests, JoinRequest, getAuthHeaders } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -59,8 +59,7 @@ const MLTInternJoinRequestDetail = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": String(user.id),
-          "x-user-role": String(user.role),
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
           message: trimmedMessage,

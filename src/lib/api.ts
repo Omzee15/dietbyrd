@@ -1,15 +1,22 @@
 const BASE_URL = "/api";
 
+// Auth is based solely on the server-issued session token (returned as
+// `token` from /api/auth/login etc. and persisted in the stored user
+// object). Do NOT reintroduce client-supplied identity headers like
+// x-user-id / x-user-role — those let any caller impersonate any account
+// by editing localStorage, since the server previously trusted them
+// without verifying a secret. The only thing the client can prove is
+// possession of the opaque session token, which the server looks up
+// against dietbyrd_user_sessions.
 const getStoredAuthHeaders = (): Record<string, string> => {
   if (typeof window === "undefined") return {};
   try {
     const stored = localStorage.getItem("dietbyrd_user");
     if (!stored) return {};
     const user = JSON.parse(stored);
-    if (!user?.id || !user?.role) return {};
+    if (!user?.token) return {};
     const headers: Record<string, string> = {
-      "x-user-id": String(user.id),
-      "x-user-role": String(user.role),
+      Authorization: `Bearer ${user.token}`,
     };
     if (user.profileId) {
       headers["x-patient-id"] = String(user.profileId);
@@ -19,6 +26,10 @@ const getStoredAuthHeaders = (): Record<string, string> => {
     return {};
   }
 };
+
+// Exported so pages that call `fetch` directly (instead of going through
+// the `request` helper below) can reuse the same, safe auth headers.
+export const getAuthHeaders = getStoredAuthHeaders;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const isFormData = typeof FormData !== "undefined" && options?.body instanceof FormData;

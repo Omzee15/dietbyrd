@@ -782,28 +782,58 @@ const query = async (text, params) => {
   return res;
 };
 
+// Roles that are allowed to browse the full patient list / any patient's
+// record by id. Patients themselves reach their own data through the
+// /api/patient/me/* routes, not this one.
+const STAFF_PATIENT_ACCESS_ROLES = [
+  "doctor", "assistant", "rd", "mlt_intern", "support_intern",
+  "ops_manager", "founder", "tech_lead", "admin",
+];
+
+// Verifies the request carries a valid session token belonging to one of
+// `allowedRoles`. Sends a 401/403 response and returns null if not; on
+// success returns the auth context so the route can use it.
+const requireRole = async (req, res, allowedRoles) => {
+  const auth = await getAuthContextFromHeaders(req);
+  if (auth.error) {
+    res.status(401).json({ success: false, error: auth.error });
+    return null;
+  }
+  if (!allowedRoles.includes(auth.role)) {
+    res.status(403).json({ success: false, error: "Not authorized for this resource" });
+    return null;
+  }
+  return auth;
+};
+
 const ADMIN_JOIN_REQUEST_ROLES = ["ops_manager", "mlt_intern", "founder", "tech_lead"];
 const ADMIN_COMMISSION_ROLES = ["ops_manager", "founder", "tech_lead"];
 const ADMIN_DOCTOR_ASSISTANT_ROLES = ["admin", "ops_manager", "founder", "tech_lead", "mlt_intern"];
 const JOIN_REQUEST_RECIPIENT_ROLES = ["doctor", "rd"];
 
+// Creates a real, DB-backed session token for a user and returns it.
+// This is the ONLY thing that should ever grant a client authenticated
+// access — never trust an identity a client merely *claims* (e.g. a
+// user id/role sent as plain headers), only a token the server itself
+// issued and can look up.
+const createUserSession = async (req, userId, role) => {
+  const sessionToken = crypto.randomUUID();
+  const deviceFingerprint = req.body?.device_fingerprint || req.headers["user-agent"] || "unknown";
+  const ipAddress = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown";
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+  await query(
+    `INSERT INTO dietbyrd_user_sessions (user_id, session_token, device_fingerprint, ip_address, expires_at)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [userId, sessionToken, deviceFingerprint, ipAddress, expiresAt]
+  );
+
+  return sessionToken;
+};
+
 const getAuthContextFromHeaders = async (req) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    const rawId = req.headers["x-user-id"];
-    const rawRole = req.headers["x-user-role"];
-    if (rawId && rawRole) {
-      const idValue = Array.isArray(rawId) ? rawId[0] : rawId;
-      const roleValue = Array.isArray(rawRole) ? rawRole[0] : rawRole;
-      const userId = parseInt(String(idValue), 10);
-      if (!Number.isInteger(userId)) return { error: "Invalid user id" };
-      const userResult = await query("SELECT id, role, email, phone, name FROM dietbyrd_users WHERE id = $1", [userId]);
-      if (userResult.rows.length === 0) return { error: "User not found" };
-      const user = userResult.rows[0];
-      const role = String(roleValue).trim();
-      if (user.role !== role) return { error: "Role mismatch" };
-      return { userId, role, user, patientProfileId: req.headers["x-patient-id"] ? parseInt(String(req.headers["x-patient-id"]), 10) : null };
-    }
     return { error: "Missing or invalid authorization header" };
   }
 
@@ -2461,6 +2491,8 @@ app.post("/api/auth/set-password-after-otp", async (req, res) => {
       if (patientResult.rows.length > 0) profileId = patientResult.rows[0].id;
     }
 
+    const sessionToken = await createUserSession(req, user.id, user.role);
+
     return res.json({
       success: true,
       data: {
@@ -2471,6 +2503,7 @@ app.post("/api/auth/set-password-after-otp", async (req, res) => {
         profileId,
         doctorId,
         isVerified: user.is_verified ?? true,
+        token: sessionToken,
       },
     });
   } catch (err) {
@@ -2632,6 +2665,8 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
     // Send welcome WhatsApp message (best effort - async, don't wait)
     sendWelcomeWhatsApp(pendingData.phone, pendingData.name, patientId);
 
+    const sessionToken = await createUserSession(req, user.id, user.role);
+
     res.status(201).json({
       success: true,
       data: {
@@ -2640,6 +2675,7 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
         role: user.role,
         name: user.name,
         profileId: patientId,
+        token: sessionToken,
       },
     });
   } catch (err) {
@@ -3318,6 +3354,8 @@ app.get("/api/analytics", async (_req, res) => {
 // â”€â”€â”€ Patients â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/patients", async (req, res) => {
   try {
+    if (!(await requireRole(req, res, STAFF_PATIENT_ACCESS_ROLES))) return;
+
     const result = await query(
       `SELECT 
         p.*,
@@ -3379,6 +3417,22 @@ app.get("/api/patients", async (req, res) => {
 app.get("/api/patients/:id(\\d+)", async (req, res) => {
   try {
     const { id } = req.params;
+
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    let isOwnRecord = false;
+    if (auth.role === "patient") {
+      // Look up the caller's own patient id server-side — never trust a
+      // client-supplied header for this, since that would let a patient
+      // view someone else's record just by changing the header value.
+      const ownPatient = await query("SELECT id FROM dietbyrd_patients WHERE user_id = $1", [auth.userId]);
+      isOwnRecord = ownPatient.rows.length > 0 && String(ownPatient.rows[0].id) === String(id);
+    }
+    if (!STAFF_PATIENT_ACCESS_ROLES.includes(auth.role) && !isOwnRecord) {
+      return res.status(403).json({ success: false, error: "Not authorized for this resource" });
+    }
 
     const result = await query(
       `SELECT 

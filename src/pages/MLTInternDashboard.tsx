@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { assignDietician, assignDoctor, getPatients, getDoctors, getDieticians, getReferrals, getUnregisteredReferrals, getJoinRequests, getUnassignedAppointments, triggerAutoAssign, approveJoinRequest, rejectJoinRequest, verifyDoctor, getAllDieticianBlockedSlots, Patient, Doctor, Dietician, Referral, UnregisteredReferral, JoinRequest, AutoAssignResult } from "@/lib/api";
+import { assignDietician, assignDoctor, getPatients, getDoctors, getDieticians, getReferrals, getUnregisteredReferrals, getJoinRequests, getUnassignedAppointments, triggerAutoAssign, approveJoinRequest, rejectJoinRequest, verifyDoctor, getAllDieticianBlockedSlots, Patient, Doctor, Dietician, Referral, UnregisteredReferral, JoinRequest, AutoAssignResult, getAuthHeaders } from "@/lib/api";
 import { foodService } from "@/lib/food-service";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Food } from "@/lib/diet-types";
@@ -272,8 +272,7 @@ const MLTInternDashboard = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": String(user.id),
-          "x-user-role": String(user.role),
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
           message: trimmedMessage,
