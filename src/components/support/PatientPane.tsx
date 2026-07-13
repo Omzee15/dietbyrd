@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { X, Calendar, User, FileText, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getAuthHeaders } from "@/lib/api";
 
 interface PatientPaneProps {
   patientId: number;
@@ -13,7 +14,7 @@ export const PatientPane = ({ patientId, onClose, onMail }: PatientPaneProps) =>
   const { data, isLoading, error } = useQuery({
     queryKey: ["support-patient-details", patientId],
     queryFn: async () => {
-      const res = await fetch(`/api/support/patients/${patientId}/details`);
+      const res = await fetch(`/api/support/patients/${patientId}/details`, { headers: getAuthHeaders() });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
       return json.data;
@@ -23,7 +24,7 @@ export const PatientPane = ({ patientId, onClose, onMail }: PatientPaneProps) =>
   const { data: documents } = useQuery({
     queryKey: ["support-patient-documents", patientId],
     queryFn: async () => {
-      const res = await fetch(`/api/support/patients/${patientId}/documents`);
+      const res = await fetch(`/api/support/patients/${patientId}/documents`, { headers: getAuthHeaders() });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
       return json.data;

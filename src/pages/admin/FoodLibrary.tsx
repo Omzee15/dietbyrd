@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAdminSidebarSections } from "@/lib/admin-sidebar";
+import { getAuthHeaders } from "@/lib/api";
 
 interface Food {
   id: string;
@@ -66,7 +67,7 @@ const AdminFoodLibrary = () => {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/food-library/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/food-library/${id}`, { method: "DELETE", headers: getAuthHeaders() });
       if (!res.ok) throw new Error("Failed to delete food");
       return res.json();
     },
@@ -86,7 +87,7 @@ const AdminFoodLibrary = () => {
       const method = food.id ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(food),
       });
       if (!res.ok) throw new Error("Failed to save food");

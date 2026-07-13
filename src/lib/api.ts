@@ -681,7 +681,7 @@ export const createPaymentOrder = (data: {
   patient_id: number;
   package_id: number;
   amount: number;
-  discounted_amount?: number;
+  coupon_code?: string;
 }) =>
   request<PaymentOrder>("/payments/create-order", {
     method: "POST",

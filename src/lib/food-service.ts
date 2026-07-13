@@ -1,5 +1,6 @@
 // Food Service - API-based food library management
 import { Food } from './diet-types';
+import { getAuthHeaders } from './api';
 
 const API_BASE = '/api';
 
@@ -164,7 +165,7 @@ export const foodService = {
       
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify(food)
       });
       
@@ -185,7 +186,8 @@ export const foodService = {
   delete: async (id: string): Promise<void> => {
     try {
       const response = await fetch(`${API_BASE}/food-library/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getAuthHeaders(),
       });
       
       const data = await response.json();

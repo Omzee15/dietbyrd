@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAdminSidebarSections } from "@/lib/admin-sidebar";
+import { getAuthHeaders } from "@/lib/api";
 
 interface StaffMember {
   id: number;
@@ -61,7 +62,7 @@ const MLTInternsPage = () => {
   const { data: interns = [], isLoading, refetch } = useQuery<StaffMember[]>({
     queryKey: ["staff", "mlt_intern"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/staff/mlt_intern");
+      const res = await fetch("/api/admin/staff/mlt_intern", { headers: getAuthHeaders() });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       return data.data;
@@ -73,7 +74,7 @@ const MLTInternsPage = () => {
     mutationFn: async (data: { phone: string; name: string }) => {
       const res = await fetch("/api/admin/staff/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ phone: data.phone, name: data.name, role: "mlt_intern" }),
       });
       const result = await res.json();
@@ -96,7 +97,7 @@ const MLTInternsPage = () => {
     mutationFn: async ({ userId, password }: { userId: number; password: string }) => {
       const res = await fetch(`/api/admin/staff/${userId}/reset-password`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ new_password: password }),
       });
       const result = await res.json();
@@ -115,7 +116,7 @@ const MLTInternsPage = () => {
 
   const deleteInternMutation = useMutation({
     mutationFn: async (userId: number) => {
-      const res = await fetch(`/api/admin/staff/${userId}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/staff/${userId}`, { method: "DELETE", headers: getAuthHeaders() });
       const result = await res.json();
       if (!result.success) throw new Error(result.error);
       return result.data;

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAdminSidebarSections } from "@/lib/admin-sidebar";
+import { getAuthHeaders } from "@/lib/api";
 
 interface StaffMember {
   id: number;
@@ -59,7 +60,7 @@ const SupportTeamPage = () => {
   const { data: supportTeam = [], isLoading, refetch } = useQuery<StaffMember[]>({
     queryKey: ["staff", "support_intern"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/staff/support_intern");
+      const res = await fetch("/api/admin/staff/support_intern", { headers: getAuthHeaders() });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       return data.data;
@@ -71,7 +72,7 @@ const SupportTeamPage = () => {
     mutationFn: async (data: { phone: string; name: string }) => {
       const res = await fetch("/api/admin/staff/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ phone: data.phone, name: data.name, role: "support_intern" }),
       });
       const result = await res.json();
@@ -94,7 +95,7 @@ const SupportTeamPage = () => {
     mutationFn: async (data: { userId: number; password: string }) => {
       const res = await fetch(`/api/admin/staff/${data.userId}/reset-password`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ new_password: data.password }),
       });
       const result = await res.json();

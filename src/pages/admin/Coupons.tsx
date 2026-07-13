@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { getAuthHeaders } from "@/lib/api";
 
 interface Coupon {
   id: number;
@@ -51,7 +52,7 @@ const AdminCoupons = () => {
   const { data: coupons = [], isLoading } = useQuery({
     queryKey: ["coupons"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/coupons");
+      const res = await fetch("/api/admin/coupons", { headers: getAuthHeaders() });
       if (!res.ok) throw new Error("Failed to fetch coupons");
       const data = await res.json();
       return data.data || [];
@@ -61,7 +62,7 @@ const AdminCoupons = () => {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/admin/coupons/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/coupons/${id}`, { method: "DELETE", headers: getAuthHeaders() });
       if (!res.ok) throw new Error("Failed to delete coupon");
       return res.json();
     },
@@ -81,7 +82,7 @@ const AdminCoupons = () => {
       const method = coupon.id ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(coupon),
       });
       if (!res.ok) throw new Error("Failed to save coupon");

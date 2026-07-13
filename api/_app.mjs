@@ -790,6 +790,15 @@ const STAFF_PATIENT_ACCESS_ROLES = [
   "ops_manager", "founder", "tech_lead", "admin",
 ];
 
+// Named role groups, reused across route definitions below.
+const ADMIN_ROLES = ["ops_manager", "founder", "tech_lead", "admin"];
+const ADMIN_AND_MLT_ROLES = [...ADMIN_ROLES, "mlt_intern"];
+const SUPPORT_ROLES = [...ADMIN_ROLES, "support_intern"];
+const DOCTOR_ROLES = ["doctor", "assistant"];
+const DIETICIAN_ROLES = ["rd"];
+const DOCTOR_OR_ADMIN_ROLES = [...DOCTOR_ROLES, ...ADMIN_AND_MLT_ROLES];
+const DIETICIAN_OR_ADMIN_ROLES = [...DIETICIAN_ROLES, ...ADMIN_AND_MLT_ROLES];
+
 // Verifies the request carries a valid session token belonging to one of
 // `allowedRoles`. Sends a 401/403 response and returns null if not; on
 // success returns the auth context so the route can use it.
@@ -799,11 +808,21 @@ const requireRole = async (req, res, allowedRoles) => {
     res.status(401).json({ success: false, error: auth.error });
     return null;
   }
-  if (!allowedRoles.includes(auth.role)) {
+  if (allowedRoles && !allowedRoles.includes(auth.role)) {
     res.status(403).json({ success: false, error: "Not authorized for this resource" });
     return null;
   }
   return auth;
+};
+
+// Express middleware form of requireRole — attaches the verified identity
+// to req.auth for the handler to use. Pass allowedRoles=null to only
+// require *any* valid session, regardless of role.
+const requireAuth = (allowedRoles = null) => async (req, res, next) => {
+  const auth = await requireRole(req, res, allowedRoles);
+  if (!auth) return; // response already sent
+  req.auth = auth;
+  next();
 };
 
 const ADMIN_JOIN_REQUEST_ROLES = ["ops_manager", "mlt_intern", "founder", "tech_lead"];
@@ -1028,7 +1047,11 @@ const clearOtp = async (phone, purpose = 'login') => {
 // Create Express app
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({
+  verify: (req, _res, buf) => {
+    req.rawBody = buf;
+  },
+}));
 
 // â”€â”€â”€ Health Check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/health", async (_req, res) => {
@@ -2840,7 +2863,7 @@ app.post("/api/join-requests", async (req, res) => {
 });
 
 // Get all join requests (admin only)
-app.get("/api/join-requests", async (req, res) => {
+app.get("/api/join-requests", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
   try {
     const { status } = req.query;
     let sql = `
@@ -2871,7 +2894,7 @@ app.get("/api/join-requests", async (req, res) => {
 });
 
 // Schedule interview for a join request (admin sends WhatsApp/SMS to applicant)
-app.post("/api/join-requests/:id/schedule-interview", async (req, res) => {
+app.post("/api/join-requests/:id/schedule-interview", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { message, delivery } = req.body || {};
@@ -3098,7 +3121,7 @@ app.patch("/api/join-request-messages/:id", async (req, res) => {
 });
 
 // Approve/Reject a join request (admin only)
-app.patch("/api/join-requests/:id", async (req, res) => {
+app.patch("/api/join-requests/:id", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { action, reviewed_by, rejection_reason, admin_message, commission_rate, delivery } = req.body;
@@ -3329,7 +3352,7 @@ app.patch("/api/join-requests/:id", async (req, res) => {
 });
 
 // â”€â”€â”€ Analytics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/analytics", async (_req, res) => {
+app.get("/api/analytics", requireAuth(STAFF_PATIENT_ACCESS_ROLES), async (_req, res) => {
   try {
     const [patients, referrals, doctors, dieticians] = await Promise.all([
       query("SELECT COUNT(*) FROM dietbyrd_patients"),
@@ -3520,7 +3543,7 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
   }
 });
 
-app.delete("/api/patients/:id(\\d+)", async (req, res) => {
+app.delete("/api/patients/:id(\\d+)", requireAuth(ADMIN_ROLES), async (req, res) => {
   let client;
   try {
     const { id } = req.params;
@@ -3716,7 +3739,7 @@ app.delete("/api/patients/:id(\\d+)", async (req, res) => {
 });
 
 // Get patient message history
-app.get("/api/patients/:id(\\d+)/messages", async (req, res) => {
+app.get("/api/patients/:id(\\d+)/messages", requireAuth(STAFF_PATIENT_ACCESS_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -3743,7 +3766,7 @@ app.get("/api/patients/:id(\\d+)/messages", async (req, res) => {
   }
 });
 
-app.post("/api/patients", async (req, res) => {
+app.post("/api/patients", requireAuth(STAFF_PATIENT_ACCESS_ROLES), async (req, res) => {
   try {
     const { name, phone, age, gender, diagnosis, diagnosis_description, referral_source } = req.body;
     if (!phone || !referral_source) {
@@ -3764,6 +3787,20 @@ app.post("/api/patients", async (req, res) => {
 app.patch("/api/patients/:id(\\d+)", async (req, res) => {
   try {
     const { id } = req.params;
+
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    let isOwnRecord = false;
+    if (auth.role === "patient") {
+      const ownPatient = await query("SELECT id FROM dietbyrd_patients WHERE user_id = $1", [auth.userId]);
+      isOwnRecord = ownPatient.rows.length > 0 && String(ownPatient.rows[0].id) === String(id);
+    }
+    if (!STAFF_PATIENT_ACCESS_ROLES.includes(auth.role) && !isOwnRecord) {
+      return res.status(403).json({ success: false, error: "Not authorized for this resource" });
+    }
+
     const { name, email, age, gender, diagnosis, diagnosis_description, height, weight, allergies, workout_frequency, diagnoses, address, dietary_preference, city, current_weight, target_weight } = req.body;
 
     // Prepare allergies for JSONB column
@@ -3830,7 +3867,7 @@ app.patch("/api/patients/:id(\\d+)", async (req, res) => {
 });
 
 // Assign dietician to patient
-app.post("/api/patients/:id(\\d+)/assign-dietician", async (req, res) => {
+app.post("/api/patients/:id(\\d+)/assign-dietician", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { dietician_id } = req.body;
@@ -3904,7 +3941,7 @@ app.post("/api/patients/:id(\\d+)/assign-dietician", async (req, res) => {
 });
 
 // Assign doctor to patient
-app.post("/api/patients/:id(\\d+)/assign-doctor", async (req, res) => {
+app.post("/api/patients/:id(\\d+)/assign-doctor", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { doctor_id } = req.body;
@@ -3970,7 +4007,7 @@ app.post("/api/patients/:id(\\d+)/assign-doctor", async (req, res) => {
 });
 
 // â”€â”€â”€ Doctors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/doctors", async (req, res) => {
+app.get("/api/doctors", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
   try {
     const result = await query(
       `SELECT 
@@ -3991,7 +4028,7 @@ app.get("/api/doctors", async (req, res) => {
   }
 });
 
-app.get("/api/doctors/:id", async (req, res) => {
+app.get("/api/doctors/:id", requireAuth([...DOCTOR_ROLES, ...ADMIN_AND_MLT_ROLES]), async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -4011,7 +4048,7 @@ app.get("/api/doctors/:id", async (req, res) => {
   }
 });
 
-app.post("/api/doctors", async (req, res) => {
+app.post("/api/doctors", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
   try {
     const { name, qualification, clinic_name, clinic_address, default_diagnosis, phone } = req.body;
     if (!name || !qualification || !phone) {
@@ -4034,7 +4071,7 @@ app.post("/api/doctors", async (req, res) => {
   }
 });
 
-app.patch("/api/doctors/:id/verify", async (req, res) => {
+app.patch("/api/doctors/:id/verify", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -4050,7 +4087,7 @@ app.patch("/api/doctors/:id/verify", async (req, res) => {
   }
 });
 
-app.delete("/api/doctors/:id", async (req, res) => {
+app.delete("/api/doctors/:id", requireAuth(ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const doctor = await query(
@@ -4084,7 +4121,7 @@ app.delete("/api/doctors/:id", async (req, res) => {
 });
 
 // â”€â”€â”€ Dieticians â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/dieticians", async (req, res) => {
+app.get("/api/dieticians", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
   try {
     const result = await query(
       `SELECT 
@@ -4108,7 +4145,7 @@ app.get("/api/dieticians", async (req, res) => {
 
 // Get available slots across ALL active dieticians (for unassigned patients)
 // MUST be registered before /api/dieticians/:id to avoid being caught by the parameterized route
-app.get("/api/dieticians/all-available-slots", async (req, res) => {
+app.get("/api/dieticians/all-available-slots", requireAuth(), async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
 
@@ -4234,7 +4271,7 @@ app.get("/api/dieticians/all-available-slots", async (req, res) => {
   }
 });
 
-app.get("/api/dieticians/:id", async (req, res) => {
+app.get("/api/dieticians/:id", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -4251,7 +4288,7 @@ app.get("/api/dieticians/:id", async (req, res) => {
   }
 });
 
-app.delete("/api/dieticians/:id", async (req, res) => {
+app.delete("/api/dieticians/:id", requireAuth(ADMIN_ROLES), async (req, res) => {
   let client;
   try {
     const { id } = req.params;
@@ -4381,7 +4418,7 @@ app.delete("/api/dieticians/:id", async (req, res) => {
   }
 });
 
-app.get("/api/dieticians/:id/patients", async (req, res) => {
+app.get("/api/dieticians/:id/patients", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -4404,7 +4441,7 @@ app.get("/api/dieticians/:id/patients", async (req, res) => {
 });
 
 // â”€â”€â”€ Dietitian Blocked Slots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/dieticians/:id/blocked-slots", async (req, res) => {
+app.get("/api/dieticians/:id/blocked-slots", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
     const { start_date, end_date } = req.query;
@@ -4424,7 +4461,7 @@ app.get("/api/dieticians/:id/blocked-slots", async (req, res) => {
   }
 });
 
-app.post("/api/dieticians/:id/blocked-slots", async (req, res) => {
+app.post("/api/dieticians/:id/blocked-slots", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { blocked_date, start_time, end_time, reason } = req.body;
@@ -4440,7 +4477,7 @@ app.post("/api/dieticians/:id/blocked-slots", async (req, res) => {
   }
 });
 
-app.delete("/api/dieticians/:id/blocked-slots/:slotId", async (req, res) => {
+app.delete("/api/dieticians/:id/blocked-slots/:slotId", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id, slotId } = req.params;
     const result = await query(
@@ -4457,7 +4494,7 @@ app.delete("/api/dieticians/:id/blocked-slots/:slotId", async (req, res) => {
 });
 
 // â”€â”€â”€ Referrals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/referrals", async (req, res) => {
+app.get("/api/referrals", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
   try {
     const result = await query(
       `SELECT 
@@ -4479,7 +4516,7 @@ app.get("/api/referrals", async (req, res) => {
   }
 });
 
-app.get("/api/referrals/doctor/:doctorId", async (req, res) => {
+app.get("/api/referrals/doctor/:doctorId", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { doctorId } = req.params;
     const result = await query(
@@ -4505,7 +4542,7 @@ app.get("/api/referrals/doctor/:doctorId", async (req, res) => {
 });
 
 // Get unregistered referrals (referred but not yet registered/paid)
-app.get("/api/referrals/unregistered", async (req, res) => {
+app.get("/api/referrals/unregistered", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
   try {
     const result = await query(
       `SELECT 
@@ -4548,7 +4585,7 @@ app.get("/api/referrals/unregistered", async (req, res) => {
   }
 });
 
-app.post("/api/referrals", async (req, res) => {
+app.post("/api/referrals", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { patient_name, phone, diagnosis, diagnosis_description, doctor_id } = req.body;
     if (!phone || !doctor_id) {
@@ -4724,7 +4761,7 @@ app.get("/api/referrals/verify-ref", async (req, res) => {
 });
 
 // â”€â”€â”€ Phone Number Lookup (for doctor referral autocomplete) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/patients/lookup-phone", async (req, res) => {
+app.get("/api/patients/lookup-phone", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const phoneQuery = Array.isArray(req.query.phone) ? req.query.phone[0] : req.query.phone;
     const phone = String(phoneQuery || "").replace(/\D/g, "");
@@ -4905,7 +4942,7 @@ app.post("/api/doctor/patients", async (req, res) => {
 });
 
 // â”€â”€â”€ Consultations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/consultations", async (req, res) => {
+app.get("/api/consultations", requireAuth(STAFF_PATIENT_ACCESS_ROLES), async (req, res) => {
   try {
     const { rd_id, patient_id, status } = req.query;
     let sql = `
@@ -5051,6 +5088,19 @@ app.get("/api/plans", async (req, res) => {
 app.get("/api/patients/:id(\\d+)/diet-plans", async (req, res) => {
   try {
     const { id } = req.params;
+
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    let isOwnRecord = false;
+    if (auth.role === "patient") {
+      const ownPatient = await query("SELECT id FROM dietbyrd_patients WHERE user_id = $1", [auth.userId]);
+      isOwnRecord = ownPatient.rows.length > 0 && String(ownPatient.rows[0].id) === String(id);
+    }
+    if (!STAFF_PATIENT_ACCESS_ROLES.includes(auth.role) && !isOwnRecord) {
+      return res.status(403).json({ success: false, error: "Not authorized for this resource" });
+    }
     const result = await query(
       `SELECT 
         dp.*,
@@ -5069,7 +5119,7 @@ app.get("/api/patients/:id(\\d+)/diet-plans", async (req, res) => {
 });
 
 // Create a new diet plan
-app.post("/api/diet-plans", async (req, res) => {
+app.post("/api/diet-plans", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { patient_id, rd_id, plan_json, consultation_id } = req.body;
 
@@ -5127,6 +5177,25 @@ app.post("/api/diet-plans", async (req, res) => {
 app.get("/api/diet-plans/:id", async (req, res) => {
   try {
     const { id } = req.params;
+
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    let isOwnPlan = false;
+    if (auth.role === "patient") {
+      const ownership = await query(
+        `SELECT dp.id FROM dietbyrd_diet_plans dp
+         JOIN dietbyrd_registered_patients rp ON dp.registered_patient_id = rp.id
+         JOIN dietbyrd_patients p ON rp.patient_id = p.id
+         WHERE dp.id = $1 AND p.user_id = $2`,
+        [id, auth.userId]
+      );
+      isOwnPlan = ownership.rows.length > 0;
+    }
+    if (!STAFF_PATIENT_ACCESS_ROLES.includes(auth.role) && !isOwnPlan) {
+      return res.status(403).json({ success: false, error: "Not authorized for this resource" });
+    }
     const result = await query(
       `SELECT 
         dp.*,
@@ -5156,7 +5225,7 @@ app.get("/api/diet-plans/:id", async (req, res) => {
 });
 
 // Update a specific diet plan
-app.patch("/api/diet-plans/:id", async (req, res) => {
+app.patch("/api/diet-plans/:id", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { plan_json } = req.body;
@@ -5186,7 +5255,7 @@ app.patch("/api/diet-plans/:id", async (req, res) => {
 });
 
 // â”€â”€â”€ Doctor Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/doctors/:id/stats", async (req, res) => {
+app.get("/api/doctors/:id/stats", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -5235,7 +5304,7 @@ app.get("/api/doctors/:id/stats", async (req, res) => {
 });
 
 // â”€â”€â”€ Doctor Assistants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/doctors/:id/assistants", async (req, res) => {
+app.get("/api/doctors/:id/assistants", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -5298,7 +5367,7 @@ app.get("/api/admin/doctors/:doctorId/assistants", async (req, res) => {
 });
 
 // Create assistant (with user account)
-app.post("/api/assistants", async (req, res) => {
+app.post("/api/assistants", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { name, phone, password, doctor_id } = req.body;
 
@@ -5351,7 +5420,7 @@ app.post("/api/assistants", async (req, res) => {
 });
 
 // Delete assistant
-app.delete("/api/assistants/:id", async (req, res) => {
+app.delete("/api/assistants/:id", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -5439,7 +5508,7 @@ app.get("/api/food-library/:id", async (req, res) => {
 });
 
 // Create food item
-app.post("/api/food-library", async (req, res) => {
+app.post("/api/food-library", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const {
       id, name_en, name_hi, category,
@@ -5498,7 +5567,7 @@ app.post("/api/food-library", async (req, res) => {
 });
 
 // Update food item
-app.put("/api/food-library/:id", async (req, res) => {
+app.put("/api/food-library/:id", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -5690,7 +5759,7 @@ app.put("/api/food-library/:id", async (req, res) => {
 });
 
 // Delete food item
-app.delete("/api/food-library/:id", async (req, res) => {
+app.delete("/api/food-library/:id", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -5712,7 +5781,7 @@ app.delete("/api/food-library/:id", async (req, res) => {
 // â”€â”€â”€ Coupon Codes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Get all coupons (admin only)
-app.get("/api/admin/coupons", async (req, res) => {
+app.get("/api/admin/coupons", requireAuth(ADMIN_ROLES), async (req, res) => {
   try {
     const { active_only } = req.query;
 
@@ -5732,7 +5801,7 @@ app.get("/api/admin/coupons", async (req, res) => {
 });
 
 // Get single coupon (admin only)
-app.get("/api/admin/coupons/:id", async (req, res) => {
+app.get("/api/admin/coupons/:id", requireAuth(ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -5820,7 +5889,7 @@ app.post("/api/coupons/validate", async (req, res) => {
 });
 
 // Create coupon (admin only)
-app.post("/api/admin/coupons", async (req, res) => {
+app.post("/api/admin/coupons", requireAuth(ADMIN_ROLES), async (req, res) => {
   try {
     const {
       code, discount_type, discount_value, max_discount_amount, min_purchase_amount,
@@ -5860,7 +5929,7 @@ app.post("/api/admin/coupons", async (req, res) => {
 });
 
 // Update coupon (admin only)
-app.put("/api/admin/coupons/:id", async (req, res) => {
+app.put("/api/admin/coupons/:id", requireAuth(ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -5941,7 +6010,7 @@ app.put("/api/admin/coupons/:id", async (req, res) => {
 });
 
 // Delete coupon (admin only)
-app.delete("/api/admin/coupons/:id", async (req, res) => {
+app.delete("/api/admin/coupons/:id", requireAuth(ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -6000,7 +6069,7 @@ app.post("/api/coupons/:id/apply", async (req, res) => {
 // â”€â”€â”€ Appointment Booking System â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Get dietician's weekly availability schedule
-app.get("/api/dieticians/:id/availability", async (req, res) => {
+app.get("/api/dieticians/:id/availability", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -6018,7 +6087,7 @@ app.get("/api/dieticians/:id/availability", async (req, res) => {
 });
 
 // Set/Update dietician's weekly availability
-app.post("/api/dieticians/:id/availability", async (req, res) => {
+app.post("/api/dieticians/:id/availability", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { schedules } = req.body; // Array of { day_of_week, start_time, end_time, slot_duration_minutes }
@@ -6082,7 +6151,7 @@ app.post("/api/dieticians/:id/availability", async (req, res) => {
 });
 
 // Get available appointment slots for a dietician within a date range
-app.get("/api/dieticians/:id/available-slots", async (req, res) => {
+app.get("/api/dieticians/:id/available-slots", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
     const { start_date, end_date } = req.query;
@@ -6258,7 +6327,20 @@ app.get("/api/dieticians/:id/available-slots", async (req, res) => {
 // Book an appointment (create consultation)
 app.post("/api/appointments/book", async (req, res) => {
   try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
     const { patient_id, scheduled_at, consultation_type, patient_notes } = req.body;
+    if (auth.role === "patient") {
+      const ownPatient = await query("SELECT id FROM dietbyrd_patients WHERE user_id = $1", [auth.userId]);
+      const ownsThisPatient = ownPatient.rows.length > 0 && String(ownPatient.rows[0].id) === String(patient_id);
+      if (!ownsThisPatient) {
+        return res.status(403).json({ success: false, error: "You can only book appointments for your own account" });
+      }
+    } else if (!STAFF_PATIENT_ACCESS_ROLES.includes(auth.role)) {
+      return res.status(403).json({ success: false, error: "Not authorized for this resource" });
+    }
     // rd_id is optional â€” when null the appointment is pending dietitian assignment
     const rdId = null;
 
@@ -6426,6 +6508,20 @@ app.post("/api/appointments/book", async (req, res) => {
 app.get("/api/patients/:id/appointments", async (req, res) => {
   try {
     const { id } = req.params;
+
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    let isOwnRecord = false;
+    if (auth.role === "patient") {
+      const ownPatient = await query("SELECT id FROM dietbyrd_patients WHERE user_id = $1", [auth.userId]);
+      isOwnRecord = ownPatient.rows.length > 0 && String(ownPatient.rows[0].id) === String(id);
+    }
+    if (!STAFF_PATIENT_ACCESS_ROLES.includes(auth.role) && !isOwnRecord) {
+      return res.status(403).json({ success: false, error: "Not authorized for this resource" });
+    }
+
     const { status, upcoming_only } = req.query;
 
     let sql = `
@@ -6518,6 +6614,23 @@ app.put("/api/appointments/:id/cancel", async (req, res) => {
     const { id } = req.params;
     const { cancelled_by, reason } = req.body;
 
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    if (!STAFF_PATIENT_ACCESS_ROLES.includes(auth.role)) {
+      const ownership = await query(
+        `SELECT c.id FROM dietbyrd_consultations c
+         JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
+         JOIN dietbyrd_patients p ON rp.patient_id = p.id
+         WHERE c.id = $1 AND p.user_id = $2`,
+        [id, auth.userId]
+      );
+      if (ownership.rows.length === 0) {
+        return res.status(403).json({ success: false, error: "Not authorized for this resource" });
+      }
+    }
+
     const result = await query(
       `UPDATE dietbyrd_consultations 
        SET status = 'cancelled', 
@@ -6547,6 +6660,23 @@ app.put("/api/appointments/:id/reschedule", async (req, res) => {
   try {
     const { id } = req.params;
     const { new_scheduled_at, patient_notes } = req.body;
+
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    if (!STAFF_PATIENT_ACCESS_ROLES.includes(auth.role)) {
+      const ownership = await query(
+        `SELECT c.id FROM dietbyrd_consultations c
+         JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
+         JOIN dietbyrd_patients p ON rp.patient_id = p.id
+         WHERE c.id = $1 AND p.user_id = $2`,
+        [id, auth.userId]
+      );
+      if (ownership.rows.length === 0) {
+        return res.status(403).json({ success: false, error: "Not authorized for this resource" });
+      }
+    }
 
     if (!new_scheduled_at) {
       return res.status(400).json({
@@ -6612,7 +6742,7 @@ app.put("/api/appointments/:id/reschedule", async (req, res) => {
 });
 
 // Update appointment status (complete / no_show / cancel) â€” RD action
-app.patch("/api/appointments/:id/status", async (req, res) => {
+app.patch("/api/appointments/:id/status", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { status, rd_notes } = req.body;
@@ -6632,6 +6762,14 @@ app.patch("/api/appointments/:id/status", async (req, res) => {
     );
     if (apptResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: "Appointment not found" });
+    }
+
+    if (req.auth.role === "rd") {
+      const ownRd = await query("SELECT id FROM dietbyrd_registered_dietitians WHERE user_id = $1", [req.auth.userId]);
+      const ownsThisAppointment = ownRd.rows.length > 0 && String(ownRd.rows[0].id) === String(apptResult.rows[0].rd_id);
+      if (!ownsThisAppointment) {
+        return res.status(403).json({ success: false, error: "Not authorized for this resource" });
+      }
     }
     const appt = apptResult.rows[0];
     if (appt.status !== "scheduled") {
@@ -6670,7 +6808,7 @@ app.patch("/api/appointments/:id/status", async (req, res) => {
 });
 
 // Update meeting link for an appointment
-app.put("/api/rd/:rd_id/consultations/:consultation_id/link", async (req, res) => {
+app.put("/api/rd/:rd_id/consultations/:consultation_id/link", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { rd_id, consultation_id } = req.params;
     const { meeting_link } = req.body;
@@ -6694,7 +6832,7 @@ app.put("/api/rd/:rd_id/consultations/:consultation_id/link", async (req, res) =
 });
 
 // Block time slots for a dietician (for leave, holidays, etc.)
-app.post("/api/dieticians/:id/blocked-slots", async (req, res) => {
+app.post("/api/dieticians/:id/blocked-slots", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { blocked_date, start_time, end_time, reason } = req.body;
@@ -6743,7 +6881,7 @@ app.post("/api/dieticians/:id/blocked-slots", async (req, res) => {
 });
 
 // Get blocked slots for all dieticians
-app.get("/api/all-dietician-blocked-slots", async (req, res) => {
+app.get("/api/all-dietician-blocked-slots", requireAuth(), async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
 
@@ -6775,7 +6913,7 @@ app.get("/api/all-dietician-blocked-slots", async (req, res) => {
 });
 
 // Get blocked slots for a dietician
-app.get("/api/dieticians/:id/blocked-slots", async (req, res) => {
+app.get("/api/dieticians/:id/blocked-slots", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
     const { start_date, end_date } = req.query;
@@ -6802,7 +6940,7 @@ app.get("/api/dieticians/:id/blocked-slots", async (req, res) => {
 });
 
 // Remove blocked slot
-app.delete("/api/dieticians/:rdId/blocked-slots/:slotId", async (req, res) => {
+app.delete("/api/dieticians/:rdId/blocked-slots/:slotId", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { rdId, slotId } = req.params;
 
@@ -6826,7 +6964,7 @@ app.delete("/api/dieticians/:rdId/blocked-slots/:slotId", async (req, res) => {
 // â”€â”€â”€ Dietician Appointments (Calendar View) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Get all appointments for a dietician (for calendar view)
-app.get("/api/dieticians/:id/appointments", async (req, res) => {
+app.get("/api/dieticians/:id/appointments", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { start_date, end_date, status } = req.query;
@@ -7019,7 +7157,7 @@ app.get("/api/consultation-packages", async (req, res) => {
 // Create Razorpay payment order
 app.post("/api/payments/create-order", async (req, res) => {
   try {
-    const { patient_id, package_id, amount, discounted_amount } = req.body;
+    const { patient_id, package_id, amount, coupon_code } = req.body;
 
     if (!patient_id || !package_id || !amount) {
       return res.status(400).json({
@@ -7046,10 +7184,43 @@ app.post("/api/payments/create-order", async (req, res) => {
           : Number(pkgResult.rows[0].price),
     };
 
-    // Use discounted amount if provided (must be >= 1 rupee = 100 paise)
-    const chargeAmount = discounted_amount && discounted_amount >= 100
-      ? Math.round(discounted_amount)
-      : pkg.price;
+    // The amount actually charged is always derived from the package's
+    // real price plus (if provided) a coupon we validate ourselves here —
+    // never from a client-supplied discount figure. Trusting a client-sent
+    // amount would let anyone pay an arbitrary, near-zero price.
+    let chargeAmount = pkg.price;
+    let appliedCoupon = null;
+    if (coupon_code) {
+      const couponResult = await query(
+        `SELECT * FROM dietbyrd_coupon_codes
+         WHERE UPPER(code) = UPPER($1)
+           AND is_active = true
+           AND valid_from <= NOW()
+           AND valid_until > NOW()`,
+        [coupon_code]
+      );
+      if (couponResult.rows.length === 0) {
+        return res.status(400).json({ success: false, error: "Invalid or expired coupon code" });
+      }
+      const coupon = couponResult.rows[0];
+      if (coupon.usage_limit && coupon.usage_count >= coupon.usage_limit) {
+        return res.status(400).json({ success: false, error: "Coupon usage limit reached" });
+      }
+      if (coupon.min_purchase_amount > 0 && pkg.price < coupon.min_purchase_amount) {
+        return res.status(400).json({ success: false, error: `Minimum purchase amount of ₹${coupon.min_purchase_amount} required` });
+      }
+      let discount = 0;
+      if (coupon.discount_type === "percentage") {
+        discount = (pkg.price * coupon.discount_value) / 100;
+        if (coupon.max_discount_amount && discount > coupon.max_discount_amount) {
+          discount = coupon.max_discount_amount;
+        }
+      } else {
+        discount = coupon.discount_value;
+      }
+      chargeAmount = Math.max(100, Math.round(pkg.price - discount));
+      appliedCoupon = coupon;
+    }
 
     // Create or get Razorpay order
     let razorpayOrderId;
@@ -7226,6 +7397,29 @@ app.post("/api/webhooks/whatsapp", (req, res) => {
 // Razorpay webhook handler (payment.captured)
 app.post("/api/payments/webhook", async (req, res) => {
   try {
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.error("[payments/webhook] RAZORPAY_WEBHOOK_SECRET is not configured; rejecting webhook call");
+      return res.status(503).json({ success: false, error: "Webhook not configured" });
+    }
+    const signature = req.headers["x-razorpay-signature"];
+    if (!signature || !req.rawBody) {
+      return res.status(400).json({ success: false, error: "Missing signature" });
+    }
+    const expectedSignature = crypto
+      .createHmac("sha256", webhookSecret)
+      .update(req.rawBody)
+      .digest("hex");
+    const signatureBuf = Buffer.from(String(signature));
+    const expectedBuf = Buffer.from(expectedSignature);
+    const signatureValid =
+      signatureBuf.length === expectedBuf.length &&
+      crypto.timingSafeEqual(signatureBuf, expectedBuf);
+    if (!signatureValid) {
+      console.error("[payments/webhook] Invalid signature");
+      return res.status(400).json({ success: false, error: "Invalid signature" });
+    }
+
     const event = req.body?.event;
     if (event !== "payment.captured") {
       return res.json({ success: true, ignored: true });
@@ -7518,7 +7712,7 @@ app.get("/doctor/me/patients", async (req, res) => {
 
 // â”€â”€â”€ Admin Staff Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Get staff members by role (mlt_intern or support_intern)
-app.get("/api/admin/staff/:role", async (req, res) => {
+app.get("/api/admin/staff/:role", requireAuth(ADMIN_ROLES), async (req, res) => {
   try {
     const { role } = req.params;
 
@@ -7543,7 +7737,7 @@ app.get("/api/admin/staff/:role", async (req, res) => {
 });
 
 // Create staff account with random 8-digit password
-app.post("/api/admin/staff/create", async (req, res) => {
+app.post("/api/admin/staff/create", requireAuth(ADMIN_ROLES), async (req, res) => {
   try {
     const { phone, role, name } = req.body;
 
@@ -7597,7 +7791,7 @@ app.post("/api/admin/staff/create", async (req, res) => {
 });
 
 // Reset password for a staff member (admin only)
-app.post("/api/admin/staff/:userId/reset-password", async (req, res) => {
+app.post("/api/admin/staff/:userId/reset-password", requireAuth(ADMIN_ROLES), async (req, res) => {
   try {
     const { userId } = req.params;
     const { new_password } = req.body;
@@ -7619,7 +7813,7 @@ app.post("/api/admin/staff/:userId/reset-password", async (req, res) => {
 });
 
 // Delete a staff member (admin only)
-app.delete("/api/admin/staff/:userId", async (req, res) => {
+app.delete("/api/admin/staff/:userId", requireAuth(ADMIN_ROLES), async (req, res) => {
   try {
     const { userId } = req.params;
     const result = await query(
@@ -7640,7 +7834,7 @@ app.delete("/api/admin/staff/:userId", async (req, res) => {
 // ==========================================
 
 // Get all doctors for support team
-app.get("/api/support/doctors", async (req, res) => {
+app.get("/api/support/doctors", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const result = await query(
       `SELECT u.id, u.name, u.phone, u.email, u.is_active, u.created_at
@@ -7657,7 +7851,7 @@ app.get("/api/support/doctors", async (req, res) => {
 });
 
 // Get all patients for support team
-app.get("/api/support/patients", async (req, res) => {
+app.get("/api/support/patients", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const rawPage = parseInt(String(req.query.page || "1"), 10);
     const rawPageSize = parseInt(String(req.query.page_size || "50"), 10);
@@ -7735,7 +7929,7 @@ app.get("/api/support/patients", async (req, res) => {
 });
 
 // Get all dieticians for support team
-app.get("/api/support/dieticians", async (req, res) => {
+app.get("/api/support/dieticians", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const result = await query(
       `SELECT d.id, u.name, u.phone, u.email, d.specializations as specialization, d.qualification,
@@ -7753,7 +7947,7 @@ app.get("/api/support/dieticians", async (req, res) => {
   }
 });
 
-app.get("/api/support/patients/:id/details", async (req, res) => {
+app.get("/api/support/patients/:id/details", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const patientResult = await query(
@@ -7803,7 +7997,7 @@ app.get("/api/support/patients/:id/details", async (req, res) => {
   }
 });
 
-app.get("/api/support/patients/:id/documents", async (req, res) => {
+app.get("/api/support/patients/:id/documents", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const pRes = await query("SELECT user_id FROM dietbyrd_patients WHERE id = $1", [id]);
@@ -7824,7 +8018,7 @@ app.get("/api/support/patients/:id/documents", async (req, res) => {
   }
 });
 
-app.get("/api/support/doctors/:id/details", async (req, res) => {
+app.get("/api/support/doctors/:id/details", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const docResult = await query(
@@ -7845,7 +8039,7 @@ app.get("/api/support/doctors/:id/details", async (req, res) => {
   }
 });
 
-app.get("/api/support/dieticians/:id/details", async (req, res) => {
+app.get("/api/support/dieticians/:id/details", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const dietResult = await query(
@@ -7903,7 +8097,7 @@ const ensureSupportCommunicationsTable = async () => {
   }
 };
 
-app.get("/api/support/communications", async (req, res) => {
+app.get("/api/support/communications", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const { email } = req.query;
     if (!email) return res.status(400).json({ success: false, error: "Email is required" });
@@ -7921,7 +8115,7 @@ app.get("/api/support/communications", async (req, res) => {
   }
 });
 
-app.post("/api/support/communications", async (req, res) => {
+app.post("/api/support/communications", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const { target_email, subject, body } = req.body;
     if (!target_email || !subject || !body) {
@@ -7957,7 +8151,7 @@ app.post("/api/support/communications", async (req, res) => {
 });
 
 // Get all tickets
-app.get("/api/support/tickets", async (req, res) => {
+app.get("/api/support/tickets", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const { status, priority, patient_id } = req.query;
 
@@ -8112,7 +8306,7 @@ app.get("/api/patient/me/tickets/:id", async (req, res) => {
 });
 
 // Get single ticket with comments
-app.get("/api/support/tickets/:id", async (req, res) => {
+app.get("/api/support/tickets/:id", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -8157,7 +8351,7 @@ app.get("/api/support/tickets/:id", async (req, res) => {
 });
 
 // Create new ticket
-app.post("/api/support/tickets", async (req, res) => {
+app.post("/api/support/tickets", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const { patient_id, subject, title, description, category, priority, created_by } = req.body;
     const ticketTitle = String(subject || title || "").trim();
@@ -8189,7 +8383,7 @@ RETURNING * `,
 });
 
 // Update ticket
-app.patch("/api/support/tickets/:id", async (req, res) => {
+app.patch("/api/support/tickets/:id", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { status, priority, assigned_to, resolution_notes } = req.body;
@@ -8252,7 +8446,7 @@ RETURNING *
 });
 
 // Add comment to ticket
-app.post("/api/support/tickets/:id/comments", async (req, res) => {
+app.post("/api/support/tickets/:id/comments", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { user_id, comment, is_internal } = req.body;
@@ -8279,7 +8473,7 @@ RETURNING * `,
 });
 
 // â”€â”€â”€ Unassigned appointments (pending dietitian allocation) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/appointments/unassigned", async (_req, res) => {
+app.get("/api/appointments/unassigned", requireAuth(ADMIN_AND_MLT_ROLES), async (_req, res) => {
   try {
     const result = await query(
       `SELECT
@@ -9040,7 +9234,7 @@ if (process.env.ENABLE_AUTO_ASSIGN_SCHEDULER === "true" || IS_DEV) {
 }
 
 // â”€â”€â”€ Manual trigger endpoint (for the dashboard "Auto-Assign Now" button) â”€â”€â”€â”€â”€â”€
-app.post("/api/appointments/trigger-auto-assign", async (_req, res) => {
+app.post("/api/appointments/trigger-auto-assign", requireAuth(ADMIN_AND_MLT_ROLES), async (_req, res) => {
   try {
     const result = await runAutoAssign();
     res.json({ success: true, ...result });
@@ -9052,25 +9246,13 @@ app.post("/api/appointments/trigger-auto-assign", async (_req, res) => {
 const getPatientProfileForAuth = async (auth) => {
   if (!auth || !["patient", "admin", "rd"].includes(auth.role)) return null;
 
-  if (auth.patientProfileId) {
-    const byProfileId = await query(
-      `SELECT id, phone, name, user_id
-       FROM dietbyrd_patients
-       WHERE id = $1
-       LIMIT 1`,
-      [auth.patientProfileId]
-    );
-
-    const patient = byProfileId.rows[0];
-    if (patient) {
-      if (!patient.user_id) {
-        await query("UPDATE dietbyrd_patients SET user_id = $1 WHERE id = $2", [auth.userId, patient.id]);
-      }
-      if (!patient.user_id || patient.user_id === auth.userId) {
-        return { ...patient, user_id: auth.userId };
-      }
-    }
-  }
+  // NOTE: we intentionally do NOT trust auth.patientProfileId here (it
+  // originates from the client-supplied x-patient-id header). A patient
+  // record with no user_id yet would get silently linked to whoever
+  // asked for it, letting one patient claim another person's unlinked
+  // record just by guessing/enumerating its id. The lookups below are
+  // scoped only to the caller's own verified identity (their user_id or
+  // their own account phone number), which is safe.
 
   const byUserId = await query(
     "SELECT id, phone, name, user_id FROM dietbyrd_patients WHERE user_id = $1 LIMIT 1",
@@ -9405,14 +9587,41 @@ const signedDocumentUrl = async (filePath) => {
   return data.signedURL ? `${supabaseUrl}/storage/v1${data.signedURL}` : null;
 };
 
+const DOCUMENT_URL_SECRET = process.env.DOCUMENT_URL_SECRET || TOKEN_SECRET;
+const DOCUMENT_URL_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+const signDocumentDownload = (documentId) => {
+  const expires = Date.now() + DOCUMENT_URL_TTL_MS;
+  const token = crypto
+    .createHmac("sha256", DOCUMENT_URL_SECRET)
+    .update(`${documentId}.${expires}`)
+    .digest("hex");
+  return { expires, token };
+};
+
+const verifyDocumentDownloadToken = (documentId, expires, token) => {
+  const expiresNum = Number(expires);
+  if (!Number.isFinite(expiresNum) || Date.now() > expiresNum) return false;
+  if (!token) return false;
+  const expected = crypto
+    .createHmac("sha256", DOCUMENT_URL_SECRET)
+    .update(`${documentId}.${expiresNum}`)
+    .digest("hex");
+  const tokenBuf = Buffer.from(String(token));
+  const expectedBuf = Buffer.from(expected);
+  return tokenBuf.length === expectedBuf.length && crypto.timingSafeEqual(tokenBuf, expectedBuf);
+};
+
 const attachDocumentUrls = async (rows) =>
   Promise.all(rows.map(async (row) => {
     const { file_data, ...documentRow } = row;
+    if (!file_data) {
+      return { ...documentRow, signed_url: await signedDocumentUrl(row.file_path) };
+    }
+    const { expires, token } = signDocumentDownload(row.id);
     return {
       ...documentRow,
-      signed_url: file_data
-        ? `/api/patient/documents/${row.id}/download`
-        : await signedDocumentUrl(row.file_path)
+      signed_url: `/api/patient/documents/${row.id}/download?expires=${expires}&token=${token}`,
     };
   }));
 
@@ -9518,6 +9727,10 @@ app.post("/api/patient/me/documents", async (req, res) => {
 
 app.get("/api/patient/documents/:id/download", async (req, res) => {
   try {
+    const { expires, token } = req.query;
+    if (!verifyDocumentDownloadToken(req.params.id, expires, token)) {
+      return res.status(403).send("Invalid or expired download link");
+    }
     await ensurePatientDocumentStorage();
     const result = await query(
       "SELECT id, original_filename, mime_type, file_data FROM dietbyrd_patient_documents WHERE id = $1",
@@ -9746,7 +9959,7 @@ app.get("/api/admin/users/:id/sessions", async (req, res) => {
   try {
     const auth = await getAuthContextFromHeaders(req);
     if (auth.error) return res.status(401).json(auth);
-    if (auth.role !== 'admin' && auth.role !== 'owner') return res.status(403).json({ success: false, error: "Forbidden" });
+    if (!ADMIN_ROLES.includes(auth.role)) return res.status(403).json({ success: false, error: "Forbidden" });
 
     const userId = parseInt(req.params.id);
     const { rows } = await query("SELECT session_token, ip_address, user_agent, created_at, expires_at FROM dietbyrd_user_sessions WHERE user_id = $1 ORDER BY created_at DESC", [userId]);
@@ -9760,7 +9973,7 @@ app.post("/api/admin/users/:id/sessions/logout-all", async (req, res) => {
   try {
     const auth = await getAuthContextFromHeaders(req);
     if (auth.error) return res.status(401).json(auth);
-    if (auth.role !== 'admin' && auth.role !== 'owner') return res.status(403).json({ success: false, error: "Forbidden" });
+    if (!ADMIN_ROLES.includes(auth.role)) return res.status(403).json({ success: false, error: "Forbidden" });
 
     const userId = parseInt(req.params.id);
     await query("DELETE FROM dietbyrd_user_sessions WHERE user_id = $1", [userId]);
@@ -9774,7 +9987,7 @@ app.post("/api/admin/sessions/logout-device", async (req, res) => {
   try {
     const auth = await getAuthContextFromHeaders(req);
     if (auth.error) return res.status(401).json(auth);
-    if (auth.role !== 'admin' && auth.role !== 'owner') return res.status(403).json({ success: false, error: "Forbidden" });
+    if (!ADMIN_ROLES.includes(auth.role)) return res.status(403).json({ success: false, error: "Forbidden" });
 
     const { session_token } = req.body;
     await query("DELETE FROM dietbyrd_user_sessions WHERE session_token = $1", [session_token]);

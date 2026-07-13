@@ -331,7 +331,7 @@ const AdminDashboard = () => {
     setIsDeleting(true);
     try {
       const urlMap = { patient: "patients", doctor: "doctors", dietician: "dieticians" };
-      const res = await fetch(`/api/${urlMap[deleteTarget.type]}/${deleteTarget.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/${urlMap[deleteTarget.type]}/${deleteTarget.id}`, { method: "DELETE", headers: getAuthHeaders() });
       const data = await res.json();
       const queryKey = [urlMap[deleteTarget.type]] as const;
 

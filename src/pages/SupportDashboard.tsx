@@ -19,6 +19,7 @@ import { DieticianPane } from "@/components/support/DieticianPane";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { getAuthHeaders } from "@/lib/api";
 
 interface Doctor {
   id: number;
@@ -158,7 +159,7 @@ const SupportDashboard = () => {
     queryKey: ["support-communications", emailTarget?.email],
     queryFn: async () => {
       if (!emailTarget?.email) return [];
-      const res = await fetch(`/api/support/communications?email=${encodeURIComponent(emailTarget.email)}`);
+      const res = await fetch(`/api/support/communications?email=${encodeURIComponent(emailTarget.email)}`, { headers: getAuthHeaders() });
       const data = await res.json();
       return data.data || [];
     },
@@ -170,7 +171,7 @@ const SupportDashboard = () => {
       if (!emailTarget?.email) throw new Error("No email target selected");
       const res = await fetch("/api/support/communications", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ target_email: emailTarget.email, subject: emailForm.subject, body: emailForm.body }),
       });
       const data = await res.json();
@@ -190,7 +191,7 @@ const SupportDashboard = () => {
   const { data: doctorsData } = useQuery({
     queryKey: ["support-doctors"],
     queryFn: async () => {
-      const res = await fetch("/api/support/doctors");
+      const res = await fetch("/api/support/doctors", { headers: getAuthHeaders() });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       return data.data as Doctor[];
@@ -200,7 +201,7 @@ const SupportDashboard = () => {
   const { data: patientsResponse, isError: patientsError, error: patientsErrorObj } = useQuery({
     queryKey: ["support-patients", patientPage],
     queryFn: async () => {
-      const res = await fetch(`/api/support/patients?page=${patientPage}&page_size=50`);
+      const res = await fetch(`/api/support/patients?page=${patientPage}&page_size=50`, { headers: getAuthHeaders() });
       const data = await res.json();
       if (!data.success) {
         throw new Error(data.error || "Failed to fetch patients");
@@ -223,7 +224,7 @@ const SupportDashboard = () => {
       const params = new URLSearchParams({ page: "1", page_size: "20" });
       const trimmed = patientSearch.trim();
       if (trimmed) params.set("query", trimmed);
-      const res = await fetch(`/api/support/patients?${params.toString()}`);
+      const res = await fetch(`/api/support/patients?${params.toString()}`, { headers: getAuthHeaders() });
       const data = await res.json();
       if (!data.success) {
         throw new Error(data.error || "Failed to search patients");
@@ -242,7 +243,7 @@ const SupportDashboard = () => {
   const { data: dieticiansData } = useQuery({
     queryKey: ["support-dieticians"],
     queryFn: async () => {
-      const res = await fetch("/api/support/dieticians");
+      const res = await fetch("/api/support/dieticians", { headers: getAuthHeaders() });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       return data.data as Dietician[];
@@ -252,7 +253,7 @@ const SupportDashboard = () => {
   const { data: ticketsData } = useQuery({
     queryKey: ["support-tickets"],
     queryFn: async () => {
-      const res = await fetch("/api/support/tickets");
+      const res = await fetch("/api/support/tickets", { headers: getAuthHeaders() });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       return data.data as Ticket[];
@@ -263,7 +264,7 @@ const SupportDashboard = () => {
   const { data: ticketDetail, isLoading: detailLoading } = useQuery({
     queryKey: ["support-ticket-detail", selectedTicketId],
     queryFn: async () => {
-      const res = await fetch(`/api/support/tickets/${selectedTicketId}`);
+      const res = await fetch(`/api/support/tickets/${selectedTicketId}`, { headers: getAuthHeaders() });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       return data.data as TicketDetail;
@@ -276,7 +277,7 @@ const SupportDashboard = () => {
     mutationFn: async (ticketData: any) => {
       const res = await fetch("/api/support/tickets", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ ...ticketData, created_by: user?.id }),
       });
       const data = await res.json();
@@ -298,7 +299,7 @@ const SupportDashboard = () => {
     mutationFn: async (update: { status?: string; priority?: string; assigned_to?: number | null; resolution_notes?: string }) => {
       const res = await fetch(`/api/support/tickets/${selectedTicketId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(update),
       });
       const data = await res.json();
@@ -318,7 +319,7 @@ const SupportDashboard = () => {
     mutationFn: async () => {
       const res = await fetch(`/api/support/tickets/${selectedTicketId}/comments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ user_id: user?.id, comment: newComment.trim() }),
       });
       const data = await res.json();

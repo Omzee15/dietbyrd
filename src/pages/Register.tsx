@@ -8,6 +8,7 @@ import { Loader2, CheckCircle2, AlertCircle, ArrowRight, Heart, Leaf } from "luc
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { CitySearchCombobox } from "@/components/CitySearchCombobox";
+import { getAuthHeaders } from "@/lib/api";
 
 interface TokenData {
   patientPhone: string;
@@ -128,7 +129,7 @@ const Register = () => {
       try {
         const updateResponse = await fetch("/api/patients/profile", {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify({
             age: parseInt(age),
             gender,
