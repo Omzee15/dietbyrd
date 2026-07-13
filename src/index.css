@@ -116,10 +116,6 @@
   animation: trust-scroll 28s linear infinite;
 }
 
-.trust-marquee:hover .trust-marquee__track {
-  animation-play-state: paused;
-}
-
 @keyframes trust-scroll {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }

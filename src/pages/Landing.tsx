@@ -1070,6 +1070,7 @@ const Landing = () => {
           .nav-links { gap: 12px; }
           .stats-bar-inner { grid-template-columns: 1fr 1fr; gap: 16px; }
           .stat-item { padding: 12px; }
+          .stat-item-num { font-size: 1.75rem; }
           .stat-num { font-size: 24px; }
           .trust-proof-row { gap: 24px; }
           .conditions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
@@ -1376,19 +1377,19 @@ const Landing = () => {
                 { label: 'DPDPA Compliant, Strict NDA Policy', img: '/dpdpa.png' },
                 { label: 'IDA Verified RDs', icon: BadgeCheck },
                 { label: 'EUGDPR Compliant', img: '/gdpr.png' },
-                { label: 'Aligned with ISO 27001 standards' },
+                { label: 'Aligned with ISO 27001 standards', img: '/ise27001.png' },
               ]).flat().map((item, index) => (
-                <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: '14px' }}>
                   {item.img ? (
-                    <div style={{ width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: '104px', height: '104px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <img src={item.img} alt={item.label} style={{ width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }} />
                     </div>
                   ) : item.icon ? (
-                    <div style={{ width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <item.icon size={40} strokeWidth={2} style={{ color: 'var(--teal)' }} />
+                    <div style={{ width: '104px', height: '104px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <item.icon size={52} strokeWidth={2} style={{ color: 'var(--teal)' }} />
                     </div>
                   ) : null}
-                  <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--navy)', whiteSpace: 'nowrap', fontFamily: "'Playfair Display', serif" }}>
+                  <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--navy)', whiteSpace: 'nowrap', fontFamily: "'Playfair Display', serif", textAlign: 'center' }}>
                     {item.label}
                   </div>
                 </div>
