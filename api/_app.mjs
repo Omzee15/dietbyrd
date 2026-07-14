@@ -4966,14 +4966,21 @@ app.get("/api/consultations", requireAuth(STAFF_PATIENT_ACCESS_ROLES), async (re
 app.get("/api/consultations/:id(\\d+)/preview", async (req, res) => {
   try {
     const { id } = req.params;
+    // The referring doctor is linked to the patient via dietbyrd_referrals,
+    // not a column on dietbyrd_consultations. (An older `c.referred_by_doctor_id`
+    // join referenced a column that does not exist and made this endpoint 500.)
     const result = await query(
       `SELECT c.id AS consultation_id, c.status,
               rp.id AS registered_patient_id, p.id AS patient_id, p.name AS patient_name, p.phone AS patient_phone, p.diagnosis,
-              d.name AS doctor_name
+              (SELECT d.name
+                 FROM dietbyrd_referrals r
+                 JOIN dietbyrd_doctors d ON d.id = r.doctor_id
+                WHERE r.patient_id = p.id
+                ORDER BY r.referred_at DESC NULLS LAST
+                LIMIT 1) AS doctor_name
        FROM dietbyrd_consultations c
        LEFT JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
        LEFT JOIN dietbyrd_patients p ON rp.patient_id = p.id
-       LEFT JOIN dietbyrd_doctors d ON c.referred_by_doctor_id = d.id
        WHERE c.id = $1 LIMIT 1`,
       [id]
     );
@@ -5016,12 +5023,20 @@ app.post("/api/consultations/:id(\\d+)/resend-payment-link", async (req, res) =>
     if (!['doctor', 'assistant'].includes(auth.role)) return res.status(403).json({ success: false, error: 'Forbidden' });
 
     const { id } = req.params;
+    // Same fix as /api/consultations/:id/preview above: the referring doctor
+    // is linked via dietbyrd_referrals, not a (non-existent) column on
+    // dietbyrd_consultations.
     const result = await query(
-      `SELECT c.id AS consultation_id, rp.id AS registered_patient_id, p.id AS patient_id, p.name AS patient_name, p.phone AS patient_phone, d.name AS doctor_name
+      `SELECT c.id AS consultation_id, rp.id AS registered_patient_id, p.id AS patient_id, p.name AS patient_name, p.phone AS patient_phone,
+              (SELECT d.name
+                 FROM dietbyrd_referrals r
+                 JOIN dietbyrd_doctors d ON d.id = r.doctor_id
+                WHERE r.patient_id = p.id
+                ORDER BY r.referred_at DESC NULLS LAST
+                LIMIT 1) AS doctor_name
        FROM dietbyrd_consultations c
        LEFT JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
        LEFT JOIN dietbyrd_patients p ON rp.patient_id = p.id
-       LEFT JOIN dietbyrd_doctors d ON c.referred_by_doctor_id = d.id
        WHERE c.id = $1 LIMIT 1`,
       [id]
     );
