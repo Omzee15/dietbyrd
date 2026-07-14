@@ -4067,7 +4067,7 @@ app.get("/api/doctors", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
   }
 });
 
-app.get("/api/doctors/:id", requireAuth([...DOCTOR_ROLES, ...ADMIN_AND_MLT_ROLES]), async (req, res) => {
+app.get("/api/doctors/:id(\\d+)", requireAuth([...DOCTOR_ROLES, ...ADMIN_AND_MLT_ROLES]), async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -4310,7 +4310,7 @@ app.get("/api/dieticians/all-available-slots", requireAuth(), async (req, res) =
   }
 });
 
-app.get("/api/dieticians/:id", requireAuth(), async (req, res) => {
+app.get("/api/dieticians/:id(\\d+)", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query(
@@ -5166,7 +5166,7 @@ app.post("/api/diet-plans", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, r
 });
 
 // Get a specific diet plan
-app.get("/api/diet-plans/:id", async (req, res) => {
+app.get("/api/diet-plans/:id(\\d+)", async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -5247,7 +5247,7 @@ app.patch("/api/diet-plans/:id", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (r
 });
 
 // â”€â”€â”€ Doctor Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/doctors/:id/stats", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) => {
+app.get("/api/doctors/:id(\\d+)/stats", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -6061,7 +6061,7 @@ app.post("/api/coupons/:id/apply", async (req, res) => {
 // â”€â”€â”€ Appointment Booking System â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Get dietician's weekly availability schedule
-app.get("/api/dieticians/:id/availability", requireAuth(), async (req, res) => {
+app.get("/api/dieticians/:id(\\d+)/availability", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -6146,7 +6146,7 @@ app.post("/api/dieticians/:id/availability", requireAuth(DIETICIAN_OR_ADMIN_ROLE
 });
 
 // Get available appointment slots for a dietician within a date range
-app.get("/api/dieticians/:id/available-slots", requireAuth(), async (req, res) => {
+app.get("/api/dieticians/:id(\\d+)/available-slots", requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
     const { start_date, end_date } = req.query;
@@ -7034,7 +7034,7 @@ app.delete("/api/dieticians/:rdId/blocked-slots/:slotId", requireAuth(DIETICIAN_
 // â”€â”€â”€ Dietician Appointments (Calendar View) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Get all appointments for a dietician (for calendar view)
-app.get("/api/dieticians/:id/appointments", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
+app.get("/api/dieticians/:id(\\d+)/appointments", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const { start_date, end_date, status } = req.query;
