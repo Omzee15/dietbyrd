@@ -666,7 +666,6 @@ const CreateDiet = () => {
         }
         const currentY = (col > 0 ? y : microStartY) + row * 6;
         const x = margin + col * colWidth;
-        // @ts-expect-error dynamic key access
         const value = prototypeMicros[item.key] || 0;
         const rdaAge = patient?.age || 30;
         const rdaSex: "M" | "F" = patient?.gender === "female" ? "F" : "M";
@@ -768,7 +767,11 @@ const CreateDiet = () => {
       doc.text(splitUserNote, margin, currY, { lineHeightFactor: 1.5 });
     }
 
-    return doc.output("bloburl");
+    // doc.output("bloburl") is typed as returning a URL object (jsPDF); every
+    // caller (URL.revokeObjectURL, <a href>, window.open) treats this as a
+    // plain string, so normalize here rather than relying on implicit
+    // toString() coercion at each call site.
+    return String(doc.output("bloburl"));
   };
 
   const handleGeneratePDF = async () => {

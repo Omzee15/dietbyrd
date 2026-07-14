@@ -85,11 +85,12 @@ import {
   type Consultation,
   type AvailableSlot,
   type ConsultationPackage,
+  type Patient,
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatTime12, formatDateTime12, parseIST } from "@/lib/utils";
-import { estimateBodyFat, calculateBMI, getBMICategory, calculatePatientTDEE } from "../lib/diet-utils";
+import { estimateBodyFat, calculatePatientTDEE } from "../lib/diet-utils";
 import { getPatientSidebarSections } from "@/lib/patient-sidebar";
 
 // ─── Height Input Helpers ───────────────────────────────────────────────────────
@@ -250,9 +251,11 @@ const PatientDashboard = () => {
     refetchOnWindowFocus: true,
   });
 
-  // Update patient mutation for body details
+  // Update patient mutation — used for both the body-details form and the
+  // fuller profile-edit form (name/gender/diagnosis/city/etc.), so the
+  // accepted shape has to cover both call sites.
   const updatePatientMutation = useMutation({
-    mutationFn: (data: { age?: number; height?: number; weight?: number; allergies?: string; workout_frequency?: number }) =>
+    mutationFn: (data: Partial<Patient>) =>
       updatePatient(user!.profileId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });

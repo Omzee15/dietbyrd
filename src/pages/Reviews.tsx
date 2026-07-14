@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { Loader2, ShieldCheck, Star, UserX, Lock, MessageCircle, Heart, Quote, Mail, ArrowLeft, ArrowRight, Menu, X, Leaf } from "lucide-react";
+import { Loader2, ShieldCheck, Star, UserX, Lock, MessageCircle, Heart, Quote, Mail, ArrowLeft, ArrowRight, Menu, X, Leaf, LogOut } from "lucide-react";
 import { getApprovedReviews, getReviewEligibility, submitReview, getMyReview, updateMyReview } from "@/lib/api";
 import { PublicBookingModal } from "@/components/PublicBookingModal";
 import { useAuth } from "@/contexts/AuthContext";
@@ -91,7 +91,7 @@ const formatReviewDate = (dateString) => {
   if (!dateString) return "";
   const d = new Date(dateString);
   const day = d.getDate();
-  const suffix = ["th", "st", "nd", "rd"][day % 10 > 3 ? 0 : (day % 100 - day % 10 != 10) * day % 10] || "th";
+  const suffix = ["th", "st", "nd", "rd"][day % 10 > 3 ? 0 : Number(day % 100 - day % 10 != 10) * day % 10] || "th";
   const formattedDate = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).toUpperCase();
   return `${day}${suffix} ${formattedDate} ${time}`;

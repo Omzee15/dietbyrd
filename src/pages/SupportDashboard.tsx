@@ -208,11 +208,6 @@ const SupportDashboard = () => {
       }
       return data as { data: Patient[]; pagination?: { page: number; page_size: number; total: number; total_pages: number; has_more: boolean } };
     },
-    onError: (error) => {
-      if (import.meta.env.DEV) {
-        console.error("[support/patients]", error);
-      }
-    },
   });
 
   const patientsData = patientsResponse?.data || [];

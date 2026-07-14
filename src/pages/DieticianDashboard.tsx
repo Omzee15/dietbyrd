@@ -93,6 +93,10 @@ interface DisplayPatient {
   doctor: string;
   status: "review" | "on-track";
   nextSession: string;
+  weight?: number | null;
+  height?: number | null;
+  gender?: string | null;
+  workout_frequency?: number | null;
 }
 
 function transformPatient(
@@ -134,6 +138,10 @@ function transformPatient(
     doctor: doctorDisplayName,
     status: Math.random() > 0.3 ? "on-track" : "review", // Placeholder - would come from actual tracking
     nextSession,
+    weight: patient.weight,
+    height: patient.height,
+    gender: patient.gender,
+    workout_frequency: patient.workout_frequency,
   };
 }
 
@@ -528,7 +536,11 @@ const DieticianDashboard = () => {
       doc.text(splitNote, margin, currY, { lineHeightFactor: 1.5 });
     }
 
-    return doc.output('bloburl');
+    // doc.output('bloburl') is typed as returning a URL object (jsPDF); every
+    // caller (URL.revokeObjectURL, <a href>, window.open) treats this as a
+    // plain string, so normalize here rather than relying on implicit
+    // toString() coercion at each call site.
+    return String(doc.output('bloburl'));
   };
 
   const handleGeneratePDF = async () => {

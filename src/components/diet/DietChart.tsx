@@ -84,9 +84,8 @@ export const DietChart: React.FC<DietChartProps> = ({
 
   // Load data
   useEffect(() => {
-    const foods = foodService.getAll();
-    setAvailableFoods(foods);
-    
+    foodService.getAll().then(setAvailableFoods);
+
     const loadDraft = async () => {
       setIsLoading(true);
       try {
@@ -612,7 +611,6 @@ export const DietChart: React.FC<DietChartProps> = ({
       }
       const currentY = (col > 0 ? y : microStartY) + (row * 6);
       const x = margin + (col * colWidth);
-      // @ts-expect-error dynamic key access
       const val = totals[m.key] || 0;
       const pct = m.target > 0 ? (val / m.target) * 100 : 0;
       doc.text(`${m.label}: ${val.toFixed(1)} / ${m.target} ${m.unit}`, x, currentY);

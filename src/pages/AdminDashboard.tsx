@@ -1144,7 +1144,7 @@ const AdminDashboard = () => {
                                         }
                                         acc[date].count += 1;
                                         // Convert paise to rupees by dividing by 100
-                                        acc[date].total += (payment.amount || 0) / 100;
+                                        acc[date].total += Number(payment.amount || 0) / 100;
                                       }
                                     });
                                   }

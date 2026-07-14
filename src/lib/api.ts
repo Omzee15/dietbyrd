@@ -94,6 +94,16 @@ export interface Patient {
   referring_doctor_name?: string | null;
   referring_doctor_qualification?: string | null;
   referring_doctor_clinic?: string | null;
+  city?: string | null;
+  state?: string | null;
+  address?: string | null;
+  region_preference?: string | null;
+  language_preference?: string | null;
+  current_weight?: number | string | null;
+  target_weight?: number | string | null;
+  consultations_left?: number;
+  last_payment_at?: string | null;
+  payment_link_sent_at?: string | null;
   payment_status?: "paid" | "unpaid";
   payment_history?: Array<{
     payment_id: number;
@@ -182,6 +192,7 @@ export interface Doctor {
   default_diagnosis: string;
   is_verified: boolean;
   phone?: string;
+  email?: string | null;
   total_referrals?: number;
 }
 
@@ -226,6 +237,7 @@ export interface Dietician {
   specializations: string[] | null;
   is_active: boolean;
   phone?: string;
+  email?: string | null;
   active_patients?: number;
   clinic_name?: string | null;
   clinic_address?: string | null;
@@ -527,6 +539,7 @@ export interface Appointment {
   patient_notes?: string;
   cancelled_at?: string;
   cancelled_by?: string;
+  meeting_link?: string | null;
   dietician_name?: string;
   dietician_qualification?: string;
   patient_name?: string;

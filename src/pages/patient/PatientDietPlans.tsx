@@ -569,7 +569,7 @@ const PatientDietPlans = () => {
                             month: "short",
                           })}{" "}
                           at {formatDateTime12(nextAppointment.scheduled_at)}
-                          {nextAppointment.rd_name && ` · ${nextAppointment.rd_name}`}
+                          {nextAppointment.dietician_name && ` · ${nextAppointment.dietician_name}`}
                         </p>
                       </>
                     ) : (

@@ -15,7 +15,7 @@ import { DropdownMenu,
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { getDoctorReferrals, getDoctor, getDoctorStats, getDoctorAssistants, createAssistant, deleteAssistant, createReferral, lookupPhoneNumber, getDoctorPatients, getMe, updatePatientImprovementScore, MeUser, Referral, DoctorPatientSummary } from "@/lib/api";
+import { getDoctorReferrals, getDoctor, getDoctorStats, getDoctorAssistants, createAssistant, deleteAssistant, createReferral, lookupPhoneNumber, getDoctorPatients, updatePatientImprovementScore, Referral, DoctorPatientSummary } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 const diagnosisOptions = [
@@ -67,7 +67,6 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [patientSearch, setPatientSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "unpaid">("all");
-  const [userChip, setUserChip] = useState<MeUser | "loading" | "error">("loading");
   
   // Check if current user is an assistant (not a doctor)
   const isAssistant = user?.role === "assistant";
@@ -116,24 +115,6 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
       navigate("/doctor/referrals", { replace: true });
     }
   }, [location.pathname, navigate]);
-
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    const timeout = setTimeout(() => {
-      if (!cancelled) setUserChip("error");
-    }, 5000);
-
-    const me = getMe();
-    if (cancelled) return;
-    clearTimeout(timeout);
-    setUserChip(me ?? "error");
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timeout);
-    };
-  }, [user]);
 
   // Get current doctor from auth (for assistants, use doctorId to get their linked doctor)
   const { data: currentDoctor, isLoading: doctorLoading } = useQuery({
@@ -408,21 +389,15 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 hover:bg-muted rounded-lg px-2 py-1.5 transition-colors">
                 <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
-                  {userChip === "loading" || userChip === "error"
-                    ? "DR"
-                    : (userChip.name || "")
-                        .split(" ")
-                        .filter(Boolean)
-                        .slice(0, 2)
-                        .map((n) => n[0])
-                        .join("") || "DR"}
+                  {(user?.name || "")
+                    .split(" ")
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((n) => n[0])
+                    .join("") || "DR"}
                 </div>
                 <span className="text-sm font-medium">
-                  {userChip === "loading"
-                    ? "Loading..."
-                    : userChip === "error"
-                      ? "—"
-                      : userChip.name || userChip.email || userChip.phone || "—"}
+                  {user?.name || user?.phone || "—"}
                 </span>
                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
               </button>

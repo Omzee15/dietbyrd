@@ -98,7 +98,6 @@ const PatientProfile = () => {
     age: "",
     height: "",
     weight: "",
-    allergies: "",
   });
   const [bodyErrors, setBodyErrors] = useState<{ age?: string; height?: string; weight?: string }>({});
   const [documentKind, setDocumentKind] = useState<"blood_report" | "prescription" | "other">("blood_report");
@@ -176,7 +175,7 @@ const PatientProfile = () => {
 
   // Update patient mutation — personal info
   const updatePersonalMutation = useMutation({
-    mutationFn: (data: { name?: string; email?: string | null; age?: number; gender?: string; address?: string }) =>
+    mutationFn: (data: { name?: string; email?: string | null; age?: number; gender?: "male" | "female" | "other"; address?: string }) =>
       updatePatient(user!.profileId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
@@ -317,7 +316,11 @@ const PatientProfile = () => {
       name: personalDetails.name.trim() || undefined,
       email: personalDetails.email.trim() || null,
       age: personalDetails.age || undefined,
-      gender: personalDetails.gender || undefined,
+      // personalDetails.gender is set exclusively from the male/female/other
+      // <Select> below (line ~557), so this value is always one of those
+      // three at runtime even though the Select's onValueChange callback is
+      // typed as a plain string.
+      gender: (personalDetails.gender || undefined) as "male" | "female" | "other" | undefined,
       address: personalDetails.address.trim() || undefined,
     });
   };
@@ -1095,7 +1098,7 @@ const PatientProfile = () => {
             </Card>
 
             {/* Referring Doctor */}
-            {patient.doctor_name && (
+            {patient.referring_doctor_name && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
@@ -1107,14 +1110,14 @@ const PatientProfile = () => {
                   <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-xl">
                     <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                       <span className="text-lg font-bold text-primary">
-                        {getInitials(patient.doctor_name)}
+                        {getInitials(patient.referring_doctor_name)}
                       </span>
                     </div>
                     <div>
-                      <p className="font-semibold">{patient.doctor_name}</p>
-                      {patient.doctor_specialization && (
+                      <p className="font-semibold">{patient.referring_doctor_name}</p>
+                      {patient.referring_doctor_qualification && (
                         <p className="text-sm text-muted-foreground capitalize">
-                          {patient.doctor_specialization}
+                          {patient.referring_doctor_qualification}
                         </p>
                       )}
                     </div>

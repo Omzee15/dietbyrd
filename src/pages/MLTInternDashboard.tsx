@@ -52,7 +52,7 @@ const MLTInternDashboard = () => {
   const queryClient = useQueryClient();
   const { logout } = useAuth();
   
-  const [activeSection, setActiveSection] = useState<'patients' | 'doctors' | 'dieticians' | 'food-library' | 'join-requests' | 'unregistered-referrals'>('patients');
+  const [activeSection, setActiveSection] = useState<'patients' | 'doctors' | 'dieticians' | 'food-library' | 'join-requests' | 'unregistered-referrals' | 'leaves'>('patients');
   const [search, setSearch] = useState("");
   const [referredByFilter, setReferredByFilter] = useState<string>("all");
   const [dieticianFilter, setDieticianFilter] = useState<string>("all");
