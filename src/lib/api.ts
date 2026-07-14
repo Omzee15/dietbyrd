@@ -327,6 +327,16 @@ export const getConsultations = (filters?: { rd_id?: number; patient_id?: number
   return request<Consultation[]>(`/consultations?${params.toString()}`);
 };
 
+// Self-scoped consultations for the logged-in patient. The generic
+// getConsultations() above hits a staff-only route (patients get 403); this
+// hits /api/patient/me/consultations which the server scopes to the caller.
+export const getPatientMeConsultations = (status?: string) => {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  const qs = params.toString();
+  return request<Consultation[]>(`/patient/me/consultations${qs ? `?${qs}` : ""}`);
+};
+
 export const updateMeetingLink = (rdId: number, consultationId: number, link: string) =>
   request<Consultation>(`/rd/${rdId}/consultations/${consultationId}/link`, {
     method: "PUT",

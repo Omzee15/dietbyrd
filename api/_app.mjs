@@ -830,6 +830,32 @@ const ADMIN_COMMISSION_ROLES = ["ops_manager", "founder", "tech_lead"];
 const ADMIN_DOCTOR_ASSISTANT_ROLES = ["admin", "ops_manager", "founder", "tech_lead", "mlt_intern"];
 const JOIN_REQUEST_RECIPIENT_ROLES = ["doctor", "rd"];
 
+// For routes gated to DIETICIAN_OR_ADMIN_ROLES that carry an rd_id in the
+// URL (availability, blocked slots, consultation links): a dietician (rd)
+// may only act on their OWN rd_id, while admins/MLT staff may act on any.
+// Without this a dietician could pass another dietician's id in the URL and
+// overwrite that colleague's schedule/slots. Returns { ok:true } or
+// { ok:false, status, error }. A non-numeric urlRdId also fails cleanly
+// here (400) rather than reaching an integer-typed query.
+const assertDieticianScope = async (auth, urlRdId) => {
+  if (auth.role !== "rd") return { ok: true }; // admin / MLT: unrestricted
+  if (!/^\d+$/.test(String(urlRdId ?? ""))) {
+    return { ok: false, status: 400, error: "Invalid dietician id" };
+  }
+  const rd = await query(
+    "SELECT id FROM dietbyrd_registered_dietitians WHERE user_id = $1 LIMIT 1",
+    [auth.userId]
+  );
+  const ownRdId = rd.rows[0]?.id;
+  if (!ownRdId) {
+    return { ok: false, status: 403, error: "No dietician profile for this account" };
+  }
+  if (String(ownRdId) !== String(urlRdId)) {
+    return { ok: false, status: 403, error: "You can only modify your own schedule" };
+  }
+  return { ok: true };
+};
+
 // Creates a real, DB-backed session token for a user and returns it.
 // This is the ONLY thing that should ever grant a client authenticated
 // access — never trust an identity a client merely *claims* (e.g. a
@@ -850,6 +876,14 @@ const createUserSession = async (req, userId, role) => {
   return sessionToken;
 };
 
+// Session tokens are always server-issued UUIDs (crypto.randomUUID). Any
+// value that isn't a well-formed UUID can never match a real session, so
+// reject it up front — this also stops a malformed token from reaching the
+// UUID-typed column and throwing a raw Postgres "invalid input syntax"
+// error (which would surface as a 500 leaking DB internals instead of a
+// clean 401).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const getAuthContextFromHeaders = async (req) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -857,7 +891,11 @@ const getAuthContextFromHeaders = async (req) => {
   }
 
   const token = authHeader.substring(7);
-  
+
+  if (!UUID_RE.test(token)) {
+    return { error: "Invalid session token" };
+  }
+
   const sessionResult = await query(
     `SELECT s.user_id, s.is_active, s.expires_at, u.role, u.email, u.phone, u.name 
      FROM dietbyrd_user_sessions s
@@ -2343,7 +2381,7 @@ app.post("/api/auth/consent", async (req, res) => {
     const ip_address = req.headers['x-forwarded-for'] || req.socket.remoteAddress || null;
     
     await query(
-      "INSERT INTO dietbyrd_user_consents (user_id, consent_version, ip_address) VALUES ($1, $2, $3)",
+      "INSERT INTO dietbyrd_user_consents (user_id, consent_text_version, ip_address) VALUES ($1, $2, $3)",
       [user_id, consent_version, ip_address]
     );
 
@@ -2357,8 +2395,9 @@ async function getAuthContextFromReq(req) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
   const token = authHeader.split(" ")[1];
+  if (!token || !UUID_RE.test(token)) return null;
   const { rows } = await query(`
-    SELECT u.id, u.role, u.phone 
+    SELECT u.id, u.role, u.phone
     FROM dietbyrd_users u
     JOIN dietbyrd_user_sessions s ON u.id = s.user_id
     WHERE s.session_token = $1 AND s.expires_at > NOW()
@@ -4447,7 +4486,7 @@ app.get("/api/dieticians/:id/patients", requireAuth(DIETICIAN_OR_ADMIN_ROLES), a
 // every call to it threw a database error. Removed in favor of the
 // correct, already-validated versions below.
 // â”€â”€â”€ Referrals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/referrals", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
+app.get("/api/referrals", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
   try {
     const result = await query(
       `SELECT 
@@ -6045,6 +6084,9 @@ app.post("/api/dieticians/:id/availability", requireAuth(DIETICIAN_OR_ADMIN_ROLE
     const { id } = req.params;
     const { schedules } = req.body; // Array of { day_of_week, start_time, end_time, slot_duration_minutes }
 
+    const scope = await assertDieticianScope(req.auth, id);
+    if (!scope.ok) return res.status(scope.status).json({ success: false, error: scope.error });
+
     if (!schedules || !Array.isArray(schedules)) {
       return res.status(400).json({
         success: false,
@@ -6561,6 +6603,56 @@ app.get("/api/patient/me/appointments", async (req, res) => {
   }
 });
 
+// Self-scoped consultations for the logged-in patient. The generic
+// /api/consultations route is gated to staff roles (STAFF_PATIENT_ACCESS_ROLES,
+// which excludes "patient"), so the patient dashboard previously got a silent
+// 403 fetching its own consultations. This mirrors that route's output shape
+// but hard-scopes the WHERE to the caller's own patient profile, so a patient
+// can only ever see their own rows.
+app.get("/api/patient/me/consultations", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    if (auth.role !== "patient") {
+      return res.status(403).json({ success: false, error: "Not authorized" });
+    }
+
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient) {
+      return res.status(404).json({ success: false, error: "Patient profile not found" });
+    }
+
+    const { status } = req.query;
+    const params = [patient.id];
+    let sql = `
+      SELECT
+        c.*,
+        p.name AS patient_name,
+        p.diagnosis,
+        rd.name AS dietician_name
+      FROM dietbyrd_consultations c
+      LEFT JOIN dietbyrd_registered_patients rp ON c.registered_patient_id = rp.id
+      LEFT JOIN dietbyrd_patients p ON rp.patient_id = p.id
+      LEFT JOIN dietbyrd_registered_dietitians rd ON c.rd_id = rd.id
+      WHERE rp.patient_id = $1
+    `;
+    if (status) {
+      params.push(status);
+      sql += ` AND c.status = $${params.length}`;
+    }
+    sql += ` ORDER BY c.scheduled_at DESC LIMIT 100`;
+
+    const result = await query(sql, params);
+    return res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("[patient/me/consultations] Error:", err);
+    return res.status(500).json({ success: false, error: "Failed to fetch consultations" });
+  }
+});
+
 // Cancel an appointment
 app.put("/api/appointments/:id/cancel", async (req, res) => {
   try {
@@ -6570,6 +6662,10 @@ app.put("/api/appointments/:id/cancel", async (req, res) => {
     const auth = await getAuthContextFromHeaders(req);
     if (auth.error) {
       return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    if (!/^\d+$/.test(String(id))) {
+      return res.status(400).json({ success: false, error: "Invalid appointment id" });
     }
     if (!STAFF_PATIENT_ACCESS_ROLES.includes(auth.role)) {
       const ownership = await query(
@@ -6617,6 +6713,10 @@ app.put("/api/appointments/:id/reschedule", async (req, res) => {
     const auth = await getAuthContextFromHeaders(req);
     if (auth.error) {
       return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    if (!/^\d+$/.test(String(id))) {
+      return res.status(400).json({ success: false, error: "Invalid appointment id" });
     }
     if (!STAFF_PATIENT_ACCESS_ROLES.includes(auth.role)) {
       const ownership = await query(
@@ -6766,6 +6866,9 @@ app.put("/api/rd/:rd_id/consultations/:consultation_id/link", requireAuth(DIETIC
     const { rd_id, consultation_id } = req.params;
     const { meeting_link } = req.body;
 
+    const scope = await assertDieticianScope(req.auth, rd_id);
+    if (!scope.ok) return res.status(scope.status).json({ success: false, error: scope.error });
+
     const result = await query(
       `UPDATE dietbyrd_consultations
        SET meeting_link = $1, updated_at = CURRENT_TIMESTAMP
@@ -6789,6 +6892,9 @@ app.post("/api/dieticians/:id/blocked-slots", requireAuth(DIETICIAN_OR_ADMIN_ROL
   try {
     const { id } = req.params;
     const { blocked_date, start_time, end_time, reason } = req.body;
+
+    const scope = await assertDieticianScope(req.auth, id);
+    if (!scope.ok) return res.status(scope.status).json({ success: false, error: scope.error });
 
     if (!blocked_date) {
       return res.status(400).json({
@@ -6871,6 +6977,10 @@ app.get("/api/dieticians/:id/blocked-slots", requireAuth(), async (req, res) => 
     const { id } = req.params;
     const { start_date, end_date } = req.query;
 
+    if (!/^\d+$/.test(String(id))) {
+      return res.status(400).json({ success: false, error: "Invalid dietician id" });
+    }
+
     let sql = `SELECT *, TO_CHAR(blocked_date, 'YYYY-MM-DD') as blocked_date_str FROM dietbyrd_dietician_blocked_slots WHERE rd_id = $1`;
     const params = [id];
 
@@ -6897,8 +7007,15 @@ app.delete("/api/dieticians/:rdId/blocked-slots/:slotId", requireAuth(DIETICIAN_
   try {
     const { rdId, slotId } = req.params;
 
+    const scope = await assertDieticianScope(req.auth, rdId);
+    if (!scope.ok) return res.status(scope.status).json({ success: false, error: scope.error });
+
+    if (!/^\d+$/.test(String(slotId))) {
+      return res.status(400).json({ success: false, error: "Invalid slot id" });
+    }
+
     const result = await query(
-      `DELETE FROM dietbyrd_dietician_blocked_slots 
+      `DELETE FROM dietbyrd_dietician_blocked_slots
        WHERE id = $1 AND rd_id = $2
        RETURNING *`,
       [slotId, rdId]
@@ -8258,6 +8375,125 @@ app.get("/api/patient/me/tickets/:id", async (req, res) => {
   }
 });
 
+// ─── Patient-scoped ticket writes ───────────────────────────────────────────
+// The patient support UI previously POST/PATCHed the staff /api/support/tickets
+// routes (SUPPORT_ROLES only) with no auth header at all — so every patient's
+// create/comment/reopen/close silently failed. These endpoints derive the
+// patient identity from the session and hard-scope every write to the caller's
+// own tickets, so a patient can raise and follow up on their own tickets but
+// never touch anyone else's.
+
+// Create a support ticket as the logged-in patient
+app.post("/api/patient/me/tickets", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Forbidden" });
+
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient) return res.status(404).json({ success: false, error: "Patient not found" });
+
+    const { subject, title, description, category, priority } = req.body || {};
+    const ticketTitle = String(subject || title || "").trim();
+    const ticketDescription = String(description || "").trim();
+    const rawPriority = String(priority || "medium").toLowerCase();
+    const ticketPriority = rawPriority === "normal" ? "medium" : rawPriority;
+    const ticketCategory = category || "general";
+
+    if (!ticketTitle || !ticketDescription) {
+      return res.status(400).json({ success: false, error: "Subject and description are required" });
+    }
+
+    const result = await query(
+      `INSERT INTO dietbyrd_tickets (patient_id, title, description, category, priority, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [patient.id, ticketTitle, ticketDescription, ticketCategory, ticketPriority || "medium", auth.userId]
+    );
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error("[patient/me/tickets create] Error:", err);
+    res.status(500).json({ success: false, error: "Failed to create ticket" });
+  }
+});
+
+// Add a (public) comment to one of the patient's own tickets
+app.post("/api/patient/me/tickets/:id/comments", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Forbidden" });
+
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient) return res.status(404).json({ success: false, error: "Patient not found" });
+
+    const { id } = req.params;
+    if (!/^\d+$/.test(String(id))) return res.status(400).json({ success: false, error: "Invalid ticket id" });
+
+    const comment = String(req.body?.comment || "").trim();
+    if (!comment) return res.status(400).json({ success: false, error: "Comment is required" });
+
+    // Ownership: the ticket must belong to this patient.
+    const owns = await query(
+      `SELECT 1 FROM dietbyrd_tickets WHERE id = $1 AND patient_id = $2 LIMIT 1`,
+      [id, patient.id]
+    );
+    if (owns.rows.length === 0) return res.status(404).json({ success: false, error: "Ticket not found" });
+
+    const result = await query(
+      `INSERT INTO dietbyrd_ticket_comments (ticket_id, user_id, comment, is_internal)
+       VALUES ($1, $2, $3, false)
+       RETURNING *`,
+      [id, auth.userId, comment]
+    );
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error("[patient/me/tickets/:id/comments] Error:", err);
+    res.status(500).json({ success: false, error: "Failed to add comment" });
+  }
+});
+
+// Reopen / close one of the patient's own tickets (status only)
+app.patch("/api/patient/me/tickets/:id", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Forbidden" });
+
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient) return res.status(404).json({ success: false, error: "Patient not found" });
+
+    const { id } = req.params;
+    if (!/^\d+$/.test(String(id))) return res.status(400).json({ success: false, error: "Invalid ticket id" });
+
+    // A patient may only reopen or close their own ticket — not reassign,
+    // reprioritize, or edit resolution notes.
+    const requested = String(req.body?.status || "").toLowerCase();
+    const allowed = ["open", "closed"];
+    if (!allowed.includes(requested)) {
+      return res.status(400).json({ success: false, error: "status must be 'open' or 'closed'" });
+    }
+
+    const result = await query(
+      `UPDATE dietbyrd_tickets
+         SET status = $1::ticket_status,
+             resolved_at = CASE WHEN $1 = 'closed' THEN NOW() ELSE NULL END
+       WHERE id = $2 AND patient_id = $3
+       RETURNING *`,
+      [requested, id, patient.id]
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: "Ticket not found" });
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error("[patient/me/tickets/:id PATCH] Error:", err);
+    res.status(500).json({ success: false, error: "Failed to update ticket" });
+  }
+});
+
 // Get single ticket with comments
 app.get("/api/support/tickets/:id", requireAuth(SUPPORT_ROLES), async (req, res) => {
   try {
@@ -8426,7 +8662,7 @@ RETURNING * `,
 });
 
 // â”€â”€â”€ Unassigned appointments (pending dietitian allocation) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/appointments/unassigned", requireAuth(ADMIN_AND_MLT_ROLES), async (_req, res) => {
+app.get("/api/appointments/unassigned", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (_req, res) => {
   try {
     const result = await query(
       `SELECT
@@ -9187,7 +9423,7 @@ if (process.env.ENABLE_AUTO_ASSIGN_SCHEDULER === "true" || IS_DEV) {
 }
 
 // â”€â”€â”€ Manual trigger endpoint (for the dashboard "Auto-Assign Now" button) â”€â”€â”€â”€â”€â”€
-app.post("/api/appointments/trigger-auto-assign", requireAuth(ADMIN_AND_MLT_ROLES), async (_req, res) => {
+app.post("/api/appointments/trigger-auto-assign", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (_req, res) => {
   try {
     const result = await runAutoAssign();
     res.json({ success: true, ...result });
@@ -9790,26 +10026,50 @@ const updatePatientImprovementScoreHandler = async (req, res) => {
       return res.status(400).json({ error: "Score must be an integer between 1 and 10" });
     }
 
-    const rdResult = await query(
-      "SELECT id FROM dietbyrd_registered_dietitians WHERE user_id = $1 LIMIT 1",
-      [auth.userId]
-    );
-    if (rdResult.rows.length === 0) {
-      return res.status(403).json({ error: "You are not the assigned dietitian for this patient" });
+    if (!/^\d+$/.test(String(patientId))) {
+      return res.status(400).json({ error: "Invalid patient id" });
     }
 
-    const rdId = rdResult.rows[0].id;
+    if (auth.role === "doctor") {
+      // A doctor may rate a patient they referred (linked via the
+      // referrals table). Previously this handler only ever looked up a
+      // dietitian profile, so a doctor always got 403 here even though the
+      // role check above admitted them and the doctor UI offers the control.
+      const doctorOwns = await query(
+        `SELECT 1
+           FROM dietbyrd_referrals r
+           JOIN dietbyrd_doctors d ON d.id = r.doctor_id
+          WHERE r.patient_id = $1 AND d.user_id = $2
+          LIMIT 1`,
+        [patientId, auth.userId]
+      );
+      if (doctorOwns.rows.length === 0) {
+        return res.status(403).json({ error: "You are not the referring doctor for this patient" });
+      }
+    } else {
+      // Dietitian: may rate a patient assigned to them or with an active
+      // consultation booked with them.
+      const rdResult = await query(
+        "SELECT id FROM dietbyrd_registered_dietitians WHERE user_id = $1 LIMIT 1",
+        [auth.userId]
+      );
+      if (rdResult.rows.length === 0) {
+        return res.status(403).json({ error: "You are not the assigned dietitian for this patient" });
+      }
 
-    const verifyResult = await query(
-      `SELECT rp.id FROM dietbyrd_registered_patients rp
-       LEFT JOIN dietbyrd_consultations c ON rp.id = c.registered_patient_id
-       WHERE rp.patient_id = $1 AND (rp.assigned_rd_id = $2 OR (c.rd_id = $2 AND c.status IN ('confirmed', 'scheduled', 'completed')))
-       LIMIT 1`,
-      [patientId, rdId]
-    );
+      const rdId = rdResult.rows[0].id;
 
-    if (verifyResult.rows.length === 0) {
-      return res.status(403).json({ error: "You are not the assigned dietitian for this patient" });
+      const verifyResult = await query(
+        `SELECT rp.id FROM dietbyrd_registered_patients rp
+         LEFT JOIN dietbyrd_consultations c ON rp.id = c.registered_patient_id
+         WHERE rp.patient_id = $1 AND (rp.assigned_rd_id = $2 OR (c.rd_id = $2 AND c.status IN ('confirmed', 'scheduled', 'completed')))
+         LIMIT 1`,
+        [patientId, rdId]
+      );
+
+      if (verifyResult.rows.length === 0) {
+        return res.status(403).json({ error: "You are not the assigned dietitian for this patient" });
+      }
     }
 
     const updateResult = await query(

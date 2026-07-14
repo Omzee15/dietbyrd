@@ -177,13 +177,18 @@ const Index = () => {
   const completeLogin = async (authUser: AuthUser, fallbackPath?: string) => {
     const normalizedUser = normalizeAuthUser(authUser);
     
-    // Send consent log if they checked the box
+    // Send consent log if they checked the box. This runs before
+    // loginWithData() persists the session, so the shared getAuthHeaders()
+    // (which reads localStorage) isn't populated yet — attach the freshly
+    // issued token from the auth response directly. Without a Bearer token
+    // the server rejects this with 401 and the consent row is never written.
     if (consent) {
       try {
         await fetch("/api/auth/consent", {
           method: "POST",
-          headers: { 
-            "Content-Type": "application/json"
+          headers: {
+            "Content-Type": "application/json",
+            ...(normalizedUser.token ? { Authorization: `Bearer ${normalizedUser.token}` } : {}),
           },
           body: JSON.stringify({
             user_id: normalizedUser.id,

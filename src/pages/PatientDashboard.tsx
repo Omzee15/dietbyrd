@@ -70,7 +70,7 @@ import { CitySearchCombobox } from "@/components/CitySearchCombobox";
 import {
   getPatient,
   getPatientDietPlans,
-  getConsultations,
+  getPatientMeConsultations,
   getPatientMeAppointments,
   updatePatient,
   getAvailableSlots,
@@ -679,10 +679,11 @@ const PatientDashboard = () => {
     enabled: !!user?.profileId,
   });
 
-  // Get patient consultations
+  // Get patient consultations (self-scoped endpoint; the generic
+  // getConsultations route is staff-only and 403s for patients)
   const { data: consultations } = useQuery({
     queryKey: ["patient-consultations", user?.profileId],
-    queryFn: () => getConsultations({ patient_id: user?.profileId }),
+    queryFn: () => getPatientMeConsultations(),
     enabled: !!user?.profileId,
   });
 

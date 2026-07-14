@@ -110,14 +110,10 @@ const PatientSupport = () => {
   // Create ticket mutation
   const createTicketMutation = useMutation({
     mutationFn: async (ticketData: any) => {
-      const res = await fetch("/api/support/tickets", {
+      const res = await fetch("/api/patient/me/tickets", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...ticketData,
-          patient_id: patient?.id,
-          created_by: user?.id,
-        }),
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify(ticketData),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
@@ -144,10 +140,10 @@ const PatientSupport = () => {
       if (!selectedTicketId || !user?.id) {
         throw new Error("Missing ticket or user");
       }
-      const res = await fetch(`/api/support/tickets/${selectedTicketId}/comments`, {
+      const res = await fetch(`/api/patient/me/tickets/${selectedTicketId}/comments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: user.id, comment: newComment.trim() }),
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ comment: newComment.trim() }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
@@ -167,9 +163,9 @@ const PatientSupport = () => {
       if (!selectedTicketId) {
         throw new Error("Missing ticket");
       }
-      const res = await fetch(`/api/support/tickets/${selectedTicketId}`, {
+      const res = await fetch(`/api/patient/me/tickets/${selectedTicketId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ status: "open" }),
       });
       const data = await res.json();
@@ -187,9 +183,9 @@ const PatientSupport = () => {
   const closeTicketMutation = useMutation({
     mutationFn: async () => {
       if (!selectedTicketId) throw new Error("Missing ticket");
-      const res = await fetch(`/api/support/tickets/${selectedTicketId}`, {
+      const res = await fetch(`/api/patient/me/tickets/${selectedTicketId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ status: "closed" }),
       });
       const data = await res.json();
