@@ -1399,6 +1399,120 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* Built With Intent and Soul */}
+      <section className="soul-section reveal" style={{ background: 'var(--cream)' }}>
+        <style>
+          {`.soul-section { padding: 96px 24px; }
+.soul-inner {
+  max-width: 1280px; margin: 0 auto;
+  display: grid; grid-template-columns: 1.5fr 1fr; gap: 56px;
+  align-items: center;
+}
+.soul-eyebrow-row { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+.soul-eyebrow {
+  font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 700;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--teal);
+  white-space: nowrap;
+}
+.soul-eyebrow-line { flex: 1; height: 1px; background: var(--border); position: relative; }
+.soul-eyebrow-leaf {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--teal-l);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.soul-title {
+  font-family: 'Playfair Display', serif; font-weight: 700; color: var(--navy);
+  font-size: clamp(2rem, 3.6vw, 2.75rem); line-height: 1.18; letter-spacing: -0.02em;
+  margin-bottom: 24px;
+}
+.soul-lead { font-size: 1.05rem; color: var(--text); font-weight: 400; margin-bottom: 8px; }
+.soul-quote {
+  font-family: 'Playfair Display', serif; font-style: italic; font-weight: 600;
+  font-size: clamp(1.5rem, 2.4vw, 1.85rem); color: var(--teal); line-height: 1.3;
+  margin-bottom: 28px;
+}
+.soul-bullets { display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; }
+.soul-bullet { display: flex; align-items: flex-start; gap: 12px; font-size: 1rem; color: var(--text2); line-height: 1.5; }
+.soul-bullet-icon {
+  width: 20px; height: 20px; border-radius: 50%; background: var(--teal-l);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;
+}
+.soul-bullet.strong { color: var(--navy); font-weight: 600; }
+.soul-body { font-size: 1rem; color: var(--text2); line-height: 1.8; font-weight: 400; margin-bottom: 32px; }
+.soul-body .highlight { color: var(--teal); font-weight: 600; }
+.soul-divider { height: 1px; background: linear-gradient(90deg, var(--gold), transparent 70%); margin-bottom: 28px; max-width: 320px; }
+.soul-closers { display: flex; flex-direction: column; gap: 8px; }
+.soul-closer {
+  font-family: 'Playfair Display', serif; font-size: clamp(1.15rem, 1.6vw, 1.4rem);
+  color: var(--navy); font-weight: 600; line-height: 1.4;
+}
+.soul-closer strong { color: var(--teal); }
+.soul-image-wrap {
+  position: relative; min-height: 480px; height: min(64vh, 620px);
+  display: flex; align-items: flex-end; justify-content: center; overflow: visible;
+}
+.soul-image-wrap img {
+  width: 100%; height: 100%; object-fit: contain; object-position: bottom center;
+  mix-blend-mode: multiply; display: block;
+}
+@media (max-width: 900px) {
+  .soul-section { padding: 64px 24px; }
+  .soul-inner { grid-template-columns: 1fr; gap: 40px; }
+  .soul-image-wrap { min-height: auto; height: 380px; order: -1; }
+}`}
+        </style>
+        <div className="soul-inner">
+          <div>
+            <div ref={addToRefs} className="soul-eyebrow-row reveal">
+              <span className="soul-eyebrow">Built with intent and soul</span>
+              <span className="soul-eyebrow-line" />
+              <span className="soul-eyebrow-leaf"><Leaf size={12} strokeWidth={2.5} style={{ color: 'var(--teal)' }} /></span>
+            </div>
+            <h2 ref={addToRefs} className="soul-title reveal reveal-delay-1">
+              Healthcare is a responsibility.<br />Not a revenue-maximisation exercise.
+            </h2>
+            <p ref={addToRefs} className="soul-lead reveal reveal-delay-2">
+              Every decision we make begins with a simple question:
+            </p>
+            <p ref={addToRefs} className="soul-quote reveal reveal-delay-2">
+              "What serves the <em>patient best</em>?"
+            </p>
+            <div ref={addToRefs} className="soul-bullets reveal reveal-delay-2">
+              <div className="soul-bullet">
+                <span className="soul-bullet-icon"><Leaf size={11} strokeWidth={2.5} style={{ color: 'var(--teal)' }} /></span>
+                Not what sells best.
+              </div>
+              <div className="soul-bullet">
+                <span className="soul-bullet-icon"><Leaf size={11} strokeWidth={2.5} style={{ color: 'var(--teal)' }} /></span>
+                Not what scales the fastest.
+              </div>
+              <div className="soul-bullet">
+                <span className="soul-bullet-icon"><Leaf size={11} strokeWidth={2.5} style={{ color: 'var(--teal)' }} /></span>
+                Not what investors would prefer.
+              </div>
+              <div className="soul-bullet strong">
+                <span className="soul-bullet-icon"><Leaf size={11} strokeWidth={2.5} style={{ color: 'var(--teal)' }} /></span>
+                But what is genuinely best for the patient.
+              </div>
+            </div>
+            <p ref={addToRefs} className="soul-body reveal reveal-delay-3">
+              Many companies are built around growth targets.<br />
+              Diet By RD was built around a different ambition.<br />
+              To create a place where people can seek nutrition guidance with confidence,<br />
+              knowing that <span className="highlight">integrity comes before profit and care comes before commerce.</span>
+            </p>
+            <div ref={addToRefs} className="soul-divider reveal reveal-delay-3" />
+            <div ref={addToRefs} className="soul-closers reveal reveal-delay-3">
+              <div className="soul-closer"><strong>Built</strong> through outcomes, not through VCs money.</div>
+              <div className="soul-closer"><strong>Built</strong> through trust, not through hype.</div>
+              <div className="soul-closer"><strong>Built</strong> with intent. <strong>Built</strong> with soul.</div>
+            </div>
+          </div>
+          <div ref={addToRefs} className="soul-image-wrap reveal reveal-delay-1">
+            <img src="/built-with-intent-doctor.webp" alt="Diet By RD registered dietitian" />
+          </div>
+        </div>
+      </section>
+
       {/* RD vs Nutritionist — Page 2 */}
       <section id="rd-section" className="section rd-section reveal" style={{ background: '#fff' }}>
         <div className="section-inner">
