@@ -470,10 +470,10 @@ const Index = () => {
 
   const renderAuthForm = () => (
     <>
-      <div className="mb-8">
+      <div className="mb-4">
         <Link
           to="/"
-          className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors mb-4"
+          className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors mb-3"
           aria-label="Back to home"
           tabIndex={-1}
         >
@@ -501,13 +501,13 @@ const Index = () => {
       )}
 
       {step === "phone" && (
-        <form onSubmit={handlePhoneSubmit} className="space-y-6">
+        <form onSubmit={handlePhoneSubmit} className="space-y-4">
           {renderPhoneField(false)}
 
-          <Button 
-          type="submit" 
+          <Button
+          type="submit"
           disabled={loading || phone.length < 10}
-          className="w-full h-12 text-[15px] font-semibold rounded-xl bg-[#2B5239] hover:bg-[#1E3B29] text-white transition-all shadow-[0_4px_12px_rgba(43,82,57,0.15)] mt-4 disabled:opacity-50 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
+          className="w-full h-12 text-[15px] font-semibold rounded-xl bg-[#2B5239] hover:bg-[#1E3B29] text-white transition-all shadow-[0_4px_12px_rgba(43,82,57,0.15)] disabled:opacity-50 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
         >
           {loading ? (
             <div className="flex items-center gap-2">
@@ -806,7 +806,7 @@ const Index = () => {
               <>
                 {renderAuthForm()}
   
-                  <div className="mt-6 flex flex-col gap-3">
+                  <div className="mt-4 flex flex-col gap-3">
                     {step === "phone" && (
                       <div className="flex items-start gap-2 text-left">
                         <Checkbox 
@@ -840,7 +840,7 @@ const Index = () => {
                     </p>
                   </div>
 
-                <div className="w-full h-px bg-slate-200/60 my-8"></div>
+                <div className="w-full h-px bg-slate-200/60 my-5"></div>
 
                 <div className="text-center">
                   <div className="text-[13px] text-slate-500 mb-1">
