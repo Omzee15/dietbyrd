@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Activity,
   ArrowLeft,
   ArrowRight,
   Eye,
@@ -667,8 +666,8 @@ const Index = () => {
           </div>
 
           <div className="flex items-start gap-3.5 p-3 xl:p-4 rounded-[16px] max-w-[480px] relative z-20 bg-[#FBF9F4]">
-            <div className="w-8 h-8 xl:w-9 xl:h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-transparent border border-black/5">
-              <Activity className="w-[16px] h-[16px] xl:w-[18px] xl:h-[18px] text-[#33654A]" strokeWidth={1.5} />
+            <div className="w-8 h-8 xl:w-9 xl:h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-transparent border border-black/5 overflow-hidden">
+              <img src="/comfort-food-chocolate.png" alt="Comfort food chocolate" className="w-[24px] h-[24px] xl:w-[26px] xl:h-[26px] object-contain mix-blend-multiply scale-110" />
             </div>
             <div>
               <h3 className="font-bold text-[#0A1628] text-[12px] xl:text-[13px] mb-0.5">There's always a space for your comfort food.</h3>

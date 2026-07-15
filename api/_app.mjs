@@ -1417,31 +1417,55 @@ app.post("/api/auth/signup", async (req, res) => {
     // Check if user already exists
     const variants = buildPhoneVariants(phone);
     const existingUser = await query(
-      "SELECT id FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
+      "SELECT id, phone, role, name, password FROM dietbyrd_users WHERE phone = ANY($1::text[]) LIMIT 1",
       [variants]
     );
 
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    let user;
+
     if (existingUser.rows.length > 0) {
-      return res.status(409).json({ success: false, error: "Phone number already registered" });
+      const existing = existingUser.rows[0];
+      // A referral (POST /api/referrals) pre-creates the user+patient row
+      // before the patient ever sets a password, so a NULL password here
+      // means this is that pending referral completing signup for the
+      // first time -- not a real duplicate account. Reject only if a
+      // password is already set, or the phone belongs to a non-patient role.
+      if (existing.password || existing.role !== "patient") {
+        return res.status(409).json({ success: false, error: "Phone number already registered" });
+      }
+
+      const updatedUser = await query(
+        `UPDATE dietbyrd_users SET password = $1, name = COALESCE($2, name) WHERE id = $3
+         RETURNING id, phone, role, name`,
+        [hashedPassword, name || null, existing.id]
+      );
+      user = updatedUser.rows[0];
+    } else {
+      const userResult = await query(
+        `INSERT INTO dietbyrd_users (phone, password, role, name, is_active)
+         VALUES ($1, $2, 'patient', $3, true)
+         RETURNING id, phone, role, name`,
+        [normalizedPhone, hashedPassword, name || null]
+      );
+      user = userResult.rows[0];
     }
 
-    // Create user as patient
-    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
-    const userResult = await query(
-      `INSERT INTO dietbyrd_users (phone, password, role, name, is_active)
-       VALUES ($1, $2, 'patient', $3, true)
-       RETURNING id, phone, role, name`,
-      [normalizedPhone, hashedPassword, name || null]
+    // Create patient record, or reuse the one a referral already created
+    // for this user (dietbyrd_patients.user_id is UNIQUE, so inserting a
+    // second row for the same user would fail).
+    const existingPatient = await query(
+      "SELECT id FROM dietbyrd_patients WHERE user_id = $1",
+      [user.id]
     );
-    const user = userResult.rows[0];
-
-    // Create patient record
-    const patientResult = await query(
-      `INSERT INTO dietbyrd_patients (user_id, phone, name, referral_source)
-       VALUES ($1, $2, $3, 'content')
-       RETURNING id`,
-      [user.id, normalizedPhone, name || null]
-    );
+    const patientResult = existingPatient.rows.length > 0
+      ? existingPatient.rows
+      : (await query(
+          `INSERT INTO dietbyrd_patients (user_id, phone, name, referral_source)
+           VALUES ($1, $2, $3, 'content')
+           RETURNING id`,
+          [user.id, normalizedPhone, name || null]
+        )).rows;
 
     // Generate session token
     const sessionToken = crypto.randomUUID();
@@ -1471,7 +1495,7 @@ app.post("/api/auth/signup", async (req, res) => {
         phone: user.phone,
         role: user.role,
         name: user.name,
-        profileId: patientResult.rows[0].id,
+        profileId: patientResult[0].id,
         token: sessionToken,
       },
     });
