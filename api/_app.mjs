@@ -1865,7 +1865,11 @@ app.post("/api/auth/send-otp", async (req, res) => {
       return res.status(400).json({ success: false, error: "Phone number is required" });
     }
 
-    const rateCheck = checkOtpRateLimit(phone);
+    // Rate-limit on the normalized digit string, matching the other three
+    // send-otp endpoints -- keying on the raw, unnormalized `phone` let a
+    // client bypass the "3 sends per 10 minutes" cap by sending the same
+    // number in different formats (with/without +91, leading 0, spaces).
+    const rateCheck = checkOtpRateLimit(phoneForValidation);
     if (!rateCheck.allowed) {
       return res.status(429).json({
         success: false,
@@ -2294,7 +2298,13 @@ app.post("/api/auth/complete-welcome", async (req, res) => {
         [
           userId,
           name,
-          phone,
+          // Store the normalized digit-string phone, matching the users
+          // insert above and every other signup path -- storing the raw
+          // client-submitted value here (which could carry a leading 0,
+          // spaces, or a country code) could make this patient row silently
+          // unfindable by buildPhoneVariants() on a later, cleanly
+          // formatted login attempt.
+          normalizedPhone,
           email,
           age || null,
           gender || null,
@@ -2821,23 +2831,40 @@ app.post("/api/join-requests", async (req, res) => {
     // Hash password before storing
     const hashedJoinPw = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-    // Create user immediately with is_verified = false
-    const userResult = await query(
-      `INSERT INTO dietbyrd_users (phone, password, role, name, email, is_active, is_verified)
-       VALUES ($1, $2, $3, $4, $5, true, false)
-       RETURNING id`,
-      [parsedPhone.digits, hashedJoinPw, role, name, email || null]
-    );
-    const userId = userResult.rows[0].id;
+    // Transactional so a failure creating the join request itself (e.g. a
+    // constraint violation on the qualification/role check) can't leave a
+    // user row committed with no join request attached -- which would
+    // otherwise permanently block resubmission for that phone number, since
+    // the existence checks above would then report a "pending request" or
+    // "already registered" that doesn't actually exist.
+    const client = await getPool().connect();
+    let result;
+    try {
+      await client.query("BEGIN");
 
-    // Create join request and link to user (store hashed password)
-    const result = await query(
-      `INSERT INTO dietbyrd_join_requests
-        (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, about_yourself, status, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10)
-       RETURNING id, phone, name, requested_role, status, created_at`,
-      [parsedPhone.digits, hashedJoinPw, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, about_yourself || null, userId]
-    );
+      const userResult = await client.query(
+        `INSERT INTO dietbyrd_users (phone, password, role, name, email, is_active, is_verified)
+         VALUES ($1, $2, $3, $4, $5, true, false)
+         RETURNING id`,
+        [parsedPhone.digits, hashedJoinPw, role, name, email || null]
+      );
+      const userId = userResult.rows[0].id;
+
+      result = await client.query(
+        `INSERT INTO dietbyrd_join_requests
+          (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, about_yourself, status, user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10)
+         RETURNING id, phone, name, requested_role, status, created_at`,
+        [parsedPhone.digits, hashedJoinPw, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, about_yourself || null, userId]
+      );
+
+      await client.query("COMMIT");
+    } catch (txErr) {
+      await client.query("ROLLBACK");
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     res.status(201).json({
       success: true,
@@ -3923,14 +3950,30 @@ app.post("/api/patients/:id(\\d+)/assign-dietician", requireAuth(ADMIN_AND_MLT_R
       return res.status(404).json({ success: false, error: "Patient not found" });
     }
 
-    // Block assignment if patient has not paid
+    // Block assignment if patient has not paid. Matches the payment_status
+    // computation used by GET /api/patients and GET /api/patients/:id
+    // (checks dietbyrd_razorpay_payments OR dietbyrd_payments) -- this used
+    // to check only dietbyrd_razorpay_payments, so a patient who paid via
+    // the non-Razorpay dietbyrd_payments path showed as "paid" everywhere
+    // in the UI but was rejected here as unpaid.
     const paymentCheck = await query(
-      `SELECT COUNT(*) AS cnt
-       FROM dietbyrd_razorpay_payments
-       WHERE patient_id = $1 AND status IN ('paid', 'captured', 'success')`,
+      `SELECT (
+         EXISTS (
+           SELECT 1 FROM dietbyrd_razorpay_payments
+           WHERE patient_id = $1 AND status IN ('paid', 'captured', 'success')
+         )
+         OR EXISTS (
+           SELECT 1 FROM dietbyrd_payments dp
+           WHERE (
+             dp.patient_id = $1
+             OR dp.registered_patient_id = (SELECT id FROM dietbyrd_registered_patients WHERE patient_id = $1 LIMIT 1)
+           )
+           AND dp.status::text IN ('success', 'paid', 'captured')
+         )
+       ) AS has_paid`,
       [id]
     );
-    if (parseInt(paymentCheck.rows[0]?.cnt || "0") === 0) {
+    if (!paymentCheck.rows[0]?.has_paid) {
       return res.status(403).json({ success: false, error: "Cannot assign a dietician to an unpaid patient. Please ensure the patient has completed payment first." });
     }
 
@@ -4088,25 +4131,35 @@ app.get("/api/doctors/:id(\\d+)", requireAuth([...DOCTOR_ROLES, ...ADMIN_AND_MLT
 });
 
 app.post("/api/doctors", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) => {
+  const client = await getPool().connect();
   try {
     const { name, qualification, clinic_name, clinic_address, default_diagnosis, phone } = req.body;
     if (!name || !qualification || !phone) {
       return res.status(400).json({ success: false, error: "name, qualification, and phone are required" });
     }
-    const userResult = await query(
+    // Transactional so a failure on the second insert (e.g. bad
+    // qualification data) can't leave an orphaned role='doctor' user row
+    // with no doctor record, which would permanently block recreating a
+    // doctor account for that phone number.
+    await client.query("BEGIN");
+    const userResult = await client.query(
       `INSERT INTO dietbyrd_users (phone, role) VALUES ($1, 'doctor') RETURNING id`,
       [phone]
     );
     const userId = userResult.rows[0].id;
-    const doctorResult = await query(
+    const doctorResult = await client.query(
       `INSERT INTO dietbyrd_doctors (user_id, name, qualification, clinic_name, clinic_address, default_diagnosis)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
       [userId, name, qualification, clinic_name, clinic_address, default_diagnosis || "diabetes"]
     );
+    await client.query("COMMIT");
     res.status(201).json({ success: true, data: doctorResult.rows[0] });
   } catch (err) {
+    try { await client.query("ROLLBACK"); } catch {}
     res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -4215,32 +4268,61 @@ app.get("/api/dieticians/all-available-slots", requireAuth(), async (req, res) =
     const minBookingTime = new Date(istNow.getTime() + 2 * 60 * 60 * 1000);
     const allSlots = [];
 
+    // Batch-fetch availability/bookings/blocked-slots for every dietician up
+    // front instead of issuing 3 queries per dietician inside the loop --
+    // this endpoint used to do 1 + 3*N queries for N active dieticians on
+    // every slot lookup.
+    const rdIds = dieticiansResult.rows.map((d) => d.id);
+    const allAvailability = rdIds.length
+      ? await query(
+          "SELECT * FROM dietbyrd_dietician_availability WHERE rd_id = ANY($1::int[]) AND is_active = true",
+          [rdIds]
+        )
+      : { rows: [] };
+    const allBooked = rdIds.length
+      ? await query(
+          `SELECT rd_id, TO_CHAR(scheduled_at, 'YYYY-MM-DD"T"HH24:MI:SS') as scheduled_at_str
+           FROM dietbyrd_consultations
+           WHERE rd_id = ANY($1::int[])
+             AND scheduled_at >= $2::timestamp
+             AND scheduled_at < ($3::date + interval '1 day')::timestamp
+             AND status NOT IN ('cancelled', 'no_show')`,
+          [rdIds, start_date, end_date]
+        )
+      : { rows: [] };
+    const allBlocked = rdIds.length
+      ? await query(
+          `SELECT *, TO_CHAR(blocked_date, 'YYYY-MM-DD') as blocked_date_str
+           FROM dietbyrd_dietician_blocked_slots
+           WHERE rd_id = ANY($1::int[]) AND blocked_date >= $2::date AND blocked_date <= $3::date`,
+          [rdIds, start_date, end_date]
+        )
+      : { rows: [] };
+
+    const availabilityByRd = new Map();
+    for (const row of allAvailability.rows) {
+      if (!availabilityByRd.has(row.rd_id)) availabilityByRd.set(row.rd_id, []);
+      availabilityByRd.get(row.rd_id).push(row);
+    }
+    const bookedByRd = new Map();
+    for (const row of allBooked.rows) {
+      if (!bookedByRd.has(row.rd_id)) bookedByRd.set(row.rd_id, new Set());
+      bookedByRd.get(row.rd_id).add(row.scheduled_at_str);
+    }
+    const blockedByRd = new Map();
+    for (const row of allBlocked.rows) {
+      if (!blockedByRd.has(row.rd_id)) blockedByRd.set(row.rd_id, []);
+      blockedByRd.get(row.rd_id).push(row);
+    }
+
     for (const dietician of dieticiansResult.rows) {
       const rdId = dietician.id;
 
-      const availabilityResult = await query(
-        "SELECT * FROM dietbyrd_dietician_availability WHERE rd_id = $1 AND is_active = true",
-        [rdId]
-      );
+      const availabilityResult = { rows: availabilityByRd.get(rdId) || [] };
       if (availabilityResult.rows.length === 0) continue;
 
-      const bookedResult = await query(
-        `SELECT TO_CHAR(scheduled_at, 'YYYY-MM-DD"T"HH24:MI:SS') as scheduled_at_str
-         FROM dietbyrd_consultations
-         WHERE rd_id = $1
-           AND scheduled_at >= $2::timestamp
-           AND scheduled_at < ($3::date + interval '1 day')::timestamp
-           AND status NOT IN ('cancelled', 'no_show')`,
-        [rdId, start_date, end_date]
-      );
-      const bookedSlots = new Set(bookedResult.rows.map((r) => r.scheduled_at_str));
-
-      const blockedResult = await query(
-        `SELECT *, TO_CHAR(blocked_date, 'YYYY-MM-DD') as blocked_date_str
-         FROM dietbyrd_dietician_blocked_slots
-         WHERE rd_id = $1 AND blocked_date >= $2::date AND blocked_date <= $3::date`,
-        [rdId, start_date, end_date]
-      );
+      const bookedSlots = bookedByRd.get(rdId) || new Set();
+      const blockedResult = { rows: blockedByRd.get(rdId) || [] };
 
       const startDateParts = start_date.split("-").map(Number);
       const endDateParts = end_date.split("-").map(Number);
@@ -4277,12 +4359,19 @@ app.get("/api/dieticians/all-available-slots", requireAuth(), async (req, res) =
             if (slotDate < minBookingTime) { slotMinutes += slotDuration; continue; }
             if (bookedSlots.has(slotDatetime)) { slotMinutes += slotDuration; continue; }
 
+            // Compares the slot's full [start, start+duration) range against
+            // the blocked [start, end) range, not just the slot's start
+            // time -- same fix as the per-dietician available-slots
+            // endpoint, this is its duplicate copy of the same logic.
             const timeBlocked = blockedResult.rows.find((b) => {
               if (b.blocked_date_str !== dateStr || !b.start_time || !b.end_time) return false;
               const blockStart = b.start_time.split(":").map(Number);
               const blockEnd = b.end_time.split(":").map(Number);
-              const slotTimeNum = slotHour * 60 + slotMin;
-              return slotTimeNum >= blockStart[0] * 60 + blockStart[1] && slotTimeNum < blockEnd[0] * 60 + blockEnd[1];
+              const slotStartNum = slotHour * 60 + slotMin;
+              const slotEndNum = slotStartNum + slotDuration;
+              const blockStartNum = blockStart[0] * 60 + blockStart[1];
+              const blockEndNum = blockEnd[0] * 60 + blockEnd[1];
+              return slotStartNum < blockEndNum && blockStartNum < slotEndNum;
             });
             if (timeBlocked) { slotMinutes += slotDuration; continue; }
 
@@ -4578,6 +4667,8 @@ app.get("/api/referrals/unregistered", requireAuth(ADMIN_AND_MLT_ROLES), async (
 });
 
 app.post("/api/referrals", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) => {
+  let txClientReleased = false;
+  let client;
   try {
     const { patient_name, phone, diagnosis, diagnosis_description, doctor_id } = req.body;
     if (!phone || !doctor_id) {
@@ -4591,26 +4682,48 @@ app.post("/api/referrals", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) 
     }
     const doctor = doctorResult.rows[0];
 
+    // Ensure short_code column exists (DDL, outside the transaction below)
+    await ensureReferralShortCodeColumn();
+
+    // The user/patient creation and the referral insert (with its short-code
+    // uniqueness retry) are now one transaction. Previously these were
+    // separate, un-transacted statements: if the short-code retry loop ran
+    // out of attempts (or the final INSERT hit a collision anyway), the
+    // user+patient rows it had already created stayed committed with no
+    // referral attached -- and since the very next line of defense is
+    // "phone already has a patient row", that phone number could never be
+    // re-referred afterward. Wrapping everything in one transaction, and
+    // catching the short-code unique-violation on INSERT itself (retrying
+    // with a fresh code) instead of pre-checking then racing another
+    // request to insert, means a failure rolls back cleanly with nothing
+    // orphaned.
+    //
+    // The connection itself is only acquired here, after every check above
+    // that uses the shared query() helper -- with the pool sized to a
+    // single connection (Neon-friendly default), acquiring it any earlier
+    // deadlocks the first time one of those checks ran, since query() would
+    // be waiting for a connection this handler was already holding.
+    client = await getPool().connect();
+    await client.query("BEGIN");
+
     let patientId;
     let isNewPatient = false;
 
-    // Check if patient already exists
-    const existingPatient = await query(`SELECT id FROM dietbyrd_patients WHERE phone = $1`, [phone]);
+    const existingPatient = await client.query(`SELECT id FROM dietbyrd_patients WHERE phone = $1`, [phone]);
 
     if (existingPatient.rows.length > 0) {
+      await client.query("ROLLBACK");
       return res.status(409).json({ success: false, error: "The recommended patient is already an existing DietByRD patient." });
     } else {
       isNewPatient = true;
 
-      // First, create (or get existing) user entry
       let userId;
-      const existingUser = await query(`SELECT id FROM dietbyrd_users WHERE phone = $1`, [phone]);
+      const existingUser = await client.query(`SELECT id FROM dietbyrd_users WHERE phone = $1`, [phone]);
 
       if (existingUser.rows.length > 0) {
         userId = existingUser.rows[0].id;
       } else {
-        // Create new user (patient will need to set password later)
-        const newUser = await query(
+        const newUser = await client.query(
           `INSERT INTO dietbyrd_users (phone, role, name, is_active)
            VALUES ($1, 'patient', $2, true)
            RETURNING id`,
@@ -4619,27 +4732,13 @@ app.post("/api/referrals", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) 
         userId = newUser.rows[0].id;
       }
 
-      // Now create the patient entry with user_id
-      const newPatient = await query(
+      const newPatient = await client.query(
         `INSERT INTO dietbyrd_patients (user_id, name, phone, diagnosis, diagnosis_description, referral_source)
          VALUES ($1, $2, $3, $4, $5, 'doctor')
          RETURNING id`,
         [userId, patient_name, phone, diagnosis, diagnosis_description]
       );
       patientId = newPatient.rows[0].id;
-    }
-
-    // Ensure short_code column exists
-    await ensureReferralShortCodeColumn();
-
-    // Generate a unique short code for the clean URL
-    let shortCode = generateShortCode();
-    let shortCodeAttempts = 0;
-    while (shortCodeAttempts < 5) {
-      const existing = await query(`SELECT id FROM dietbyrd_referrals WHERE short_code = $1`, [shortCode]);
-      if (existing.rows.length === 0) break;
-      shortCode = generateShortCode();
-      shortCodeAttempts++;
     }
 
     const registrationData = {
@@ -4652,12 +4751,39 @@ app.post("/api/referrals", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) 
       timestamp: Date.now()
     };
 
-    const referral = await query(
-      `INSERT INTO dietbyrd_referrals (patient_id, doctor_id, source, short_code, registration_data)
-       VALUES ($1, $2, 'doctor_portal', $3, $4)
-       RETURNING *`,
-      [patientId, doctor_id, shortCode, JSON.stringify(registrationData)]
-    );
+    let referral;
+    let shortCode;
+    const MAX_SHORT_CODE_ATTEMPTS = 5;
+    for (let attempt = 0; attempt < MAX_SHORT_CODE_ATTEMPTS; attempt++) {
+      shortCode = generateShortCode();
+      try {
+        referral = await client.query(
+          `INSERT INTO dietbyrd_referrals (patient_id, doctor_id, source, short_code, registration_data)
+           VALUES ($1, $2, 'doctor_portal', $3, $4)
+           RETURNING *`,
+          [patientId, doctor_id, shortCode, JSON.stringify(registrationData)]
+        );
+        break;
+      } catch (insertErr) {
+        const isUniqueViolation = insertErr && insertErr.code === "23505";
+        if (!isUniqueViolation || attempt === MAX_SHORT_CODE_ATTEMPTS - 1) {
+          await client.query("ROLLBACK");
+          if (isUniqueViolation) {
+            return res.status(503).json({ success: false, error: "Could not generate a unique referral link. Please try again." });
+          }
+          throw insertErr;
+        }
+        // short_code collision -- loop and try a fresh code
+      }
+    }
+
+    await client.query("COMMIT");
+    // Release the transaction's connection before the SMS send below --
+    // with the pool sized to a single connection (Neon-friendly default),
+    // holding it through a slow network call to Twilio would serialize
+    // every other request in the app behind this one referral's SMS send.
+    client.release();
+    txClientReleased = true;
 
     // Generate registration link using short code for a clean URL
     let referralMessageStatus = { sent: false, reason: "not_attempted" };
@@ -4690,7 +4816,12 @@ app.post("/api/referrals", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res) 
       }
     });
   } catch (err) {
+    if (!txClientReleased && typeof client !== "undefined") {
+      try { await client.query("ROLLBACK"); } catch {}
+    }
     res.status(500).json({ success: false, error: err.message });
+  } finally {
+    if (!txClientReleased && typeof client !== "undefined") client.release();
   }
 });
 
@@ -5002,6 +5133,7 @@ app.get("/api/patients/:id(\\d+)/diet-plans", async (req, res) => {
 
 // Create a new diet plan
 app.post("/api/diet-plans", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res) => {
+  const client = await getPool().connect();
   try {
     const { patient_id, rd_id, plan_json, consultation_id } = req.body;
 
@@ -5012,16 +5144,20 @@ app.post("/api/diet-plans", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, r
       });
     }
 
-    // Check if registered_patient record exists, create if not
-    let regPatientResult = await query(
+    await client.query("BEGIN");
+    // Lock per-patient so two concurrent "create diet plan" calls for a
+    // patient with no registered_patient row yet (e.g. a double-click)
+    // can't both pass the "doesn't exist" check and both insert one.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`regpatient:${patient_id}`]);
+
+    let regPatientResult = await client.query(
       "SELECT id FROM dietbyrd_registered_patients WHERE patient_id = $1",
       [patient_id]
     );
 
     let registeredPatientId;
     if (regPatientResult.rows.length === 0) {
-      // Create registered_patient record
-      const newRegPatient = await query(
+      const newRegPatient = await client.query(
         `INSERT INTO dietbyrd_registered_patients (patient_id, assigned_rd_id)
          VALUES ($1, $2)
          RETURNING id`,
@@ -5033,25 +5169,29 @@ app.post("/api/diet-plans", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, r
     }
 
     // Deactivate previous active plans for this patient
-    await query(
-      `UPDATE dietbyrd_diet_plans 
-       SET is_active = false, updated_at = CURRENT_TIMESTAMP 
+    await client.query(
+      `UPDATE dietbyrd_diet_plans
+       SET is_active = false, updated_at = CURRENT_TIMESTAMP
        WHERE registered_patient_id = $1 AND is_active = true`,
       [registeredPatientId]
     );
 
     // Create the new diet plan
-    const result = await query(
-      `INSERT INTO dietbyrd_diet_plans 
+    const result = await client.query(
+      `INSERT INTO dietbyrd_diet_plans
         (registered_patient_id, rd_id, consultation_id, plan_json, is_active, issued_at)
        VALUES ($1, $2, $3, $4, true, CURRENT_TIMESTAMP)
        RETURNING *`,
       [registeredPatientId, rd_id, consultation_id || null, JSON.stringify(plan_json)]
     );
 
+    await client.query("COMMIT");
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) {
+    try { await client.query("ROLLBACK"); } catch {}
     res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -5275,12 +5415,25 @@ app.post("/api/assistants", requireAuth(DOCTOR_OR_ADMIN_ROLES), async (req, res)
 
     // Create user
     const hashedAssistantPw = await bcrypt.hash(password, BCRYPT_ROUNDS);
-    const userResult = await query(
-      `INSERT INTO dietbyrd_users (phone, name, password, role, is_active)
-       VALUES ($1, $2, $3, 'assistant', true)
-       RETURNING id`,
-      [phone, name, hashedAssistantPw]
-    );
+    let userResult;
+    try {
+      userResult = await query(
+        `INSERT INTO dietbyrd_users (phone, name, password, role, is_active)
+         VALUES ($1, $2, $3, 'assistant', true)
+         RETURNING id`,
+        [phone, name, hashedAssistantPw]
+      );
+    } catch (insertErr) {
+      // dietbyrd_users.phone has a UNIQUE constraint, so a concurrent
+      // request for the same phone that raced past the check above can't
+      // create a duplicate account -- but it would otherwise 500 with a
+      // raw Postgres error instead of the same clean 400 the pre-check
+      // above already returns for the common (non-racy) case.
+      if (insertErr && insertErr.code === "23505") {
+        return res.status(400).json({ success: false, error: "Phone number already registered" });
+      }
+      throw insertErr;
+    }
 
     const userId = userResult.rows[0].id;
 
@@ -6164,16 +6317,22 @@ app.get("/api/dieticians/:id(\\d+)/available-slots", requireAuth(), async (req, 
           // Check if slot is booked
           const isBooked = bookedSlots.has(slotDatetime);
 
-          // Check if slot is in a blocked time range for this specific date
+          // Check if slot is in a blocked time range for this specific date.
+          // Compares the slot's full [start, start+duration) range against
+          // the blocked [start, end) range, not just the slot's start time
+          // -- a slot that starts before a block but runs into it (e.g. a
+          // 60-min slot at 09:00 with a block at 09:15-09:45) used to be
+          // shown as bookable because only the start time was checked.
           const timeBlocked = blockedResult.rows.find(b => {
             if (b.blocked_date_str !== dateStr) return false;
             if (!b.start_time || !b.end_time) return false;
             const blockStart = b.start_time.split(":").map(Number);
             const blockEnd = b.end_time.split(":").map(Number);
-            const slotTimeNum = slotHour * 60 + slotMin;
+            const slotStartNum = slotHour * 60 + slotMin;
+            const slotEndNum = slotStartNum + slotDuration;
             const blockStartNum = blockStart[0] * 60 + blockStart[1];
             const blockEndNum = blockEnd[0] * 60 + blockEnd[1];
-            return slotTimeNum >= blockStartNum && slotTimeNum < blockEndNum;
+            return slotStartNum < blockEndNum && blockStartNum < slotEndNum;
           });
 
           if (timeBlocked) {
@@ -6217,6 +6376,12 @@ app.post("/api/appointments/book", async (req, res) => {
       return res.status(401).json({ success: false, error: auth.error });
     }
     const { patient_id, scheduled_at, consultation_type, patient_notes } = req.body;
+    // rd_id is optional -- when the caller has picked a specific dietitian's
+    // slot, honor it; when absent, fall back to auto-assigning the
+    // least-busy available dietitian. This used to be hardcoded to null,
+    // discarding whatever the caller sent, so a patient booking a specific
+    // dietitian's slot could end up booked with a completely different one.
+    const rdId = req.body.rd_id ? Number(req.body.rd_id) : null;
     if (auth.role === "patient") {
       const ownPatient = await query("SELECT id FROM dietbyrd_patients WHERE user_id = $1", [auth.userId]);
       const ownsThisPatient = ownPatient.rows.length > 0 && String(ownPatient.rows[0].id) === String(patient_id);
@@ -6226,8 +6391,6 @@ app.post("/api/appointments/book", async (req, res) => {
     } else if (!STAFF_PATIENT_ACCESS_ROLES.includes(auth.role)) {
       return res.status(403).json({ success: false, error: "Not authorized for this resource" });
     }
-    // rd_id is optional â€” when null the appointment is pending dietitian assignment
-    const rdId = null;
 
     if (!patient_id || !scheduled_at) {
       return res.status(400).json({
@@ -6236,33 +6399,34 @@ app.post("/api/appointments/book", async (req, res) => {
       });
     }
 
-    // Check if patient has consultations left
-    const patientResult = await query(
-      `SELECT consultations_left FROM dietbyrd_patients WHERE id = $1`,
+    // Only acquire a dedicated connection once we're past every check that
+    // uses the shared query() helper -- with the pool sized to a single
+    // connection (Neon-friendly default), holding `client` any earlier
+    // would deadlock the first time one of those checks ran, since
+    // query() would be waiting for a connection this handler is already
+    // holding.
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+
+    const patientCheck = await client.query(
+      `SELECT id FROM dietbyrd_patients WHERE id = $1`,
       [patient_id]
     );
-
-    if (patientResult.rows.length === 0) {
+    if (patientCheck.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ success: false, error: "Patient not found" });
     }
 
-    const consultationsLeft = patientResult.rows[0].consultations_left || 0;
-    if (consultationsLeft <= 0) {
-      return res.status(402).json({
-        success: false,
-        error: "No consultations left. Please purchase a consultation package to book an appointment."
-      });
-    }
-
     // Get or create registered_patient record
-    let regPatientResult = await query(
+    let regPatientResult = await client.query(
       "SELECT id FROM dietbyrd_registered_patients WHERE patient_id = $1",
       [patient_id]
     );
 
     let registeredPatientId;
     if (regPatientResult.rows.length === 0) {
-      const newRegPatient = await query(
+      const newRegPatient = await client.query(
         `INSERT INTO dietbyrd_registered_patients (patient_id)
          VALUES ($1) RETURNING id`,
         [patient_id]
@@ -6272,12 +6436,12 @@ app.post("/api/appointments/book", async (req, res) => {
       registeredPatientId = regPatientResult.rows[0].id;
       // If booking with a specific dietician and patient had none assigned, assign now
       if (rdId) {
-        const currentAssignment = await query(
+        const currentAssignment = await client.query(
           "SELECT assigned_rd_id FROM dietbyrd_registered_patients WHERE id = $1",
           [registeredPatientId]
         );
         if (!currentAssignment.rows[0]?.assigned_rd_id) {
-          await query(
+          await client.query(
             "UPDATE dietbyrd_registered_patients SET assigned_rd_id = $1 WHERE id = $2",
             [rdId, registeredPatientId]
           );
@@ -6285,9 +6449,27 @@ app.post("/api/appointments/book", async (req, res) => {
       }
     }
 
-    // Only check slot availability when a specific dietitian is requested
+    // Determine which dietitian this booking will go to. Lock on the exact
+    // (dietitian-or-"any", slot) pair first, so a second, concurrent booking
+    // request for the same slot has to wait for this transaction to finish
+    // before it re-checks conflicts -- otherwise two requests can both see
+    // the slot as free and both insert, double-booking the dietitian.
+    let assignedRdId;
     if (rdId) {
-      const existingResult = await query(
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`rd:${rdId}|${scheduled_at}`]);
+
+      const rdActive = await client.query(
+        `SELECT rd.id FROM dietbyrd_registered_dietitians rd
+         JOIN dietbyrd_users u ON u.id = rd.user_id
+         WHERE rd.id = $1 AND rd.is_active = true AND u.role = 'rd' AND COALESCE(u.is_active, true) = true`,
+        [rdId]
+      );
+      if (rdActive.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ success: false, error: "Selected dietitian is not available" });
+      }
+
+      const existingResult = await client.query(
         `SELECT id FROM dietbyrd_consultations
          WHERE rd_id = $1
          AND scheduled_at = $2::timestamp
@@ -6295,56 +6477,102 @@ app.post("/api/appointments/book", async (req, res) => {
         [rdId, scheduled_at]
       );
       if (existingResult.rows.length > 0) {
+        await client.query("ROLLBACK");
         return res.status(409).json({
           success: false,
           error: "This time slot is no longer available"
         });
       }
+      assignedRdId = rdId;
+    } else {
+      // Auto-assign: lock on "any dietitian, this slot" so a concurrent
+      // auto-assign for the same timestamp can't pick the same dietitian
+      // this request is about to pick.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`any|${scheduled_at}`]);
+
+      // Mirrors runAutoAssign()'s candidate filter: a dietitian is only
+      // eligible if the requested time actually falls in their weekly
+      // availability window and isn't blocked -- this query used to only
+      // check for a conflicting consultation, so it could auto-assign
+      // outside working hours or during an approved block.
+      const rdResult = await client.query(
+        `SELECT rd.id
+         FROM dietbyrd_registered_dietitians rd
+         JOIN dietbyrd_users u ON u.id = rd.user_id
+         WHERE rd.is_active = true
+           AND u.role = 'rd'
+           AND COALESCE(u.is_active, true) = true
+           AND NOT EXISTS (
+             SELECT 1
+             FROM dietbyrd_consultations c
+             WHERE c.rd_id = rd.id
+               AND c.scheduled_at = $1::timestamp
+               AND c.status IN ('confirmed', 'scheduled')
+           )
+           AND EXISTS (
+             SELECT 1 FROM dietbyrd_dietician_availability da
+             WHERE da.rd_id = rd.id
+               AND da.is_active = true
+               AND da.day_of_week = EXTRACT(DOW FROM $1::timestamp)::int
+               AND $1::time >= da.start_time
+               AND $1::time < da.end_time
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM dietbyrd_dietician_blocked_slots bs
+             WHERE bs.rd_id = rd.id
+               AND bs.blocked_date = $1::date
+               AND (
+                 bs.start_time IS NULL
+                 OR ($1::time >= bs.start_time AND $1::time < bs.end_time)
+               )
+           )
+         ORDER BY (
+           SELECT COUNT(*)
+           FROM dietbyrd_consultations c2
+           WHERE c2.rd_id = rd.id
+             AND c2.status = 'confirmed'
+         ) ASC, rd.id ASC
+         LIMIT 1`,
+        [scheduled_at]
+      );
+
+      if (rdResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          success: false,
+          error: "No dietitian available at this time. Please choose a different slot."
+        });
+      }
+      assignedRdId = rdResult.rows[0].id;
+    }
+
+    // Atomically consume one consultation credit. The WHERE guard means a
+    // concurrent booking that already spent the last credit off the same
+    // stale balance affects zero rows here instead of both succeeding.
+    const decrementResult = await client.query(
+      `UPDATE dietbyrd_patients
+       SET consultations_left = consultations_left - 1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND COALESCE(consultations_left, 0) > 0
+       RETURNING consultations_left`,
+      [patient_id]
+    );
+    if (decrementResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(402).json({
+        success: false,
+        error: "No consultations left. Please purchase a consultation package to book an appointment."
+      });
     }
 
     // Determine consultation type (first or returning)
-    const previousConsultations = await query(
+    const previousConsultations = await client.query(
       `SELECT COUNT(*) as count FROM dietbyrd_consultations
        WHERE registered_patient_id = $1 AND status = 'completed'`,
       [registeredPatientId]
     );
     const type = consultation_type || (previousConsultations.rows[0].count > 0 ? 'returning' : 'first');
 
-    // Create the consultation (rd_id may be NULL â€” pending auto-assignment)
-    const rdResult = await query(
-      `SELECT rd.id
-       FROM dietbyrd_registered_dietitians rd
-       JOIN dietbyrd_users u ON u.id = rd.user_id
-       WHERE rd.is_active = true
-         AND u.role = 'rd'
-         AND COALESCE(u.is_active, true) = true
-         AND NOT EXISTS (
-           SELECT 1
-           FROM dietbyrd_consultations c
-           WHERE c.rd_id = rd.id
-             AND c.scheduled_at = $1::timestamp
-             AND c.status IN ('confirmed', 'scheduled')
-         )
-       ORDER BY (
-         SELECT COUNT(*)
-         FROM dietbyrd_consultations c2
-         WHERE c2.rd_id = rd.id
-           AND c2.status = 'confirmed'
-       ) ASC, rd.id ASC
-       LIMIT 1`,
-      [scheduled_at]
-    );
-
-    if (rdResult.rows.length === 0) {
-      return res.status(409).json({
-        success: false,
-        error: "No dietitian available at this time. Please choose a different slot."
-      });
-    }
-
-    const assignedRdId = rdResult.rows[0].id;
-
-    const result = await query(
+    const result = await client.query(
       `INSERT INTO dietbyrd_consultations
        (registered_patient_id, rd_id, scheduled_at, consultation_type, status, booked_by_patient, patient_notes)
        VALUES ($1, $2, $3::timestamp, $4, 'scheduled', true, $5)
@@ -6352,24 +6580,22 @@ app.post("/api/appointments/book", async (req, res) => {
       [registeredPatientId, assignedRdId, scheduled_at, type, patient_notes || null]
     );
 
-    await query(
+    await client.query(
       `UPDATE dietbyrd_registered_patients
        SET assigned_rd_id = COALESCE(assigned_rd_id, $1), updated_at = CURRENT_TIMESTAMP
        WHERE id = $2`,
       [assignedRdId, registeredPatientId]
     );
 
-    // Deduct one consultation from patient's balance
-    await query(
-      `UPDATE dietbyrd_patients
-       SET consultations_left = GREATEST(0, COALESCE(consultations_left, 0) - 1),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      [patient_id]
-    );
+    await client.query("COMMIT");
 
-    // Get full consultation details with names
-    const fullResult = await query(
+    // Get full consultation details with names. Uses `client` (still open
+    // until the `finally` below releases it), not the shared `query()`
+    // helper -- with the pool sized to a single connection (Neon-friendly
+    // default), calling query() here while `client` is still held would
+    // deadlock: query() has to wait for a connection that only frees up
+    // after this handler returns, which needs this query to finish first.
+    const fullResult = await client.query(
       `SELECT
         c.*,
         p.name AS patient_name,
@@ -6383,7 +6609,13 @@ app.post("/api/appointments/book", async (req, res) => {
       [result.rows[0].id]
     );
 
-    res.status(201).json({ success: true, data: fullResult.rows[0] });
+      res.status(201).json({ success: true, data: fullResult.rows[0] });
+    } catch (err) {
+      try { await client.query("ROLLBACK"); } catch {}
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -7725,12 +7957,24 @@ app.post("/api/admin/staff/create", requireAuth(ADMIN_ROLES), async (req, res) =
     const hashedStaffPw = await bcrypt.hash(plainPassword, BCRYPT_ROUNDS);
 
     // Create user account â€” store hash for auth, plain_password for admin visibility
-    const userResult = await query(
-      `INSERT INTO dietbyrd_users(phone, role, password, plain_password, name, is_active, is_verified)
-       VALUES($1, $2, $3, $4, $5, true, true)
-       RETURNING id, phone, role, name`,
-      [phone, role, hashedStaffPw, plainPassword, name]
-    );
+    let userResult;
+    try {
+      userResult = await query(
+        `INSERT INTO dietbyrd_users(phone, role, password, plain_password, name, is_active, is_verified)
+         VALUES($1, $2, $3, $4, $5, true, true)
+         RETURNING id, phone, role, name`,
+        [phone, role, hashedStaffPw, plainPassword, name]
+      );
+    } catch (insertErr) {
+      // dietbyrd_users.phone is UNIQUE, so a concurrent request for the same
+      // phone can't create a duplicate account -- but without this it would
+      // 500 with a raw Postgres error instead of the same clean 409 the
+      // pre-check above returns for the common (non-racy) case.
+      if (insertErr && insertErr.code === "23505") {
+        return res.status(409).json({ success: false, error: "User with this phone number already exists" });
+      }
+      throw insertErr;
+    }
 
     const newUser = userResult.rows[0];
 
@@ -7823,7 +8067,7 @@ app.get("/api/support/patients", requireAuth(SUPPORT_ROLES), async (req, res) =>
     const whereClauses = [];
 
     if (rawQuery) {
-      params.push(`% ${rawQuery} % `);
+      params.push(`%${rawQuery}%`);
       whereClauses.push(
         `(COALESCE(p.name, u.name) ILIKE $${params.length} OR u.phone ILIKE $${params.length} OR u.email ILIKE $${params.length})`
       );
@@ -8495,8 +8739,15 @@ app.patch("/api/support/tickets/:id", requireAuth(SUPPORT_ROLES), async (req, re
       paramIndex++;
     }
 
+    // Mirrors the patient-scoped ticket PATCH: clear resolved_at on reopen
+    // too, not just set it on resolve/close. Previously a ticket that was
+    // resolved then reopened via this staff endpoint kept a stale
+    // resolved_at from the earlier resolution, corrupting resolution-time
+    // metrics.
     if (status === 'resolved' || status === 'closed') {
       updates.push(`resolved_at = NOW()`);
+    } else if (status) {
+      updates.push(`resolved_at = NULL`);
     }
 
     if (updates.length === 0) {

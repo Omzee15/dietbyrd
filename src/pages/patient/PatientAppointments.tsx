@@ -173,7 +173,11 @@ const PatientAppointments = () => {
     mutationFn: (data: { scheduled_at: string; rd_id?: number | null; patient_notes?: string }) =>
       bookAppointment({
         patient_id: user!.profileId!,
-        rd_id: data.rd_id ?? null,
+        // Fall back to the patient's already-assigned dietitian when the
+        // caller doesn't specify one, so an existing patient's booking goes
+        // to their own dietitian instead of being auto-assigned to whoever
+        // is least busy (matches PatientDashboard.tsx's booking mutation).
+        rd_id: data.rd_id ?? (patient as any)?.assigned_rd_id ?? null,
         scheduled_at: data.scheduled_at,
         patient_notes: data.patient_notes,
       }),
