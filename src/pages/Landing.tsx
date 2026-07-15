@@ -1452,12 +1452,12 @@ const Landing = () => {
 }
 .soul-image-wrap img {
   width: 100%; height: 100%; object-fit: contain; object-position: bottom center;
-  mix-blend-mode: multiply; display: block;
+  display: block;
 }
 @media (max-width: 900px) {
   .soul-section { padding: 64px 24px; }
   .soul-inner { grid-template-columns: 1fr; gap: 40px; }
-  .soul-image-wrap { min-height: auto; height: 380px; order: -1; }
+  .soul-image-wrap { min-height: auto; height: 380px; }
 }`}
         </style>
         <div className="soul-inner">
