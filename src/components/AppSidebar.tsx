@@ -167,7 +167,7 @@ const AppSidebar = ({ title, subtitle, sections, bottomContent }: AppSidebarProp
 
       {/* Desktop Sidebar */}
       <aside className={cn(
-        "hidden md:flex flex-col sticky top-0 self-start h-screen shrink-0 relative border-r border-sidebar-border transition-all duration-300",
+        "hidden md:flex flex-col sticky top-0 self-start h-screen shrink-0 border-r border-sidebar-border transition-all duration-300",
         collapsed ? 'w-16' : 'w-64'
       )}>
         {renderContent(false)}

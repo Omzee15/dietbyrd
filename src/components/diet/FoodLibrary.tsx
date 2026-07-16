@@ -217,7 +217,7 @@ export const FoodLibrary: React.FC<FoodLibraryProps> = ({ onBack }) => {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-7xl mx-auto w-full p-8 pb-20">
           {/* Search */}
-          <div className="mb-6 relative sticky top-0 z-10">
+          <div className="mb-6 sticky top-0 z-10">
             <Search className="w-5 h-5 text-slate-400 absolute left-3 top-3.5" />
             <Input 
               placeholder="Search foods by name..." 
