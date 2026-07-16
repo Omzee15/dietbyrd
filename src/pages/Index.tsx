@@ -875,9 +875,8 @@ const Index = () => {
           </div>
 
           {/* Image Container - Professional (Join Form) */}
-          <div 
+          <div
             className={`absolute inset-0 pointer-events-none z-30 transition-opacity duration-500 ease-in-out ${showJoinForm ? 'opacity-100' : 'opacity-0'}`}
-            style={{ mixBlendMode: 'darken' }}
           >
             <img 
               src="/new-docs-full.png" 
