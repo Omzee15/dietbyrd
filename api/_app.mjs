@@ -772,6 +772,15 @@ const getPool = () => {
       idleTimeoutMillis: 10000,
       connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || 10000),
     });
+
+    // pg emits 'error' on the pool when an idle client's connection is
+    // dropped server-side (Neon does this routinely). Without a listener,
+    // Node's default behavior for an unhandled EventEmitter 'error' is to
+    // throw and crash the whole process -- taking down the entire API for
+    // every user over a single transient, otherwise-harmless disconnect.
+    pool.on("error", (err) => {
+      console.error("[pg pool] idle client error (non-fatal, pool recovers automatically):", err.message);
+    });
   }
   return pool;
 };
@@ -3519,7 +3528,8 @@ app.get("/api/patients", async (req, res) => {
         WHERE pay.patient_id = p.id
       ) AS payment_summary ON true
       ORDER BY p.created_at DESC
-      LIMIT 100`
+      LIMIT 2000` // the admin UI paginates client-side over this result with no
+                  // offset param, so a low cap here silently hides patients past it
     );
     res.json({ success: true, data: result.rows });
   } catch (err) {
@@ -4613,7 +4623,7 @@ app.get("/api/referrals", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (req, res
       LEFT JOIN dietbyrd_patients p ON r.patient_id = p.id
       LEFT JOIN dietbyrd_doctors d ON r.doctor_id = d.id
       ORDER BY r.referred_at DESC
-      LIMIT 100`
+      LIMIT 2000`
     );
     res.json({ success: true, data: result.rows });
   } catch (err) {
@@ -4983,7 +4993,7 @@ app.get("/api/consultations", requireAuth(STAFF_PATIENT_ACCESS_ROLES), async (re
     if (rd_id) { params.push(rd_id); sql += ` AND c.rd_id = $${params.length}`; }
     if (patient_id) { params.push(patient_id); sql += ` AND rp.patient_id = $${params.length}`; }
     if (status) { params.push(status); sql += ` AND c.status = $${params.length}`; }
-    sql += ` ORDER BY c.scheduled_at DESC LIMIT 100`;
+    sql += ` ORDER BY c.scheduled_at DESC LIMIT 2000`;
 
     const result = await query(sql, params);
     res.json({ success: true, data: result.rows });
@@ -5280,11 +5290,14 @@ app.patch("/api/diet-plans/:id", requireAuth(DIETICIAN_OR_ADMIN_ROLES), async (r
       return res.status(400).json({ success: false, error: "plan_json is required" });
     }
 
+    // issued_at is the plan's original issuance date -- shown to patients as
+    // "Issued: <date>" on downloaded PDFs and used to order plan history, so
+    // an edit (e.g. a dietician fixing a typo) must not touch it; only the
+    // content and updated_at change.
     const result = await query(
       `UPDATE dietbyrd_diet_plans
        SET plan_json = $1,
-           updated_at = CURRENT_TIMESTAMP,
-           issued_at = CURRENT_TIMESTAMP
+           updated_at = CURRENT_TIMESTAMP
        WHERE id = $2
        RETURNING *`,
       [JSON.stringify(plan_json), id]
@@ -5932,7 +5945,9 @@ app.post("/api/coupons/validate", async (req, res) => {
         discount = coupon.max_discount_amount;
       }
     } else {
-      discount = coupon.discount_value;
+      // A flat discount larger than the order itself would otherwise preview
+      // as a negative payable amount before checkout.
+      discount = order_amount ? Math.min(coupon.discount_value, order_amount) : coupon.discount_value;
     }
 
     res.json({
@@ -5968,10 +5983,18 @@ app.post("/api/admin/coupons", requireAuth(ADMIN_ROLES), async (req, res) => {
         code, discount_type, discount_value, max_discount_amount, min_purchase_amount,
         usage_limit, valid_from, valid_until, is_active, applicable_plans, notes,
         created_by_user_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, CURRENT_TIMESTAMP), $8, $9, $10, $11, $12) RETURNING *`,
       [
         code.toUpperCase(), discount_type, discount_value, max_discount_amount,
-        min_purchase_amount || 0, usage_limit, valid_from || new Date(),
+        min_purchase_amount || 0, usage_limit,
+        // valid_from is a naive "timestamp without time zone" column -- a JS
+        // Date object here would serialize using this process's local
+        // timezone (IST, UTC+5:30) as if it were UTC, storing a value 5.5
+        // hours ahead of the DB's own NOW()/CURRENT_TIMESTAMP and making a
+        // just-created coupon look "not yet valid" until real time caught up.
+        // Letting Postgres supply its own CURRENT_TIMESTAMP when omitted
+        // (via the COALESCE above) sidesteps that mismatch entirely.
+        valid_from || null,
         valid_until, is_active !== undefined ? is_active : true,
         applicable_plans ? JSON.stringify(applicable_plans) : null,
         notes, created_by_user_id
@@ -6094,32 +6117,55 @@ app.post("/api/coupons/:id/apply", async (req, res) => {
     const { id } = req.params;
     const { user_id, patient_id, subscription_id, discount_applied, order_amount } = req.body;
 
-    // Increment usage count
-    const couponResult = await query(
-      `UPDATE dietbyrd_coupon_codes 
-       SET usage_count = usage_count + 1 
-       WHERE id = $1 
-       RETURNING *`,
-      [id]
-    );
+    // The increment and the usage-record insert are one transaction -- if
+    // recording usage fails (e.g. a bad patient_id), the increment must not
+    // survive on its own, or the coupon looks more redeemed than it actually
+    // was with no usage row to show for it.
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
 
-    if (couponResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "Coupon not found" });
+      // Atomically re-check the usage limit at increment time, not just at
+      // /validate time -- two concurrent redemptions of the last remaining
+      // use could both pass a validate check against the same stale
+      // usage_count and both land here, over-redeeming the coupon. The WHERE
+      // guard means only one of them affects a row.
+      const couponResult = await client.query(
+        `UPDATE dietbyrd_coupon_codes
+         SET usage_count = usage_count + 1
+         WHERE id = $1 AND (usage_limit IS NULL OR usage_count < usage_limit)
+         RETURNING *`,
+        [id]
+      );
+
+      if (couponResult.rows.length === 0) {
+        const exists = await client.query("SELECT 1 FROM dietbyrd_coupon_codes WHERE id = $1", [id]);
+        await client.query("ROLLBACK");
+        if (exists.rows.length === 0) {
+          return res.status(404).json({ success: false, error: "Coupon not found" });
+        }
+        return res.status(400).json({ success: false, error: "Coupon usage limit reached" });
+      }
+
+      await client.query(
+        `INSERT INTO dietbyrd_coupon_usage
+         (coupon_id, user_id, patient_id, subscription_id, discount_applied, order_amount)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [id, user_id, patient_id, subscription_id, discount_applied, order_amount]
+      );
+
+      await client.query("COMMIT");
+      res.json({
+        success: true,
+        message: "Coupon applied successfully",
+        data: couponResult.rows[0]
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw err;
+    } finally {
+      client.release();
     }
-
-    // Record usage
-    await query(
-      `INSERT INTO dietbyrd_coupon_usage 
-       (coupon_id, user_id, patient_id, subscription_id, discount_applied, order_amount)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [id, user_id, patient_id, subscription_id, discount_applied, order_amount]
-    );
-
-    res.json({
-      success: true,
-      message: "Coupon applied successfully",
-      data: couponResult.rows[0]
-    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -6826,25 +6872,51 @@ app.put("/api/appointments/:id/cancel", async (req, res) => {
       }
     }
 
-    const result = await query(
-      `UPDATE dietbyrd_consultations 
-       SET status = 'cancelled', 
-           cancelled_at = CURRENT_TIMESTAMP,
-           cancelled_by = $2,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND status = 'scheduled'
-       RETURNING *`,
-      [id, cancelled_by || 'patient']
-    );
+    // Cancel + refund the consultation credit spent at booking time are one
+    // transaction -- the patient never received the service, so leaving the
+    // credit spent while the appointment shows cancelled would silently cost
+    // them a paid consultation. The client is only acquired here, after the
+    // ownership check above (which uses the shared query() helper), since
+    // the pool is sized to a single connection.
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "Appointment not found or cannot be cancelled"
-      });
+      const result = await client.query(
+        `UPDATE dietbyrd_consultations
+         SET status = 'cancelled',
+             cancelled_at = CURRENT_TIMESTAMP,
+             cancelled_by = $2,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND status = 'scheduled'
+         RETURNING *`,
+        [id, cancelled_by || 'patient']
+      );
+
+      if (result.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({
+          success: false,
+          error: "Appointment not found or cannot be cancelled"
+        });
+      }
+
+      await client.query(
+        `UPDATE dietbyrd_patients p
+         SET consultations_left = COALESCE(consultations_left, 0) + 1, updated_at = CURRENT_TIMESTAMP
+         FROM dietbyrd_registered_patients rp
+         WHERE rp.id = $1 AND p.id = rp.patient_id`,
+        [result.rows[0].registered_patient_id]
+      );
+
+      await client.query("COMMIT");
+      res.json({ success: true, data: result.rows[0], message: "Appointment cancelled successfully" });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw err;
+    } finally {
+      client.release();
     }
-
-    res.json({ success: true, data: result.rows[0], message: "Appointment cancelled successfully" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -6899,42 +6971,60 @@ app.put("/api/appointments/:id/reschedule", async (req, res) => {
 
     const rdId = currentAppt.rows[0].rd_id;
 
-    // Check if new slot is available
-    const existingResult = await query(
-      `SELECT id FROM dietbyrd_consultations 
-       WHERE rd_id = $1 
-       AND scheduled_at = $2::timestamp 
-       AND status NOT IN ('cancelled', 'no_show')
-       AND id != $3`,
-      [rdId, new_scheduled_at, id]
-    );
+    // Same check-then-act race as the original booking flow (two reschedules
+    // landing on the same freshly-freed slot at once), guarded the same way:
+    // an advisory lock keyed on the target rd+slot serializes the
+    // availability check and the update. Acquired after the ownership/lookup
+    // checks above, which use the shared query() helper, since the pool is
+    // sized to a single connection.
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`rd:${rdId}|${new_scheduled_at}`]);
 
-    if (existingResult.rows.length > 0) {
-      return res.status(409).json({
-        success: false,
-        error: "The new time slot is no longer available"
-      });
+      const existingResult = await client.query(
+        `SELECT id FROM dietbyrd_consultations
+         WHERE rd_id = $1
+         AND scheduled_at = $2::timestamp
+         AND status NOT IN ('cancelled', 'no_show')
+         AND id != $3`,
+        [rdId, new_scheduled_at, id]
+      );
+
+      if (existingResult.rows.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          success: false,
+          error: "The new time slot is no longer available"
+        });
+      }
+
+      const result = await client.query(
+        `UPDATE dietbyrd_consultations
+         SET scheduled_at = $2::timestamp,
+             patient_notes = COALESCE($3, patient_notes),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND status = 'scheduled'
+         RETURNING *`,
+        [id, new_scheduled_at, patient_notes || null]
+      );
+
+      if (result.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({
+          success: false,
+          error: "Failed to reschedule appointment"
+        });
+      }
+
+      await client.query("COMMIT");
+      res.json({ success: true, data: result.rows[0], message: "Appointment rescheduled successfully" });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw err;
+    } finally {
+      client.release();
     }
-
-    // Update the appointment
-    const result = await query(
-      `UPDATE dietbyrd_consultations 
-       SET scheduled_at = $2::timestamp,
-           patient_notes = COALESCE($3, patient_notes),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND status = 'scheduled'
-       RETURNING *`,
-      [id, new_scheduled_at, patient_notes || null]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "Failed to reschedule appointment"
-      });
-    }
-
-    res.json({ success: true, data: result.rows[0], message: "Appointment rescheduled successfully" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -7432,7 +7522,7 @@ app.post("/api/payments/create-order", async (req, res) => {
           discount = coupon.max_discount_amount;
         }
       } else {
-        discount = coupon.discount_value;
+        discount = Math.min(coupon.discount_value, pkg.price);
       }
       chargeAmount = Math.max(100, Math.round(pkg.price - discount));
       appliedCoupon = coupon;
