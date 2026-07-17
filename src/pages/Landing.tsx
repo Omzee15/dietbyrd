@@ -2002,7 +2002,9 @@ const Landing = () => {
             not a certificate course.
           </h1>
           <p ref={addToRefs} className="hero-sub reveal reveal-delay-2" style={{ lineHeight: '1.6' }}>
-            One consultation changes the direction. An RD who understands your food, your condition and you - not a generic PDF. <br/><strong>Never a supplement upsell, Real clinical nutrition, personalized for you.</strong>
+            One consultation changes the direction.<br/>
+            An RD who understands your food, your condition and you - not a generic PDF.<br/>
+            <strong>Never a supplement upsell, Real clinical nutrition, personalized for you.</strong>
           </p>
           <div ref={addToRefs} className="hero-actions reveal reveal-delay-3" style={{ alignItems: 'flex-end' }}>
             <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary" style={{ padding: '16px 32px', fontSize: '18px' }}>
