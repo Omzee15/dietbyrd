@@ -943,11 +943,6 @@ const Landing = () => {
         .condition-pill .cicon img { max-width: 100%; max-height: 100%; object-fit: contain; }
         .condition-pill .ctxt { font-family: 'Playfair Display', serif; font-size: 15px; color: var(--navy); font-weight: 700; line-height: 1.3; }
 
-        .conditions-bg-leaf { position: absolute; opacity: 0.15; z-index: 0; pointer-events: none; }
-        .conditions-bg-leaf.left { top: 0; left: 0; width: 200px; }
-        .conditions-bg-leaf.right { top: 0; right: 0; width: 200px; transform: scaleX(-1); }
-        .conditions-bg-leaf.bottom { bottom: 0; left: 50%; transform: translateX(-50%); width: 120px; opacity: 0.2; }
-
         /* Footer */
         .landing-footer {
           background: var(--navy);
@@ -1949,9 +1944,6 @@ const Landing = () => {
 
 
       <section id="conditions" className="section trust-section" style={{ background: '#FDFBF7', position: 'relative' }}>
-        <img src="/conditions/botanical_leaf.png" className="conditions-bg-leaf left" alt="" loading="lazy" decoding="async" style={{ mixBlendMode: 'multiply' }} />
-        <img src="/conditions/botanical_leaf.png" className="conditions-bg-leaf right" alt="" loading="lazy" decoding="async" style={{ mixBlendMode: 'multiply' }} />
-        
         <div className="section-inner trust-inner" style={{ position: 'relative', zIndex: 2 }}>
           <div className="text-center mb-4">
             <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--teal)' }}>
