@@ -1284,7 +1284,7 @@ const Landing = () => {
           {`.soul-section { padding: 96px 24px; }
 .soul-inner {
   max-width: 1280px; margin: 0 auto;
-  display: grid; grid-template-columns: 1.5fr 1fr; gap: 56px;
+  display: grid; grid-template-columns: 1.3fr 1fr; gap: 56px;
   align-items: center;
 }
 .soul-eyebrow-row { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
@@ -1326,7 +1326,7 @@ const Landing = () => {
 }
 .soul-closer strong { color: var(--teal); }
 .soul-image-wrap {
-  position: relative; min-height: 480px; height: min(64vh, 620px);
+  position: relative; min-height: 560px; height: min(88vh, 820px);
   display: flex; align-items: flex-end; justify-content: center; overflow: visible;
 }
 .soul-image-wrap img {
@@ -1336,7 +1336,7 @@ const Landing = () => {
 @media (max-width: 900px) {
   .soul-section { padding: 64px 24px; }
   .soul-inner { grid-template-columns: 1fr; gap: 40px; }
-  .soul-image-wrap { min-height: auto; height: 380px; }
+  .soul-image-wrap { min-height: auto; height: 420px; }
 }`}
         </style>
         <div className="soul-inner">
