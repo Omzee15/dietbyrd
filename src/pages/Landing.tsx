@@ -1338,10 +1338,10 @@ const Landing = () => {
           <div className="trust-marquee" style={{ padding: '32px 0', mixBlendMode: 'multiply' }}>
             <div className="trust-marquee__track" style={{ animationDuration: '50s', gap: '80px' }}>
               {Array(6).fill([
-                { label: 'DPDPA Compliant, Strict NDA Policy', img: '/dpdpa.webp' },
+                { label: 'DPDPA Compliant', img: '/dpdpa.webp' },
                 { label: 'IDA Verified RDs', icon: BadgeCheck },
                 { label: 'EUGDPR Compliant', img: '/gdpr.webp' },
-                { label: 'Aligned with ISO 27001 standards', img: '/ise27001.webp' },
+                { label: 'Compliant with ISO 27001 standard', textBadge: 'ISO 27001' },
               ]).flat().map((item, index) => (
                 <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: '14px' }}>
                   {item.img ? (
@@ -1351,6 +1351,12 @@ const Landing = () => {
                   ) : item.icon ? (
                     <div style={{ width: '104px', height: '104px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <item.icon size={52} strokeWidth={2} style={{ color: 'var(--teal)' }} />
+                    </div>
+                  ) : item.textBadge ? (
+                    <div style={{ width: '104px', height: '104px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 800, fontSize: '20px', color: 'var(--navy)', textAlign: 'center', lineHeight: 1.15 }}>
+                        {item.textBadge}
+                      </span>
                     </div>
                   ) : null}
                   <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--navy)', whiteSpace: 'nowrap', fontFamily: "'Playfair Display', serif", textAlign: 'center' }}>
