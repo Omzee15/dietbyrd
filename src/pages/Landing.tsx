@@ -585,19 +585,6 @@ const Landing = () => {
           border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
         }
         .privacy-inner { max-width: 1100px; margin: 0 auto; text-align: center; padding: 0; }
-        .privacy-eyebrow {
-          display: inline-block; font-size: 11px; font-weight: 600;
-          letter-spacing: 0.1em; text-transform: uppercase;
-          color: var(--teal); margin-bottom: 10px;
-        }
-        .privacy-heading {
-          font-family: 'Playfair Display', serif;
-          font-size: clamp(1.3rem, 2.5vw, 1.85rem); color: var(--navy);
-          margin-bottom: 10px; font-weight: 700; line-height: 1.25;
-        }
-        .privacy-sub {
-          font-size: 14px; color: var(--text3); margin-bottom: 40px; font-weight: 400;
-        }
         /* Marquee */
         .privacy-marquee-wrap { overflow: visible; position: relative; }
         .privacy-marquee-wrap::before, .privacy-marquee-wrap::after {
@@ -1294,14 +1281,7 @@ const Landing = () => {
       {/* Privacy + Stats */}
       <section className="privacy-section" style={{ background: 'var(--cream)' }}>
         <div className="privacy-inner">
-          <span ref={addToRefs} className="privacy-eyebrow reveal">Our commitment to you</span>
-          <h3 ref={addToRefs} className="privacy-heading reveal reveal-delay-1">
-            Because we deeply care about you<br />and your privacy
-          </h3>
-          <p ref={addToRefs} className="privacy-sub reveal reveal-delay-2">
-            Your health data is personal. We hold it to the highest standards — legally and ethically.
-          </p>
-          <div className="trust-marquee" style={{ marginTop: '48px', padding: '32px 0', mixBlendMode: 'multiply' }}>
+          <div className="trust-marquee" style={{ padding: '32px 0', mixBlendMode: 'multiply' }}>
             <div className="trust-marquee__track" style={{ animationDuration: '50s', gap: '80px' }}>
               {Array(6).fill([
                 { label: 'DPDPA Compliant, Strict NDA Policy', img: '/dpdpa.png' },
