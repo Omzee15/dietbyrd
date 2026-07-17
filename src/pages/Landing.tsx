@@ -147,8 +147,6 @@ const Landing = () => {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [statsVisible, setStatsVisible] = useState(false);
-  const statsRef = useRef<HTMLDivElement | null>(null);
   const revealRefs = useRef<(HTMLElement | null)[]>([]);
 
   useEffect(() => {
@@ -179,18 +177,6 @@ const Landing = () => {
       { threshold: 0.3 }
     );
     els.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
-
-  // Stats bar intersection observer
-  useEffect(() => {
-    const el = statsRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setStatsVisible(true); },
-      { threshold: 0.3 }
-    );
-    observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
@@ -678,36 +664,6 @@ const Landing = () => {
         .testimonial-detail { font-size: 13px; color: var(--text3); margin-top: 2px; font-weight: 400; }
         .testimonial-condition { margin-left: auto; background: rgba(11,110,79,0.10); color: var(--teal); font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: 100px; }
 
-        /* Stats grid */
-        .stats-bar-inner {
-          max-width: 1100px; margin: 40px auto 0;
-          display: grid; grid-template-columns: repeat(4, 1fr);
-          gap: 20px;
-        }
-        .stat-item {
-          padding: 40px 20px 36px; text-align: center;
-          background: #fff;
-          border: 1px solid rgba(11,110,79,0.15);
-          border-radius: 20px;
-          opacity: 0; transform: translateY(24px);
-          transition: opacity 0.6s ease, transform 0.6s ease;
-          display: flex; flex-direction: column; align-items: center;
-          position: relative; overflow: hidden;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-        }
-        .stat-item::before {
-          content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-          background: linear-gradient(90deg, var(--teal), var(--teal-m));
-        }
-        .stat-item.stat-visible { opacity: 1; transform: none; }
-        .stat-item:nth-child(2) { transition-delay: 0.1s; }
-        .stat-item:nth-child(3) { transition-delay: 0.2s; }
-        .stat-item:nth-child(4) { transition-delay: 0.3s; }
-        .stat-item-icon { font-size: 28px; margin-bottom: 14px; }
-        .stat-item-num { font-family: 'Playfair Display', serif; font-size: 3rem; font-weight: 700; color: var(--navy); line-height: 1; margin-bottom: 10px; }
-        .stat-item-num .gold { color: var(--gold); }
-        .stat-item-lbl { font-size: 13px; color: var(--text3); line-height: 1.55; font-weight: 400; max-width: 130px; }
-
         /* About & Vision */
         .about-section {
           background: var(--teal-l); padding: clamp(48px, 8vw, 96px) clamp(20px, 5vw, 32px);
@@ -1043,7 +999,6 @@ const Landing = () => {
           .compare-grid, .approach-grid { grid-template-columns: 1fr; }
           .approach-grid { gap: 48px; }
           .founder-profile-grid { grid-template-columns: 1fr; gap: 24px; }
-          .stats-bar-inner { grid-template-columns: 1fr 1fr; }
           .footer-top { grid-template-columns: 1fr 1fr; }
           .nav-links .nav-mid { display: none; }
           .nav-links .nav-link { display: none; }
@@ -1068,9 +1023,6 @@ const Landing = () => {
           .clinician-logo-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .footer-top { grid-template-columns: 1fr; gap: 32px; }
           .nav-links { gap: 12px; }
-          .stats-bar-inner { grid-template-columns: 1fr 1fr; gap: 16px; }
-          .stat-item { padding: 12px; }
-          .stat-item-num { font-size: 1.75rem; }
           .stat-num { font-size: 24px; }
           .trust-proof-row { gap: 24px; }
           .conditions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
@@ -1349,28 +1301,6 @@ const Landing = () => {
           <p ref={addToRefs} className="privacy-sub reveal reveal-delay-2">
             Your health data is personal. We hold it to the highest standards — legally and ethically.
           </p>
-          <div className="stats-bar-inner" ref={statsRef}>
-            <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
-              <div className="stat-item-icon">⚖️</div>
-              <div className="stat-item-num">RD</div>
-              <div className="stat-item-lbl">Legally protected title in India</div>
-            </div>
-            <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
-              <div className="stat-item-icon">🎓</div>
-              <div className="stat-item-num">100%</div>
-              <div className="stat-item-lbl">Clinically credentialed dietitians</div>
-            </div>
-            <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
-              <div className="stat-item-icon">💚</div>
-              <div className="stat-item-num"><span className="gold">₹</span>999</div>
-              <div className="stat-item-lbl">Honest pricing</div>
-            </div>
-            <div className={`stat-item${statsVisible ? ' stat-visible' : ''}`}>
-              <div className="stat-item-icon">🤝</div>
-              <div className="stat-item-num">1:1</div>
-              <div className="stat-item-lbl">Personalised consultation</div>
-            </div>
-          </div>
           <div className="trust-marquee" style={{ marginTop: '48px', padding: '32px 0', mixBlendMode: 'multiply' }}>
             <div className="trust-marquee__track" style={{ animationDuration: '50s', gap: '80px' }}>
               {Array(6).fill([
