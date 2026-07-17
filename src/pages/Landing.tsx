@@ -1278,37 +1278,6 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Privacy + Stats */}
-      <section className="privacy-section" style={{ background: 'var(--cream)' }}>
-        <div className="privacy-inner">
-          <div className="trust-marquee" style={{ padding: '32px 0', mixBlendMode: 'multiply' }}>
-            <div className="trust-marquee__track" style={{ animationDuration: '50s', gap: '80px' }}>
-              {Array(6).fill([
-                { label: 'DPDPA Compliant, Strict NDA Policy', img: '/dpdpa.png' },
-                { label: 'IDA Verified RDs', icon: BadgeCheck },
-                { label: 'EUGDPR Compliant', img: '/gdpr.png' },
-                { label: 'Aligned with ISO 27001 standards', img: '/ise27001.png' },
-              ]).flat().map((item, index) => (
-                <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: '14px' }}>
-                  {item.img ? (
-                    <div style={{ width: '104px', height: '104px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <img src={item.img} alt={item.label} style={{ width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }} />
-                    </div>
-                  ) : item.icon ? (
-                    <div style={{ width: '104px', height: '104px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <item.icon size={52} strokeWidth={2} style={{ color: 'var(--teal)' }} />
-                    </div>
-                  ) : null}
-                  <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--navy)', whiteSpace: 'nowrap', fontFamily: "'Playfair Display', serif", textAlign: 'center' }}>
-                    {item.label}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Built With Intent and Soul */}
       <section className="soul-section reveal" style={{ background: 'var(--cream)' }}>
         <style>
@@ -1479,6 +1448,37 @@ const Landing = () => {
               Book with a Registered Dietitian
               <span className="price">₹999</span>
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Trust badge marquee */}
+      <section className="privacy-section" style={{ background: 'var(--cream)' }}>
+        <div className="privacy-inner">
+          <div className="trust-marquee" style={{ padding: '32px 0', mixBlendMode: 'multiply' }}>
+            <div className="trust-marquee__track" style={{ animationDuration: '50s', gap: '80px' }}>
+              {Array(6).fill([
+                { label: 'DPDPA Compliant, Strict NDA Policy', img: '/dpdpa.png' },
+                { label: 'IDA Verified RDs', icon: BadgeCheck },
+                { label: 'EUGDPR Compliant', img: '/gdpr.png' },
+                { label: 'Aligned with ISO 27001 standards', img: '/ise27001.png' },
+              ]).flat().map((item, index) => (
+                <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: '14px' }}>
+                  {item.img ? (
+                    <div style={{ width: '104px', height: '104px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <img src={item.img} alt={item.label} style={{ width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }} />
+                    </div>
+                  ) : item.icon ? (
+                    <div style={{ width: '104px', height: '104px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <item.icon size={52} strokeWidth={2} style={{ color: 'var(--teal)' }} />
+                    </div>
+                  ) : null}
+                  <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--navy)', whiteSpace: 'nowrap', fontFamily: "'Playfair Display', serif", textAlign: 'center' }}>
+                    {item.label}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
