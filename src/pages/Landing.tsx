@@ -1342,6 +1342,7 @@ const Landing = () => {
                 { label: 'IDA Verified RDs', icon: BadgeCheck },
                 { label: 'EUGDPR Compliant', img: '/gdpr.webp' },
                 { label: 'Compliant with ISO 27001 standard', textBadge: 'ISO 27001' },
+                { label: 'DPIIT Recognised Startup', img: '/dpiit.webp' },
               ]).flat().map((item, index) => (
                 <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: '14px' }}>
                   {item.img ? (
