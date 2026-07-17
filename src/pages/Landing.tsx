@@ -1825,8 +1825,6 @@ const Landing = () => {
                     objectFit: 'contain',
                     objectPosition: 'bottom center',
                     display: 'block',
-                    filter: 'none',
-                    mixBlendMode: 'multiply',
                     transform: 'scale(1.22) translate(-4%, 40px)',
                     transformOrigin: 'bottom center'
                   }}
