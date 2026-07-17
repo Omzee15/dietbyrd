@@ -32,7 +32,6 @@ import {
   TrendingUp,
   Dumbbell,
   Flower2,
-  Leaf,
   Menu,
   X
 } from "lucide-react";
@@ -1957,11 +1956,6 @@ const Landing = () => {
               CONDITIONS WE TREAT
             </span>
           </div>
-          <div className="flex items-center justify-center gap-4 mb-6">
-            <div className="h-px w-16 bg-slate-200" />
-            <Leaf className="w-6 h-6 text-[var(--teal)]" strokeWidth={1.5} />
-            <div className="h-px w-16 bg-slate-200" />
-          </div>
           <h2 ref={addToRefs} className="trust-title reveal reveal-delay-1" style={{ marginBottom: '16px', fontSize: 'clamp(2.4rem, 4vw, 3.2rem)' }}>Conditions We Treat</h2>
           <p ref={addToRefs} className="trust-sub reveal reveal-delay-2" style={{ maxWidth: '650px', margin: '0 auto 48px' }}>
             Your RD is trained to manage these conditions clinically — not with generic advice,
@@ -1977,13 +1971,7 @@ const Landing = () => {
               </div>
             ))}
           </div>
-          <div className="flex items-center justify-center gap-4 mt-12 mb-4">
-            <div className="h-px w-16 bg-slate-200" />
-            <Leaf className="w-6 h-6 text-[var(--teal)]" strokeWidth={1.5} />
-            <div className="h-px w-16 bg-slate-200" />
-          </div>
-          
-          <div className="w-full flex flex-col items-center justify-center mt-8 reveal reveal-delay-3" ref={addToRefs}>
+          <div className="w-full flex flex-col items-center justify-center mt-12 reveal reveal-delay-3" ref={addToRefs}>
             <div className="max-w-[650px] text-center flex flex-col items-center">
               <p className="text-[18px] md:text-[20px] text-[var(--navy)] font-bold mb-3 leading-relaxed text-center" style={{ fontFamily: "'Playfair Display', serif" }}>
                 Your health is more than a diagnosis.
