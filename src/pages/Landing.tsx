@@ -68,20 +68,20 @@ const fallbackTestimonials = [
 ];
 
 const conditions = [
-  { icon: '/conditions/diabetes_hands.png', name: 'Diabetes' },
-  { icon: '/conditions/cholesterol_heart.png', name: 'High Cholesterol' },
-  { icon: '/conditions/blood_pressure.png', name: 'High Blood Pressure' },
-  { icon: '/conditions/pcos.png', name: 'PCOS' },
-  { icon: '/conditions/hormonal_molecule.png', name: 'Hormonal Imbalance' },
-  { icon: '/conditions/gut_exact.png', name: 'Gut Issues' },
-  { icon: '/conditions/ibs_intestines.png', name: 'IBS' },
-  { icon: '/conditions/weight.png', name: 'Weight Management' },
-  { icon: '/conditions/deficiency_exact_v2.png', name: 'Deficiency Management' },
-  { icon: '/conditions/general_health_exact.png', name: 'General Health' },
-  { icon: '/conditions/vegan.png', name: 'Healthy Vegan Diet' },
-  { icon: '/conditions/sports_exact.png', name: 'Sports Nutrition' },
-  { icon: '/conditions/gym_exact.png', name: 'Gym Diet' },
-  { icon: '/conditions/and_many_more.png', name: 'And Many More' },
+  { icon: '/conditions/diabetes_hands.webp', name: 'Diabetes' },
+  { icon: '/conditions/cholesterol_heart.webp', name: 'High Cholesterol' },
+  { icon: '/conditions/blood_pressure.webp', name: 'High Blood Pressure' },
+  { icon: '/conditions/pcos.webp', name: 'PCOS' },
+  { icon: '/conditions/hormonal_molecule.webp', name: 'Hormonal Imbalance' },
+  { icon: '/conditions/gut_exact.webp', name: 'Gut Issues' },
+  { icon: '/conditions/ibs_intestines.webp', name: 'IBS' },
+  { icon: '/conditions/weight.webp', name: 'Weight Management' },
+  { icon: '/conditions/deficiency_exact_v2.webp', name: 'Deficiency Management' },
+  { icon: '/conditions/general_health_exact.webp', name: 'General Health' },
+  { icon: '/conditions/vegan.webp', name: 'Healthy Vegan Diet' },
+  { icon: '/conditions/sports_exact.webp', name: 'Sports Nutrition' },
+  { icon: '/conditions/gym_exact.webp', name: 'Gym Diet' },
+  { icon: '/conditions/and_many_more.webp', name: 'And Many More' },
 ];
 
 const patientNavItems = [
@@ -1343,15 +1343,15 @@ const Landing = () => {
           <div className="trust-marquee" style={{ padding: '32px 0', mixBlendMode: 'multiply' }}>
             <div className="trust-marquee__track" style={{ animationDuration: '50s', gap: '80px' }}>
               {Array(6).fill([
-                { label: 'DPDPA Compliant, Strict NDA Policy', img: '/dpdpa.png' },
+                { label: 'DPDPA Compliant, Strict NDA Policy', img: '/dpdpa.webp' },
                 { label: 'IDA Verified RDs', icon: BadgeCheck },
-                { label: 'EUGDPR Compliant', img: '/gdpr.png' },
-                { label: 'Aligned with ISO 27001 standards', img: '/ise27001.png' },
+                { label: 'EUGDPR Compliant', img: '/gdpr.webp' },
+                { label: 'Aligned with ISO 27001 standards', img: '/ise27001.webp' },
               ]).flat().map((item, index) => (
                 <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: '14px' }}>
                   {item.img ? (
                     <div style={{ width: '104px', height: '104px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <img src={item.img} alt={item.label} style={{ width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }} />
+                      <img src={item.img} alt={item.label} decoding="async" style={{ width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }} />
                     </div>
                   ) : item.icon ? (
                     <div style={{ width: '104px', height: '104px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -1384,7 +1384,7 @@ const Landing = () => {
               <div className="approach-features">
                 <div ref={addToRefs} className="feature-item reveal reveal-delay-1">
                   <div className="w-[64px] h-[64px] xl:w-[76px] xl:h-[76px] rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] overflow-hidden flex-shrink-0 border border-black/5 bg-[#FCFBF7]">
-                    <img src="/approach/evidence.png" alt="Evidence based icon" className="w-full h-full object-cover scale-[1.15]" />
+                    <img src="/approach/evidence.png" alt="Evidence based icon" loading="lazy" decoding="async" className="w-full h-full object-cover scale-[1.15]" />
                   </div>
                   <div className="feature-text">
                     <h4>Evidence-based, always</h4>
@@ -1393,7 +1393,7 @@ const Landing = () => {
                 </div>
                 <div ref={addToRefs} className="feature-item reveal reveal-delay-2">
                   <div className="w-[64px] h-[64px] xl:w-[76px] xl:h-[76px] rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] overflow-hidden flex-shrink-0 border border-black/5 bg-[#FCFBF7]">
-                    <img src="/approach/plate.png" alt="Personalised plate icon" className="w-full h-full object-cover scale-[1.15]" />
+                    <img src="/approach/plate.png" alt="Personalised plate icon" loading="lazy" decoding="async" className="w-full h-full object-cover scale-[1.15]" />
                   </div>
                   <div className="feature-text">
                     <h4>Built around your plate, not a stranger's</h4>
@@ -1402,7 +1402,7 @@ const Landing = () => {
                 </div>
                 <div ref={addToRefs} className="feature-item reveal reveal-delay-3">
                   <div className="w-[64px] h-[64px] xl:w-[76px] xl:h-[76px] rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] overflow-hidden flex-shrink-0 border border-black/5 bg-[#FCFBF7]">
-                    <img src="/approach/affordable_exact.png" alt="Affordable icon" className="w-full h-full object-cover scale-[1.15]" />
+                    <img src="/approach/affordable_exact.png" alt="Affordable icon" loading="lazy" decoding="async" className="w-full h-full object-cover scale-[1.15]" />
                   </div>
                   <div className="feature-text">
                     <h4>Affordable without compromise</h4>
@@ -1411,7 +1411,7 @@ const Landing = () => {
                 </div>
                 <div ref={addToRefs} className="feature-item reveal reveal-delay-3">
                   <div className="w-[64px] h-[64px] xl:w-[76px] xl:h-[76px] rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] overflow-hidden flex-shrink-0 border border-black/5 bg-[#FCFBF7]">
-                    <img src="/approach/supplement_exact.png" alt="No supplement upsell icon" className="w-full h-full object-cover scale-[1.15]" />
+                    <img src="/approach/supplement_exact.png" alt="No supplement upsell icon" loading="lazy" decoding="async" className="w-full h-full object-cover scale-[1.15]" />
                   </div>
                   <div className="feature-text">
                     <h4>No supplement upsell, Only what is required</h4>
@@ -1595,7 +1595,7 @@ const Landing = () => {
             </div>
           </div>
           <div ref={addToRefs} className="soul-image-wrap reveal reveal-delay-1">
-            <img src="/built-with-intent-doctor.webp" alt="Diet By RD registered dietitian" />
+            <img src="/built-with-intent-doctor.webp" alt="Diet By RD registered dietitian" loading="lazy" decoding="async" />
           </div>
         </div>
       </section>
@@ -1812,6 +1812,8 @@ const Landing = () => {
                 <img
                   src="/aryan-bhagat-founder.png"
                   alt="Aryan Bhagat, Founder of Diet By RD"
+                  loading="lazy"
+                  decoding="async"
                   style={{
                     width: '112%',
                     height: '112%',
@@ -1947,8 +1949,8 @@ const Landing = () => {
 
 
       <section id="conditions" className="section trust-section" style={{ background: '#FDFBF7', position: 'relative' }}>
-        <img src="/conditions/botanical_leaf.png" className="conditions-bg-leaf left" alt="" style={{ mixBlendMode: 'multiply' }} />
-        <img src="/conditions/botanical_leaf.png" className="conditions-bg-leaf right" alt="" style={{ mixBlendMode: 'multiply' }} />
+        <img src="/conditions/botanical_leaf.png" className="conditions-bg-leaf left" alt="" loading="lazy" decoding="async" style={{ mixBlendMode: 'multiply' }} />
+        <img src="/conditions/botanical_leaf.png" className="conditions-bg-leaf right" alt="" loading="lazy" decoding="async" style={{ mixBlendMode: 'multiply' }} />
         
         <div className="section-inner trust-inner" style={{ position: 'relative', zIndex: 2 }}>
           <div className="text-center mb-4">
@@ -1965,7 +1967,7 @@ const Landing = () => {
             {conditions.map((c, i) => (
               <div key={i} className="condition-pill">
                 <div className="cicon">
-                  <img src={c.icon} alt={c.name} style={c.name === 'General Health' ? { transform: 'scale(1.2)' } : undefined} />
+                  <img src={c.icon} alt={c.name} loading="lazy" decoding="async" style={c.name === 'General Health' ? { transform: 'scale(1.2)' } : undefined} />
                 </div>
                 <div className="ctxt">{c.name}</div>
               </div>
