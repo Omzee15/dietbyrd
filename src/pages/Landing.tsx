@@ -1847,13 +1847,13 @@ const Landing = () => {
                 </div>
               </div>
               <p className="story-bio-text">
-                Coming from a lower-middle-class family, Aryan grew up knowing the weight of every rupee earned — and how unfair it is when misinformation in healthcare makes people lose it so easily. He saw how easily people were misled into spending it on false promises and pseudoscience.
+                Diet By RD was founded by Aryan Bhagat, a young mind from Darbhanga, Bihar in a household where money was counted carefully and trust was given completely. He saw people around him losing their liver-kidneys on detox programmes and their hard earned money on health advice that was confidently delivered and clinically worthless. It felt wrong. Deeply, personally wrong. That the people with the least room for error were the most exposed to it.
               </p>
               <p className="story-bio-text">
-                He watched families trust 'health experts' who were nothing more than confident content creators. He saw diabetic patients follow advice from coaches with no clinical training. He saw people spending money they didn't have on products they didn't need.
+                Diet By RD was built for you.
               </p>
               <p className="story-bio-text">
-                That's the problem Diet By RD exists to solve. Not with more content — but with the <br/><strong style={{ color: 'var(--navy)' }}>right credentials, the right professionals, and the right price.</strong>
+                Not by a corporation. Not by investors looking for a return. By someone who grew up watching the problem happen in real time, who studied hard enough to understand it, and who decided that the most useful thing he could do with that knowledge and skin in the game was to make it available to the people who needed it most.
               </p>
               <div className="story-road-card">
                 <div className="story-road-title">The Road Ahead</div>
