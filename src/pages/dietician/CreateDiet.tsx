@@ -1128,6 +1128,15 @@ const CreateDiet = () => {
     setAddFoodModalOpen(false);
   };
 
+  // The target/weight/quantity inputs in the Add-to-Meal modal aren't inside
+  // a <form>, so pressing Enter did nothing -- wire it to the same confirm
+  // action as clicking the button (which already no-ops if the amount is invalid).
+  const handleAddFoodInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    confirmAddFood();
+  };
+
   const updateQuantity = (mealName: string, itemId: string, delta: number) => {
     setActivePrototypeMeals((previousMeals) =>
       previousMeals.map((meal) =>
@@ -1416,12 +1425,6 @@ const CreateDiet = () => {
                     <>
                       <span className="text-muted-foreground/40">|</span>
                       <span><span className="text-xs uppercase tracking-wider">Diet:</span> {patient.dietary_preference}</span>
-                    </>
-                  )}
-                  {patient.phone && (
-                    <>
-                      <span className="text-muted-foreground/40">|</span>
-                      <span><span className="text-xs uppercase tracking-wider">Phone:</span> {patient.phone}</span>
                     </>
                   )}
                 </div>
@@ -2131,6 +2134,7 @@ const CreateDiet = () => {
                       type="number"
                       value={targetAmount}
                       onChange={(e) => setTargetAmount(e.target.value)}
+                      onKeyDown={handleAddFoodInputKeyDown}
                       className="w-24 text-right font-bold text-lg"
                       autoFocus
                     />
@@ -2165,6 +2169,7 @@ const CreateDiet = () => {
                       type="number"
                       value={weightInput}
                       onChange={(e) => setWeightInput(e.target.value)}
+                      onKeyDown={handleAddFoodInputKeyDown}
                       className="text-right font-bold text-lg"
                       autoFocus
                     />
@@ -2183,6 +2188,7 @@ const CreateDiet = () => {
                       type="number"
                       value={quantityInput}
                       onChange={(e) => setQuantityInput(e.target.value)}
+                      onKeyDown={handleAddFoodInputKeyDown}
                       className="text-right font-bold text-lg"
                       autoFocus
                     />

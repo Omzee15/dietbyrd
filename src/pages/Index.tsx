@@ -809,12 +809,24 @@ const Index = () => {
                   <div className="mt-4 flex flex-col gap-3">
                     {step === "phone" && (
                       <div className="flex items-start gap-2 text-left">
-                        <Checkbox 
-                          id="consent" 
+                        <Checkbox
+                          id="consent"
                           checked={consent}
                           onCheckedChange={(checked) => {
                             setConsent(!!checked);
                             if (checked) setConsentError(false);
+                          }}
+                          onKeyDown={(e) => {
+                            // Radix's checkbox is a <button>, which doesn't
+                            // submit an enclosing form on Enter the way a
+                            // text input does -- so "check the box, hit
+                            // Enter" silently did nothing. Submit directly
+                            // once the box is checked and the phone is valid.
+                            if (e.key !== "Enter") return;
+                            e.preventDefault();
+                            if (consent && isValidIndianMobile(phone)) {
+                              handlePhoneSubmit(e as unknown as React.FormEvent);
+                            }
                           }}
                           className={`mt-1 border-[#2B5239] data-[state=checked]:bg-[#2B5239] ${consentError ? "border-red-500" : ""}`}
                         />

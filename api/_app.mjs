@@ -695,6 +695,21 @@ const generateShortCode = () => {
 // have it.
 const generateMeetingLink = () => `https://meet.jit.si/DietByRD-${crypto.randomBytes(12).toString("hex")}`;
 
+// This is a serverless app with no cron/background worker, so a consultation
+// that's still marked 'scheduled' well after its time has passed doesn't
+// get corrected by anything -- it just sits there forever looking "upcoming"
+// to whoever views it. Rather than add scheduled-function infrastructure,
+// every appointments-list read self-heals: any 'scheduled' row more than 2
+// hours past its time (a consultation should be well over by then) flips to
+// 'no_show', since the dietician's status-update endpoint would have moved
+// it to 'completed' already if it actually happened.
+const autoExpireStaleConsultations = () =>
+  query(
+    `UPDATE dietbyrd_consultations
+     SET status = 'no_show', updated_at = CURRENT_TIMESTAMP
+     WHERE status = 'scheduled' AND scheduled_at < NOW() - INTERVAL '2 hours'`
+  ).catch((err) => console.error("[autoExpireStaleConsultations] error:", err.message));
+
 let referralShortCodeColumnEnsured = false;
 const ensureReferralShortCodeColumn = async () => {
   if (referralShortCodeColumnEnsured) return;
@@ -806,6 +821,23 @@ const STAFF_PATIENT_ACCESS_ROLES = [
   "doctor", "assistant", "rd", "mlt_intern", "support_intern",
   "ops_manager", "founder", "tech_lead", "admin",
 ];
+
+// Patient phone numbers must never reach a dietician's client -- not just be
+// hidden in the UI, since anyone can read the raw API response from devtools.
+// Strips phone-shaped fields in place on a row (or array of rows) when the
+// caller's role is "rd"; no-op for every other role.
+const redactPatientPhoneForRD = (rowsOrRow, role) => {
+  if (role !== "rd") return rowsOrRow;
+  const strip = (row) => {
+    if (row && typeof row === "object") {
+      delete row.phone;
+      delete row.user_phone;
+      delete row.patient_phone;
+    }
+    return row;
+  };
+  return Array.isArray(rowsOrRow) ? rowsOrRow.map(strip) : strip(rowsOrRow);
+};
 
 // Named role groups, reused across route definitions below.
 const ADMIN_ROLES = ["ops_manager", "founder", "tech_lead", "admin"];
@@ -3484,7 +3516,8 @@ app.get("/api/analytics", requireAuth(STAFF_PATIENT_ACCESS_ROLES), async (_req, 
 // â”€â”€â”€ Patients â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/patients", async (req, res) => {
   try {
-    if (!(await requireRole(req, res, STAFF_PATIENT_ACCESS_ROLES))) return;
+    const auth = await requireRole(req, res, STAFF_PATIENT_ACCESS_ROLES);
+    if (!auth) return;
 
     const result = await query(
       `SELECT 
@@ -3539,7 +3572,7 @@ app.get("/api/patients", async (req, res) => {
       LIMIT 2000` // the admin UI paginates client-side over this result with no
                   // offset param, so a low cap here silently hides patients past it
     );
-    res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: redactPatientPhoneForRD(result.rows, auth.role) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -3645,7 +3678,7 @@ app.get("/api/patients/:id(\\d+)", async (req, res) => {
       [id]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: "Patient not found" });
-    res.json({ success: true, data: result.rows[0] });
+    res.json({ success: true, data: redactPatientPhoneForRD(result.rows[0], auth.role) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -4984,6 +5017,7 @@ app.get("/api/patients/lookup-phone", requireAuth(DOCTOR_OR_ADMIN_ROLES), async 
 app.get("/api/consultations", requireAuth(STAFF_PATIENT_ACCESS_ROLES), async (req, res) => {
   try {
     const { rd_id, patient_id, status } = req.query;
+    await autoExpireStaleConsultations();
     let sql = `
       SELECT 
         c.*,
@@ -6763,6 +6797,8 @@ app.get("/api/patient/me/appointments", async (req, res) => {
       return res.status(404).json({ success: false, error: "Patient profile not found" });
     }
 
+    await autoExpireStaleConsultations();
+
     const patientId = patient.id;
     const { status, upcoming_only } = req.query;
 
@@ -7279,6 +7315,8 @@ app.get("/api/dieticians/:id(\\d+)/appointments", requireAuth(DIETICIAN_OR_ADMIN
     const { id } = req.params;
     const { start_date, end_date, status } = req.query;
 
+    await autoExpireStaleConsultations();
+
     let sql = `
       SELECT 
         c.*,
@@ -7312,7 +7350,7 @@ app.get("/api/dieticians/:id(\\d+)/appointments", requireAuth(DIETICIAN_OR_ADMIN
     sql += ` ORDER BY c.scheduled_at ASC`;
 
     const result = await query(sql, params);
-    res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: redactPatientPhoneForRD(result.rows, req.auth.role) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

@@ -12,7 +12,6 @@ import {
   Loader2,
   LogOut,
   Minus,
-  Phone,
   Plus,
   Scale,
   Search,
@@ -714,13 +713,6 @@ const PatientDetail = () => {
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {/* Basic Details */}
-                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    <Phone className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Phone</p>
-                      <p className="font-medium">{patient.phone || patient.user_phone || "N/A"}</p>
-                    </div>
-                  </div>
                   <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                     <User className="w-5 h-5 text-muted-foreground" />
                     <div>

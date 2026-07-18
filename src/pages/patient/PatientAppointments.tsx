@@ -746,7 +746,8 @@ const PatientAppointments = () => {
                                 : "Follow-up Consultation"}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {formatDate(appointment.scheduled_at)}
+                              {formatDate(appointment.scheduled_at)} at{" "}
+                              {formatTime(appointment.scheduled_at)}
                             </p>
                           </div>
                         </div>
@@ -757,10 +758,12 @@ const PatientAppointments = () => {
                               ? "border-green-500/30 text-green-600"
                               : appointment.status === "cancelled"
                               ? "border-red-500/30 text-red-600"
+                              : appointment.status === "no_show"
+                              ? "border-amber-500/30 text-amber-600"
                               : ""
                           }
                         >
-                          {appointment.status}
+                          {appointment.status === "no_show" ? "no show" : appointment.status}
                         </Badge>
                       </div>
                     ))}
