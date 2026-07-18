@@ -581,7 +581,6 @@ const Landing = () => {
         /* Privacy carousel */
         .privacy-section {
           padding: clamp(48px, 8vw, 96px) clamp(20px, 5vw, 32px); overflow: hidden; position: relative;
-          border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
         }
         .privacy-inner { max-width: 1100px; margin: 0 auto; text-align: center; padding: 0; }
         /* Marquee */
@@ -1333,7 +1332,7 @@ const Landing = () => {
       </section>
 
       {/* Trust badge marquee */}
-      <section className="privacy-section" style={{ background: 'var(--cream)' }}>
+      <section className="privacy-section" style={{ background: '#fff' }}>
         <div className="privacy-inner">
           <div className="trust-marquee" style={{ padding: '32px 0', mixBlendMode: 'multiply' }}>
             <div className="trust-marquee__track" style={{ animationDuration: '50s', gap: '80px' }}>
@@ -1346,16 +1345,16 @@ const Landing = () => {
               ]).flat().map((item, index) => (
                 <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: '14px' }}>
                   {item.img ? (
-                    <div style={{ width: '104px', height: '104px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: '136px', height: '136px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <img src={item.img} alt={item.label} decoding="async" style={{ width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }} />
                     </div>
                   ) : item.icon ? (
-                    <div style={{ width: '104px', height: '104px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <item.icon size={52} strokeWidth={2} style={{ color: 'var(--teal)' }} />
+                    <div style={{ width: '136px', height: '136px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <item.icon size={68} strokeWidth={2} style={{ color: 'var(--teal)' }} />
                     </div>
                   ) : item.textBadge ? (
-                    <div style={{ width: '104px', height: '104px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 800, fontSize: '20px', color: 'var(--navy)', textAlign: 'center', lineHeight: 1.15 }}>
+                    <div style={{ width: '136px', height: '136px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 800, fontSize: '26px', color: 'var(--navy)', textAlign: 'center', lineHeight: 1.15 }}>
                         {item.textBadge}
                       </span>
                     </div>
@@ -1973,11 +1972,11 @@ const Landing = () => {
             ))}
           </div>
           <div className="w-full flex flex-col items-center justify-center mt-12 reveal reveal-delay-3" ref={addToRefs}>
-            <div className="max-w-[650px] text-center flex flex-col items-center">
+            <div className="max-w-[900px] text-center flex flex-col items-center">
               <p className="text-[18px] md:text-[20px] text-[var(--navy)] font-bold mb-3 leading-relaxed text-center" style={{ fontFamily: "'Playfair Display', serif" }}>
                 Your health is more than a diagnosis.
               </p>
-              <p className="text-[15px] text-gray-600 mb-8 leading-relaxed text-center">
+              <p className="text-[15px] text-gray-600 mb-8 leading-relaxed text-center md:whitespace-nowrap">
                 Work with a Registered Dietitian who understands the science, the condition, and the person behind it.
               </p>
               <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
