@@ -326,7 +326,7 @@ const PatientDetail = () => {
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(20);
-      doc.setTextColor(14, 165, 233);
+      doc.setTextColor(11, 111, 78);
       doc.text("DietByRD Diet Plan", margin, y);
       y += 8;
 
@@ -377,7 +377,7 @@ const PatientDetail = () => {
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
-      doc.setTextColor(14, 165, 233);
+      doc.setTextColor(11, 111, 78);
       doc.text("Meal Plan", margin, y);
       y += 8;
 
@@ -387,11 +387,11 @@ const PatientDetail = () => {
           y = 20;
         }
 
-        doc.setFillColor(240, 249, 255);
+        doc.setFillColor(236, 246, 240);
         doc.roundedRect(margin, y - 6, pageWidth - margin * 2, 9, 2, 2, "F");
         doc.setFont("helvetica", "bold");
         doc.setFontSize(11);
-        doc.setTextColor(14, 165, 233);
+        doc.setTextColor(11, 111, 78);
         doc.text(meal.name || "Meal", margin + 3, y);
         const mealCalories = (meal.items || []).reduce((sum, item) => sum + (item.calories || 0), 0);
         doc.setFontSize(10);
@@ -430,8 +430,8 @@ const PatientDetail = () => {
       for (let i = 0; i < bands; i++) {
         const ratio = i / (bands - 1);
         const r = Math.round(253 + (255 - 253) * ratio);
-        const g = Math.round(236 + (255 - 236) * ratio);
-        const b = Math.round(236 + (255 - 236) * ratio);
+        const g = Math.round(251 + (255 - 251) * ratio);
+        const b = Math.round(247 + (255 - 247) * ratio);
         doc.setFillColor(r, g, b);
         doc.rect(0, i * bandHeight, pageWidth, bandHeight + 0.5, "F");
       }
@@ -439,9 +439,22 @@ const PatientDetail = () => {
       let currY = 30;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(24);
-      doc.setTextColor(30, 30, 30);
+      doc.setTextColor(11, 111, 78);
       doc.text("A Note from Your Dietitian", pageWidth / 2, currY, { align: "center" });
-      currY += 10;
+      currY += 6;
+
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(9);
+      doc.setTextColor(140, 140, 140);
+      const subtitleLines = [
+        "At DietByRD, we follow a simple but meaningful ritual. Every dietitian personally writes to the people they work with.",
+        "This note is our way of telling you that your story did not fade in the crowd after the consultation ended.",
+        "We remember the details you shared, the challenges you spoke about, and the goals that matter to you.",
+        "Your concerns were heard, your context was understood, and this plan was built thoughtfully with care, specifically for you.",
+        "You are not one among many here. You are important to us, and we are genuinely invested in your progress.",
+      ];
+      doc.text(subtitleLines, pageWidth / 2, currY, { align: "center", lineHeightFactor: 1.2 });
+      currY += subtitleLines.length * 4.2 + 12;
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(11);

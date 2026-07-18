@@ -893,6 +893,11 @@ const DieticianCalendarSchedule = ({
                 required
                 value={leaveReason}
                 onChange={(e) => setLeaveReason(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  handleAddLeave();
+                }}
               />
             </div>
           </div>

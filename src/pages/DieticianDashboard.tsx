@@ -324,7 +324,7 @@ const DieticianDashboard = () => {
 
     // 1. HEADER — sky-blue title (no coloured rect background)
     doc.setFontSize(22);
-    doc.setTextColor(14, 165, 233);
+    doc.setTextColor(11, 111, 78);
     doc.setFont('helvetica', 'bold');
     doc.text('DietByRD Diet Plan', margin, y);
     y += 8;
@@ -367,17 +367,17 @@ const DieticianDashboard = () => {
     // 3. MEAL PLAN — rounded-rect headers + bullet points
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
-    doc.setTextColor(14, 165, 233);
+    doc.setTextColor(11, 111, 78);
     doc.text('Meal Plan', margin, y);
     y += 8;
 
     meals.forEach((meal) => {
       if (y > 250) { doc.addPage(); y = 20; }
-      doc.setFillColor(240, 249, 255);
+      doc.setFillColor(236, 246, 240);
       doc.roundedRect(margin, y - 6, pageWidth - (margin * 2), 9, 2, 2, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.setTextColor(14, 165, 233);
+      doc.setTextColor(11, 111, 78);
       doc.text(meal.name, margin + 3, y);
       const mealCals = Math.round(getMealCalories(meal));
       doc.setFontSize(10);
@@ -418,7 +418,7 @@ const DieticianDashboard = () => {
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(DASH_HEADER_SIZE);
-    doc.setTextColor(14, 165, 233);
+    doc.setTextColor(11, 111, 78);
     doc.text('Nutrition Dashboard', margin, y);
     doc.setDrawColor(200);
     doc.line(margin, y + 2, pageWidth - margin, y + 2);
@@ -506,15 +506,15 @@ const DieticianDashboard = () => {
       for (let i = 0; i < bands; i++) {
         const ratio = i / (bands - 1);
         const r = Math.round(253 + (255 - 253) * ratio);
-        const g = Math.round(236 + (255 - 236) * ratio);
-        const b = Math.round(236 + (255 - 236) * ratio);
+        const g = Math.round(251 + (255 - 251) * ratio);
+        const b = Math.round(247 + (255 - 247) * ratio);
         doc.setFillColor(r, g, b);
         doc.rect(0, i * bandHeight, pageWidth, bandHeight + 0.5, 'F');
       }
       let currY = 30;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(24);
-      doc.setTextColor(30, 30, 30);
+      doc.setTextColor(11, 111, 78);
       doc.text('A Note from Your Dietitian', pageWidth / 2, currY, { align: 'center' });
       currY += 6;
       doc.setFont('helvetica', 'italic');
@@ -1437,6 +1437,11 @@ const DieticianDashboard = () => {
                         placeholder="Write a personal note for your patient..."
                         value={pdfNote}
                         onChange={(e) => setPdfNote(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter" || e.shiftKey) return;
+                          e.preventDefault();
+                          handleGeneratePDF();
+                        }}
                       />
                       <p className="text-[10px] text-muted-foreground italic">Appears on the last page of the PDF</p>
                     </div>
