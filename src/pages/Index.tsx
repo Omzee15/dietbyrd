@@ -18,6 +18,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SiteHeader } from "@/components/site/SiteHeader";
+import { SiteFooter } from "@/components/site/SiteFooter";
 import { getDashboardPath, useAuth, type AuthUser } from "@/contexts/AuthContext";
 import { JoinRequestForm } from "@/components/JoinRequestForm";
 import { PatientWelcomeForm } from "@/components/PatientWelcomeForm";
@@ -752,9 +754,11 @@ const Index = () => {
   );
 
   return (
-    <div className="h-screen w-full bg-[#F4F3F0] flex justify-center items-center relative overflow-hidden page-fade-in">
+    <div className="min-h-screen w-full bg-[#F4F3F0] flex flex-col relative page-fade-in">
+      <SiteHeader />
 
       {/* Main Content Wrapper */}
+      <div className="w-full flex justify-center items-center pt-[68px] pb-6 min-h-screen">
       <div className="w-full max-w-[1440px] 2xl:max-w-[1600px] h-[90vh] min-h-[740px] max-h-[900px] flex relative z-10 pointer-events-none">
         
         {/* Left Side: Auth Form Card */}
@@ -891,7 +895,7 @@ const Index = () => {
             className={`absolute inset-0 pointer-events-none z-30 transition-opacity duration-500 ease-in-out ${showJoinForm ? 'opacity-100' : 'opacity-0'}`}
           >
             <img 
-              src="/new-docs-full.png" 
+              src="/new-docs-full.webp"
               alt="Professional Doctors and Dietitians" 
               className="absolute bottom-[0%] xl:bottom-[0%] right-[0%] xl:right-[0%] h-[95%] xl:h-[95%] object-contain object-right-bottom"
             />
@@ -920,6 +924,9 @@ const Index = () => {
           </div>
         </div>
       </div>
+      </div>
+
+      <SiteFooter />
     </div>
   );
 };
