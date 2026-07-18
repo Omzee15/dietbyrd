@@ -23,6 +23,7 @@ import Terms from "./pages/legal/Terms";
 import Refund from "./pages/legal/Refund";
 import Cancellation from "./pages/legal/Cancellation";
 import Reviews from "./pages/Reviews";
+import CommunityGuidelines from "./pages/CommunityGuidelines";
 import ContactUs from "./pages/ContactUs";
 
 // Doctor Pages
@@ -99,6 +100,7 @@ const App = () => (
             <Route path="/refund" element={<Refund />} />
             <Route path="/cancellation" element={<Cancellation />} />
             <Route path="/reviews" element={<Reviews />} />
+            <Route path="/community-guidelines" element={<CommunityGuidelines />} />
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/pay" element={<Pay />} />
 

@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Loader2, ShieldCheck, Star, UserX, Lock, MessageCircle, Heart, Quote, Mail, ArrowLeft, ArrowRight, Leaf } from "lucide-react";
 import { getApprovedReviews, getReviewEligibility, submitReview, getMyReview, updateMyReview } from "@/lib/api";
 import { PublicBookingModal } from "@/components/PublicBookingModal";
@@ -981,13 +981,22 @@ const Reviews = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-4 border-t border-gray-100">
-                <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-[#427A5B]" />
-                  <span className="text-[12px] text-gray-500 font-medium">
-                    Your identity will always remain anonymous.
-                  </span>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-[#427A5B]" />
+                    <span className="text-[12px] text-gray-500 font-medium">
+                      Your identity will always remain anonymous.
+                    </span>
+                  </div>
+                  <p className="text-[12px] text-gray-500 font-medium">
+                    By posting, you agree to follow our{" "}
+                    <Link to="/community-guidelines" className="text-[#427A5B] font-bold hover:underline">
+                      Community Guidelines
+                    </Link>
+                    .
+                  </p>
                 </div>
-                
+
                 <div className="w-full sm:w-auto text-center sm:text-right">
                   {guidelineError && body.length >= 20 && (
                     <p className="text-red-500 text-[12px] mb-2 max-w-xs text-left sm:text-right">

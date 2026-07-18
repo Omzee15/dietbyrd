@@ -9,6 +9,7 @@ const logoChars = ["D", "i", "e", "t", " ", "B", "y", " "];
 
 const Logo = () => {
   const [animate, setAnimate] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -18,8 +19,18 @@ const Logo = () => {
     }
   }, []);
 
+  // Navigating to "/" only resets scroll when the pathname actually
+  // changes (see ScrollToTop), so clicking the logo while already on the
+  // landing page did nothing. Scroll up directly in that case.
+  const handleClick = (e: React.MouseEvent) => {
+    if (location.pathname === "/") {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
   return (
-    <Link to="/" className="nav-logo" aria-label="Diet By RD">
+    <Link to="/" className="nav-logo" aria-label="Diet By RD" onClick={handleClick}>
       {logoChars.map((char, i) => (
         <motion.span
           key={`${char}-${i}`}
