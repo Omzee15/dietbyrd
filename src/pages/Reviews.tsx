@@ -958,6 +958,7 @@ const Reviews = () => {
           .nav-links .profile-menu-wrap { display: none; }
           .hamburger-btn { display: flex !important; margin-left: auto; }
           .clinician-logo-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
         @media (max-width: 600px) {
           .hero-content { padding: 0; }
           .cta-actions { flex-direction: column; width: 100%; }

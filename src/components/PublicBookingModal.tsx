@@ -627,7 +627,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                           </p>
                           {slots.length === 0 && (
                             <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
-                              Dietitian on Leave / Fully Booked
+                              No Slots available
                             </span>
                           )}
                         </div>
@@ -665,7 +665,7 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
                         ) : (
                           <div className="text-sm text-muted-foreground flex items-center gap-2">
                             <CalendarDays className="w-4 h-4" />
-                            No available slots
+                            No Slots available
                           </div>
                         )}
                       </div>

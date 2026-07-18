@@ -687,6 +687,14 @@ const generateShortCode = () => {
   return code;
 };
 
+// Video meeting links are generated locally (no external API call, no key,
+// no signup) rather than through a paid provider -- Jitsi Meet rooms exist
+// simply by anyone opening the same URL, so the link is ready the instant
+// the appointment is booked. The random suffix keeps room names
+// unguessable so a booking's link can't be joined by anyone who doesn't
+// have it.
+const generateMeetingLink = () => `https://meet.jit.si/DietByRD-${crypto.randomBytes(12).toString("hex")}`;
+
 let referralShortCodeColumnEnsured = false;
 const ensureReferralShortCodeColumn = async () => {
   if (referralShortCodeColumnEnsured) return;
@@ -4391,7 +4399,6 @@ app.get("/api/dieticians/all-available-slots", requireAuth(), async (req, res) =
             slotDate.setHours(slotHour, slotMin, 0, 0);
 
             if (slotDate < minBookingTime) { slotMinutes += slotDuration; continue; }
-            if (bookedSlots.has(slotDatetime)) { slotMinutes += slotDuration; continue; }
 
             // Compares the slot's full [start, start+duration) range against
             // the blocked [start, end) range, not just the slot's start
@@ -4414,7 +4421,7 @@ app.get("/api/dieticians/all-available-slots", requireAuth(), async (req, res) =
               start_time: slotTimeStr,
               datetime: slotDatetime,
               duration_minutes: slotDuration,
-              is_booked: false,
+              is_booked: bookedSlots.has(slotDatetime),
               rd_id: rdId,
               dietician_name: dietician.name,
             });
@@ -6410,19 +6417,16 @@ app.get("/api/dieticians/:id(\\d+)/available-slots", requireAuth(), async (req, 
             continue;
           }
 
-          // Skip booked slots — they should not be shown to patients
-          if (isBooked) {
-            slotMinutes += slotDuration;
-            continue;
-          }
-
-          // Include only available slots
+          // Booked slots are included (not skipped) so the patient can see
+          // the dietician's full schedule for the day, with is_booked=true
+          // letting the frontend grey them out instead of the day looking
+          // emptier than it really is.
           availableSlots.push({
             date: dateStr,
             start_time: slotTimeStr,
             datetime: slotDatetime,
             duration_minutes: slotDuration,
-            is_booked: false
+            is_booked: isBooked
           });
 
           slotMinutes += slotDuration;
@@ -6644,10 +6648,10 @@ app.post("/api/appointments/book", async (req, res) => {
 
     const result = await client.query(
       `INSERT INTO dietbyrd_consultations
-       (registered_patient_id, rd_id, scheduled_at, consultation_type, status, booked_by_patient, patient_notes)
-       VALUES ($1, $2, $3::timestamp, $4, 'scheduled', true, $5)
+       (registered_patient_id, rd_id, scheduled_at, consultation_type, status, booked_by_patient, patient_notes, meeting_link)
+       VALUES ($1, $2, $3::timestamp, $4, 'scheduled', true, $5, $6)
        RETURNING *`,
-      [registeredPatientId, assignedRdId, scheduled_at, type, patient_notes || null]
+      [registeredPatientId, assignedRdId, scheduled_at, type, patient_notes || null, generateMeetingLink()]
     );
 
     await client.query(

@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import AppSidebar from "@/components/AppSidebar";
 import { DashboardFooter } from "@/components/DashboardFooter";
 import {
@@ -898,6 +899,7 @@ const PatientAppointments = () => {
                       dateObj.setDate(dateObj.getDate() + i);
                       const dateStr = dateObj.toISOString().split("T")[0];
                       const slots = slotsByDate[dateStr] || [];
+                      const allBooked = slots.length > 0 && slots.every((s) => s.is_booked);
 
                       return (
                         <div key={dateStr} className={`border rounded-lg p-4 ${slots.length === 0 ? "bg-muted/30 opacity-70" : ""}`}>
@@ -911,29 +913,51 @@ const PatientAppointments = () => {
                             </p>
                             {slots.length === 0 && (
                               <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
-                                Dietitian on Leave / Fully Booked
+                                No Slots available
+                              </span>
+                            )}
+                            {allBooked && (
+                              <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                                Fully booked
                               </span>
                             )}
                           </div>
                           {slots.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
-                              {slots.map((slot) => (
-                                <Button
-                                  key={slot.datetime}
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setSelectedSlot(slot)}
-                                  className="min-w-[80px] flex flex-col h-auto py-1.5 px-3"
-                                  disabled={slot.is_booked}
-                                >
-                                  <span>{formatTime12(slot.start_time)}</span>
-                                </Button>
-                              ))}
+                              {slots.map((slot) =>
+                                slot.is_booked ? (
+                                  <Tooltip key={slot.datetime}>
+                                    <TooltipTrigger asChild>
+                                      <span tabIndex={0} className="inline-block">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          disabled
+                                          className="min-w-[80px] flex flex-col h-auto py-1.5 px-3 opacity-50 cursor-not-allowed"
+                                        >
+                                          <span>{formatTime12(slot.start_time)}</span>
+                                        </Button>
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Already booked</TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  <Button
+                                    key={slot.datetime}
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setSelectedSlot(slot)}
+                                    className="min-w-[80px] flex flex-col h-auto py-1.5 px-3"
+                                  >
+                                    <span>{formatTime12(slot.start_time)}</span>
+                                  </Button>
+                                )
+                              )}
                             </div>
                           ) : (
                             <div className="text-sm text-muted-foreground flex items-center gap-2">
                               <CalendarDays className="w-4 h-4" />
-                              No available slots
+                              No Slots available
                             </div>
                           )}
                         </div>
