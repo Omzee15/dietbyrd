@@ -4310,9 +4310,14 @@ app.get("/api/dieticians", requireAuth(ADMIN_AND_MLT_ROLES), async (req, res) =>
   }
 });
 
-// Get available slots across ALL active dieticians (for unassigned patients)
+// Get available slots across ALL active dieticians (for unassigned patients).
+// Deliberately public (no requireAuth) -- the landing page's "Book a
+// Consultation" widget calls this for visitors who haven't signed up yet,
+// and the response carries nothing more sensitive than dietician names and
+// open/booked time slots, the same thing the booking calendar already
+// displays to anyone.
 // MUST be registered before /api/dieticians/:id to avoid being caught by the parameterized route
-app.get("/api/dieticians/all-available-slots", requireAuth(), async (req, res) => {
+app.get("/api/dieticians/all-available-slots", async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
 

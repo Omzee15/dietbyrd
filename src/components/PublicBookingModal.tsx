@@ -20,8 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  getDieticians,
-  getAvailableSlots,
+  getAllDieticianSlots,
   getConsultationPackages,
   createPaymentOrder,
   verifyPayment,
@@ -131,44 +130,35 @@ export function PublicBookingModal({ open, onOpenChange }: PublicBookingModalPro
   const loadMergedSlots = async () => {
     setIsLoadingSlots(true);
     try {
-      const dieticians = await getDieticians();
-      const active = dieticians.filter((d) => d.is_active);
-
-      const results = await Promise.all(
-        active.map((d) =>
-          getAvailableSlots(d.id, weekDateRange.start, weekDateRange.end)
-            .then((slots) =>
-              slots
-                .map((s) => ({ ...s, dietician_id: d.id }))
-            )
-            .catch(() => [] as any[])
-        )
-      );
+      // This single endpoint is public (no login required) and already
+      // returns every active dietician's slots for the range -- previously
+      // this fetched the dietician list from an admin-only endpoint first,
+      // which 401'd for anyone not already logged in and broke booking for
+      // new visitors entirely.
+      const allSlots = await getAllDieticianSlots(weekDateRange.start, weekDateRange.end);
 
       // Merge: first dietitian to offer each time slot wins (available slots beat booked slots)
       const seen = new Map<string, MergedSlot>();
-      for (const slotList of results) {
-        for (const slot of slotList) {
-          const existing = seen.get(slot.datetime);
-          if (!existing) {
-            seen.set(slot.datetime, {
-              date: slot.date,
-              start_time: slot.start_time,
-              datetime: slot.datetime,
-              duration_minutes: slot.duration_minutes,
-              dietician_id: slot.dietician_id,
-              is_booked: slot.is_booked,
-            });
-          } else if (existing.is_booked && !slot.is_booked) {
-            seen.set(slot.datetime, {
-              date: slot.date,
-              start_time: slot.start_time,
-              datetime: slot.datetime,
-              duration_minutes: slot.duration_minutes,
-              dietician_id: slot.dietician_id,
-              is_booked: false,
-            });
-          }
+      for (const slot of allSlots) {
+        const existing = seen.get(slot.datetime);
+        if (!existing) {
+          seen.set(slot.datetime, {
+            date: slot.date,
+            start_time: slot.start_time,
+            datetime: slot.datetime,
+            duration_minutes: slot.duration_minutes,
+            dietician_id: slot.rd_id,
+            is_booked: slot.is_booked,
+          });
+        } else if (existing.is_booked && !slot.is_booked) {
+          seen.set(slot.datetime, {
+            date: slot.date,
+            start_time: slot.start_time,
+            datetime: slot.datetime,
+            duration_minutes: slot.duration_minutes,
+            dietician_id: slot.rd_id,
+            is_booked: false,
+          });
         }
       }
 

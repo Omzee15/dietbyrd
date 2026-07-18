@@ -101,13 +101,29 @@ const DieticianCalendarSchedule = ({
     enabled: !!dieticianId,
   });
 
+  // Only a leave with no start/end time is a full-day block; a leave marked
+  // for a specific time slot must not paint the entire day, so it's kept
+  // out of this set and checked hour-by-hour instead (see isSlotBlocked).
   const blockedDateSet = useMemo(() => {
     const s = new Set<string>();
     blockedSlots.forEach((b) => {
+      if (b.start_time || b.end_time) return;
       const d = b.blocked_date_str || b.blocked_date;
       s.add(typeof d === "string" ? d.split("T")[0] : "");
     });
     return s;
+  }, [blockedSlots]);
+
+  const timeSlotBlocksByDate = useMemo(() => {
+    const m = new Map<string, { start_time: string; end_time: string }[]>();
+    blockedSlots.forEach((b) => {
+      if (!b.start_time || !b.end_time) return;
+      const d = b.blocked_date_str || b.blocked_date;
+      const dateStr = typeof d === "string" ? d.split("T")[0] : "";
+      if (!m.has(dateStr)) m.set(dateStr, []);
+      m.get(dateStr)!.push({ start_time: b.start_time, end_time: b.end_time });
+    });
+    return m;
   }, [blockedSlots]);
 
   const addLeaveMutation = useMutation({
@@ -159,6 +175,24 @@ const DieticianCalendarSchedule = ({
   };
 
   const isBlocked = (date: Date) => blockedDateSet.has(date.toISOString().split("T")[0]);
+
+  // Full-day leave blocks every hour; a specific-time-slot leave only
+  // blocks the hour cell(s) whose [hour, hour+1) range overlaps it.
+  const isSlotBlocked = (date: Date, hour: number) => {
+    const dateStr = date.toISOString().split("T")[0];
+    if (blockedDateSet.has(dateStr)) return true;
+    const ranges = timeSlotBlocksByDate.get(dateStr);
+    if (!ranges) return false;
+    const slotStart = hour * 60;
+    const slotEnd = slotStart + 60;
+    return ranges.some((r) => {
+      const [startH, startM] = r.start_time.split(":").map(Number);
+      const [endH, endM] = r.end_time.split(":").map(Number);
+      const blockStart = startH * 60 + startM;
+      const blockEnd = endH * 60 + endM;
+      return slotStart < blockEnd && blockStart < slotEnd;
+    });
+  };
 
   // Calculate week dates
   const weekDates = useMemo(() => {
@@ -436,7 +470,7 @@ const DieticianCalendarSchedule = ({
                 </div>
                 {weekDates.map((date) => {
                   const appointments = getAppointmentsForSlot(date, hour);
-                  const blocked = isBlocked(date);
+                  const blocked = isSlotBlocked(date, hour);
                   return (
                     <div
                       key={`${date.toISOString()}-${hour}`}
