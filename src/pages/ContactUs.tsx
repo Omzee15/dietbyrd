@@ -104,25 +104,24 @@ const faqs = [
   }
 ];
 
-const FAQItem = ({ faq }: { faq: typeof faqs[0] }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
+const FAQItem = ({ faq, isOpen, onToggle }: { faq: typeof faqs[0]; isOpen: boolean; onToggle: () => void }) => {
   return (
     <div className={`bg-white border transition-colors duration-300 rounded-xl overflow-hidden shadow-sm ${isOpen ? 'border-[#427A5B]/30' : 'border-[#EBE7DF]'}`}>
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
+      <button
+        onClick={onToggle}
         className="w-full flex items-center justify-between p-6 text-left focus:outline-none bg-white hover:bg-[#FAF9F5] transition-colors"
       >
         <h3 className="text-[17px] font-bold text-[var(--navy)] pr-8" style={{ fontFamily: "'Playfair Display', serif" }}>
           {faq.question}
         </h3>
-        <ChevronDown 
-          className={`w-5 h-5 text-[#427A5B] flex-shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} 
+        <ChevronDown
+          className={`w-5 h-5 text-[#427A5B] flex-shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
           strokeWidth={2}
         />
       </button>
-      <div 
-        className={`px-6 text-[15px] text-gray-700 leading-[1.8] overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'pb-6 max-h-[1200px] opacity-100 mt-2' : 'max-h-0 opacity-0'}`}
+      <div
+        onClick={isOpen ? onToggle : undefined}
+        className={`px-6 text-[15px] text-gray-700 leading-[1.8] overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'pb-6 max-h-[1200px] opacity-100 mt-2 cursor-pointer' : 'max-h-0 opacity-0'}`}
       >
         {faq.answer}
       </div>
@@ -185,6 +184,7 @@ const ContactUs = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -1428,7 +1428,7 @@ const ContactUs = () => {
         onError={(e) => e.currentTarget.style.display = 'none'} 
       />
 
-      <div className="max-w-3xl mx-auto px-6 pt-24 pb-16 relative z-10">
+      <div className="max-w-7xl mx-auto px-6 pt-24 pb-16 relative z-10">
         <div className="text-center mb-8">
           <p className="text-[11px] font-bold tracking-[0.15em] text-[#427A5B] uppercase mb-4">
             We're here for you
@@ -1449,7 +1449,7 @@ const ContactUs = () => {
         </div>
 
         {/* Content */}
-        <div className="space-y-6 text-[14px] md:text-[15px] text-gray-700 leading-[1.8] font-medium max-w-4xl mx-auto text-center md:text-center mb-16 px-4 md:px-0 text-[15px] md:text-[16px]">
+        <div className="space-y-6 text-[15px] md:text-[16px] text-gray-700 leading-[1.8] font-medium max-w-7xl mx-auto text-center mb-16 px-4 md:px-0">
           <p>
             Whether you have a question about our services, need guidance before booking, or simply want clarity about your nutrition concerns, have any feedback or anything else, we are here to listen. No automated scripts, no rushed responses—just thoughtful support from a team that genuinely cares about your wellbeing.
           </p>
@@ -1471,32 +1471,32 @@ const ContactUs = () => {
         </div>
 
         {/* Contact Cards */}
-        <div className="grid md:grid-cols-2 gap-6 mb-12 max-w-[600px] mx-auto">
-          <div className="bg-white border border-[#EBE7DF] rounded-2xl p-8 flex flex-col items-center text-center transition-all hover:shadow-sm hover:border-[#427A5B]/30">
-            <div className="w-16 h-16 rounded-full bg-[#F3F4EE] flex items-center justify-center mb-6">
-              <Mail className="w-7 h-7 text-[#427A5B]" strokeWidth={1.5} />
+        <div className="grid md:grid-cols-2 gap-8 mb-12 max-w-[820px] mx-auto">
+          <div className="bg-white border border-[#EBE7DF] rounded-2xl p-10 flex flex-col items-center text-center transition-all hover:shadow-sm hover:border-[#427A5B]/30">
+            <div className="w-20 h-20 rounded-full bg-[#F3F4EE] flex items-center justify-center mb-6">
+              <Mail className="w-8 h-8 text-[#427A5B]" strokeWidth={1.5} />
             </div>
-            <h3 className="text-xl font-bold text-[var(--navy)] mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>Email Us</h3>
-            <p className="text-[13px] text-gray-500 mb-6 leading-relaxed">
+            <h3 className="text-2xl font-bold text-[var(--navy)] mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>Email Us</h3>
+            <p className="text-[14px] text-gray-500 mb-6 leading-relaxed">
               Drop us a message anytime.<br />
               We aim to respond within 24 hours.
             </p>
-            <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer" className="text-[15px] font-bold text-[#427A5B] hover:opacity-80 transition-opacity mt-auto">
+            <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer" className="text-[16px] font-bold text-[#427A5B] hover:opacity-80 transition-opacity mt-auto">
               hello@dietbyrd.com
             </a>
           </div>
 
           {/* Call / WhatsApp Us Block (Hidden until real phone number is provided) */}
-          <div className="bg-white border border-[#EBE7DF] rounded-2xl p-8 flex flex-col items-center text-center transition-all hover:shadow-sm hover:border-[#427A5B]/30">
-            <div className="w-16 h-16 rounded-full bg-[#F3F4EE] flex items-center justify-center mb-6">
-              <Phone className="w-7 h-7 text-[#427A5B]" strokeWidth={1.5} />
+          <div className="bg-white border border-[#EBE7DF] rounded-2xl p-10 flex flex-col items-center text-center transition-all hover:shadow-sm hover:border-[#427A5B]/30">
+            <div className="w-20 h-20 rounded-full bg-[#F3F4EE] flex items-center justify-center mb-6">
+              <Phone className="w-8 h-8 text-[#427A5B]" strokeWidth={1.5} />
             </div>
-            <h3 className="text-xl font-bold text-[var(--navy)] mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>Call / WhatsApp Us</h3>
-            <p className="text-[13px] text-gray-500 mb-6 leading-relaxed">
+            <h3 className="text-2xl font-bold text-[var(--navy)] mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>Call / WhatsApp Us</h3>
+            <p className="text-[14px] text-gray-500 mb-6 leading-relaxed">
               Speak to our care team directly.<br />
               Mon – Sat | 10 AM – 7 PM
             </p>
-            <a href="tel:+91XXXXXXXXXX" className="text-[15px] font-bold text-[#427A5B] hover:opacity-80 transition-opacity mt-auto">
+            <a href="tel:+91XXXXXXXXXX" className="text-[16px] font-bold text-[#427A5B] hover:opacity-80 transition-opacity mt-auto">
               +91 XXXXX XXXXX
             </a>
           </div>
@@ -1532,7 +1532,12 @@ const ContactUs = () => {
         
         <div className="space-y-4">
           {faqs.map((faq, index) => (
-            <FAQItem key={index} faq={faq} />
+            <FAQItem
+              key={index}
+              faq={faq}
+              isOpen={openFaqIndex === index}
+              onToggle={() => setOpenFaqIndex(openFaqIndex === index ? null : index)}
+            />
           ))}
         </div>
       </div>
