@@ -903,7 +903,7 @@ const Landing = () => {
             <div className="trust-marquee__track" style={{ animationDuration: '50s', gap: '80px' }}>
               {Array(6).fill([
                 { label: 'DPDPA Compliant', img: '/dpdpa.webp' },
-                { label: 'IDA Verified RDs', icon: BadgeCheck },
+                { label: 'IDA Recognised RDs', img: '/ida.webp' },
                 { label: 'EUGDPR Compliant', img: '/gdpr.webp' },
                 { label: 'Compliant with ISO 27001 standard', textBadge: 'ISO 27001' },
                 { label: 'DPIIT Recognised Startup', img: '/dpiit.webp' },
@@ -1519,10 +1519,10 @@ const Landing = () => {
         <div className="section-inner trust-inner" style={{ position: 'relative', zIndex: 2 }}>
           <div className="text-center mb-4">
             <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--teal)' }}>
-              CONDITIONS WE TREAT
+              CONDITIONS WE MANAGE
             </span>
           </div>
-          <h2 ref={addToRefs} className="trust-title reveal reveal-delay-1" style={{ marginBottom: '16px', fontSize: 'clamp(2.4rem, 4vw, 3.2rem)' }}>Conditions We Treat</h2>
+          <h2 ref={addToRefs} className="trust-title reveal reveal-delay-1" style={{ marginBottom: '16px', fontSize: 'clamp(2.4rem, 4vw, 3.2rem)' }}>Conditions We Manage</h2>
           <p ref={addToRefs} className="trust-sub reveal reveal-delay-2" style={{ maxWidth: '650px', margin: '0 auto 48px' }}>
             Your RD is trained to manage these conditions clinically — not with generic advice,
             but with a personalised plan designed around your specific case.
