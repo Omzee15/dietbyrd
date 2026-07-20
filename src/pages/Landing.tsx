@@ -1265,14 +1265,18 @@ const Landing = () => {
   font-weight: 700; color: var(--navy); margin-bottom: 48px;
 }
 .story-grid {
-  display: grid; 
-  grid-template-columns: 1fr 1.2fr; 
-  grid-template-areas: "image bio" "action bio";
-  gap: 0 48px; 
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  grid-template-areas: "image bio";
+  gap: 0 48px;
   align-items: start;
 }
-.story-card {
+.story-visual {
   grid-area: image;
+  display: flex;
+  flex-direction: column;
+}
+.story-card {
   background: transparent; border-radius: 0; overflow: visible;
   box-shadow: none; border: 0;
 }
@@ -1313,8 +1317,7 @@ const Landing = () => {
   margin-top: 24px; background: var(--navy); border-radius: 16px; padding: 32px 36px;
 }
 .story-action-wrap {
-  grid-area: action;
-  margin-top: 48px;
+  margin-top: 32px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1347,10 +1350,10 @@ const Landing = () => {
 
 @media (max-width: 900px) {
   .founder-section { padding: 64px 24px; }
-  .story-grid { 
-    grid-template-columns: 1fr; 
-    grid-template-areas: "image" "bio" "action";
-    gap: 32px; 
+  .story-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas: "image" "bio";
+    gap: 32px;
   }
   .story-monogram {
     min-height: auto;
@@ -1374,31 +1377,33 @@ const Landing = () => {
             <h2 ref={addToRefs} className="story-title reveal reveal-delay-1">The Story Behind Diet By RD</h2>
           </div>
           <div ref={addToRefs} className="story-grid reveal reveal-delay-2">
-            <div className="story-card">
-              <div className="story-monogram">
-                <img
-                  src="/aryan-bhagat-founder.png"
-                  alt="Aryan Bhagat, Founder of Diet By RD"
-                  loading="lazy"
-                  decoding="async"
-                  style={{
-                    width: '112%',
-                    height: '112%',
-                    objectFit: 'contain',
-                    objectPosition: 'bottom center',
-                    display: 'block',
-                    transform: 'scale(1.22) translate(-4%, 40px)',
-                    transformOrigin: 'bottom center'
-                  }}
-                />
+            <div className="story-visual">
+              <div className="story-card">
+                <div className="story-monogram">
+                  <img
+                    src="/aryan-bhagat-founder.png"
+                    alt="Aryan Bhagat, Founder of Diet By RD"
+                    loading="lazy"
+                    decoding="async"
+                    style={{
+                      width: '112%',
+                      height: '112%',
+                      objectFit: 'contain',
+                      objectPosition: 'bottom center',
+                      display: 'block',
+                      transform: 'scale(1.22) translate(-4%, 40px)',
+                      transformOrigin: 'bottom center'
+                    }}
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="story-action-wrap">
-              <p style={{ fontWeight: 600, color: 'var(--teal)', fontSize: '14px', textAlign: 'center' }}>Turn your One Day to Day One</p>
-              <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary" style={{ padding: '12px 16px', fontSize: '14px', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                Book your consultation from the Best Of The Industry <ArrowRight size={16} />
-              </button>
+              <div className="story-action-wrap">
+                <p style={{ fontWeight: 600, color: 'var(--teal)', fontSize: '14px', textAlign: 'center' }}>Turn your One Day to Day One</p>
+                <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary" style={{ padding: '12px 16px', fontSize: '14px', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  Book your consultation from the Best Of The Industry <ArrowRight size={16} />
+                </button>
+              </div>
             </div>
 
             <div className="story-bio">
@@ -1569,7 +1574,7 @@ const Landing = () => {
           </h1>
           <p ref={addToRefs} className="hero-sub reveal reveal-delay-2" style={{ lineHeight: '1.6' }}>
             One consultation changes the direction.<br/>
-            RD who understands your food, your condition and you - not a generic PDF.<br/>
+            A Registered Dietitian who understands your food, your condition and you - not a generic PDF.<br/>
             <strong>Never a supplement upsell, Real clinical nutrition, personalized for you.</strong>
           </p>
           <div ref={addToRefs} className="hero-actions reveal reveal-delay-3" style={{ alignItems: 'flex-end' }}>

@@ -1,5 +1,6 @@
 import { Children, ReactElement, ReactNode, cloneElement, isValidElement } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { SiteHeader } from "@/components/site/SiteHeader";
+import { SiteFooter } from "@/components/site/SiteFooter";
 
 type LegalLayoutProps = {
   title: string;
@@ -7,22 +8,6 @@ type LegalLayoutProps = {
   children: ReactNode;
   introCallout?: ReactNode;
 };
-
-const footerLinks = [
-  { label: "← Back to Diet By RD", href: "/" },
-  { label: "Privacy Policy", href: "/privacy" },
-  { label: "Terms", href: "/terms" },
-  { label: "Refund Policy", href: "/refund" },
-  { label: "Cancellation Policy", href: "/cancellation" },
-];
-
-const navLinks = [
-  { label: "Home", href: "/" },
-  { label: "Privacy", href: "/privacy" },
-  { label: "Terms", href: "/terms" },
-  { label: "Refund", href: "/refund" },
-  { label: "Cancellation", href: "/cancellation" },
-];
 
 const renderLegalNode = (node: ReactNode): ReactNode => {
   if (!isValidElement(node)) return node;
@@ -54,9 +39,6 @@ const renderLegalNode = (node: ReactNode): ReactNode => {
 };
 
 const LegalLayout = ({ title, lastUpdated, children, introCallout }: LegalLayoutProps) => {
-  const location = useLocation();
-  const isActive = (href: string) => location.pathname === href;
-
   return (
     <div className="legal-shell">
       <style>{`
@@ -77,39 +59,6 @@ const LegalLayout = ({ title, lastUpdated, children, introCallout }: LegalLayout
           font-family: 'Playfair Display', serif;
         }
         .legal-shell * { box-sizing: border-box; }
-
-        .legal-nav {
-          position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
-          height: 68px;
-          padding: 0 24px;
-          background: rgba(10,22,40,.96);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border-bottom: 1px solid rgba(255,255,255,.08);
-        }
-        .legal-nav-inner {
-          max-width: 1200px; margin: 0 auto;
-          display: flex; align-items: center; justify-content: space-between; height: 100%;
-          gap: 24px;
-        }
-        .legal-logo {
-          font-family: 'Playfair Display', serif;
-          font-size: 22px; font-weight: 700; color: #fff;
-          text-decoration: none; letter-spacing: -0.3px; white-space: nowrap;
-        }
-        .legal-logo span { color: var(--gold); }
-        .legal-nav-links {
-          display: flex; align-items: center; gap: 24px;
-          overflow-x: auto; white-space: nowrap;
-          scrollbar-width: none;
-        }
-        .legal-nav-links::-webkit-scrollbar { display: none; }
-        .legal-nav-links a {
-          color: rgba(255,255,255,.68); text-decoration: none;
-          font-size: 14px; font-weight: 400; transition: color 0.2s;
-        }
-        .legal-nav-links a:hover,
-        .legal-nav-links a.is-active { color: #fff; }
 
         .legal-container {
           max-width: 768px;
@@ -243,29 +192,7 @@ const LegalLayout = ({ title, lastUpdated, children, introCallout }: LegalLayout
           text-underline-offset: 3px;
           transition: color 0.2s;
         }
-        .legal-page a:hover,
-        .legal-footer-links a:hover { color: var(--teal-m); }
-
-        .legal-footer {
-          border-top: 1px solid rgba(11,110,79,0.15);
-          padding-top: 40px;
-          margin-top: 72px;
-        }
-        .legal-footer-links {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 24px;
-          font-size: 14px;
-        }
-        .legal-footer-links .is-active {
-          color: var(--navy);
-          font-weight: 700;
-        }
-        .legal-footer-copy {
-          margin-top: 18px;
-          font-size: 13px;
-          color: var(--text3);
-        }
+        .legal-page a:hover { color: var(--teal-m); }
 
         @media (max-width: 700px) {
           .legal-container { padding: 112px 20px 72px; }
@@ -275,29 +202,11 @@ const LegalLayout = ({ title, lastUpdated, children, introCallout }: LegalLayout
           .legal-section-heading { gap: 12px; }
           .legal-section-number { font-size: 26px; }
           .legal-section-title { font-size: 20px; }
-          .legal-nav-links { gap: 16px; }
           .legal-intro-callout { padding: 20px; margin-bottom: 48px; }
         }
       `}</style>
 
-      <nav className="legal-nav">
-        <div className="legal-nav-inner">
-          <Link to="/" className="legal-logo">
-            Diet By <span>RD</span>
-          </Link>
-          <div className="legal-nav-links">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                to={link.href}
-                className={isActive(link.href) ? "is-active" : undefined}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </nav>
+      <SiteHeader />
 
       <main className="legal-container">
         <div className="legal-meta-line">Diet By RD — Legal Documents&nbsp;&nbsp; v1.0</div>
@@ -308,23 +217,9 @@ const LegalLayout = ({ title, lastUpdated, children, introCallout }: LegalLayout
         </header>
         {introCallout ? <div className="legal-intro-callout">{introCallout}</div> : null}
         {Children.map(children, renderLegalNode)}
-        <footer className="legal-footer">
-          <div className="legal-footer-links">
-            {footerLinks.map((link) => (
-              <Link
-                key={link.href}
-                to={link.href}
-                className={isActive(link.href) ? "is-active" : undefined}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-          <div className="legal-footer-copy">
-            © 2026 Diet By RD Private Limited. All rights reserved.
-          </div>
-        </footer>
       </main>
+
+      <SiteFooter />
     </div>
   );
 };
