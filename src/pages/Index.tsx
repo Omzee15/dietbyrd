@@ -775,19 +775,17 @@ const Index = () => {
           </div>
 
           {/* Doctors Column */}
-          <div className="flex-1 bg-transparent border border-[#33654A]/10 sm:border-r-transparent rounded-[14px] p-3.5 xl:p-4 shadow-sm relative overflow-hidden">
-            <div className="relative z-10">
-              <div className="flex items-center gap-2.5 mb-3 pb-2.5 border-b-2 border-[#33654A]/20 w-fit">
-                <div className="w-7 h-7 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10">
-                  <Stethoscope className="w-[15px] h-[15px] text-[#33654A]" strokeWidth={2} />
-                </div>
-                <h3 className="font-bold text-[#33654A] text-[13px] xl:text-[14px]">Doctors</h3>
+          <div className="flex-1 bg-transparent border border-[#33654A]/10 sm:border-r-transparent rounded-[14px] p-3.5 xl:p-4 shadow-sm relative">
+            <div className="flex items-center gap-2.5 mb-3 pb-2.5 border-b-2 border-[#33654A]/20 w-fit">
+              <div className="w-7 h-7 rounded-full bg-[#EEF2ED] flex items-center justify-center shrink-0 border border-[#33654A]/10">
+                <Stethoscope className="w-[15px] h-[15px] text-[#33654A]" strokeWidth={2} />
               </div>
-
-              <p className="text-[10px] xl:text-[11px] text-[#0A1628] font-medium leading-snug mt-3 relative z-10 pr-6 xl:pr-10">
-                Should have a valid Medical licence, a MBBS degree and will to help patients via Diet By RD.
-              </p>
+              <h3 className="font-bold text-[#33654A] text-[13px] xl:text-[14px]">Doctors</h3>
             </div>
+
+            <p className="text-[10px] xl:text-[11px] text-[#0A1628] font-medium leading-snug mt-3">
+              Should have a valid Medical licence, a MBBS degree and will to help patients via Diet By RD.
+            </p>
           </div>
         </div>
       </div>
@@ -935,10 +933,10 @@ const Index = () => {
           <div
             className={`absolute inset-0 pointer-events-none z-30 transition-opacity duration-500 ease-in-out ${showJoinForm ? 'opacity-100' : 'opacity-0'}`}
           >
-            <img 
+            <img
               src="/new-docs-full.webp"
-              alt="Professional Doctors and Dietitians" 
-              className="absolute bottom-[0%] xl:bottom-[0%] right-[0%] xl:right-[0%] h-[95%] xl:h-[95%] object-contain object-right-bottom"
+              alt="Professional Doctors and Dietitians"
+              className="absolute bottom-0 right-[2%] h-[50%] xl:h-[62%] 2xl:h-[68%] object-contain object-right-bottom"
             />
           </div>
 
