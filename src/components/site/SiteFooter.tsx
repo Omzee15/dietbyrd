@@ -92,6 +92,7 @@ export function SiteFooter() {
                 <li><a href="/terms" target="_blank" rel="noopener">Terms of Service</a></li>
                 <li><a href="/refund" target="_blank" rel="noopener">Refund Policy</a></li>
                 <li><a href="/cancellation" target="_blank" rel="noopener">Cancellation Policy</a></li>
+                <li><Link to="/community-guidelines">Community Guidelines</Link></li>
                 <li style={{ marginTop: '12px', fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>CIN: U86909DL2026PTC466538</li>
                 <li style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>Udyam: UDYAM-DL-08-0127249</li>
               </ul>
