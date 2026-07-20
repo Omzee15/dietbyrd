@@ -919,7 +919,7 @@ const Landing = () => {
                     </div>
                   ) : item.textBadge ? (
                     <div style={{ width: '136px', height: '136px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 800, fontSize: '26px', color: 'var(--navy)', textAlign: 'center', lineHeight: 1.15 }}>
+                      <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 800, fontSize: '26px', color: '#1D4ED8', textAlign: 'center', lineHeight: 1.15 }}>
                         {item.textBadge}
                       </span>
                     </div>
@@ -1061,7 +1061,7 @@ const Landing = () => {
       {/* Built With Intent and Soul — Page 4 */}
       <section className="soul-section reveal" style={{ background: 'var(--cream)' }}>
         <style>
-          {`.soul-section { padding: 96px 24px; }
+          {`.soul-section { padding: 96px 24px; overflow: hidden; }
 .soul-inner {
   max-width: 1280px; margin: 0 auto;
   display: grid; grid-template-columns: 1.3fr 1fr; gap: 56px;
@@ -1102,7 +1102,8 @@ const Landing = () => {
 }
 .soul-closer strong { color: var(--teal); }
 .soul-image-wrap {
-  position: relative; min-height: 560px; height: min(88vh, 820px);
+  position: relative; min-height: 640px; height: min(98vh, 980px);
+  margin-bottom: -96px;
   display: flex; align-items: flex-end; justify-content: center; overflow: visible;
 }
 .soul-image-wrap img {
@@ -1112,7 +1113,7 @@ const Landing = () => {
 @media (max-width: 900px) {
   .soul-section { padding: 64px 24px; }
   .soul-inner { grid-template-columns: 1fr; gap: 40px; }
-  .soul-image-wrap { min-height: auto; height: 420px; }
+  .soul-image-wrap { min-height: auto; height: 480px; margin-bottom: -64px; }
 }`}
         </style>
         <div className="soul-inner">

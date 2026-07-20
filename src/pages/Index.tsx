@@ -908,16 +908,17 @@ const Index = () => {
             {!showJoinForm && (
               <div className="flex gap-4 px-12 xl:px-16 pb-6 xl:pb-8 mt-auto relative z-40 w-full max-w-[650px]">
                 <div className="flex-1 bg-[#F1EFE9]/90 backdrop-blur-sm rounded-[12px] py-2.5 xl:py-3.5 px-4 text-center">
+                  <div className="text-[26px] font-bold text-[#33654A]">35+</div>
+                  <div className="text-[12px] text-[#4A5568] font-medium mt-0.5">Factors Considered</div>
+                  <div className="text-[10px] text-[#4A5568]/70 font-medium mt-0.5 leading-snug">Because nutrition planning cannot be reduced to calories alone</div>
+                </div>
+                <div className="flex-1 bg-[#F1EFE9]/90 backdrop-blur-sm rounded-[12px] py-2.5 xl:py-3.5 px-4 text-center">
+                  <div className="text-[26px] font-bold text-[#33654A]">2800+</div>
+                  <div className="text-[12px] text-[#4A5568] font-medium mt-0.5">Hours of successful consultations given</div>
+                </div>
+                <div className="flex-1 bg-[#F1EFE9]/90 backdrop-blur-sm rounded-[12px] py-2.5 xl:py-3.5 px-4 text-center">
                   <div className="text-[26px] font-bold text-[#33654A]">95%</div>
                   <div className="text-[12px] text-[#4A5568] font-medium mt-0.5">Satisfaction Rate</div>
-                </div>
-                <div className="flex-1 bg-[#F1EFE9]/90 backdrop-blur-sm rounded-[12px] py-2.5 xl:py-3.5 px-4 text-center">
-                  <div className="text-[26px] font-bold text-[#33654A]">100%</div>
-                  <div className="text-[12px] text-[#4A5568] font-medium mt-0.5">Real Reviews</div>
-                </div>
-                <div className="flex-1 bg-[#F1EFE9]/90 backdrop-blur-sm rounded-[12px] py-2.5 xl:py-3.5 px-4 text-center">
-                  <div className="text-[26px] font-bold text-[#33654A]">110%</div>
-                  <div className="text-[12px] text-[#4A5568] font-medium mt-0.5">Patient centric care</div>
                 </div>
               </div>
             )}

@@ -146,7 +146,7 @@ const Reviews = () => {
       <img src="https://images.unsplash.com/photo-1620054813524-7eb3268cb320?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80" alt="" className="absolute top-[40%] right-0 w-64 md:w-96 opacity-10 pointer-events-none mix-blend-multiply rounded-full" onError={(e) => e.currentTarget.style.display = 'none'} />
 
       {/* Header */}
-      <div className="max-w-7xl mx-auto px-6 pt-8 relative z-10">
+      <div className="max-w-7xl mx-auto px-6 pt-24 relative z-10">
         <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap');
 
