@@ -134,7 +134,7 @@ const useCountUp = (target: number, durationMs = 1600) => {
 };
 
 // Cycles through a word list on a timer, looping forever.
-const useRotatingWord = (words: string[], intervalMs = 1600) => {
+const useRotatingWord = (words: string[], intervalMs = 533) => {
   const [index, setIndex] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setIndex((i) => (i + 1) % words.length), intervalMs);
@@ -675,7 +675,7 @@ const Index = () => {
         <div className="mb-3">
           <h1 className="text-[26px] xl:text-[32px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
             <span className="text-[#0A1628]">Diet By </span>
-            <span className="text-[#D49B2A]">RD</span>
+            <span className="text-[#C9952A]">RD</span>
           </h1>
           <p className="text-[12px] text-[#33654A] font-medium tracking-wide mt-1">The Gold Standard Clinical Nutrition</p>
         </div>
@@ -729,7 +729,7 @@ const Index = () => {
         <div className="mb-3">
           <h1 className="text-[26px] xl:text-[32px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
             <span className="text-[#0A1628]">Diet By </span>
-            <span className="text-[#D49B2A]">RD</span>
+            <span className="text-[#C9952A]">RD</span>
           </h1>
           <p className="text-[12px] text-[#33654A] font-medium tracking-wide mt-1">The Gold Standard Clinical Nutrition</p>
         </div>
@@ -801,7 +801,7 @@ const Index = () => {
       <div className="w-full max-w-[1440px] 2xl:max-w-[1600px] h-[90vh] min-h-[740px] max-h-[900px] flex relative z-10 pointer-events-none">
         
         {/* Left Side: Auth Form Card */}
-        <div className="flex-none w-full lg:w-[380px] xl:w-[420px] m-6 bg-white rounded-[32px] shadow-[0_8px_40px_rgba(0,0,0,0.04)] px-12 xl:px-14 py-10 flex flex-col z-20 overflow-y-auto pointer-events-auto">
+        <div className="flex-none w-full lg:w-[380px] xl:w-[420px] m-6 bg-white rounded-[32px] shadow-[0_8px_40px_rgba(0,0,0,0.04)] px-12 xl:px-14 py-10 flex flex-col z-20 overflow-y-auto no-scrollbar pointer-events-auto">
           <div className="flex-1 flex flex-col justify-center">
             {sessionExpired && step === "phone" && !showJoinForm && (
               <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
@@ -954,7 +954,7 @@ const Index = () => {
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.35, ease: "easeOut" }}
+                        transition={{ duration: 0.12, ease: "easeOut" }}
                         className="text-[15px] xl:text-[16px] font-bold text-[#33654A] whitespace-nowrap"
                       >
                         {currentFactor}
