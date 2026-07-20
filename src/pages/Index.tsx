@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
@@ -106,9 +107,49 @@ const getJson = async <T,>(res: Response): Promise<T | null> => {
   }
 };
 
+const FACTOR_WORDS = [
+  "Medical Diagnosis", "Activity Levels", "Sleep", "Culture", "Cravings",
+  "Budget", "Accessibility", "Allergies", "Work", "Goals",
+  "Medications", "Habits", "Time", "Stress",
+];
+
+// Animates 0 -> target once on mount, easing out so it settles rather than
+// ticking at a constant rate all the way to the end.
+const useCountUp = (target: number, durationMs = 1600) => {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    let start: number | null = null;
+    let frame: number;
+    const step = (timestamp: number) => {
+      if (start === null) start = timestamp;
+      const progress = Math.min((timestamp - start) / durationMs, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.round(eased * target));
+      if (progress < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [target, durationMs]);
+  return value;
+};
+
+// Cycles through a word list on a timer, looping forever.
+const useRotatingWord = (words: string[], intervalMs = 1600) => {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setIndex((i) => (i + 1) % words.length), intervalMs);
+    return () => clearInterval(id);
+  }, [words.length, intervalMs]);
+  return words[index];
+};
+
 const Index = () => {
   const navigate = useNavigate();
   const { loginWithData, isAuthenticated, user, isLoading: authLoading, sessionExpired } = useAuth();
+
+  const hoursCount = useCountUp(2800);
+  const satisfactionCount = useCountUp(95);
+  const currentFactor = useRotatingWord(FACTOR_WORDS);
 
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
@@ -907,17 +948,30 @@ const Index = () => {
             {/* Stats bar pinned to bottom - only shown on patient side */}
             {!showJoinForm && (
               <div className="flex gap-4 px-12 xl:px-16 pb-6 xl:pb-8 mt-auto relative z-40 w-full max-w-[650px]">
-                <div className="flex-1 bg-[#F1EFE9]/90 backdrop-blur-sm rounded-[12px] py-2.5 xl:py-3.5 px-4 text-center">
-                  <div className="text-[26px] font-bold text-[#33654A]">35+</div>
+                <div className="flex-1 bg-[#F1EFE9]/90 backdrop-blur-sm rounded-[12px] py-2.5 xl:py-3.5 px-4 text-center overflow-hidden">
+                  <div className="h-[26px] flex items-center justify-center">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={currentFactor}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.35, ease: "easeOut" }}
+                        className="text-[15px] xl:text-[16px] font-bold text-[#33654A] whitespace-nowrap"
+                      >
+                        {currentFactor}
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
                   <div className="text-[12px] text-[#4A5568] font-medium mt-0.5">Factors Considered</div>
                   <div className="text-[10px] text-[#4A5568]/70 font-medium mt-0.5 leading-snug">Because nutrition planning cannot be reduced to calories alone</div>
                 </div>
                 <div className="flex-1 bg-[#F1EFE9]/90 backdrop-blur-sm rounded-[12px] py-2.5 xl:py-3.5 px-4 text-center">
-                  <div className="text-[26px] font-bold text-[#33654A]">2800+</div>
+                  <div className="text-[26px] font-bold text-[#33654A]">{hoursCount}+</div>
                   <div className="text-[12px] text-[#4A5568] font-medium mt-0.5">Hours of successful consultations given</div>
                 </div>
                 <div className="flex-1 bg-[#F1EFE9]/90 backdrop-blur-sm rounded-[12px] py-2.5 xl:py-3.5 px-4 text-center">
-                  <div className="text-[26px] font-bold text-[#33654A]">95%</div>
+                  <div className="text-[26px] font-bold text-[#33654A]">{satisfactionCount}%</div>
                   <div className="text-[12px] text-[#4A5568] font-medium mt-0.5">Satisfaction Rate</div>
                 </div>
               </div>

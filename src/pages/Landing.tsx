@@ -1569,7 +1569,7 @@ const Landing = () => {
           </h1>
           <p ref={addToRefs} className="hero-sub reveal reveal-delay-2" style={{ lineHeight: '1.6' }}>
             One consultation changes the direction.<br/>
-            An RD who understands your food, your condition and you - not a generic PDF.<br/>
+            RD who understands your food, your condition and you - not a generic PDF.<br/>
             <strong>Never a supplement upsell, Real clinical nutrition, personalized for you.</strong>
           </p>
           <div ref={addToRefs} className="hero-actions reveal reveal-delay-3" style={{ alignItems: 'flex-end' }}>

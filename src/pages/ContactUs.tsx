@@ -982,12 +982,6 @@ const ContactUs = () => {
           <h1 className="text-5xl md:text-6xl text-[var(--navy)] tracking-tight mb-6" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700 }}>
             CONTACT US
           </h1>
-          
-          <div className="flex items-center justify-center gap-4 mb-6">
-            <div className="h-[1px] w-16 bg-[#427A5B]/30"></div>
-            <Leaf className="w-5 h-5 text-[#427A5B]" strokeWidth={1.5} />
-            <div className="h-[1px] w-16 bg-[#427A5B]/30"></div>
-          </div>
 
           <p className="text-[16px] md:text-[17px] font-bold text-[#427A5B] mb-12">
             Every health journey begins with a conversation.
@@ -1003,7 +997,8 @@ const ContactUs = () => {
             Because healthcare isn't built on transactions. It is built on trust, understanding, and the confidence that someone is willing to help when you need it most.
           </p>
           <p>
-            Reach out to us, and we'll do our best to guide you in the right direction. Every message is received with the same respect, attention, and sincerity we would offer to a member of our own family.
+            Reach out to us, and we'll do our best to guide you in the right direction.<br />
+            Every message is received with the same respect, attention, and sincerity we would offer to a member of our own family.
           </p>
         </div>
 
