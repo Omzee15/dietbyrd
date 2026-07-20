@@ -897,9 +897,9 @@ const Landing = () => {
       </section>
 
       {/* Trust badge marquee */}
-      <section className="privacy-section" style={{ background: '#fff' }}>
+      <section className="privacy-section" style={{ background: '#fff', padding: 0 }}>
         <div className="privacy-inner">
-          <div className="trust-marquee" style={{ padding: '32px 0', mixBlendMode: 'multiply' }}>
+          <div className="trust-marquee" style={{ padding: '32px 0', margin: 0, mixBlendMode: 'multiply' }}>
             <div className="trust-marquee__track" style={{ animationDuration: '50s', gap: '80px' }}>
               {Array(6).fill([
                 { label: 'DPDPA Compliant', img: '/dpdpa.webp' },
@@ -936,7 +936,7 @@ const Landing = () => {
 
       {/* How We Work — Page 3 */}
       <div id="reviews" style={{ position: 'relative', top: '-80px' }} aria-hidden="true" />
-      <section id="approach" className="section approach-section reveal" style={{ background: 'var(--cream)' }}>
+      <section id="approach" className="section approach-section reveal" style={{ background: '#fff' }}>
         <div className="section-inner">
           <div className="approach-grid">
             <div>
@@ -1171,7 +1171,7 @@ const Landing = () => {
       <section
         id="about"
         className="about-section reveal"
-        style={{ background: 'var(--cream)', padding: '96px 24px' }}
+        style={{ background: '#fff', padding: '96px 24px' }}
       >
         <style>
           {`.about-vision-grid {
@@ -1520,7 +1520,7 @@ const Landing = () => {
       </section>
 
 
-      <section id="conditions" className="section trust-section" style={{ background: '#FDFBF7', position: 'relative' }}>
+      <section id="conditions" className="section trust-section" style={{ background: 'var(--cream)', position: 'relative' }}>
         <div className="section-inner trust-inner" style={{ position: 'relative', zIndex: 2 }}>
           <div className="text-center mb-4">
             <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--teal)' }}>
@@ -1559,7 +1559,7 @@ const Landing = () => {
       </section>
 
       {/* Hero */}
-      <section className="hero" style={{ background: 'var(--cream)' }}>
+      <section className="hero" style={{ background: '#fff' }}>
         <div className="hero-bg" />
         <div className="hero-content">
           <div ref={addToRefs} className="cta-eyebrow reveal" style={{ fontSize: '14px', letterSpacing: '0.1em', fontWeight: 600, color: 'var(--teal)', marginBottom: '16px', textTransform: 'uppercase' }}>
