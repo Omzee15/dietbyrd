@@ -1384,6 +1384,7 @@ const Landing = () => {
                     src="/aryan-bhagat-founder.webp"
                     alt="Aryan Bhagat, Founder of Diet By RD"
                     decoding="async"
+                    fetchPriority="high"
                     style={{
                       width: '112%',
                       height: '112%',
