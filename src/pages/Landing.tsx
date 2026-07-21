@@ -1391,7 +1391,7 @@ const Landing = () => {
                       objectFit: 'contain',
                       objectPosition: 'bottom center',
                       display: 'block',
-                      transform: 'scale(1.22) translate(-4%, 40px)',
+                      transform: 'scale(1.22) translate(-4%, 0px)',
                       transformOrigin: 'bottom center'
                     }}
                   />
