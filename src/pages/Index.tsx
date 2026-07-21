@@ -744,7 +744,7 @@ const Index = () => {
           DietByRD as a professional:
         </h2>
 
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch max-w-[400px] xl:max-w-[440px] relative z-20">
+        <div className="flex flex-col sm:flex-row gap-3 items-start max-w-[400px] xl:max-w-[440px] relative z-20">
           {/* Dietitian Column */}
           <div className="flex-[1.2] bg-transparent border border-[#33654A]/10 sm:border-r-transparent rounded-[14px] p-3.5 xl:p-4 shadow-sm">
             <div className="flex items-center gap-2.5 mb-3 pb-2.5 border-b-2 border-[#33654A]/20 w-fit">
@@ -931,12 +931,12 @@ const Index = () => {
 
           {/* Image Container - Professional (Join Form) */}
           <div
-            className={`absolute inset-0 pointer-events-none z-30 transition-opacity duration-500 ease-in-out ${showJoinForm ? 'opacity-100' : 'opacity-0'}`}
+            className={`absolute top-[60%] bottom-0 left-0 right-0 pointer-events-none z-30 transition-opacity duration-500 ease-in-out ${showJoinForm ? 'opacity-100' : 'opacity-0'}`}
           >
             <img
               src="/new-docs-full.webp"
               alt="Professional Doctors and Dietitians"
-              className="absolute bottom-0 right-[2%] h-[50%] xl:h-[62%] 2xl:h-[68%] object-contain object-right-bottom"
+              className="absolute inset-0 w-full h-full object-contain object-right-bottom"
             />
           </div>
 
