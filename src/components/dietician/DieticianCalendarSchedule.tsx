@@ -251,10 +251,7 @@ const DieticianCalendarSchedule = ({
     name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?";
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
-      weekday: "short",
-      day: "numeric",
-    });
+    return date.toLocaleDateString("en-US", { weekday: "short" });
   };
 
   const formatMonthYear = (date: Date) => {
@@ -448,7 +445,7 @@ const DieticianCalendarSchedule = ({
                 }`}
                 onClick={() => setSelectedDate(date)}
               >
-                <p className="text-xs text-muted-foreground">{formatDate(date).split(" ")[0]}</p>
+                <p className="text-xs text-muted-foreground">{formatDate(date)}</p>
                 <p
                   className={`text-lg font-semibold ${
                     isBlocked(date) ? "text-orange-500" : isToday(date) ? "text-primary" : ""
