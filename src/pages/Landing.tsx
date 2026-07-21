@@ -1383,7 +1383,6 @@ const Landing = () => {
                   <img
                     src="/aryan-bhagat-founder.webp"
                     alt="Aryan Bhagat, Founder of Diet By RD"
-                    loading="lazy"
                     decoding="async"
                     style={{
                       width: '112%',
