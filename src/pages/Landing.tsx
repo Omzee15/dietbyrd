@@ -1381,7 +1381,7 @@ const Landing = () => {
               <div className="story-card">
                 <div className="story-monogram">
                   <img
-                    src="/aryan-bhagat-founder.png"
+                    src="/aryan-bhagat-founder.webp"
                     alt="Aryan Bhagat, Founder of Diet By RD"
                     loading="lazy"
                     decoding="async"

@@ -700,7 +700,7 @@ const Index = () => {
         <div className="space-y-2 mb-1">
           <div className="flex items-start gap-3.5 p-3 xl:p-4 rounded-[16px] max-w-[480px] relative z-20 bg-[#FBF9F4]">
             <div className="w-8 h-8 xl:w-9 xl:h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-transparent border border-black/5 overflow-hidden">
-              <img src="/supplement-minimal.png" alt="Supplement minimal" className="w-[24px] h-[24px] xl:w-[26px] xl:h-[26px] object-contain mix-blend-multiply scale-110" />
+              <img src="/supplement-minimal.webp" alt="Supplement minimal" className="w-[24px] h-[24px] xl:w-[26px] xl:h-[26px] object-contain mix-blend-multiply scale-110" />
             </div>
             <div>
               <h3 className="font-bold text-[#0A1628] text-[12px] xl:text-[13px] mb-0.5">No supplement upsell, only what is required</h3>
@@ -710,7 +710,7 @@ const Index = () => {
 
           <div className="flex items-start gap-3.5 p-3 xl:p-4 rounded-[16px] max-w-[480px] relative z-20 bg-[#FBF9F4]">
             <div className="w-8 h-8 xl:w-9 xl:h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-transparent border border-black/5 overflow-hidden">
-              <img src="/comfort-food-chocolate.png" alt="Comfort food chocolate" className="w-[24px] h-[24px] xl:w-[26px] xl:h-[26px] object-contain mix-blend-multiply scale-110" />
+              <img src="/comfort-food-chocolate.webp" alt="Comfort food chocolate" className="w-[24px] h-[24px] xl:w-[26px] xl:h-[26px] object-contain mix-blend-multiply scale-110" />
             </div>
             <div>
               <h3 className="font-bold text-[#0A1628] text-[12px] xl:text-[13px] mb-0.5">There's always a space for your comfort food.</h3>
