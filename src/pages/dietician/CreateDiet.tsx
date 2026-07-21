@@ -583,7 +583,9 @@ const CreateDiet = () => {
           doc.text(`• ${item.name}`, margin + 5, y);
           doc.setFontSize(9);
           doc.setTextColor(80);
-          doc.text(`- ${item.quantity} ${item.unit}`, margin + 70, y);
+          const itemQty = formatItemQuantity(item);
+          const qtyText = `- ${itemQty.value} ${itemQty.unit}`;
+          doc.text(qtyText, margin + 70, y);
           const macroSegments: Array<{ text: string; color: [number, number, number] }> = [
             { text: `${Math.round(item.calories * factor)} kcal`, color: [217, 119, 6] },
             { text: "  |  ", color: [120, 120, 120] },
@@ -593,7 +595,11 @@ const CreateDiet = () => {
             { text: "  ", color: [120, 120, 120] },
             { text: `F: ${(item.fat * factor).toFixed(1)}`, color: [219, 39, 119] },
           ];
-          let macroX = pageWidth - margin - 86;
+          // Quantity text length now varies a lot more (e.g. "1 egg white" vs
+          // "50 g"), so the macro column can't assume a fixed start position
+          // without risking an overlap -- push right only if it would collide.
+          const qtyEndX = margin + 70 + doc.getTextWidth(qtyText);
+          let macroX = Math.max(pageWidth - margin - 86, qtyEndX + 8);
           macroSegments.forEach((segment) => {
             doc.setTextColor(...segment.color);
             doc.text(segment.text, macroX, y);
@@ -990,7 +996,6 @@ const CreateDiet = () => {
         ? foodService.search(trimmedSearchTerm)
         : foodService.getAll(),
     enabled: true,
-    staleTime: 5 * 60 * 1000,
   });
 
   const searchResults: FoodItem[] = searchedFoods.map((food: FoodLibraryItem) => ({
@@ -1064,6 +1069,18 @@ const CreateDiet = () => {
 
     setTargetAmount('20');
     setAddFoodModalOpen(true);
+  };
+
+  // Quantity-mode items were added by piece count (e.g. "1 egg white"), so
+  // they should keep showing pieces even though quantity/unit are always
+  // stored in grams internally for macro math. Weight and target modes show
+  // grams -- there's no piece basis to convert back to for either.
+  const formatItemQuantity = (item: MealItem): { value: string; unit: string } => {
+    if (item.enteredMode === "quantity" && item.unitWeight) {
+      const pieces = Math.round((item.quantity / item.unitWeight) * 100) / 100;
+      return { value: Number.isInteger(pieces) ? String(pieces) : pieces.toFixed(2), unit: item.unitName || "pcs" };
+    }
+    return { value: String(Math.round(item.quantity)), unit: "g" };
   };
 
   // Calculate grams for target nutrient
@@ -1789,6 +1806,7 @@ const CreateDiet = () => {
 
                 {meals.find((m) => m.name === activeMeal)?.items.map((item) => {
                   const factor = item.quantity / 100;
+                  const itemQty = formatItemQuantity(item);
                   return (
                     <div
                       key={item.id}
@@ -1827,9 +1845,9 @@ const CreateDiet = () => {
                             <Minus className="w-4 h-4" />
                           </button>
                           <div className="text-center min-w-[60px]">
-                            <div className="font-semibold">{item.quantity}</div>
+                            <div className="font-semibold">{itemQty.value}</div>
                             <div className="text-[10px] text-muted-foreground uppercase">
-                              {item.unit}
+                              {itemQty.unit}
                             </div>
                           </div>
                           <button
