@@ -13,8 +13,9 @@ import { PWAUpdatePrompt } from "@/components/PWAUpdatePrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Pages
-const Landing = lazy(() => import("./pages/Landing"));
-const Index = lazy(() => import("./pages/Index"));
+// Landing/Index stay eager: lazy-loading the most-visited entry routes just adds a round trip.
+import Landing from "./pages/Landing";
+import Index from "./pages/Index";
 const Register = lazy(() => import("./pages/Register"));
 
 const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword"));
