@@ -1022,7 +1022,7 @@ const ContactUs = () => {
               Drop us a message anytime.<br />
               We aim to respond within 24 hours.
             </p>
-            <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer" className="text-[16px] font-bold text-[#427A5B] hover:opacity-80 transition-opacity mt-auto">
+            <a href="mailto:hello@dietbyrd.com" className="text-[16px] font-bold text-[#427A5B] hover:opacity-80 transition-opacity mt-auto">
               hello@dietbyrd.com
             </a>
           </div>

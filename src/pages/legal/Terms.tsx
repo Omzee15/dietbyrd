@@ -51,7 +51,7 @@ const Terms = () => (
         <li><strong>If you cancel with less than 24 hours notice:</strong> The session fee is non-refundable. Your RD's time was held for you and cannot be reallocated at short notice.</li>
         <li><strong>If you do not attend your scheduled slot:</strong> If you do not join your consultation within 15 minutes of the scheduled start time, your session will be marked as a no-show. The slot will be closed and the session fee is non-refundable. You will need to rebook and make a fresh payment to schedule a new consultation. Diet By RD sends two WhatsApp reminders — 30 minutes before and at your exact start time — to ensure you are never caught unaware.</li>
       </ul>
-      <p>To cancel or reschedule, contact us at <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer">hello@dietbyrd.com</a> or via WhatsApp. We will respond within 2 hours during business hours (9am–8pm, Monday–Saturday).</p>
+      <p>To cancel or reschedule, contact us at <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a> or via WhatsApp. We will respond within 2 hours during business hours (9am–8pm, Monday–Saturday).</p>
 
       <h2>9. Your Responsibilities</h2>
       <p>To get the most from your consultation — and to ensure our RDs can provide safe, accurate guidance — we ask that you:</p>
@@ -88,7 +88,7 @@ const Terms = () => (
       <p>We reserve the right to suspend or terminate access to our platform if a user engages in conduct that is harmful, fraudulent, abusive, or in violation of these Terms. We will always communicate clearly and give you an opportunity to be heard before taking such action, except where immediate action is required to protect other users or the integrity of the platform.</p>
 
       <h2>14. Governing Law and Disputes</h2>
-      <p>These Terms are governed by the laws of India. Any dispute arising from your use of Diet By RD will first be addressed through direct communication — write to us at <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer">hello@dietbyrd.com</a> and we will make every effort to resolve it fairly and promptly.</p>
+      <p>These Terms are governed by the laws of India. Any dispute arising from your use of Diet By RD will first be addressed through direct communication — write to us at <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a> and we will make every effort to resolve it fairly and promptly.</p>
       <p>If a dispute cannot be resolved directly, it shall be subject to the exclusive jurisdiction of the courts of New Delhi, India.</p>
 
       <h2>15. Changes to These Terms</h2>

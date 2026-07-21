@@ -45,6 +45,16 @@ const DoctorSettings = () => {
     navigate("/");
   };
 
+  const bottomContent = (
+    <button
+      onClick={handleLogout}
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-red-400 hover:bg-red-500/10 transition-all duration-150"
+    >
+      <LogOut className="w-[18px] h-[18px] shrink-0" />
+      <span>Sign Out</span>
+    </button>
+  );
+
   const sidebarSections = [
     {
       title: "Workspace",
@@ -68,6 +78,7 @@ const DoctorSettings = () => {
         title="DietByRD"
         subtitle="Doctor Portal"
         sections={sidebarSections}
+        bottomContent={bottomContent}
       />
 
       <main className="flex-1 bg-background">

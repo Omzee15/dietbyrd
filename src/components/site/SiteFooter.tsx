@@ -69,7 +69,7 @@ export function SiteFooter() {
               <div className="fb-logo">Diet By <span>RD</span></div>
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: '-6px', marginBottom: '10px' }}>The Gold Standard Clinical Nutrition</div>
               <p>India's first clinical nutrition platform where every consultation is exclusively with a Registered Dietitian. Evidence-based. Affordable. Honest.</p>
-              <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer" className="footer-email">✉️ hello@dietbyrd.com</a>
+              <a href="mailto:hello@dietbyrd.com" className="footer-email">✉️ hello@dietbyrd.com</a>
               <div style={{ marginTop: '16px', fontSize: '11px', color: 'rgba(255,255,255,0.7)', lineHeight: '1.5', width: 'max-content', maxWidth: '100%', textAlign: 'left' }}>
                 Registered Office: DPT 808B F 79 &amp; 80, 8TH FLOOR DLF PRIME TOWER,<br />
                 Okhla Industrial Estate, New Delhi, South Delhi- 110020, Delhi
@@ -100,9 +100,9 @@ export function SiteFooter() {
             <div id="contact" className="footer-col">
               <h5>Support</h5>
               <Link to="/contact">Contact / Support</Link>
-              <a href="https://mail.google.com/mail/?view=cm&fs=1&to=hello@dietbyrd.com" target="_blank" rel="noopener noreferrer">hello@dietbyrd.com</a>
+              <a href="mailto:hello@dietbyrd.com">hello@dietbyrd.com</a>
               <div style={{ fontSize: '13.5px', color: 'var(--text3)', marginBottom: '10px' }}>
-                Grievance: <a href="https://mail.google.com/mail/?view=cm&fs=1&to=grievance@dietbyrd.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--teal)' }}>grievance@dietbyrd.com</a>
+                Grievance: <a href="mailto:grievance@dietbyrd.com" style={{ color: 'var(--teal)' }}>grievance@dietbyrd.com</a>
               </div>
             </div>
           </div>
