@@ -931,7 +931,7 @@ const Index = () => {
 
           {/* Image Container - Professional (Join Form) */}
           <div
-            className={`absolute top-[60%] bottom-0 left-0 right-0 pointer-events-none z-30 transition-opacity duration-500 ease-in-out ${showJoinForm ? 'opacity-100' : 'opacity-0'}`}
+            className={`absolute top-[58%] xl:top-0 bottom-0 left-0 xl:left-[517px] right-0 pointer-events-none z-30 transition-opacity duration-500 ease-in-out ${showJoinForm ? 'opacity-100' : 'opacity-0'}`}
           >
             <img
               src="/new-docs-full.webp"
