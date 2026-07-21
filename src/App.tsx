@@ -1,5 +1,7 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,70 +13,76 @@ import { PWAUpdatePrompt } from "@/components/PWAUpdatePrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Pages
-import Landing from "./pages/Landing";
-import Index from "./pages/Index";
-import Register from "./pages/Register";
+const Landing = lazy(() => import("./pages/Landing"));
+const Index = lazy(() => import("./pages/Index"));
+const Register = lazy(() => import("./pages/Register"));
 
-import ForgotPassword from "./pages/auth/ForgotPassword";
-import ResetPassword from "./pages/auth/ResetPassword";
-import NotFound from "./pages/NotFound";
-import Privacy from "./pages/legal/Privacy";
-import Terms from "./pages/legal/Terms";
-import Refund from "./pages/legal/Refund";
-import Cancellation from "./pages/legal/Cancellation";
-import Reviews from "./pages/Reviews";
-import CommunityGuidelines from "./pages/CommunityGuidelines";
-import ContactUs from "./pages/ContactUs";
+const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/auth/ResetPassword"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Privacy = lazy(() => import("./pages/legal/Privacy"));
+const Terms = lazy(() => import("./pages/legal/Terms"));
+const Refund = lazy(() => import("./pages/legal/Refund"));
+const Cancellation = lazy(() => import("./pages/legal/Cancellation"));
+const Reviews = lazy(() => import("./pages/Reviews"));
+const CommunityGuidelines = lazy(() => import("./pages/CommunityGuidelines"));
+const ContactUs = lazy(() => import("./pages/ContactUs"));
 
 // Doctor Pages
-import DoctorDashboard from "./pages/DoctorDashboard";
-import DoctorPatients from "./pages/doctor/Patients";
-import DoctorReferrals from "./pages/doctor/Referrals";
-import DoctorAnalytics from "./pages/doctor/Analytics";
-import DoctorSettings from "./pages/doctor/Settings";
+const DoctorDashboard = lazy(() => import("./pages/DoctorDashboard"));
+const DoctorPatients = lazy(() => import("./pages/doctor/Patients"));
+const DoctorReferrals = lazy(() => import("./pages/doctor/Referrals"));
+const DoctorAnalytics = lazy(() => import("./pages/doctor/Analytics"));
+const DoctorSettings = lazy(() => import("./pages/doctor/Settings"));
 
 // Dietician Pages
-import DieticianDashboard from "./pages/DieticianDashboard";
-import DieticianSchedule from "./pages/dietician/Schedule";
-import DieticianDiet from "./pages/dietician/Diet";
-import DieticianSettings from "./pages/dietician/Settings";
-import DieticianPatientDetail from "./pages/dietician/PatientDetail";
-import DieticianCreateDiet from "./pages/dietician/CreateDiet";
-import DieticianFoodLibrary from "./pages/dietician/FoodLibrary";
+const DieticianDashboard = lazy(() => import("./pages/DieticianDashboard"));
+const DieticianSchedule = lazy(() => import("./pages/dietician/Schedule"));
+const DieticianDiet = lazy(() => import("./pages/dietician/Diet"));
+const DieticianSettings = lazy(() => import("./pages/dietician/Settings"));
+const DieticianPatientDetail = lazy(() => import("./pages/dietician/PatientDetail"));
+const DieticianCreateDiet = lazy(() => import("./pages/dietician/CreateDiet"));
+const DieticianFoodLibrary = lazy(() => import("./pages/dietician/FoodLibrary"));
 
 // Patient Pages
-import PatientDashboard from "./pages/PatientDashboard";
-import PatientProfile from "./pages/patient/PatientProfile";
-import PatientDietPlans from "./pages/patient/PatientDietPlans";
-import PatientAppointments from "./pages/patient/PatientAppointments";
-import PatientSupport from "./pages/patient/PatientSupport";
-import Pay from "./pages/Pay";
+const PatientDashboard = lazy(() => import("./pages/PatientDashboard"));
+const PatientProfile = lazy(() => import("./pages/patient/PatientProfile"));
+const PatientDietPlans = lazy(() => import("./pages/patient/PatientDietPlans"));
+const PatientAppointments = lazy(() => import("./pages/patient/PatientAppointments"));
+const PatientSupport = lazy(() => import("./pages/patient/PatientSupport"));
+const Pay = lazy(() => import("./pages/Pay"));
 
 // Admin Pages
-import AdminDashboard from "./pages/AdminDashboard";
-import AdminPatients from "./pages/admin/Patients";
-import AdminDoctors from "./pages/admin/Doctors";
-import AdminDieticians from "./pages/admin/Dieticians";
-import AdminReferrals from "./pages/admin/Referrals";
-import AdminSettings from "./pages/admin/Settings";
-import AdminJoinRequests from "./pages/admin/JoinRequests";
-import AdminFoodLibrary from "./pages/admin/FoodLibrary";
-import AdminCoupons from "./pages/admin/Coupons";
-import AdminMLTInterns from "./pages/admin/MLTInterns";
-import AdminSupportTeam from "./pages/admin/SupportTeam";
-import AdminReviews from "./pages/admin/Reviews";
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AdminPatients = lazy(() => import("./pages/admin/Patients"));
+const AdminDoctors = lazy(() => import("./pages/admin/Doctors"));
+const AdminDieticians = lazy(() => import("./pages/admin/Dieticians"));
+const AdminReferrals = lazy(() => import("./pages/admin/Referrals"));
+const AdminSettings = lazy(() => import("./pages/admin/Settings"));
+const AdminJoinRequests = lazy(() => import("./pages/admin/JoinRequests"));
+const AdminFoodLibrary = lazy(() => import("./pages/admin/FoodLibrary"));
+const AdminCoupons = lazy(() => import("./pages/admin/Coupons"));
+const AdminMLTInterns = lazy(() => import("./pages/admin/MLTInterns"));
+const AdminSupportTeam = lazy(() => import("./pages/admin/SupportTeam"));
+const AdminReviews = lazy(() => import("./pages/admin/Reviews"));
 
 // MLT Intern Pages
-import MLTInternDashboard from "./pages/MLTInternDashboard";
-import MLTInternPatientDetail from "./pages/mlt-intern/PatientDetail";
-import MLTInternDoctorDetail from "./pages/mlt-intern/DoctorDetail";
-import MLTInternDieticianDetail from "./pages/mlt-intern/DieticianDetail";
-import MLTInternJoinRequestDetail from "./pages/mlt-intern/JoinRequestDetail";
+const MLTInternDashboard = lazy(() => import("./pages/MLTInternDashboard"));
+const MLTInternPatientDetail = lazy(() => import("./pages/mlt-intern/PatientDetail"));
+const MLTInternDoctorDetail = lazy(() => import("./pages/mlt-intern/DoctorDetail"));
+const MLTInternDieticianDetail = lazy(() => import("./pages/mlt-intern/DieticianDetail"));
+const MLTInternJoinRequestDetail = lazy(() => import("./pages/mlt-intern/JoinRequestDetail"));
 
 // Support Team Pages
-import SupportDashboard from "./pages/SupportDashboard";
+const SupportDashboard = lazy(() => import("./pages/SupportDashboard"));
 
 const queryClient = new QueryClient();
+
+const RouteFallback = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+  </div>
+);
 
 const App = () => (
   <ErrorBoundary>
@@ -87,6 +95,7 @@ const App = () => (
         <PWAUpdatePrompt />
         <BrowserRouter>
           <ScrollToTop />
+          <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Landing />} />
@@ -179,6 +188,7 @@ const App = () => (
             {/* 404 */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
@@ -187,4 +197,3 @@ const App = () => (
 );
 
 export default App;
-
