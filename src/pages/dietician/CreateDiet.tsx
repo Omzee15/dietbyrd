@@ -647,7 +647,8 @@ const CreateDiet = () => {
       ];
 
       const colWidth = (pageWidth - margin * 2) / 2;
-      const maxRows = 10;
+      const microRowHeight = 9;
+      const maxRows = 6;
       let col = 0;
       let row = 0;
       const microStartY = y;
@@ -670,21 +671,33 @@ const CreateDiet = () => {
           col = 0;
           row = 0;
         }
-        const currentY = (col > 0 ? y : microStartY) + row * 6;
+        const currentY = (col > 0 ? y : microStartY) + row * microRowHeight;
         const x = margin + col * colWidth;
         const value = prototypeMicros[item.key] || 0;
         const rdaAge = patient?.age || 30;
         const rdaSex: "M" | "F" = patient?.gender === "female" ? "F" : "M";
         const target = getRDA(item.key as never, rdaAge, rdaSex);
         const pct = target > 0 ? (value / target) * 100 : 0;
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(60);
         doc.text(`${item.label}: ${value.toFixed(1)} / ${target} ${item.unit}`, x, currentY);
         doc.setTextColor(120);
         doc.text(`${pct.toFixed(0)}%`, x + colWidth - 6, currentY, { align: "right" });
         doc.setTextColor(60);
+
+        // Below-requirement reads yellow, close-to-or-above target reads
+        // green -- same bar treatment as the Oxalate/Phytate index below.
+        const barColor: [number, number, number] = pct >= 80 ? [34, 197, 94] : [234, 179, 8];
+        const barWidth = colWidth - 10;
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(x, currentY + 1.8, barWidth, 1.8, 0.6, 0.6, "F");
+        doc.setFillColor(barColor[0], barColor[1], barColor[2]);
+        doc.roundedRect(x, currentY + 1.8, barWidth * Math.min(pct / 100, 1), 1.8, 0.6, 0.6, "F");
+
         row += 1;
       });
 
-      y = Math.max(y, microStartY + Math.min(maxRows, microItems.length) * 6 + 6);
+      y = Math.max(y, microStartY + Math.min(maxRows, microItems.length) * microRowHeight + 6);
 
       // Micronutrient Modulators Index
       ensureSpace(18);
@@ -784,6 +797,13 @@ const CreateDiet = () => {
       doc.setTextColor(51, 51, 51);
       const splitUserNote = doc.splitTextToSize(pdfNote.trim(), pageWidth - margin * 2);
       doc.text(splitUserNote, margin, currY, { lineHeightFactor: 1.5 });
+
+      const footerY = pageHeight - 14;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text("For support/ any help:", margin, footerY);
+      doc.text("Contact: hello@dietbyrd.com    +91 8929660676", pageWidth / 2, footerY, { align: "center" });
     }
 
     // doc.output("bloburl") is typed as returning a URL object (jsPDF); every
