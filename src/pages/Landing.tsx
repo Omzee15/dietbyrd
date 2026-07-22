@@ -837,19 +837,19 @@ const Landing = () => {
       </section>
 
       {/* RD vs Nutritionist — Page 2 */}
-      <section id="rd-section" className="section rd-section reveal" style={{ background: '#fff' }}>
+      <section id="rd-section" className="section rd-section reveal reveal-fast" style={{ background: '#fff' }}>
         <div className="section-inner">
           <div style={{ textAlign: 'center' }}>
-            <span ref={addToRefs} className="section-eyebrow reveal">The truth no one tells you</span>
-            <h2 ref={addToRefs} className="section-title reveal reveal-delay-1" style={{ textAlign: 'center', margin: '0 auto 12px' }}>
+            <span ref={addToRefs} className="section-eyebrow reveal reveal-fast">The truth no one tells you</span>
+            <h2 ref={addToRefs} className="section-title reveal reveal-fast reveal-delay-1" style={{ textAlign: 'center', margin: '0 auto 12px' }}>
               Before you trust anyone<br />with your health — <em style={{ fontStyle: 'italic', color: 'var(--teal)' }}>know the difference.</em>
             </h2>
-            <p ref={addToRefs} className="section-sub reveal reveal-delay-2" style={{ margin: '0 auto', textAlign: 'center' }}>
+            <p ref={addToRefs} className="section-sub reveal reveal-fast reveal-delay-2" style={{ margin: '0 auto', textAlign: 'center' }}>
               In India today, anyone can call themselves a "nutritionist." The consequences of not knowing this are very real.
             </p>
           </div>
 
-          <div ref={addToRefs} className="compare-grid reveal reveal-delay-1">
+          <div ref={addToRefs} className="compare-grid reveal reveal-fast reveal-delay-1">
             <div className="compare-col rd-col">
               <div className="compare-header">
                 <div className="compare-icon rd">🩺</div>
@@ -882,12 +882,12 @@ const Landing = () => {
             </div>
           </div>
 
-          <div ref={addToRefs} className="awareness-tag reveal reveal-delay-2">
+          <div ref={addToRefs} className="awareness-tag reveal reveal-fast reveal-delay-2">
             <strong>Most people don't know this. Now you do.</strong><br />
             Every consultation on Diet By RD is exclusively with a verified Registered Dietitian.
           </div>
 
-          <div style={{ textAlign: 'center' }} ref={addToRefs} className="reveal reveal-delay-3">
+          <div style={{ textAlign: 'center' }} ref={addToRefs} className="reveal reveal-fast reveal-delay-3">
             <button onClick={() => setIsBookingModalOpen(true)} className="btn-primary">
               Book with a Registered Dietitian
               <span className="price">₹999</span>
@@ -936,15 +936,15 @@ const Landing = () => {
 
       {/* How We Work — Page 3 */}
       <div id="reviews" style={{ position: 'relative', top: '-80px' }} aria-hidden="true" />
-      <section id="approach" className="section approach-section reveal" style={{ background: '#fff' }}>
+      <section id="approach" className="section approach-section" style={{ background: '#fff' }}>
         <div className="section-inner">
           <div className="approach-grid">
             <div>
-              <span ref={addToRefs} className="section-eyebrow reveal">How we work</span>
-              <h2 ref={addToRefs} className="section-title reveal reveal-delay-1">
+              <span className="section-eyebrow">How we work</span>
+              <h2 className="section-title">
                 Nutrition science meets<br /><em style={{ fontStyle: 'italic', color: 'var(--teal)' }}>your food language.</em>
               </h2>
-              <p ref={addToRefs} className="section-sub reveal reveal-delay-2" style={{ marginBottom: '36px' }}>
+              <p className="section-sub" style={{ marginBottom: '36px' }}>
                 Work with Registered Dietitians who provide evidence-based, deeply personalised diet plans after a comprehensive one-on-one consultation — tailored to your schedule, your city, your budget, and your culture.
               </p>
               <div className="approach-features">
@@ -1059,7 +1059,7 @@ const Landing = () => {
       </section>
 
       {/* Built With Intent and Soul — Page 4 */}
-      <section className="soul-section reveal" style={{ background: 'var(--cream)' }}>
+      <section className="soul-section reveal reveal-fast" style={{ background: 'var(--cream)' }}>
         <style>
           {`.soul-section { padding: 96px 24px; overflow: hidden; }
 .soul-inner {
@@ -1118,19 +1118,19 @@ const Landing = () => {
         </style>
         <div className="soul-inner">
           <div>
-            <div ref={addToRefs} className="soul-eyebrow-row reveal">
+            <div ref={addToRefs} className="soul-eyebrow-row reveal reveal-fast">
               <span className="soul-eyebrow">Built with intent and soul</span>
             </div>
-            <h2 ref={addToRefs} className="soul-title reveal reveal-delay-1">
+            <h2 ref={addToRefs} className="soul-title reveal reveal-fast reveal-delay-1">
               Healthcare is a responsibility.<br />Not a revenue-maximisation exercise.
             </h2>
-            <p ref={addToRefs} className="soul-lead reveal reveal-delay-2">
+            <p ref={addToRefs} className="soul-lead reveal reveal-fast reveal-delay-2">
               Every decision we make begins with a simple question:
             </p>
-            <p ref={addToRefs} className="soul-quote reveal reveal-delay-2">
+            <p ref={addToRefs} className="soul-quote reveal reveal-fast reveal-delay-2">
               "What serves the <em>patient best</em>?"
             </p>
-            <div ref={addToRefs} className="soul-bullets reveal reveal-delay-2">
+            <div ref={addToRefs} className="soul-bullets reveal reveal-fast reveal-delay-2">
               <div className="soul-bullet">
                 <span className="soul-bullet-icon"><span className="soul-bullet-dot" /></span>
                 Not what sells best.
@@ -1148,20 +1148,20 @@ const Landing = () => {
                 But what is genuinely best for the patient.
               </div>
             </div>
-            <p ref={addToRefs} className="soul-body reveal reveal-delay-3">
+            <p ref={addToRefs} className="soul-body reveal reveal-fast reveal-delay-3">
               Many companies are built around growth targets.<br />
               Diet By RD was built around a different ambition.<br />
               To create a place where people can seek nutrition guidance with confidence,<br />
               knowing that <span className="highlight">integrity comes before profit and care comes before commerce.</span>
             </p>
-            <div ref={addToRefs} className="soul-divider reveal reveal-delay-3" />
-            <div ref={addToRefs} className="soul-closers reveal reveal-delay-3">
+            <div ref={addToRefs} className="soul-divider reveal reveal-fast reveal-delay-3" />
+            <div ref={addToRefs} className="soul-closers reveal reveal-fast reveal-delay-3">
               <div className="soul-closer"><strong>Built</strong> through outcomes, not through VCs money.</div>
               <div className="soul-closer"><strong>Built</strong> through trust, not through hype.</div>
               <div className="soul-closer"><strong>Built</strong> with intent. <strong>Built</strong> with soul.</div>
             </div>
           </div>
-          <div ref={addToRefs} className="soul-image-wrap reveal reveal-delay-1">
+          <div ref={addToRefs} className="soul-image-wrap reveal reveal-fast reveal-delay-1">
             <img src="/built-with-intent-doctor.webp" alt="Diet By RD registered dietitian" loading="lazy" decoding="async" />
           </div>
         </div>
@@ -1251,7 +1251,7 @@ const Landing = () => {
       </section>
 
       {/* The Story Behind Diet By RD — Page 6 */}
-      <section className="founder-section reveal" style={{ background: 'var(--cream)' }}>
+      <section className="founder-section" style={{ background: 'var(--cream)' }}>
         <style>
           {`.founder-section { padding: 96px 24px; }
 .story-inner { max-width: 1200px; margin: 0 auto; }
@@ -1373,10 +1373,10 @@ const Landing = () => {
         </style>
         <div className="story-inner">
           <div>
-            <p ref={addToRefs} className="story-eyebrow reveal">THE PEOPLE BEHIND THIS</p>
-            <h2 ref={addToRefs} className="story-title reveal reveal-delay-1">The Story Behind Diet By RD</h2>
+            <p className="story-eyebrow">THE PEOPLE BEHIND THIS</p>
+            <h2 className="story-title">The Story Behind Diet By RD</h2>
           </div>
-          <div ref={addToRefs} className="story-grid reveal reveal-delay-2">
+          <div className="story-grid">
             <div className="story-visual">
               <div className="story-card">
                 <div className="story-monogram">

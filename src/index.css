@@ -87,16 +87,24 @@
   .reveal-delay-2 { transition-delay: 0.2s; }
   .reveal-delay-3 { transition-delay: 0.3s; }
 
+  /* Faster reveal for specific sections -- same fade/slide, quicker pace. */
+  .reveal-fast {
+    transition: opacity 0.3s ease, transform 0.3s ease !important;
+  }
+  .reveal-fast.reveal-delay-1 { transition-delay: 0.05s !important; }
+  .reveal-fast.reveal-delay-2 { transition-delay: 0.1s !important; }
+  .reveal-fast.reveal-delay-3 { transition-delay: 0.15s !important; }
+
   @media (prefers-reduced-motion: reduce) {
     .reveal {
       opacity: 1;
       transform: none;
-      transition: none;
+      transition: none !important;
     }
     .reveal-delay-1,
     .reveal-delay-2,
     .reveal-delay-3 {
-      transition-delay: 0s;
+      transition-delay: 0s !important;
     }
   }
 }
