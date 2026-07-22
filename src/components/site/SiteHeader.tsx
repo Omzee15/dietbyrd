@@ -204,6 +204,23 @@ export function SiteHeader() {
 .landing-nav:not(.scrolled) .hamburger-btn { border-color: rgba(27,43,58,0.2); color: var(--navy); }
 .landing-nav:not(.scrolled) .hamburger-btn:hover { background: rgba(27,43,58,0.06); }
 
+/* Mobile-only account/login shortcut, shown left of the hamburger button */
+.mobile-account-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: transparent;
+  color: white;
+  transition: background 0.2s;
+}
+.mobile-account-btn:hover { background: rgba(255,255,255,0.1); }
+.landing-nav:not(.scrolled) .mobile-account-btn { border-color: rgba(27,43,58,0.2); color: var(--navy); }
+.landing-nav:not(.scrolled) .mobile-account-btn:hover { background: rgba(27,43,58,0.06); }
+
 /* Mobile drawer */
 .mobile-drawer-overlay {
   position: fixed;
@@ -324,7 +341,8 @@ export function SiteHeader() {
   .nav-links .nav-link { display: none; }
   .nav-links .nav-cta { display: none; }
   .nav-links .profile-menu-wrap { display: none; }
-  .hamburger-btn { display: flex !important; margin-left: auto; }
+  .mobile-account-btn { display: flex !important; margin-left: auto; }
+  .hamburger-btn { display: flex !important; margin-left: 8px; }
 }
 @media (max-width: 600px) {
   .nav-links { gap: 12px; }
@@ -377,6 +395,13 @@ export function SiteHeader() {
                 <button onClick={() => setIsBookingModalOpen(true)} className="nav-cta">Book — ₹999</button>
               </>
             )}
+            <Link
+              to={isAuthenticated ? "/patient" : "/login"}
+              className="mobile-account-btn"
+              aria-label={isAuthenticated ? "My Account" : "Login or Sign Up"}
+            >
+              <User size={18} />
+            </Link>
             <button className="hamburger-btn" onClick={() => setIsMobileMenuOpen(true)} aria-label="Open menu">
               <Menu size={22} />
             </button>
