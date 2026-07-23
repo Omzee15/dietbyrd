@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { formatRelative } from "date-fns";
 import { jsPDF } from "jspdf";
-import { parseHeightToCm, calculatePatientTDEE } from "@/lib/diet-utils";
+import { parseHeightToCm, calculatePatientTDEE, formatHeightBothUnits } from "@/lib/diet-utils";
 import {
   ArrowLeft,
   CalendarDays,
@@ -1143,6 +1143,9 @@ const PatientDetail = () => {
                           onChange={(e) => setHeight(e.target.value)}
                           className="h-10"
                         />
+                        {formatHeightBothUnits(height) && (
+                          <p className="text-[11px] text-muted-foreground">{formatHeightBothUnits(height)}</p>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium flex items-center gap-2">

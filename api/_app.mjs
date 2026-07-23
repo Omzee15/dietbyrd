@@ -10079,7 +10079,11 @@ const signedDocumentUrl = async (filePath) => {
 };
 
 const DOCUMENT_URL_SECRET = process.env.DOCUMENT_URL_SECRET || TOKEN_SECRET;
-const DOCUMENT_URL_TTL_MS = 15 * 60 * 1000; // 15 minutes
+// Signed once when the document list loads, not refreshed on click -- 15
+// minutes was routinely expiring before a dietitian got around to opening a
+// patient's file, showing as a broken/expired link. 24h matches a realistic
+// "check documents later today" workflow while still expiring eventually.
+const DOCUMENT_URL_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const signDocumentDownload = (documentId) => {
   const expires = Date.now() + DOCUMENT_URL_TTL_MS;

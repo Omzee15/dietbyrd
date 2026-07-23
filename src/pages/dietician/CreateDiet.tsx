@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { jsPDF } from "jspdf";
-import { parseHeightToCm, calculatePatientTDEE } from "@/lib/diet-utils";
+import { parseHeightToCm, calculatePatientTDEE, formatHeightBothUnits } from "@/lib/diet-utils";
 import {
   ArrowLeft,
   CalendarDays,
@@ -1638,6 +1638,9 @@ const CreateDiet = () => {
                       onChange={(e) => setHeight(e.target.value)}
                       className="h-9"
                     />
+                    {formatHeightBothUnits(height) && (
+                      <p className="text-[11px] text-muted-foreground">{formatHeightBothUnits(height)}</p>
+                    )}
                   </div>
                   {bmi && (
                     <div className="bg-muted/50 rounded-lg p-2 text-center">

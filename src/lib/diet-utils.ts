@@ -101,10 +101,27 @@ export const parseHeightToCm = (input: string): number | null => {
   const num = parseFloat(clean);
   if (isNaN(num)) return null;
 
-  if (num > 30) return num; 
+  if (num > 30) return num;
   if (num <= 8) return Math.round(num * 30.48);
 
   return num;
+};
+
+// Formats a height input (any of the formats parseHeightToCm accepts) as
+// "5'9\" · 175 cm" so a dietitian gets instant confirmation their input was
+// understood, regardless of which unit they typed in.
+export const formatHeightBothUnits = (input: string): string | null => {
+  const cm = parseHeightToCm(input);
+  if (cm === null || !Number.isFinite(cm) || cm <= 0) return null;
+
+  const totalInches = cm / 2.54;
+  const feet = Math.floor(totalInches / 12);
+  const inches = Math.round(totalInches - feet * 12);
+  // Rounding inches up to 12 should carry over into an extra foot.
+  const carriedFeet = inches === 12 ? feet + 1 : feet;
+  const carriedInches = inches === 12 ? 0 : inches;
+
+  return `${carriedFeet}'${carriedInches}" · ${Math.round(cm)} cm`;
 };
 
 // Calculate grams for target nutrient
