@@ -781,10 +781,28 @@ const Landing = () => {
         /* Footer */
         /* Responsive */
         @media (max-width: 900px) {
-          .compare-grid, .approach-grid { grid-template-columns: 1fr; }
-          .approach-grid { gap: 48px; }
+          .approach-grid { grid-template-columns: 1fr; gap: 48px; }
           .founder-profile-grid { grid-template-columns: 1fr; gap: 24px; }
           .clinician-logo-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+          /* Two side-by-side columns don't fit a phone width without
+             wrapping every line -- keep the side-by-side comparison feel
+             with a swipeable horizontal carousel instead of stacking. */
+          .compare-grid {
+            display: flex;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 0;
+            box-shadow: none;
+            gap: 16px;
+            padding-bottom: 6px;
+          }
+          .compare-col {
+            flex: 0 0 88%;
+            scroll-snap-align: center;
+            border-radius: 20px;
+          }
         }
         @media (max-width: 600px) {
           .hero-content { padding: 0; }

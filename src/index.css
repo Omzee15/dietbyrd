@@ -147,6 +147,14 @@
     @apply border-border;
   }
 
+  html, body {
+    /* Off-canvas elements (the mobile nav drawer, etc.) are positioned
+       just past the viewport edge until opened -- without this, the
+       page itself becomes horizontally scrollable by that same sliver,
+       even though nothing is visibly different. */
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
