@@ -522,7 +522,7 @@ const AdminDashboard = () => {
     <div className="flex min-h-screen">
       <AppSidebar title="DietByRD" subtitle={user?.name || "Admin Panel"} sections={sidebarSections} bottomContent={bottomContent} />
 
-      <main className="flex-1 bg-background">
+      <main className="flex-1 bg-background pb-24 md:pb-0">
         <div className="flex items-center justify-end px-6 py-4 border-b">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-sidebar text-sidebar-primary-foreground flex items-center justify-center text-xs font-semibold">
@@ -1268,7 +1268,11 @@ const AdminDashboard = () => {
                                   <div className="text-xs text-muted-foreground">by {r.doctor_name || "Unknown Doctor"}</div>
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  {new Date(r.created_at).toLocaleDateString()}
+                                  {(() => {
+                                    if (!r.referred_at) return "—";
+                                    const parsed = new Date(r.referred_at);
+                                    return Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleDateString();
+                                  })()}
                                 </div>
                               </div>
                             ))}

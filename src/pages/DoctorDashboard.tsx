@@ -310,7 +310,6 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
       title: "Workspace",
       items: [
         { label: "Recommend Patient", href: "/doctor/referrals", icon: UserPlus },
-        { label: "Overview", href: "/doctor", icon: BarChart3 },
         { label: "My Patients", href: "/doctor/patients", icon: Users, badge: referrals.length },
         // Only show for doctors, not assistants
         ...(!isAssistant ? [
@@ -372,7 +371,7 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
         bottomContent={bottomContent}
       />
 
-      <main className="flex-1 bg-background">
+      <main className="flex-1 bg-background pb-24 md:pb-0">
         {/* Top bar */}
         <div className="flex items-center justify-between gap-3 px-6 py-4 border-b">
           {/* Left side - Doctor's name (for assistants) */}
