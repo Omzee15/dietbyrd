@@ -47,7 +47,16 @@ export function ZoomToFit({ children, minScale = 0.55, className }: ZoomToFitPro
     <div
       ref={outerRef}
       style={{
-        ...(dims ? { height: dims.height, overflow: "hidden" } : null),
+        // overflow/width must stay set unconditionally (not just once a
+        // scale is computed) -- otherwise, on the very first measurement
+        // pass, the unconstrained table's overflow bleeds upward through
+        // any flex-1 ancestor (which defaults to min-width: auto) and
+        // inflates this element's own clientWidth to match, making
+        // naturalWidth <= availableWidth trivially true and defeating the
+        // whole measurement.
+        width: "100%",
+        overflow: "hidden",
+        ...(dims ? { height: dims.height } : null),
         visibility: ready ? "visible" : "hidden",
       }}
     >
