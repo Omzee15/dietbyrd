@@ -10,7 +10,7 @@ interface ZoomToFitProps {
 // than the space available, shrinks the whole thing down with a CSS
 // transform so it fits on screen without needing a horizontal scroll --
 // used for admin tables that have too many columns to fit on a phone.
-export function ZoomToFit({ children, minScale = 0.55, className }: ZoomToFitProps) {
+export function ZoomToFit({ children, minScale = 0.3, className }: ZoomToFitProps) {
   const outerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState<{ scale: number; height: number } | null>(null);
