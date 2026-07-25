@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
+import { ZoomToFit } from "@/components/ZoomToFit";
 import { Users, Stethoscope, UtensilsCrossed, BarChart3, UserPlus, Settings, LogOut, Search, Plus, Edit, Trash2, Download, Upload, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -259,7 +260,7 @@ const AdminFoodLibrary = () => {
 
           {/* Food List */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="overflow-x-auto">
+            <ZoomToFit>
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
@@ -327,7 +328,7 @@ const AdminFoodLibrary = () => {
                   )}
                 </tbody>
               </table>
-            </div>
+            </ZoomToFit>
           </div>
         </div>
       </main>

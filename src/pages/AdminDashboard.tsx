@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
+import { ZoomToFit } from "@/components/ZoomToFit";
 import { Users, UserCheck, UserPlus, Stethoscope, UtensilsCrossed, BarChart3, Search, ArrowLeft, X, TrendingUp, Loader2, LogOut, Settings, Tag, Trash2, AlertTriangle, MapPin, Phone } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -561,9 +562,11 @@ const AdminDashboard = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setSessionUserId(selectedPatient.id)} className="gap-2 text-muted-foreground h-8">
-                        <Settings className="w-3.5 h-3.5" /> Sessions
-                      </Button>
+                      {selectedPatient.user_id && (
+                        <Button variant="outline" size="sm" onClick={() => setSessionUserId(selectedPatient.user_id!)} className="gap-2 text-muted-foreground h-8">
+                          <Settings className="w-3.5 h-3.5" /> Sessions
+                        </Button>
+                      )}
                       <Button variant="ghost" size="sm" onClick={() => setSelectedPatient(null)} className="h-8"><X className="w-4 h-4" /></Button>
                     </div>
                   </div>
@@ -732,7 +735,8 @@ const AdminDashboard = () => {
                         </Select>
                       </div>
                     </div>
-                    <div className="bg-card rounded-xl border overflow-x-auto">
+                    <div className="bg-card rounded-xl border">
+                      <ZoomToFit>
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
@@ -801,6 +805,7 @@ const AdminDashboard = () => {
                           )}
                         </tbody>
                       </table>
+                      </ZoomToFit>
                       {filteredPatients.length > 0 && (
                         <div className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
                           <span>

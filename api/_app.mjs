@@ -3520,8 +3520,9 @@ app.get("/api/patients", async (req, res) => {
     if (!auth) return;
 
     const result = await query(
-      `SELECT 
+      `SELECT
         p.*,
+        u.id AS user_id,
         u.phone AS user_phone,
         u.role,
         u.is_active,
@@ -10511,6 +10512,29 @@ app.post("/api/admin/sessions/logout-device", async (req, res) => {
     const { session_token } = req.body;
     await query("DELETE FROM dietbyrd_user_sessions WHERE session_token = $1", [session_token]);
     res.json({ success: true, message: "Session terminated" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+const BULK_TERMINATE_ROLES = ["patient", "rd", "doctor"];
+
+app.post("/api/admin/sessions/terminate-by-role", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json(auth);
+    if (!ADMIN_ROLES.includes(auth.role)) return res.status(403).json({ success: false, error: "Forbidden" });
+
+    const { role } = req.body;
+    if (!BULK_TERMINATE_ROLES.includes(role)) {
+      return res.status(400).json({ success: false, error: "Invalid role" });
+    }
+
+    const result = await query(
+      "DELETE FROM dietbyrd_user_sessions WHERE user_id IN (SELECT id FROM dietbyrd_users WHERE role = $1)",
+      [role]
+    );
+    res.json({ success: true, message: `Terminated ${result.rowCount} session(s)`, count: result.rowCount });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

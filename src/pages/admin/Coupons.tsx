@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
+import { ZoomToFit } from "@/components/ZoomToFit";
 import { LogOut, Plus, Edit, Trash2, Tag } from "lucide-react";
 import { getAdminSidebarSections } from "@/lib/admin-sidebar";
 import { Input } from "@/components/ui/input";
@@ -163,7 +164,7 @@ const AdminCoupons = () => {
 
           {/* Coupon List */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="overflow-x-auto">
+            <ZoomToFit>
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
@@ -235,7 +236,7 @@ const AdminCoupons = () => {
                   )}
                 </tbody>
               </table>
-            </div>
+            </ZoomToFit>
           </div>
         </div>
       </main>

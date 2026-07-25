@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
+import { ZoomToFit } from "@/components/ZoomToFit";
 import { Users, Stethoscope, UtensilsCrossed, BarChart3, UserPlus, UserCheck, Loader2, LogOut, Settings, Tag, Plus, Copy, Check, Eye, EyeOff, KeyRound, Trash2, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -228,7 +229,7 @@ const MLTInternsPage = () => {
                 {interns.length === 0 ? (
                   <p className="text-center text-gray-500 py-8">No MLT interns found</p>
                 ) : (
-                  <div className="space-y-3">
+                  <ZoomToFit className="space-y-3">
                     {interns.map((intern) => (
                       <div key={intern.id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div>
@@ -281,7 +282,7 @@ const MLTInternsPage = () => {
                         </div>
                       </div>
                     ))}
-                  </div>
+                  </ZoomToFit>
                 )}
               </CardContent>
             </Card>

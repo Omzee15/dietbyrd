@@ -67,6 +67,7 @@ export const getAnalytics = () =>
 // ─── Patients ─────────────────────────────────────────────────────────────────
 export interface Patient {
   id: number;
+  user_id?: number;
   name: string | null;
   phone: string;
   email?: string | null;
@@ -908,4 +909,11 @@ export const logoutDeviceSession = (sessionToken: string) =>
     method: "POST",
     headers: { ...getStoredAuthHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({ session_token: sessionToken }),
+  });
+
+export const terminateSessionsByRole = (role: "patient" | "rd" | "doctor") =>
+  request<{ success: boolean; message: string; count: number }>(`/admin/sessions/terminate-by-role`, {
+    method: "POST",
+    headers: { ...getStoredAuthHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ role }),
   });
