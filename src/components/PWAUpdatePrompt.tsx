@@ -20,6 +20,16 @@ export function PWAUpdatePrompt() {
       setInterval(() => {
         registration.update().catch(() => {});
       }, 60_000);
+
+      // Mobile browsers throttle/suspend timers for backgrounded tabs, so
+      // the interval above can miss a deploy that happened while the app
+      // was backgrounded -- the exact moment someone reopens it is when a
+      // stale-vs-fresh check matters most, so force one right then too.
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          registration.update().catch(() => {});
+        }
+      });
     },
   });
 
