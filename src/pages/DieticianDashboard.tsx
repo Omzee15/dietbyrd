@@ -895,7 +895,7 @@ const DieticianDashboard = () => {
     <div className="flex min-h-screen">
       <AppSidebar title="DietByRD" subtitle={user?.name || "Dietician Portal"} sections={sidebarSections} bottomContent={bottomContent} />
 
-      <main className="flex-1 bg-background">
+      <main className="flex-1 min-w-0 bg-background">
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h1 className="text-xl font-semibold">

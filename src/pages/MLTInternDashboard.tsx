@@ -450,7 +450,7 @@ const MLTInternDashboard = () => {
     <div className="flex min-h-screen">
       <AppSidebar title="DietByRD" subtitle={user?.name || "MLT Intern"} sections={sidebarSections} bottomContent={bottomContent} />
       
-      <main className="flex-1 p-8 bg-gray-50">
+      <main className="flex-1 min-w-0 p-8 bg-gray-50">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
           <div>

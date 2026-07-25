@@ -371,7 +371,7 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
         bottomContent={bottomContent}
       />
 
-      <main className="flex-1 bg-background pb-24 md:pb-0">
+      <main className="flex-1 min-w-0 bg-background pb-24 md:pb-0">
         {/* Top bar */}
         <div className="flex items-center justify-between gap-3 px-6 py-4 border-b">
           {/* Left side - Doctor's name (for assistants) */}

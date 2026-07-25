@@ -195,7 +195,7 @@ const MLTInternsPage = () => {
     <div className="flex min-h-screen">
       <AppSidebar title="DietByRD" subtitle={user?.name || "Admin Panel"} sections={sidebarSections} bottomContent={bottomContent} />
 
-      <main className="flex-1 bg-background">
+      <main className="flex-1 min-w-0 bg-background">
         <div className="flex items-center justify-end px-6 py-4 border-b">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-sidebar text-sidebar-primary-foreground flex items-center justify-center text-xs font-semibold">

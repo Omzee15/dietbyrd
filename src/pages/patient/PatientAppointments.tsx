@@ -565,7 +565,7 @@ const PatientAppointments = () => {
         bottomContent={bottomContent}
       />
 
-      <main className="flex-1 bg-background flex flex-col">
+      <main className="flex-1 min-w-0 bg-background flex flex-col">
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h1 className="text-xl font-semibold">Appointments</h1>

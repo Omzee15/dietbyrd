@@ -390,7 +390,7 @@ const SupportDashboard = () => {
         bottomContent={bottomContent}
       />
 
-      <main className="flex-1 bg-background overflow-hidden flex flex-col">
+      <main className="flex-1 min-w-0 bg-background overflow-hidden flex flex-col">
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
           <h1 className="text-xl font-semibold">Support Dashboard</h1>

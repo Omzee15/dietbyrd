@@ -650,7 +650,7 @@ const PatientDetail = () => {
         bottomContent={bottomContent}
       />
 
-      <main className="flex-1 bg-background">
+      <main className="flex-1 min-w-0 bg-background">
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div className="flex items-center gap-3">
