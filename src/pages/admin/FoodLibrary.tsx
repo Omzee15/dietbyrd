@@ -197,12 +197,12 @@ const AdminFoodLibrary = () => {
       <main className="flex-1 min-w-0 p-8 bg-gray-50">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Food Library</h1>
               <p className="text-gray-500 mt-1">Manage nutrition database for diet plans</p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <Button variant="outline" onClick={handleExport}>
                 <Download className="w-4 h-4 mr-2" />
                 Export CSV
@@ -220,7 +220,7 @@ const AdminFoodLibrary = () => {
 
           {/* Filters */}
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
