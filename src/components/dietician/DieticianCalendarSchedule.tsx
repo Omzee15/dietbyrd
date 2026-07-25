@@ -429,11 +429,17 @@ const DieticianCalendarSchedule = ({
 
       {/* Calendar View */}
       {calendarView === "week" && (
-        <div className="border rounded-xl overflow-hidden bg-card">
+        <div className="border rounded-xl bg-card overflow-hidden">
+          {/* Horizontally scrollable on narrow screens instead of cramming
+              7 day columns down to an unreadable size -- header and body
+              share the same grid-template so their columns stay aligned
+              while scrolling together. */}
+          <div className="overflow-x-auto">
+          <div className="min-w-[680px]">
           {/* Week header */}
-          <div className="grid grid-cols-8 border-b">
+          <div className="grid grid-cols-[64px_repeat(7,minmax(88px,1fr))] border-b">
             <div className="p-3 bg-muted/50 border-r">
-              <span className="text-xs font-medium text-muted-foreground">Time</span>
+              <span className="text-sm font-medium text-muted-foreground">Time</span>
             </div>
             {weekDates.map((date) => (
               <div
@@ -445,9 +451,9 @@ const DieticianCalendarSchedule = ({
                 }`}
                 onClick={() => setSelectedDate(date)}
               >
-                <p className="text-xs text-muted-foreground">{formatDate(date)}</p>
+                <p className="text-sm text-muted-foreground">{formatDate(date)}</p>
                 <p
-                  className={`text-lg font-semibold ${
+                  className={`text-2xl font-semibold ${
                     isBlocked(date) ? "text-orange-500" : isToday(date) ? "text-primary" : ""
                   }`}
                 >
@@ -461,9 +467,9 @@ const DieticianCalendarSchedule = ({
           {/* Time grid */}
           <div className="max-h-[500px] overflow-y-auto">
             {timeSlots.map(({ hour, label }) => (
-              <div key={hour} className="grid grid-cols-8 border-b last:border-b-0 min-h-[60px]">
+              <div key={hour} className="grid grid-cols-[64px_repeat(7,minmax(88px,1fr))] border-b last:border-b-0 min-h-[72px]">
                 <div className="p-2 border-r bg-muted/30 flex items-start">
-                  <span className="text-xs text-muted-foreground">{label}</span>
+                  <span className="text-sm text-muted-foreground">{label}</span>
                 </div>
                 {weekDates.map((date) => {
                   const appointments = getAppointmentsForSlot(date, hour);
@@ -542,6 +548,8 @@ const DieticianCalendarSchedule = ({
                 })}
               </div>
             ))}
+          </div>
+          </div>
           </div>
         </div>
       )}
