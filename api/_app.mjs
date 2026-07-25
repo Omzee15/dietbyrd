@@ -10482,7 +10482,7 @@ app.get("/api/admin/users/:id/sessions", async (req, res) => {
     if (!ADMIN_ROLES.includes(auth.role)) return res.status(403).json({ success: false, error: "Forbidden" });
 
     const userId = parseInt(req.params.id);
-    const { rows } = await query("SELECT session_token, ip_address, user_agent, created_at, expires_at FROM dietbyrd_user_sessions WHERE user_id = $1 ORDER BY created_at DESC", [userId]);
+    const { rows } = await query("SELECT session_token, ip_address, device_fingerprint AS user_agent, created_at, expires_at FROM dietbyrd_user_sessions WHERE user_id = $1 ORDER BY created_at DESC", [userId]);
     res.json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
