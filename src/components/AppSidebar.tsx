@@ -62,7 +62,7 @@ const AppSidebar = ({ title, subtitle, sections, bottomContent }: AppSidebarProp
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 mt-6 space-y-8 overflow-y-auto">
+        <nav className="flex-1 min-h-0 px-3 mt-6 space-y-8 overflow-y-auto">
           {sections.map((section) => (
             <div key={section.title}>
               {!isCollapsed && (
