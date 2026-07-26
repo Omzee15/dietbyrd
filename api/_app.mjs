@@ -1,10 +1,18 @@
 import express from "express";
 import cors from "cors";
 import pg from "pg";
-import twilio from "twilio";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import sgMail from "@sendgrid/mail";
+import {
+  exotelSmsConfigured,
+  exotelWhatsAppConfigured,
+  sendExotelSms,
+  sendExotelWhatsAppTemplate,
+  sendExotelWhatsAppFreeform,
+  startExotelVerification,
+  checkExotelVerification,
+} from "./exotel.mjs";
 
 const BCRYPT_ROUNDS = 10;
 
@@ -14,14 +22,8 @@ const { Pool } = pg;
 const APP_ENV = process.env.APP_ENV || "production";
 const IS_DEV = APP_ENV === "dev";
 
-// Twilio configuration
-const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || process.env.TWILLO_ACCOUNT_SID || process.env.TWILLO_ACCOUNT_SD;
-const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || process.env.TWILLO_AUTH_TOKEN;
-const TWILIO_VERIFY_SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID || process.env.TWILLO_VERIFY_SERVICE_SID || "VA8d0807c34b0d64d7e01f4bd65f7079b2";
-const twilioClient = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN
-  ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-  : null;
-const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM || "whatsapp:+919076150904"; // Your registered WhatsApp Business number
+const EXOTEL_WHATSAPP_TEMPLATE_WELCOME = process.env.EXOTEL_WHATSAPP_TEMPLATE_WELCOME || "";
+const EXOTEL_WHATSAPP_TEMPLATE_REFERRAL = process.env.EXOTEL_WHATSAPP_TEMPLATE_REFERRAL || "";
 
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || "";
 const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || "";
@@ -31,13 +33,38 @@ if (SENDGRID_API_KEY) {
   sgMail.setApiKey(SENDGRID_API_KEY);
 }
 
-const getTwilioVerifyService = () => {
-  if (!twilioClient || !TWILIO_VERIFY_SERVICE_SID) {
-    
-    throw new Error("Twilio OTP is not configured. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID in .env");
-  }
+// Exotel's ExoVerify needs the verification_id it returns from the "start"
+// call to be replayed back on "check" -- unlike Twilio Verify, which
+// correlates purely by phone number on its own servers. This table is the
+// bridge: keyed by phone, holding whatever verification_id is currently
+// in flight for it.
+let exotelVerificationsTableInitialized = false;
+const ensureExotelVerificationsTable = async () => {
+  if (exotelVerificationsTableInitialized) return;
+  await query(`
+    CREATE TABLE IF NOT EXISTS dietbyrd_exotel_verifications (
+      phone VARCHAR(20) PRIMARY KEY,
+      verification_id VARCHAR(64) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  exotelVerificationsTableInitialized = true;
+};
 
-  return twilioClient.verify.v2.services(TWILIO_VERIFY_SERVICE_SID);
+const storeExotelVerificationId = async (phone, verificationId) => {
+  await ensureExotelVerificationsTable();
+  await query(
+    `INSERT INTO dietbyrd_exotel_verifications (phone, verification_id, created_at)
+     VALUES ($1, $2, CURRENT_TIMESTAMP)
+     ON CONFLICT (phone) DO UPDATE SET verification_id = $2, created_at = CURRENT_TIMESTAMP`,
+    [phone, verificationId]
+  );
+};
+
+const getExotelVerificationId = async (phone) => {
+  await ensureExotelVerificationsTable();
+  const result = await query(`SELECT verification_id FROM dietbyrd_exotel_verifications WHERE phone = $1`, [phone]);
+  return result.rows[0]?.verification_id || null;
 };
 
 // Generate a 6-digit OTP for dev mode
@@ -45,8 +72,11 @@ const generateDevOtp = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-// Send OTP - uses mock in dev mode, Twilio in production
-const sendOtpViaTwilio = async (phone, channel = "sms") => {
+// Send OTP - uses mock in dev mode, Exotel ExoVerify in production.
+// NOTE: ExoVerify's documented OTP endpoint is SMS-only -- there is no
+// confirmed WhatsApp-channel OTP endpoint, so `channel: "whatsapp"` still
+// sends via SMS underneath. Revisit if Exotel exposes a WhatsApp OTP path.
+const sendOtpViaExotel = async (phone, channel = "sms") => {
   const toNumber = formatPhoneE164(phone);
   const normalizedChannel = channel === "whatsapp" ? "whatsapp" : "sms";
 
@@ -67,93 +97,72 @@ const sendOtpViaTwilio = async (phone, channel = "sms") => {
     };
   }
 
-  // Production mode: use Twilio Verify
-  const service = getTwilioVerifyService();
+  // Production mode: use Exotel ExoVerify
+  const { verificationId, expiresInSec } = await startExotelVerification({ phoneE164: toNumber });
+  await storeExotelVerificationId(toNumber, verificationId);
 
-  const verification = await service.verifications.create({
-    to: toNumber,
+  return {
+    verification: { sid: verificationId, status: "pending" },
+    toNumber,
     channel: normalizedChannel,
-  });
-
-  return { verification, toNumber, channel: normalizedChannel };
+    expiresInSec,
+  };
 };
 
-const verifyOtpViaTwilio = async (phone, otp) => {
+const verifyOtpViaExotel = async (phone, otp) => {
   const toNumber = formatPhoneE164(phone);
-  const service = getTwilioVerifyService();
+  const verificationId = await getExotelVerificationId(toNumber);
+  if (!verificationId) {
+    return { status: "failed", reason: "no_pending_verification" };
+  }
 
-  const verificationCheck = await service.verificationChecks.create({
-    to: toNumber,
-    code: otp,
-  });
-
-  return verificationCheck;
+  const { approved } = await checkExotelVerification({ verificationId, otp });
+  return { status: approved ? "approved" : "failed" };
 };
 
 // OTP configuration
 const OTP_EXPIRY_MS = 2 * 60 * 1000; // 2 minutes
 
-// Template SIDs for WhatsApp messages (approved by Meta)
-const TWILIO_TEMPLATE_WELCOME_SID = process.env.TWILIO_TEMPLATE_WELCOME_SID || "HX328f4bea0c71b8a51ca4dc299ebec18c";
-const TWILIO_TEMPLATE_REFERRAL_SID = process.env.TWILIO_TEMPLATE_REFERRAL_SID || "HXa30600aedf64f90077f9bb14f2f30160";
-
 // Send WhatsApp welcome message using approved template (best effort - doesn't fail if message fails)
 const sendWelcomeWhatsApp = async (phone, name, patientId = null) => {
   const messageBody = `Hi ${name || 'there'}! ðŸ‘‹\n\nThank you for joining DietByRD! ðŸŽ‰\n\nOur team will contact you shortly to guide you through the onboarding process and help you get started on your health journey.\n\nIf you have any questions, feel free to reach out!\n\n- Team DietByRD`;
+  const toNumber = formatPhoneE164(phone);
 
-  try {
-    if (!twilioClient) {
-      console.log("[Welcome] Twilio client not configured, skipping welcome WhatsApp message");
-      // Still store the message as pending/not-sent for tracking
-      await storePatientMessage({
-        patientId,
-        phone,
-        messageType: 'welcome_whatsapp',
-        channel: 'whatsapp',
-        content: messageBody,
-        status: 'not_sent',
-        metadata: { reason: 'twilio_not_configured' }
-      });
-      return;
-    }
-
-    const toNumber = `whatsapp:+91${phone.replace(/\D/g, '').replace(/^91/, '')}`;
-    const userName = name || 'there';
-
-    // Use content template for sending (works outside 24-hour window)
-    await twilioClient.messages.create({
-      from: TWILIO_WHATSAPP_FROM,
-      to: toNumber,
-      contentSid: TWILIO_TEMPLATE_WELCOME_SID,
-      contentVariables: JSON.stringify({ "1": userName })
-    });
-    console.log(`[Welcome] WhatsApp template message sent to ${toNumber}`);
-
-    // Store the sent message
+  if (!exotelWhatsAppConfigured() || !EXOTEL_WHATSAPP_TEMPLATE_WELCOME) {
+    console.log("[Welcome] Exotel WhatsApp not configured, skipping welcome message");
     await storePatientMessage({
       patientId,
       phone,
       messageType: 'welcome_whatsapp',
       channel: 'whatsapp',
       content: messageBody,
-      status: 'sent',
-      metadata: { to: toNumber, templateSid: TWILIO_TEMPLATE_WELCOME_SID }
+      status: 'not_sent',
+      metadata: { reason: 'exotel_whatsapp_not_configured' }
     });
-  } catch (err) {
-    // Log but don't fail - welcome message is best effort
-    console.log(`[Welcome] WhatsApp send failed: ${err.message}`);
-
-    // Store the failed message attempt
-    await storePatientMessage({
-      patientId,
-      phone,
-      messageType: 'welcome_whatsapp',
-      channel: 'whatsapp',
-      content: messageBody,
-      status: 'failed',
-      metadata: { error: err.message }
-    });
+    return;
   }
+
+  const result = await sendExotelWhatsAppTemplate({
+    to: toNumber,
+    templateId: EXOTEL_WHATSAPP_TEMPLATE_WELCOME,
+    variables: { "1": name || 'there' },
+  });
+
+  if (result.sent) {
+    console.log(`[Welcome] WhatsApp template message sent to ${toNumber}`);
+  } else {
+    console.log(`[Welcome] WhatsApp send failed: ${result.reason}`);
+  }
+
+  await storePatientMessage({
+    patientId,
+    phone,
+    messageType: 'welcome_whatsapp',
+    channel: 'whatsapp',
+    content: messageBody,
+    status: result.sent ? 'sent' : 'failed',
+    metadata: { to: toNumber, templateId: EXOTEL_WHATSAPP_TEMPLATE_WELCOME, reason: result.reason }
+  });
 };
 
 // Send approval notification to a newly approved doctor/RD (best-effort, never throws)
@@ -161,115 +170,32 @@ const sendJoinApprovalNotification = async (phone, name, role) => {
   const roleLabel = role === "doctor" ? "Doctor" : "Dietician (RD)";
   const messageBody = `Hi ${name}! ðŸŽ‰\n\nYour application to join DietByRD as a ${roleLabel} has been approved!\n\nYou can now log in using your registered phone number and the password you set during sign-up.\n\nWelcome to the team!\n\n- Team DietByRD`;
 
-  try {
-    if (!twilioClient) {
-      console.log(`[JoinApproval] Twilio not configured â€” skipping notification for ${phone}`);
-      return;
-    }
+  if (!exotelWhatsAppConfigured()) {
+    console.log(`[JoinApproval] Exotel WhatsApp not configured â€” skipping notification for ${phone}`);
+    return;
+  }
 
-    const cleanPhone = phone.replace(/\D/g, '').replace(/^91/, '');
-    const toWhatsApp = `whatsapp:+91${cleanPhone}`;
-
-    await twilioClient.messages.create({
-      from: TWILIO_WHATSAPP_FROM,
-      to: toWhatsApp,
-      body: messageBody,
-    });
-    console.log(`[JoinApproval] WhatsApp notification sent to ${toWhatsApp}`);
-  } catch (err) {
-    console.log(`[JoinApproval] Notification failed for ${phone}: ${err.message}`);
+  const toNumber = formatPhoneE164(phone);
+  const result = await sendExotelWhatsAppFreeform({ to: toNumber, body: messageBody });
+  if (result.sent) {
+    console.log(`[JoinApproval] WhatsApp notification sent to ${toNumber}`);
+  } else {
+    console.log(`[JoinApproval] Notification failed for ${phone}: ${result.reason}`);
   }
 };
 
-const TWILIO_SMS_FROM = process.env.TWILIO_SMS_FROM
-  || process.env.TWILLO_SMS_FROM
-  || process.env.TWILIO_PHONE_NUMBER
-  || process.env.TWILLO_PHONE_NUMBER;
-const TWILIO_MESSAGING_SERVICE_SID = process.env.TWILIO_MESSAGING_SERVICE_SID
-  || process.env.TWILLO_MESSAGING_SERVICE_SID;
-const REFERRAL_SMS_MODE = String(process.env.REFERRAL_SMS_MODE || "log").trim().toLowerCase(); // log | twilio
-
-let cachedSmsFrom = TWILIO_SMS_FROM || null;
-let cachedMessagingServiceSid = TWILIO_MESSAGING_SERVICE_SID || null;
-
-const resolveTwilioSmsSender = async () => {
-  if (cachedMessagingServiceSid) {
-    try {
-      const senderNumbers = await twilioClient.messaging.v1
-        .services(cachedMessagingServiceSid)
-        .phoneNumbers.list({ limit: 1 });
-
-      if (senderNumbers.length > 0) {
-        return {
-          payload: { messagingServiceSid: cachedMessagingServiceSid },
-          source: TWILIO_MESSAGING_SERVICE_SID ? "env_messaging_service_sid" : "account_messaging_service_sid",
-        };
-      }
-
-      if (TWILIO_MESSAGING_SERVICE_SID) {
-        console.log(`[Referral SMS] Configured messaging service ${cachedMessagingServiceSid} has no sender phone numbers attached`);
-      }
-      cachedMessagingServiceSid = null;
-    } catch (err) {
-      console.log(`[Referral SMS] Failed to validate messaging service ${cachedMessagingServiceSid}: ${err?.message || "unknown error"}`);
-      cachedMessagingServiceSid = null;
-    }
-  }
-
-  if (cachedSmsFrom) {
-    return {
-      payload: { from: cachedSmsFrom },
-      source: TWILIO_SMS_FROM ? "env_sms_from" : "cached_account_number",
-    };
-  }
-
-  if (!twilioClient) {
-    return null;
-  }
-
-  try {
-    const messagingServices = await twilioClient.messaging.v1.services.list({ limit: 20 });
-    for (const service of messagingServices) {
-      const senderNumbers = await twilioClient.messaging.v1
-        .services(service.sid)
-        .phoneNumbers.list({ limit: 1 });
-
-      if (senderNumbers.length > 0) {
-        cachedMessagingServiceSid = service.sid;
-        return {
-          payload: { messagingServiceSid: service.sid },
-          source: "account_messaging_service_sid",
-        };
-      }
-    }
-
-    const incomingNumbers = await twilioClient.incomingPhoneNumbers.list({ limit: 20 });
-    const smsNumber = incomingNumbers.find((entry) => entry?.capabilities?.sms)?.phoneNumber;
-
-    if (!smsNumber) {
-      return null;
-    }
-
-    cachedSmsFrom = smsNumber;
-    return {
-      payload: { from: smsNumber },
-      source: "account_incoming_phone",
-    };
-  } catch (err) {
-    console.log(`[Referral SMS] Failed to resolve sender from account: ${err?.message || "unknown error"}`);
-    return null;
-  }
-};
+// "log" (default, safe) just records what *would* be sent without calling
+// Exotel; "live" (or the older "twilio" value, kept for anyone who already
+// has it set) actually sends through Exotel.
+const REFERRAL_SMS_MODE = String(process.env.REFERRAL_SMS_MODE || "log").trim().toLowerCase();
+const REFERRAL_SEND_LIVE = REFERRAL_SMS_MODE === "live" || REFERRAL_SMS_MODE === "twilio" || REFERRAL_SMS_MODE === "exotel";
 
 // Send referral message via WhatsApp using approved template
 const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName, registrationLink }) => {
   const messageBody = `Hello ${patientName || "there"}!\n\nYou have been referred to DietByRD by Dr. ${doctorName || "your doctor"}.\n\nComplete your registration here:\n${registrationLink}\n\n- Team DietByRD`;
+  const toNumber = formatPhoneE164(phone);
 
-  // Format phone for WhatsApp
-  const cleanPhone = phone.replace(/\D/g, '').replace(/^91/, '');
-  const toNumber = `whatsapp:+91${cleanPhone}`;
-
-  if (REFERRAL_SMS_MODE !== "twilio") {
+  if (!REFERRAL_SEND_LIVE) {
     console.log("[Referral WhatsApp][LOG-ONLY] Message flow executed", {
       mode: REFERRAL_SMS_MODE,
       to: toNumber,
@@ -279,7 +205,6 @@ const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName,
       body: messageBody,
     });
 
-    // Store the message even in log-only mode
     await storePatientMessage({
       patientId,
       phone,
@@ -290,16 +215,11 @@ const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName,
       metadata: { to: toNumber, mode: 'log_only', doctorName, registrationLink }
     });
 
-    return {
-      sent: true,
-      mode: "log_only",
-      toNumber,
-      reason: "console_logged_only",
-    };
+    return { sent: true, mode: "log_only", toNumber, reason: "console_logged_only" };
   }
 
-  if (!twilioClient) {
-    console.log("[Referral WhatsApp] Skipped: Twilio client not configured");
+  if (!exotelWhatsAppConfigured() || !EXOTEL_WHATSAPP_TEMPLATE_REFERRAL) {
+    console.log("[Referral WhatsApp] Skipped: Exotel WhatsApp not configured");
 
     await storePatientMessage({
       patientId,
@@ -308,70 +228,40 @@ const sendReferralWhatsApp = async ({ patientId, patientName, phone, doctorName,
       channel: 'whatsapp',
       content: messageBody,
       status: 'not_sent',
-      metadata: { reason: 'twilio_not_configured', doctorName }
+      metadata: { reason: 'exotel_whatsapp_not_configured', doctorName }
     });
 
-    return { sent: false, reason: "twilio_not_configured" };
+    return { sent: false, reason: "exotel_whatsapp_not_configured" };
   }
 
-  try {
-    // Use WhatsApp template with content variables
-    // Template: Hello {{1}}! You have been referred to DietByRD by Dr. {{2}}. Complete your registration here: {{3}}
-    // Strip "Dr." prefix from doctorName since template already includes it
-    const cleanDoctorName = (doctorName || "your doctor").replace(/^Dr\.?\s*/i, '');
+  // Strip "Dr." prefix from doctorName since the template already includes it
+  const cleanDoctorName = (doctorName || "your doctor").replace(/^Dr\.?\s*/i, '');
 
-    // Try using Messaging Service if available, otherwise fall back to direct from number
-    const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
-    const msgOptions = {
-      to: toNumber,
-      contentSid: TWILIO_TEMPLATE_REFERRAL_SID,
-      contentVariables: JSON.stringify({
-        "1": patientName || "there",
-        "2": cleanDoctorName,
-        "3": registrationLink
-      })
-    };
+  const result = await sendExotelWhatsAppTemplate({
+    to: toNumber,
+    templateId: EXOTEL_WHATSAPP_TEMPLATE_REFERRAL,
+    variables: { "1": patientName || "there", "2": cleanDoctorName, "3": registrationLink },
+  });
 
-    if (messagingServiceSid) {
-      msgOptions.messagingServiceSid = messagingServiceSid;
-    } else {
-      msgOptions.from = TWILIO_WHATSAPP_FROM;
-    }
-
-    const msg = await twilioClient.messages.create(msgOptions);
-
-    console.log(`[Referral WhatsApp] Sent successfully to ${toNumber}. SID: ${msg.sid}`);
-
-    // Store successful message
-    await storePatientMessage({
-      patientId,
-      phone,
-      messageType: 'referral_whatsapp',
-      channel: 'whatsapp',
-      content: messageBody,
-      status: 'sent',
-      metadata: { to: toNumber, sid: msg.sid, templateSid: TWILIO_TEMPLATE_REFERRAL_SID, doctorName }
-    });
-
-    return { sent: true, sid: msg.sid, toNumber };
-  } catch (err) {
-    const code = err?.code || "unknown";
-    const message = err?.message || "unknown error";
-    console.log(`[Referral WhatsApp] Failed for ${toNumber}. code=${code} message=${message}`);
-
-    // Store failed message attempt
-    await storePatientMessage({
-      patientId,
-      phone,
-      messageType: 'referral_whatsapp',
-      channel: 'whatsapp',
-      content: messageBody,
-      status: 'failed',
-      metadata: { to: toNumber, error: message, errorCode: code, doctorName }
-    });
-
-    return { sent: false, reason: "twilio_send_failed", code, message };
+  if (result.sent) {
+    console.log(`[Referral WhatsApp] Sent successfully to ${toNumber}`);
+  } else {
+    console.log(`[Referral WhatsApp] Failed for ${toNumber}. reason=${result.reason}`);
   }
+
+  await storePatientMessage({
+    patientId,
+    phone,
+    messageType: 'referral_whatsapp',
+    channel: 'whatsapp',
+    content: messageBody,
+    status: result.sent ? 'sent' : 'failed',
+    metadata: { to: toNumber, templateId: EXOTEL_WHATSAPP_TEMPLATE_REFERRAL, doctorName, reason: result.reason }
+  });
+
+  return result.sent
+    ? { sent: true, toNumber }
+    : { sent: false, reason: result.reason || "exotel_send_failed" };
 };
 
 // Legacy SMS function (kept for fallback if needed)
@@ -379,7 +269,7 @@ const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doct
   const toNumber = formatPhoneE164(phone);
   const body = `Hello ${patientName || "there"}!\n\nYou have been referred to DietByRD by Dr. ${doctorName || "your doctor"}.\n\nComplete your registration here:\n${registrationLink}\n\n- Team DietByRD`;
 
-  if (REFERRAL_SMS_MODE !== "twilio") {
+  if (!REFERRAL_SEND_LIVE) {
     console.log("[Referral SMS][LOG-ONLY] Message flow executed", {
       mode: REFERRAL_SMS_MODE,
       to: toNumber,
@@ -389,7 +279,6 @@ const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doct
       body,
     });
 
-    // Store the message even in log-only mode
     await storePatientMessage({
       patientId,
       phone,
@@ -400,16 +289,11 @@ const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doct
       metadata: { to: toNumber, mode: 'log_only', doctorName, registrationLink }
     });
 
-    return {
-      sent: true,
-      mode: "log_only",
-      toNumber,
-      reason: "console_logged_only",
-    };
+    return { sent: true, mode: "log_only", toNumber, reason: "console_logged_only" };
   }
 
-  if (!twilioClient) {
-    console.log("[Referral SMS] Skipped: Twilio client not configured");
+  if (!exotelSmsConfigured()) {
+    console.log("[Referral SMS] Skipped: Exotel SMS not configured");
 
     await storePatientMessage({
       patientId,
@@ -418,69 +302,33 @@ const sendReferralRegistrationSms = async ({ patientId, patientName, phone, doct
       channel: 'sms',
       content: body,
       status: 'not_sent',
-      metadata: { reason: 'twilio_not_configured', doctorName }
+      metadata: { reason: 'exotel_sms_not_configured', doctorName }
     });
 
-    return { sent: false, reason: "twilio_not_configured" };
+    return { sent: false, reason: "exotel_sms_not_configured" };
   }
 
-  const sender = await resolveTwilioSmsSender();
-  if (!sender) {
-    console.log("[Referral SMS] Skipped: missing SMS sender (env and account number not available)");
+  const result = await sendExotelSms({ to: toNumber, body });
 
-    await storePatientMessage({
-      patientId,
-      phone,
-      messageType: 'referral_sms',
-      channel: 'sms',
-      content: body,
-      status: 'not_sent',
-      metadata: { reason: 'missing_sms_sender', doctorName }
-    });
-
-    return { sent: false, reason: "missing_sms_sender" };
+  if (result.sent) {
+    console.log(`[Referral SMS] Sent successfully to ${toNumber}. SID: ${result.sid}`);
+  } else {
+    console.log(`[Referral SMS] Failed for ${toNumber}. reason=${result.reason}`);
   }
 
-  try {
-    const payload = {
-      to: toNumber,
-      body,
-      ...sender.payload,
-    };
+  await storePatientMessage({
+    patientId,
+    phone,
+    messageType: 'referral_sms',
+    channel: 'sms',
+    content: body,
+    status: result.sent ? 'sent' : 'failed',
+    metadata: { to: toNumber, sid: result.sid, doctorName, reason: result.reason }
+  });
 
-    const msg = await twilioClient.messages.create(payload);
-    console.log(`[Referral SMS] Sent successfully to ${toNumber}. SID: ${msg.sid}. senderSource=${sender.source}`);
-
-    // Store successful message
-    await storePatientMessage({
-      patientId,
-      phone,
-      messageType: 'referral_sms',
-      channel: 'sms',
-      content: body,
-      status: 'sent',
-      metadata: { to: toNumber, sid: msg.sid, senderSource: sender.source, doctorName }
-    });
-
-    return { sent: true, sid: msg.sid, toNumber, senderSource: sender.source };
-  } catch (err) {
-    const code = err?.code || "unknown";
-    const message = err?.message || "unknown error";
-    console.log(`[Referral SMS] Failed for ${toNumber}. code=${code} message=${message}`);
-
-    // Store failed message attempt
-    await storePatientMessage({
-      patientId,
-      phone,
-      messageType: 'referral_sms',
-      channel: 'sms',
-      content: body,
-      status: 'failed',
-      metadata: { to: toNumber, error: message, errorCode: code, doctorName }
-    });
-
-    return { sent: false, reason: "twilio_send_failed", code, message };
-  }
+  return result.sent
+    ? { sent: true, sid: result.sid, toNumber }
+    : { sent: false, reason: result.reason || "exotel_send_failed", toNumber };
 };
 
 const sendPasswordResetSms = async ({ phone, resetLink }) => {
@@ -492,33 +340,18 @@ const sendPasswordResetSms = async ({ phone, resetLink }) => {
     return { sent: false, reason: "dev_mode", toNumber };
   }
 
-  if (!twilioClient) {
-    console.log("[Password Reset] Skipped: Twilio client not configured");
-    return { sent: false, reason: "twilio_not_configured", toNumber };
+  if (!exotelSmsConfigured()) {
+    console.log("[Password Reset] Skipped: Exotel SMS not configured");
+    return { sent: false, reason: "exotel_sms_not_configured", toNumber };
   }
 
-  const sender = await resolveTwilioSmsSender();
-  if (!sender) {
-    console.log("[Password Reset] Skipped: missing SMS sender (env and account number not available)");
-    return { sent: false, reason: "missing_sms_sender", toNumber };
+  const result = await sendExotelSms({ to: toNumber, body });
+  if (result.sent) {
+    console.log(`[Password Reset] Sent successfully to ${toNumber}. SID: ${result.sid}`);
+    return { sent: true, sid: result.sid, toNumber };
   }
-
-  try {
-    const payload = {
-      to: toNumber,
-      body,
-      ...sender.payload,
-    };
-
-    const msg = await twilioClient.messages.create(payload);
-    console.log(`[Password Reset] Sent successfully to ${toNumber}. SID: ${msg.sid}. senderSource=${sender.source}`);
-    return { sent: true, sid: msg.sid, toNumber, senderSource: sender.source };
-  } catch (err) {
-    const code = err?.code || "unknown";
-    const message = err?.message || "unknown error";
-    console.log(`[Password Reset] Failed for ${toNumber}. code=${code} message=${message}`);
-    return { sent: false, reason: "twilio_send_failed", code, message, toNumber };
-  }
+  console.log(`[Password Reset] Failed for ${toNumber}. reason=${result.reason}`);
+  return { sent: false, reason: result.reason || "exotel_send_failed", toNumber };
 };
 
 // Store message in patient_messages for history tracking (called after message is sent)
@@ -1835,7 +1668,7 @@ app.post("/api/auth/patient/send-otp", async (req, res) => {
       });
     }
 
-    const result = await sendOtpViaTwilio(parsedPhone.e164, channel);
+    const result = await sendOtpViaExotel(parsedPhone.e164, channel);
     const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
 
     if (IS_DEV && devOtp) {
@@ -1874,7 +1707,7 @@ app.post("/api/auth/patient/verify-otp", async (req, res) => {
       await clearOtp(parsedPhone.e164, "patient_login");
     } else {
       try {
-        const verificationCheck = await verifyOtpViaTwilio(parsedPhone.e164, otp);
+        const verificationCheck = await verifyOtpViaExotel(parsedPhone.e164, otp);
         if (verificationCheck.status !== "approved") {
           return res.status(401).json({ success: false, error: "Invalid OTP. Please try again." });
         }
@@ -2001,7 +1834,7 @@ app.post("/api/auth/send-otp", async (req, res) => {
     console.log(`[OTP] Sending login OTP to ${phone} via ${channel}`);
 
     try {
-      const result = await sendOtpViaTwilio(phone, channel);
+      const result = await sendOtpViaExotel(phone, channel);
       const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
 
       // In dev mode, store the OTP for verification
@@ -2081,7 +1914,7 @@ app.post("/api/auth/send-otp-registration", async (req, res) => {
 
     // Send OTP using Twilio Verify (or mock in dev mode)
     try {
-      const result = await sendOtpViaTwilio(parsedPhone.e164, channel);
+      const result = await sendOtpViaExotel(parsedPhone.e164, channel);
       const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
 
       // In dev mode, store the OTP for verification under 'registration'
@@ -2122,7 +1955,7 @@ app.post("/api/auth/verify-otp", async (req, res) => {
       await clearOtp(phone, 'login');
     } else {
       try {
-        const verificationCheck = await verifyOtpViaTwilio(phone, otp);
+        const verificationCheck = await verifyOtpViaExotel(phone, otp);
 
         if (verificationCheck.status !== "approved") {
           return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
@@ -2500,7 +2333,7 @@ app.post("/api/auth/verify-otp-only", async (req, res) => {
 
     if (!IS_DEV) {
       try {
-        const verificationCheck = await verifyOtpViaTwilio(phone, otp);
+        const verificationCheck = await verifyOtpViaExotel(phone, otp);
 
         if (verificationCheck.status !== "approved") {
           return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
@@ -2550,7 +2383,7 @@ app.post("/api/auth/verify-otp-registration", async (req, res) => {
       await clearOtp(parsedPhone.digits, 'registration');
     } else {
       try {
-        const verificationCheck = await verifyOtpViaTwilio(parsedPhone.e164, otp);
+        const verificationCheck = await verifyOtpViaExotel(parsedPhone.e164, otp);
 
         if (verificationCheck.status !== "approved") {
           return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
@@ -2583,7 +2416,7 @@ app.post("/api/auth/set-password-after-otp", async (req, res) => {
 
     if (!IS_DEV) {
       try {
-        const verificationCheck = await verifyOtpViaTwilio(phone, otp);
+        const verificationCheck = await verifyOtpViaExotel(phone, otp);
 
         if (verificationCheck.status !== "approved") {
           return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
@@ -2698,7 +2531,7 @@ app.post("/api/auth/signup/send-otp", async (req, res) => {
     console.log(`[OTP] Sending signup OTP to ${normalizedPhone} via ${channel}`);
 
     try {
-      const result = await sendOtpViaTwilio(normalizedPhone, channel);
+      const result = await sendOtpViaExotel(normalizedPhone, channel);
       const { verification, toNumber, channel: normalizedChannel, devOtp } = result;
 
       // Hash password before storing in pending data
@@ -2746,7 +2579,7 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
       }
     } else {
       try {
-        const verificationCheck = await verifyOtpViaTwilio(normalizedPhone, otp);
+        const verificationCheck = await verifyOtpViaExotel(normalizedPhone, otp);
 
         if (verificationCheck.status !== "approved") {
           return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
@@ -3076,20 +2909,11 @@ app.post("/api/join-requests/:id/schedule-interview", requireAuth(ADMIN_AND_MLT_
       (deliveryMode === "whatsapp_only" || deliveryMode === "both" || (deliveryMode === "email_first" && !emailResult.sent));
 
     if (shouldFallbackToWhatsapp) {
-      if (twilioClient) {
-        const cleanPhone = phone.replace(/\D/g, "").replace(/^91/, "");
-        try {
-          await twilioClient.messages.create({
-            from: TWILIO_WHATSAPP_FROM,
-            to: `whatsapp:+91${cleanPhone}`,
-            body: whatsappBody,
-          });
-          whatsappResult = { sent: true };
-          console.log(`[Interview] WhatsApp sent to +91${cleanPhone}`);
-        } catch (smsErr) {
-          whatsappResult = { sent: false, reason: "whatsapp_failed" };
-          console.log(`[Interview] WhatsApp failed: ${smsErr.message}`);
-        }
+      if (exotelWhatsAppConfigured()) {
+        const toNumber = formatPhoneE164(phone);
+        const result = await sendExotelWhatsAppFreeform({ to: toNumber, body: whatsappBody });
+        whatsappResult = result.sent ? { sent: true } : { sent: false, reason: "whatsapp_failed" };
+        console.log(result.sent ? `[Interview] WhatsApp sent to ${toNumber}` : `[Interview] WhatsApp failed: ${result.reason}`);
       } else {
         whatsappResult = { sent: true, reason: "dev_simulated" };
         console.log(`[Interview][dev] Would send to ${phone}: ${whatsappBody}`);
@@ -3337,18 +3161,10 @@ app.patch("/api/join-requests/:id", requireAuth(ADMIN_AND_MLT_ROLES), async (req
         (deliveryMode === "whatsapp_only" || deliveryMode === "both" || (deliveryMode === "email_first" && !emailResult.sent));
 
       if (shouldFallbackToWhatsapp) {
-        if (twilioClient) {
-          const cleanPhone = joinRequest.phone.replace(/\D/g, "").replace(/^91/, "");
-          try {
-            await twilioClient.messages.create({
-              from: TWILIO_WHATSAPP_FROM,
-              to: `whatsapp:+91${cleanPhone}`,
-              body: whatsappBody,
-            });
-            whatsappResult = { sent: true };
-          } catch (smsErr) {
-            whatsappResult = { sent: false, reason: "whatsapp_failed" };
-          }
+        if (exotelWhatsAppConfigured()) {
+          const toNumber = formatPhoneE164(joinRequest.phone);
+          const result = await sendExotelWhatsAppFreeform({ to: toNumber, body: whatsappBody });
+          whatsappResult = result.sent ? { sent: true } : { sent: false, reason: "whatsapp_failed" };
         } else {
           whatsappResult = { sent: true, reason: "dev_simulated" };
         }
@@ -8803,7 +8619,7 @@ app.post("/api/patient/me/privacy/request-otp", async (req, res) => {
     const phone = patient.phone || auth.user?.phone;
     if (!phone) return res.status(400).json({ success: false, error: "No phone number on file" });
 
-    const result = await sendOtpViaTwilio(phone, "sms");
+    const result = await sendOtpViaExotel(phone, "sms");
     if (IS_DEV && result.devOtp) {
       await storeOtp(phone, result.devOtp, purpose);
     }
@@ -8836,7 +8652,7 @@ app.post("/api/patient/me/privacy/data-export", async (req, res) => {
       await clearOtp(phone, "data_export");
     } else {
       try {
-        const check = await verifyOtpViaTwilio(phone, otp);
+        const check = await verifyOtpViaExotel(phone, otp);
         if (check.status !== "approved") return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
       } catch (twilioErr) {
         console.error("[privacy/data-export] Twilio Verify error:", twilioErr.message);
@@ -8886,7 +8702,7 @@ app.post("/api/patient/me/privacy/deletion-request", async (req, res) => {
       await clearOtp(phone, "account_deletion");
     } else {
       try {
-        const check = await verifyOtpViaTwilio(phone, otp);
+        const check = await verifyOtpViaExotel(phone, otp);
         if (check.status !== "approved") return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
       } catch (twilioErr) {
         console.error("[privacy/deletion-request] Twilio Verify error:", twilioErr.message);
