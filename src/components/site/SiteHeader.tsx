@@ -201,8 +201,6 @@ export function SiteHeader() {
   z-index: 1001;
 }
 .hamburger-btn:hover { background: rgba(255,255,255,0.1); }
-.landing-nav:not(.scrolled) .hamburger-btn { border-color: rgba(27,43,58,0.2); color: var(--navy); }
-.landing-nav:not(.scrolled) .hamburger-btn:hover { background: rgba(27,43,58,0.06); }
 
 /* Mobile-only account/login shortcut, shown left of the hamburger button */
 .mobile-account-btn {
@@ -218,8 +216,6 @@ export function SiteHeader() {
   transition: background 0.2s;
 }
 .mobile-account-btn:hover { background: rgba(255,255,255,0.1); }
-.landing-nav:not(.scrolled) .mobile-account-btn { border-color: rgba(27,43,58,0.2); color: var(--navy); }
-.landing-nav:not(.scrolled) .mobile-account-btn:hover { background: rgba(27,43,58,0.06); }
 
 /* Mobile drawer */
 .mobile-drawer-overlay {

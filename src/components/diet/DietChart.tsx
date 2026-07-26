@@ -469,6 +469,16 @@ export const DietChart: React.FC<DietChartProps> = ({
         y = 15;
       }
     };
+    // Below-target reads as a gap still to close (yellow); at-or-near target
+    // reads as met (green) -- same 70% boundary already used for the
+    // Phytate "Healthy" zone below, so the whole PDF reads consistently.
+    const drawTargetBar = (x: number, barY: number, width: number, pct: number) => {
+      const color: [number, number, number] = pct >= 70 ? [34, 197, 94] : [234, 179, 8];
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(x, barY, width, 2, 0.6, 0.6, 'F');
+      doc.setFillColor(color[0], color[1], color[2]);
+      doc.roundedRect(x, barY, width * Math.min(Math.max(pct, 0) / 100, 1), 2, 0.6, 0.6, 'F');
+    };
 
     // Header
     doc.setFontSize(22);
@@ -495,10 +505,23 @@ export const DietChart: React.FC<DietChartProps> = ({
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.text(`Calories: ${totals.calories.toFixed(0)} / ${goalCals.toFixed(0)} kcal`, margin, y);
-    doc.text(`Protein: ${totals.protein.toFixed(1)}g`, margin + 60, y);
-    doc.text(`Carbs: ${totals.carbs.toFixed(1)}g`, margin + 100, y);
-    doc.text(`Fat: ${totals.fat.toFixed(1)}g`, margin + 140, y);
     y += 6;
+
+    const carbsTarget = goalCals * 0.45 / 4;
+    const fatTarget = goalCals * 0.25 / 9;
+    const macroBars = [
+      { label: 'Protein', value: totals.protein, target: proteinTarget, unit: 'g' },
+      { label: 'Carbs', value: totals.carbs, target: carbsTarget, unit: 'g' },
+      { label: 'Fat', value: totals.fat, target: fatTarget, unit: 'g' },
+    ];
+    const macroColWidth = (pageWidth - (margin * 2)) / 3;
+    macroBars.forEach((m, i) => {
+      const x = margin + i * macroColWidth;
+      const pct = m.target > 0 ? (m.value / m.target) * 100 : 0;
+      doc.text(`${m.label}: ${m.value.toFixed(1)} / ${m.target.toFixed(0)}${m.unit}`, x, y);
+      drawTargetBar(x, y + 2, macroColWidth - 8, pct);
+    });
+    y += 10;
     doc.line(margin, y, pageWidth - margin, y);
     y += 10;
 
@@ -585,7 +608,11 @@ export const DietChart: React.FC<DietChartProps> = ({
     ];
 
     const colWidth = (pageWidth - (margin * 2)) / 2;
-    const maxRows = 11;
+    // Each row is taller now that it carries a bar underneath the text, so
+    // fewer rows fit per column than before -- kept roughly the same total
+    // column height (was 11 rows * 6mm) to avoid rows drawing past the
+    // page's bottom margin.
+    const maxRows = 7;
     let col = 0;
     let row = 0;
     const microStartY = y;
@@ -609,7 +636,7 @@ export const DietChart: React.FC<DietChartProps> = ({
         col = 0;
         row = 0;
       }
-      const currentY = (col > 0 ? y : microStartY) + (row * 6);
+      const currentY = (col > 0 ? y : microStartY) + (row * 9);
       const x = margin + (col * colWidth);
       const val = totals[m.key] || 0;
       const pct = m.target > 0 ? (val / m.target) * 100 : 0;
@@ -617,10 +644,11 @@ export const DietChart: React.FC<DietChartProps> = ({
       doc.setTextColor(120);
       doc.text(`${pct.toFixed(0)}%`, x + colWidth - 6, currentY, { align: 'right' });
       doc.setTextColor(60);
+      drawTargetBar(x, currentY + 1.5, colWidth - 6, pct);
       row += 1;
     });
 
-    y = Math.max(y, microStartY + (Math.min(maxRows, micros.length) * 6) + 6);
+    y = Math.max(y, microStartY + (Math.min(maxRows, micros.length) * 9) + 6);
 
     // Micronutrient Modulators Index
     ensureSpace(18);

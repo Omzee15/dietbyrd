@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
+import { ZoomToFit } from "@/components/ZoomToFit";
 import { UserPlus, Users, BarChart3, MessageCircle, Search, ArrowLeft, X, IndianRupee, TrendingUp, Loader2, LogOut, Settings, ChevronDown, UserCheck, Plus, Trash2, Send, ChevronUp, Mail, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -562,7 +563,8 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                     <h2 className="text-lg font-semibold">Recent Recommendations</h2>
                     <span className="text-sm text-muted-foreground">{referrals.length} total recommended</span>
                   </div>
-                  <div className="bg-card rounded-xl border overflow-x-auto">
+                  <div className="bg-card rounded-xl border">
+                    <ZoomToFit>
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
@@ -597,6 +599,7 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                         )}
                       </tbody>
                     </table>
+                    </ZoomToFit>
                   </div>
                 </div>
               </div>
@@ -642,7 +645,8 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                     <h2 className="text-lg font-semibold">Recent Patients Helped</h2>
                     <span className="text-sm text-muted-foreground">{referrals.length} patients helped</span>
                   </div>
-                  <div className="bg-card rounded-xl border overflow-x-auto">
+                  <div className="bg-card rounded-xl border">
+                    <ZoomToFit>
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
@@ -677,6 +681,7 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                         )}
                       </tbody>
                     </table>
+                    </ZoomToFit>
                   </div>
                 </div>
               </div>
@@ -704,7 +709,8 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input placeholder="Search patients..." value={patientSearch} onChange={(e) => setPatientSearch(e.target.value)} className="pl-9" />
                 </div>
-                <div className="bg-card rounded-xl border overflow-x-auto">
+                <div className="bg-card rounded-xl border">
+                  <ZoomToFit>
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b text-xs uppercase tracking-wider text-muted-foreground">
@@ -800,6 +806,7 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                       )}
                     </tbody>
                   </table>
+                  </ZoomToFit>
                 </div>
               </div>
             )}
@@ -822,7 +829,7 @@ const DoctorDashboard = ({ defaultTab = "refer_patient" }: DoctorDashboardProps)
                 {showAddAssistant && (
                   <form className="bg-card rounded-xl border p-6 space-y-4" onSubmit={handleAddAssistant}>
                     <h3 className="text-sm font-semibold">Create Assistant Account</h3>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Name *</label>
                         <Input

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "react-router-dom";
-import { LucideIcon, ChevronLeft, ChevronRight, ChevronUp, LifeBuoy, Mail, Menu } from "lucide-react";
+import { LucideIcon, ChevronLeft, ChevronRight, ChevronUp, LifeBuoy, Mail, Menu, Phone } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -131,6 +131,13 @@ const AppSidebar = ({ title, subtitle, sections, bottomContent }: AppSidebarProp
                     >
                       <Mail className="w-[16px] h-[16px] text-sidebar-foreground/70" />
                       <span>{location.pathname.startsWith('/doctor') ? 'doctor@dietbyrd.com' : 'hello@dietbyrd.com'}</span>
+                    </a>
+                    <a
+                      href="tel:+919076150904"
+                      className="flex items-center gap-3 px-2 py-2.5 text-[13px] font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary-foreground rounded-lg transition-colors"
+                    >
+                      <Phone className="w-[16px] h-[16px] text-sidebar-foreground/70" />
+                      <span>+91 90761 50904</span>
                     </a>
                   </div>
                 </DropdownMenuContent>
