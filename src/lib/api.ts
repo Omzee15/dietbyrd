@@ -847,6 +847,35 @@ export const deleteMyDocument = (id: string) =>
 export const getPatientDocumentsForCareTeam = (patientId: number) =>
   request<PatientDocument[]>(`/rd/patients/${patientId}/documents`, { headers: getStoredAuthHeaders() });
 
+export interface ConsentRecord {
+  consent_text_version: string;
+  accepted_at: string;
+}
+
+export const requestPrivacyOtp = (purpose: "data_export" | "account_deletion") =>
+  request<{ message: string; expiresIn: number }>("/patient/me/privacy/request-otp", {
+    method: "POST",
+    headers: getStoredAuthHeaders(),
+    body: JSON.stringify({ purpose }),
+  });
+
+export const verifyDataExportOtp = (otp: string) =>
+  request<{ delivered: "email" | "download"; email?: string; data?: unknown }>("/patient/me/privacy/data-export", {
+    method: "POST",
+    headers: getStoredAuthHeaders(),
+    body: JSON.stringify({ otp }),
+  });
+
+export const verifyDeletionRequestOtp = (otp: string, reason?: string) =>
+  request<{ ticket: { id: number; ticket_number: string } }>("/patient/me/privacy/deletion-request", {
+    method: "POST",
+    headers: getStoredAuthHeaders(),
+    body: JSON.stringify({ otp, reason }),
+  });
+
+export const getConsentHistory = () =>
+  request<ConsentRecord[]>("/patient/me/consents", { headers: getStoredAuthHeaders() });
+
 export interface DieticianAppointment extends Appointment {
   patient_name?: string;
   patient_phone?: string;

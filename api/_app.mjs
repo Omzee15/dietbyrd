@@ -8714,6 +8714,222 @@ app.post("/api/patient/me/tickets", async (req, res) => {
   }
 });
 
+// ─── Patient data-privacy: OTP-gated data export & deletion requests ───────
+// Both actions are sensitive enough (a full data dump, or requesting account
+// deletion) that a valid session alone isn't enough -- require a fresh OTP
+// to the patient's own registered phone immediately before either one.
+const PRIVACY_OTP_PURPOSES = new Set(["data_export", "account_deletion"]);
+
+const sendDataExportEmail = async ({ recipientEmail, recipientName, exportData }) => {
+  if (!recipientEmail) return { sent: false, reason: "missing_email" };
+  if (!SENDGRID_API_KEY || !SENDGRID_FROM_EMAIL) {
+    console.log("[DataExport][email] SendGrid not configured");
+    return { sent: false, reason: "sendgrid_not_configured" };
+  }
+  const jsonContent = Buffer.from(JSON.stringify(exportData, null, 2)).toString("base64");
+  try {
+    await sgMail.send({
+      to: recipientEmail,
+      from: { email: SENDGRID_FROM_EMAIL, name: SENDGRID_FROM_NAME },
+      subject: "Your DietByRD data export",
+      text: `Hi ${recipientName || "there"},\n\nAs requested, attached is a full export of your data on DietByRD -- your profile, health metrics, diet plans, consultations, payments, and document list.\n\nIf you didn't request this, please contact us immediately.\n\n- DietByRD Team`,
+      attachments: [{
+        content: jsonContent,
+        filename: `dietbyrd-data-export-${new Date().toISOString().slice(0, 10)}.json`,
+        type: "application/json",
+        disposition: "attachment",
+      }],
+    });
+    return { sent: true };
+  } catch (err) {
+    console.log("[DataExport][email] SendGrid error", err?.message || "unknown error");
+    return { sent: false, reason: "sendgrid_send_failed" };
+  }
+};
+
+const compilePatientDataExport = async (patient) => {
+  const regRes = await query("SELECT * FROM dietbyrd_registered_patients WHERE patient_id = $1", [patient.id]);
+  const registeredPatients = regRes.rows;
+  const regIds = registeredPatients.map((r) => r.id);
+
+  const [profileRes, dietPlansRes, consultationsRes, paymentsRes, documentsRes, consentsRes] = await Promise.all([
+    query("SELECT * FROM dietbyrd_patients WHERE id = $1", [patient.id]),
+    regIds.length
+      ? query("SELECT id, registered_patient_id, plan_json, is_active, issued_at, created_at FROM dietbyrd_diet_plans WHERE registered_patient_id = ANY($1::int[])", [regIds])
+      : Promise.resolve({ rows: [] }),
+    regIds.length
+      ? query("SELECT id, registered_patient_id, rd_id, scheduled_at, consultation_type, status, completed_at, patient_notes, created_at FROM dietbyrd_consultations WHERE registered_patient_id = ANY($1::int[])", [regIds])
+      : Promise.resolve({ rows: [] }),
+    query("SELECT id, amount, currency, payment_type, status, paid_at, created_at FROM dietbyrd_payments WHERE patient_id = $1", [patient.id]),
+    query("SELECT id, kind, original_filename, mime_type, size_bytes, created_at FROM dietbyrd_patient_documents WHERE patient_id = $1", [patient.id]),
+    patient.user_id
+      ? query("SELECT consent_text_version, accepted_at FROM dietbyrd_user_consents WHERE user_id = $1 ORDER BY accepted_at DESC", [patient.user_id])
+      : Promise.resolve({ rows: [] }),
+  ]);
+
+  const consultationIds = consultationsRes.rows.map((c) => c.id);
+  const notesRes = consultationIds.length
+    ? await query("SELECT consultation_id, notes_content, version, created_at FROM dietbyrd_consultation_notes WHERE consultation_id = ANY($1::int[])", [consultationIds])
+    : { rows: [] };
+
+  return {
+    exported_at: new Date().toISOString(),
+    profile: profileRes.rows[0] || null,
+    registered_patients: registeredPatients,
+    diet_plans: dietPlansRes.rows,
+    consultations: consultationsRes.rows,
+    consultation_notes: notesRes.rows,
+    payments: paymentsRes.rows,
+    documents: documentsRes.rows,
+    consent_history: consentsRes.rows,
+  };
+};
+
+// Step 1: send OTP to the patient's own registered phone
+app.post("/api/patient/me/privacy/request-otp", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Forbidden" });
+
+    const { purpose } = req.body || {};
+    if (!PRIVACY_OTP_PURPOSES.has(purpose)) {
+      return res.status(400).json({ success: false, error: "Invalid purpose" });
+    }
+
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient) return res.status(404).json({ success: false, error: "Patient not found" });
+
+    const phone = patient.phone || auth.user?.phone;
+    if (!phone) return res.status(400).json({ success: false, error: "No phone number on file" });
+
+    const result = await sendOtpViaTwilio(phone, "sms");
+    if (IS_DEV && result.devOtp) {
+      await storeOtp(phone, result.devOtp, purpose);
+    }
+    res.json({ success: true, message: "OTP sent via SMS", expiresIn: 120 });
+  } catch (err) {
+    console.error("[privacy/request-otp] Error:", err);
+    res.status(500).json({ success: false, error: "Failed to send OTP" });
+  }
+});
+
+// Step 2a: verify OTP and deliver the full data export (email if the patient
+// has one on file, otherwise hand the compiled data back for an in-browser
+// download instead of silently failing).
+app.post("/api/patient/me/privacy/data-export", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Forbidden" });
+
+    const { otp } = req.body || {};
+    if (!otp) return res.status(400).json({ success: false, error: "OTP is required" });
+
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient) return res.status(404).json({ success: false, error: "Patient not found" });
+    const phone = patient.phone || auth.user?.phone;
+
+    if (IS_DEV) {
+      const verifyResult = await verifyOtpFromDb(phone, otp, "data_export");
+      if (!verifyResult.valid) return res.status(400).json({ success: false, error: verifyResult.error || "Invalid OTP" });
+      await clearOtp(phone, "data_export");
+    } else {
+      try {
+        const check = await verifyOtpViaTwilio(phone, otp);
+        if (check.status !== "approved") return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+      } catch (twilioErr) {
+        console.error("[privacy/data-export] Twilio Verify error:", twilioErr.message);
+        return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
+      }
+    }
+
+    const exportData = await compilePatientDataExport(patient);
+    const email = exportData.profile?.email;
+
+    if (email) {
+      const emailResult = await sendDataExportEmail({ recipientEmail: email, recipientName: patient.name, exportData });
+      if (emailResult.sent) {
+        return res.json({ success: true, delivered: "email", email });
+      }
+      // Email configured/attempted but failed -- don't leave the patient
+      // with nothing just because SendGrid hiccupped.
+    }
+
+    return res.json({ success: true, delivered: "download", data: exportData });
+  } catch (err) {
+    console.error("[privacy/data-export] Error:", err);
+    res.status(500).json({ success: false, error: "Failed to generate data export" });
+  }
+});
+
+// Step 2b: verify OTP and file an account-deletion request as an urgent
+// ticket for the support team to review and action -- not an instant
+// self-service hard delete, since that's not something to trust to a
+// single OTP with no human review on an irreversible action.
+app.post("/api/patient/me/privacy/deletion-request", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Forbidden" });
+
+    const { otp, reason } = req.body || {};
+    if (!otp) return res.status(400).json({ success: false, error: "OTP is required" });
+
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient) return res.status(404).json({ success: false, error: "Patient not found" });
+    const phone = patient.phone || auth.user?.phone;
+
+    if (IS_DEV) {
+      const verifyResult = await verifyOtpFromDb(phone, otp, "account_deletion");
+      if (!verifyResult.valid) return res.status(400).json({ success: false, error: verifyResult.error || "Invalid OTP" });
+      await clearOtp(phone, "account_deletion");
+    } else {
+      try {
+        const check = await verifyOtpViaTwilio(phone, otp);
+        if (check.status !== "approved") return res.status(400).json({ success: false, error: "Invalid OTP. Please try again." });
+      } catch (twilioErr) {
+        console.error("[privacy/deletion-request] Twilio Verify error:", twilioErr.message);
+        return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
+      }
+    }
+
+    const description = `Patient ${patient.name || phone} has requested account deletion via OTP-verified self-service request.${reason ? `\n\nReason given: ${reason}` : ""}`;
+    const result = await query(
+      `INSERT INTO dietbyrd_tickets (patient_id, title, description, category, priority, created_by)
+       VALUES ($1, $2, $3, 'account_deletion', 'urgent', $4)
+       RETURNING id, ticket_number`,
+      [patient.id, "Account deletion request", description, auth.userId]
+    );
+
+    res.json({ success: true, ticket: result.rows[0] });
+  } catch (err) {
+    console.error("[privacy/deletion-request] Error:", err);
+    res.status(500).json({ success: false, error: "Failed to file deletion request" });
+  }
+});
+
+// Consent history for the logged-in patient
+app.get("/api/patient/me/consents", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Forbidden" });
+
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient?.user_id) return res.json({ success: true, data: [] });
+
+    const { rows } = await query(
+      "SELECT consent_text_version, accepted_at FROM dietbyrd_user_consents WHERE user_id = $1 ORDER BY accepted_at DESC",
+      [patient.user_id]
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error("[patient/me/consents] Error:", err);
+    res.status(500).json({ success: false, error: "Failed to load consent history" });
+  }
+});
+
 // Add a (public) comment to one of the patient's own tickets
 app.post("/api/patient/me/tickets/:id/comments", async (req, res) => {
   try {

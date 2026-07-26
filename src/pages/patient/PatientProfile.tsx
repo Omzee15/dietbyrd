@@ -24,6 +24,8 @@ import {
   X,
   MessageSquare,
   Trash2,
+  Download,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,13 +36,25 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import AppSidebar from "@/components/AppSidebar";
 import { DashboardFooter } from "@/components/DashboardFooter";
-import { deleteMyDocument, getMyDocuments, getPatient, getPatientDietPlans, updatePatient, uploadMyDocument } from "@/lib/api";
+import {
+  deleteMyDocument,
+  getMyDocuments,
+  getPatient,
+  getPatientDietPlans,
+  updatePatient,
+  uploadMyDocument,
+  requestPrivacyOtp,
+  verifyDataExportOtp,
+  verifyDeletionRequestOtp,
+  getConsentHistory,
+} from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { getPatientSidebarSections } from "@/lib/patient-sidebar";
@@ -79,6 +93,137 @@ const INDIAN_CITIES = [
   "Unnao","Vellore","Yamuna Nagar","Yamunanagar","Yavatmal","Yelahanka","Zirakpur",
 ].sort();
 
+type PrivacyAction = "data_export" | "account_deletion" | null;
+
+// A fresh OTP is required immediately before either a full data export or an
+// account-deletion request -- a valid session alone isn't enough for either,
+// given one hands over everything on file and the other is irreversible.
+const PrivacyOtpDialog = ({ action, onClose }: { action: PrivacyAction; onClose: () => void }) => {
+  const [step, setStep] = useState<"confirm" | "otp" | "done">("confirm");
+  const [otp, setOtp] = useState("");
+  const [reason, setReason] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [result, setResult] = useState<{ delivered?: "email" | "download"; email?: string; ticketNumber?: string } | null>(null);
+
+  const isExport = action === "data_export";
+
+  const handleSendOtp = async () => {
+    if (!action) return;
+    setIsSending(true);
+    try {
+      await requestPrivacyOtp(action);
+      toast.success("OTP sent to your registered phone number");
+      setStep("otp");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send OTP");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    if (!otp.trim()) {
+      toast.error("Enter the OTP sent to your phone");
+      return;
+    }
+    setIsVerifying(true);
+    try {
+      if (isExport) {
+        const res = await verifyDataExportOtp(otp.trim());
+        if (res.delivered === "email") {
+          setResult({ delivered: "email", email: res.email });
+        } else {
+          const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `dietbyrd-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          setResult({ delivered: "download" });
+        }
+      } else {
+        const res = await verifyDeletionRequestOtp(otp.trim(), reason.trim() || undefined);
+        setResult({ ticketNumber: res.ticket?.ticket_number });
+      }
+      setStep("done");
+    } catch (err: any) {
+      toast.error(err.message || "Invalid OTP");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!action} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{isExport ? "Export My Data" : "Delete My Account"}</DialogTitle>
+          <DialogDescription>
+            {isExport
+              ? "We'll verify it's really you with an OTP, then send a complete export of your data."
+              : "This requests permanent deletion of your account. We'll verify it's really you with an OTP first, then our team reviews and processes the request."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === "confirm" && (
+          <div className="space-y-4">
+            {!isExport && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Reason (optional)</label>
+                <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Let us know why you're leaving..." rows={3} />
+              </div>
+            )}
+            <Button onClick={handleSendOtp} disabled={isSending} className="w-full" variant={isExport ? "default" : "destructive"}>
+              {isSending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending OTP...</> : "Send OTP to my phone"}
+            </Button>
+          </div>
+        )}
+
+        {step === "otp" && (
+          <div className="space-y-4">
+            <Input
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              placeholder="Enter 6-digit OTP"
+              inputMode="numeric"
+              maxLength={6}
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+            />
+            <Button onClick={handleVerify} disabled={isVerifying} className="w-full" variant={isExport ? "default" : "destructive"}>
+              {isVerifying ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Verifying...</> : isExport ? "Verify & Export" : "Verify & Submit Request"}
+            </Button>
+          </div>
+        )}
+
+        {step === "done" && (
+          <div className="space-y-4 text-center py-2">
+            <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center mx-auto">
+              <ShieldCheck className="w-6 h-6 text-success" />
+            </div>
+            {isExport ? (
+              result?.delivered === "email" ? (
+                <p className="text-sm text-muted-foreground">Sent to <strong>{result.email}</strong>. Check your inbox in a few minutes.</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">Your data export has downloaded to this device.</p>
+              )
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Request submitted{result?.ticketNumber ? ` (${result.ticketNumber})` : ""}. Our support team will review and follow up before anything is removed.
+              </p>
+            )}
+            <Button variant="outline" onClick={onClose} className="w-full">Close</Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const PatientProfile = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -87,6 +232,13 @@ const PatientProfile = () => {
   // City search state for address combobox
   const [citySearch, setCitySearch] = useState("");
   const [showCityDropdown, setShowCityDropdown] = useState(false);
+
+  // Privacy & Data: OTP-gated export/deletion dialog, plus consent history
+  const [privacyAction, setPrivacyAction] = useState<PrivacyAction>(null);
+  const { data: consentHistory = [] } = useQuery({
+    queryKey: ["consentHistory"],
+    queryFn: getConsentHistory,
+  });
 
   const filteredCities = citySearch.trim().length > 0
     ? INDIAN_CITIES.filter(c => c.toLowerCase().includes(citySearch.toLowerCase())).slice(0, 12)
@@ -1161,10 +1313,49 @@ const PatientProfile = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Privacy & Data */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <ShieldCheck className="w-5 h-5" />
+                  Privacy &amp; Data
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button variant="outline" className="flex-1 gap-2" onClick={() => setPrivacyAction("data_export")}>
+                    <Download className="w-4 h-4" />
+                    Export My Data
+                  </Button>
+                  <Button variant="outline" className="flex-1 gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive" onClick={() => setPrivacyAction("account_deletion")}>
+                    <Trash2 className="w-4 h-4" />
+                    Delete My Account
+                  </Button>
+                </div>
+
+                <div>
+                  <p className="text-sm font-medium mb-2">Consent History</p>
+                  {consentHistory.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No consent records found yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {consentHistory.map((c, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg text-sm">
+                          <span>Accepted Terms &amp; Privacy Policy ({c.consent_text_version})</span>
+                          <span className="text-muted-foreground">{new Date(c.accepted_at).toLocaleDateString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
         <DashboardFooter />
       </main>
+      <PrivacyOtpDialog action={privacyAction} onClose={() => setPrivacyAction(null)} />
     </div>
   );
 };
