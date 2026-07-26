@@ -536,10 +536,26 @@ const CreateDiet = () => {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.text(`Calories: ${Math.round(prototypeTotals.calories)} / ${dailyTarget.calories} kcal`, margin, y);
-      doc.text(`Protein: ${prototypeTotals.protein.toFixed(1)}g`, margin + 65, y);
-      doc.text(`Carbs: ${prototypeTotals.carbs.toFixed(1)}g`, margin + 105, y);
-      doc.text(`Fat: ${prototypeTotals.fat.toFixed(1)}g`, margin + 145, y);
       y += 6;
+
+      const macroBars = [
+        { label: "Protein", value: prototypeTotals.protein, target: dailyTarget.protein, unit: "g" },
+        { label: "Carbs", value: prototypeTotals.carbs, target: dailyTarget.carbs, unit: "g" },
+        { label: "Fat", value: prototypeTotals.fat, target: dailyTarget.fat, unit: "g" },
+      ];
+      const macroColWidth = (pageWidth - margin * 2) / 3;
+      macroBars.forEach((m, i) => {
+        const x = margin + i * macroColWidth;
+        const pct = m.target > 0 ? (m.value / m.target) * 100 : 0;
+        const barColor: [number, number, number] = pct >= 80 ? [34, 197, 94] : [234, 179, 8];
+        doc.setTextColor(60);
+        doc.text(`${m.label}: ${m.value.toFixed(1)} / ${m.target}${m.unit}`, x, y);
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(x, y + 1.8, macroColWidth - 8, 1.8, 0.6, 0.6, "F");
+        doc.setFillColor(barColor[0], barColor[1], barColor[2]);
+        doc.roundedRect(x, y + 1.8, (macroColWidth - 8) * Math.min(pct / 100, 1), 1.8, 0.6, 0.6, "F");
+      });
+      y += 9;
       doc.line(margin, y, pageWidth - margin, y);
       y += 10;
 
