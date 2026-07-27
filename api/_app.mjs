@@ -939,9 +939,19 @@ const storeOtp = async (phone, otp, purpose = 'login', pendingData = null) => {
 // once made any 6-digit input log into any account when the server ran with
 // APP_ENV=dev, which is a full authentication bypass if that flag is ever
 // set (or left set) in a deployed environment.
+//
+// DEV_TEST_OTP is a single fixed code (not "any input") so a leaked/misset
+// APP_ENV=dev in production still requires knowing this exact code, unlike
+// the old any-6-digit bypass.
+const DEV_TEST_OTP = "000000";
+
 const verifyOtpFromDb = async (phone, otp, purpose = 'login') => {
   if (!otp || typeof otp !== "string" || !otp.trim()) {
     return { valid: false, error: "Invalid OTP" };
+  }
+
+  if (IS_DEV && otp.trim() === DEV_TEST_OTP) {
+    return { valid: true, pendingData: null };
   }
 
   await ensureOtpTable();
