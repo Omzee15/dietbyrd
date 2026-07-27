@@ -22,8 +22,22 @@
     <!-- Preload critical assets -->
     <link rel="preload" href="/signin-image-nobg.webp" as="image" type="image/webp" />
     <link rel="preload" href="/doctors-nobg.webp" as="image" type="image/webp" />
-    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+
+    <!-- Fonts. These were previously pulled in with @import -- from index.css
+         and, worse, from inline <style> blocks inside page components. An
+         @import is only discovered after the importing stylesheet has been
+         fetched and parsed, so the component-level ones sat behind the whole
+         JS bundle: HTML -> JS -> render -> inject <style> -> discover font
+         CSS -> fetch font files. Declaring them here puts every font request
+         in the initial HTML parse, so they start in parallel with the JS
+         instead of queueing behind it. preconnect (not just dns-prefetch)
+         also gets TCP+TLS to the font hosts out of the way up front. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400;1,600&display=swap"
+    />
 
     <!-- Open Graph -->
     <meta property="og:title" content="Diet By RD — India's Gold Standard Clinical Nutrition" />
