@@ -723,7 +723,7 @@ const Index = () => {
   );
 
   const renderProfessionalRightSide = () => (
-    <div className="flex-1 flex flex-col pt-4 xl:pt-8 pb-3 pl-10 xl:pl-14 pr-4 overflow-y-auto no-scrollbar">
+    <div className="flex-1 flex flex-col pt-4 xl:pt-8 pb-3 pl-10 xl:pl-14 pr-4 min-h-0 overflow-y-auto no-scrollbar">
       <div className="relative z-10 w-full max-w-[480px] xl:max-w-[540px] mt-auto mb-auto py-1">
         {/* Header/Logo (Professional version) */}
         <div className="mb-3">

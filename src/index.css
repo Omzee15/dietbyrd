@@ -158,7 +158,6 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
-    overscroll-behavior-y: none;
   }
 
   /* Hide scrollbar for Chrome, Safari and Opera */
