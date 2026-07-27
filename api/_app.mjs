@@ -933,9 +933,15 @@ const storeOtp = async (phone, otp, purpose = 'login', pendingData = null) => {
   `, [phone, otp, purpose, pendingData ? JSON.stringify(pendingData) : null, expiresAt]);
 };
 
+// Dev mode changes how the OTP is DELIVERED (console log instead of SMS),
+// never whether it's checked -- every dev-mode send path stores the real
+// generated code, so this comparison must always run. An IS_DEV bypass here
+// once made any 6-digit input log into any account when the server ran with
+// APP_ENV=dev, which is a full authentication bypass if that flag is ever
+// set (or left set) in a deployed environment.
 const verifyOtpFromDb = async (phone, otp, purpose = 'login') => {
-  if (IS_DEV) {
-    return { valid: true, pendingData: null };
+  if (!otp || typeof otp !== "string" || !otp.trim()) {
+    return { valid: false, error: "Invalid OTP" };
   }
 
   await ensureOtpTable();
@@ -949,7 +955,7 @@ const verifyOtpFromDb = async (phone, otp, purpose = 'login') => {
   }
 
   const stored = result.rows[0];
-  if (stored.otp !== otp) {
+  if (!stored.otp || stored.otp !== otp.trim()) {
     return { valid: false, error: "Invalid OTP" };
   }
 
@@ -2342,6 +2348,13 @@ app.post("/api/auth/verify-otp-only", async (req, res) => {
         console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
         return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
       }
+    } else {
+      // Deliberately no clearOtp here: set-password-after-otp re-verifies
+      // this same code as its own gate, so it must stay usable until then.
+      const verifyResult = await verifyOtpFromDb(phone, otp, 'login');
+      if (!verifyResult.valid) {
+        return res.status(400).json({ success: false, error: verifyResult.error || "Invalid OTP." });
+      }
     }
 
     const variants = buildPhoneVariants(phone);
@@ -2425,6 +2438,12 @@ app.post("/api/auth/set-password-after-otp", async (req, res) => {
         console.error("[OTP] Twilio Verify error:", twilioErr.message, twilioErr.code);
         return res.status(400).json({ success: false, error: "Invalid or expired OTP." });
       }
+    } else {
+      const verifyResult = await verifyOtpFromDb(phone, otp, 'login');
+      if (!verifyResult.valid) {
+        return res.status(400).json({ success: false, error: verifyResult.error || "Invalid OTP." });
+      }
+      await clearOtp(phone, 'login');
     }
 
     const variants = buildPhoneVariants(phone);
