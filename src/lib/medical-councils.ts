@@ -1,0 +1,47 @@
+// The state/territory medical councils a doctor can hold registration with.
+// Kept as a fixed list (rather than free text) so the stored value always
+// matches the exact string an NMC lookup expects -- a typo'd or abbreviated
+// council name makes verification fail later.
+export const STATE_MEDICAL_COUNCILS = [
+  "Andhra Pradesh Medical Council",
+  "Arunachal Pradesh Medical Council",
+  "Assam Medical Council",
+  "Bhopal Medical Council",
+  "Bihar Medical Council",
+  "Bombay Medical Council",
+  "Chandigarh Medical Council",
+  "Chattisgarh Medical Council",
+  "Delhi Medical Council",
+  "Goa Medical Council",
+  "Gujarat Medical Council",
+  "Haryana Medical Council",
+  "Himachal Pradesh Medical Council",
+  "Hyderabad Medical Council",
+  "Jammu & Kashmir Medical Council",
+  "Jharkhand Medical Council",
+  "Karnataka Medical Council",
+  "Madhya Pradesh Medical Council",
+  "Madras Medical Council",
+  "Mahakoshal Medical Council",
+  "Maharashtra Medical Council",
+  "Manipur Medical Council",
+  "Meghalaya Medical Council",
+  "Mizoram Medical Council",
+  "Mysore Medical Council",
+  "Nagaland Medical Council",
+  "Orissa Council of Medical Registration",
+  "Pondicherry Medical Council",
+  "Punjab Medical Council",
+  "Rajasthan Medical Council",
+  "Sikkim Medical Council",
+  "Tamil Nadu Medical Council",
+  "Telangana State Medical Council",
+  "Travancore Cochin Medical Council, Trivandrum",
+  "Tripura State Medical Council",
+  "Uttar Pradesh Medical Council",
+  "Uttarakhand Medical Council",
+  "Vidharba Medical Council",
+  "West Bengal Medical Council",
+] as const;
+
+export type StateMedicalCouncil = (typeof STATE_MEDICAL_COUNCILS)[number];

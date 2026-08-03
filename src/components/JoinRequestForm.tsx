@@ -67,6 +67,7 @@ const RD_SPECIALIZATIONS = [
 ];
 
 import { CitySearchCombobox } from "@/components/CitySearchCombobox";
+import { MedicalCouncilCombobox } from "@/components/MedicalCouncilCombobox";
 
 interface JoinRequestFormProps {
   onComplete: () => void;
@@ -100,6 +101,12 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
     clinic_name: "",
     clinic_address: "",
     about: "",
+    // Doctor registration identity. An NMR UID is unique India-wide so it
+    // stands alone; a state registration number is only meaningful paired
+    // with the council that issued it.
+    registration_type: "state",
+    state_medical_council: "",
+    registration_number: "",
   });
 
   useEffect(() => {
@@ -223,6 +230,14 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
         toast.error("Please fill in all doctor-specific fields");
         return;
       }
+      if (!formData.registration_number) {
+        toast.error("Please enter your registration number");
+        return;
+      }
+      if (formData.registration_type === "state" && !formData.state_medical_council) {
+        toast.error("Please select your State Medical Council");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -247,6 +262,18 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
           clinic_address: formData.clinic_address || null,
           specializations: specializations.length > 0 ? specializations : null,
           about_yourself: formData.about || null,
+          ...(formData.role === "doctor"
+            ? {
+                registration_type: formData.registration_type,
+                // Only meaningful for a state registration -- an NMR UID has
+                // no issuing council, so don't persist a stale selection.
+                state_medical_council:
+                  formData.registration_type === "state"
+                    ? formData.state_medical_council || null
+                    : null,
+                registration_number: formData.registration_number || null,
+              }
+            : {}),
         }),
       });
 
@@ -518,19 +545,102 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
           </Select>
         </div>
 
+        {/* Registration identity (doctors only) â€” an NMR UID is unique
+            India-wide, so the issuing council is only asked for when the
+            doctor is registering with a state number instead. */}
+        {formData.role === "doctor" && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Registration Type <span className="text-red-500">*</span>
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              {[
+                { value: "nmr", label: "National Medical Register (NMR) UID" },
+                { value: "state", label: "State Registration Number" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleChange("registration_type", opt.value)}
+                  aria-pressed={formData.registration_type === opt.value}
+                  className={`flex-1 flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
+                    formData.registration_type === opt.value
+                      ? "border-primary bg-primary/5 text-slate-900"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <span
+                    className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                      formData.registration_type === opt.value ? "border-primary" : "border-slate-300"
+                    }`}
+                  >
+                    {formData.registration_type === opt.value && (
+                      <span className="w-2 h-2 rounded-full bg-primary" />
+                    )}
+                  </span>
+                  <span className="leading-tight">{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Basic Information */}
         <div className="space-y-2">
           <label className="text-sm font-medium">
-            Full Name <span className="text-red-500">*</span>
+            {formData.role === "doctor" ? "Full Name (as per Medical Council)" : "Full Name"}{" "}
+            <span className="text-red-500">*</span>
           </label>
           <Input
             type="text"
-            placeholder="Dr. John Doe"
+            placeholder="e.g., Dr. Ramesh Kumar"
             value={formData.name}
             onChange={(e) => handleChange("name", e.target.value.replace(/[^a-zA-Z\s.\-']/g, ""))}
             required
           />
+          {formData.role === "doctor" && (
+            <p className="text-xs text-slate-500 italic">
+              Must match your official registration exactly.
+            </p>
+          )}
         </div>
+
+        {formData.role === "doctor" && (
+          <>
+            {formData.registration_type === "state" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  State Medical Council <span className="text-red-500">*</span>
+                </label>
+                <MedicalCouncilCombobox
+                  value={formData.state_medical_council}
+                  onChange={(v) => handleChange("state_medical_council", v)}
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Registration Number <span className="text-red-500">*</span>
+              </label>
+              <Input
+                type="text"
+                placeholder={formData.registration_type === "nmr" ? "e.g., NMR12345678" : "e.g., 78345"}
+                value={formData.registration_number}
+                // Spaces stripped and letters upper-cased as typed: some
+                // registrations are alphanumeric (e.g. HN-1234), and a stray
+                // space or lowercase letter would break an exact-match lookup.
+                onChange={(e) =>
+                  handleChange(
+                    "registration_number",
+                    e.target.value.replace(/\s+/g, "").replace(/[^a-zA-Z0-9-]/g, "").toUpperCase()
+                  )
+                }
+                required
+              />
+            </div>
+          </>
+        )}
 
         <div className="space-y-2">
           <label className="text-sm font-medium">Email</label>
@@ -597,16 +707,6 @@ export function JoinRequestForm({ onComplete, onBack, inline = false }: JoinRequ
                   required
                 />
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Medical License</label>
-              <Input
-                type="text"
-                placeholder="License number"
-                value={formData.medical_license_number}
-                onChange={(e) => handleChange("medical_license_number", e.target.value)}
-              />
             </div>
           </>
         )}

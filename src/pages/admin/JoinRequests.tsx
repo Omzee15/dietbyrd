@@ -673,6 +673,31 @@ const JoinRequests = () => {
                   </div>
                 )}
               </div>
+              {detailsRequest.registration_number && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Medical Registration</p>
+                  <div className="text-sm bg-muted rounded-lg p-3 space-y-1">
+                    <p>
+                      <span className="text-muted-foreground">Type: </span>
+                      <span className="font-medium">
+                        {detailsRequest.registration_type === "nmr"
+                          ? "National Medical Register (NMR) UID"
+                          : "State Registration Number"}
+                      </span>
+                    </p>
+                    {detailsRequest.state_medical_council && (
+                      <p>
+                        <span className="text-muted-foreground">Council: </span>
+                        <span className="font-medium">{detailsRequest.state_medical_council}</span>
+                      </p>
+                    )}
+                    <p>
+                      <span className="text-muted-foreground">Number: </span>
+                      <span className="font-mono font-medium">{detailsRequest.registration_number}</span>
+                    </p>
+                  </div>
+                </div>
+              )}
               {detailsRequest.specializations && detailsRequest.specializations.length > 0 && (
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Specializations</p>

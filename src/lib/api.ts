@@ -458,6 +458,11 @@ export interface JoinRequest {
   about_yourself?: string | null;
   experience_years?: number | null;
   medical_license_number?: string | null;
+  // Doctor registration identity ("nmr" = India-wide NMR UID, in which case
+  // state_medical_council is null; "state" = council-issued number).
+  registration_type?: "nmr" | "state" | null;
+  state_medical_council?: string | null;
+  registration_number?: string | null;
   status: "pending" | "interview_sent" | "approved" | "rejected";
   rejection_reason?: string | null;
   admin_message?: string | null;

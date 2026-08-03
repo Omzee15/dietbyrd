@@ -123,6 +123,51 @@ const verifyOtpViaExotel = async (phone, otp) => {
 // OTP configuration
 const OTP_EXPIRY_MS = 2 * 60 * 1000; // 2 minutes
 
+// Recognised state/territory medical councils. Mirrors
+// src/lib/medical-councils.ts -- kept here so submissions are validated
+// server-side instead of trusting whatever the client posts.
+const STATE_MEDICAL_COUNCILS = [
+  "Andhra Pradesh Medical Council",
+  "Arunachal Pradesh Medical Council",
+  "Assam Medical Council",
+  "Bhopal Medical Council",
+  "Bihar Medical Council",
+  "Bombay Medical Council",
+  "Chandigarh Medical Council",
+  "Chattisgarh Medical Council",
+  "Delhi Medical Council",
+  "Goa Medical Council",
+  "Gujarat Medical Council",
+  "Haryana Medical Council",
+  "Himachal Pradesh Medical Council",
+  "Hyderabad Medical Council",
+  "Jammu & Kashmir Medical Council",
+  "Jharkhand Medical Council",
+  "Karnataka Medical Council",
+  "Madhya Pradesh Medical Council",
+  "Madras Medical Council",
+  "Mahakoshal Medical Council",
+  "Maharashtra Medical Council",
+  "Manipur Medical Council",
+  "Meghalaya Medical Council",
+  "Mizoram Medical Council",
+  "Mysore Medical Council",
+  "Nagaland Medical Council",
+  "Orissa Council of Medical Registration",
+  "Pondicherry Medical Council",
+  "Punjab Medical Council",
+  "Rajasthan Medical Council",
+  "Sikkim Medical Council",
+  "Tamil Nadu Medical Council",
+  "Telangana State Medical Council",
+  "Travancore Cochin Medical Council, Trivandrum",
+  "Tripura State Medical Council",
+  "Uttar Pradesh Medical Council",
+  "Uttarakhand Medical Council",
+  "Vidharba Medical Council",
+  "West Bengal Medical Council",
+];
+
 // Send WhatsApp welcome message using approved template (best effort - doesn't fail if message fails)
 const sendWelcomeWhatsApp = async (phone, name, patientId = null) => {
   const messageBody = `Hi ${name || 'there'}! ðŸ‘‹\n\nThank you for joining DietByRD! ðŸŽ‰\n\nOur team will contact you shortly to guide you through the onboarding process and help you get started on your health journey.\n\nIf you have any questions, feel free to reach out!\n\n- Team DietByRD`;
@@ -2694,7 +2739,7 @@ app.post("/api/auth/signup/verify-otp", async (req, res) => {
 // Create a join request
 app.post("/api/join-requests", async (req, res) => {
   try {
-    const { phone, password, name, email, role, qualification, clinic_name, clinic_address, specializations, about_yourself } = req.body;
+    const { phone, password, name, email, role, qualification, clinic_name, clinic_address, specializations, about_yourself, registration_type, state_medical_council, registration_number } = req.body;
 
     if (!phone || !password || !name || !role) {
       return res.status(400).json({
@@ -2737,6 +2782,28 @@ app.post("/api/join-requests", async (req, res) => {
         success: false,
         error: "Qualification is required for dieticians"
       });
+    }
+
+    // Doctor registration identity. Validated server-side rather than trusting
+    // the client, so the stored council always matches the official list
+    // exactly -- a free-text or misspelt value would break NMC verification.
+    let regType = null;
+    let regCouncil = null;
+    let regNumber = null;
+    if (role === "doctor") {
+      regType = registration_type === "nmr" ? "nmr" : "state";
+      regNumber = typeof registration_number === "string"
+        ? registration_number.replace(/\s+/g, "").toUpperCase()
+        : "";
+      if (!regNumber) {
+        return res.status(400).json({ success: false, error: "Registration number is required" });
+      }
+      if (regType === "state") {
+        if (!STATE_MEDICAL_COUNCILS.includes(state_medical_council)) {
+          return res.status(400).json({ success: false, error: "Please select a valid State Medical Council" });
+        }
+        regCouncil = state_medical_council;
+      }
     }
 
     // Check if user already exists
@@ -2787,10 +2854,10 @@ app.post("/api/join-requests", async (req, res) => {
 
       result = await client.query(
         `INSERT INTO dietbyrd_join_requests
-          (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, about_yourself, status, user_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10)
+          (phone, password, name, requested_role, qualification, clinic_name, clinic_address, specializations, about_yourself, status, user_id, registration_type, state_medical_council, registration_number)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, $11, $12, $13)
          RETURNING id, phone, name, requested_role, status, created_at`,
-        [parsedPhone.digits, hashedJoinPw, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, about_yourself || null, userId]
+        [parsedPhone.digits, hashedJoinPw, name, role, qualification, clinic_name || null, clinic_address || null, specializations ? JSON.stringify(specializations) : null, about_yourself || null, userId, regType, regCouncil, regNumber || null]
       );
 
       await client.query("COMMIT");
@@ -9160,6 +9227,17 @@ const ensureJoinRequestAboutYourselfColumn = async () => {
     console.log('[migration] about_yourself column ready');
   } catch (err) {
     console.error('[migration] about_yourself column error:', err.message);
+  }
+
+  // Doctor registration identity: either an India-wide NMR UID, or a state
+  // registration number qualified by the council that issued it.
+  try {
+    await query(`ALTER TABLE dietbyrd_join_requests ADD COLUMN IF NOT EXISTS registration_type VARCHAR(10)`);
+    await query(`ALTER TABLE dietbyrd_join_requests ADD COLUMN IF NOT EXISTS state_medical_council VARCHAR(120)`);
+    await query(`ALTER TABLE dietbyrd_join_requests ADD COLUMN IF NOT EXISTS registration_number VARCHAR(50)`);
+    console.log('[migration] doctor registration columns ready');
+  } catch (err) {
+    console.error('[migration] doctor registration columns error:', err.message);
   }
 };
 
