@@ -17,6 +17,16 @@ export function ZoomToFit({ children, minScale = 0.3, className }: ZoomToFitProp
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // Content usually arrives in two waves: the table renders with its
+    // loading/empty state, then real rows land a moment later and it gets
+    // wider. Measuring both waves means applying two different scales, and
+    // the user watches the whole table visibly shrink a beat after it
+    // appears. So stay hidden until the measurement stops changing, and
+    // only then reveal -- one paint, at the final size.
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    let revealTimer: ReturnType<typeof setTimeout> | undefined;
+    let lastScale: number | null = null;
+
     const measure = () => {
       const outer = outerRef.current;
       const inner = innerRef.current;
@@ -27,20 +37,33 @@ export function ZoomToFit({ children, minScale = 0.3, className }: ZoomToFitProp
       const availableWidth = outer.clientWidth;
       if (!naturalWidth || !availableWidth) return;
 
-      if (naturalWidth <= availableWidth) {
-        setDims(null);
-      } else {
-        const scale = Math.max(minScale, availableWidth / naturalWidth);
-        setDims({ scale, height: naturalHeight * scale });
+      const fits = naturalWidth <= availableWidth;
+      const scale = fits ? 1 : Math.max(minScale, availableWidth / naturalWidth);
+      setDims(fits ? null : { scale, height: naturalHeight * scale });
+
+      // Reveal once the scale has held steady briefly. Any further change
+      // restarts the wait, so a late-arriving data load re-settles before
+      // anything is shown.
+      if (scale !== lastScale) {
+        lastScale = scale;
+        clearTimeout(settleTimer);
+        settleTimer = setTimeout(() => setReady(true), 150);
       }
-      setReady(true);
     };
 
     measure();
+    // Hard backstop: if content somehow never settles (e.g. it keeps
+    // updating), show it anyway rather than leaving a blank space.
+    revealTimer = setTimeout(() => setReady(true), 1500);
+
     const ro = new ResizeObserver(measure);
     if (outerRef.current) ro.observe(outerRef.current);
     if (innerRef.current) ro.observe(innerRef.current);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      clearTimeout(settleTimer);
+      clearTimeout(revealTimer);
+    };
   }, [minScale]);
 
   return (

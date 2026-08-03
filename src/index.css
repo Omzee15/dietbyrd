@@ -150,8 +150,17 @@
     /* Off-canvas elements (the mobile nav drawer, etc.) are positioned
        just past the viewport edge until opened -- without this, the
        page itself becomes horizontally scrollable by that same sliver,
-       even though nothing is visibly different. */
+       even though nothing is visibly different.
+
+       `clip` rather than `hidden`: `overflow-x: hidden` turns these into
+       scroll containers, and a `position: sticky` descendant then sticks
+       to that container instead of the viewport -- which silently broke
+       the desktop app sidebar, letting it scroll away with the page.
+       `clip` hides the same overflow without creating a scroll container,
+       so sticky keeps working. `hidden` stays as a fallback first for
+       browsers that don't understand `clip` (Safari < 16). */
     overflow-x: hidden;
+    overflow-x: clip;
   }
 
   body {
