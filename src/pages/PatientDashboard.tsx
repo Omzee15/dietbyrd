@@ -89,6 +89,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { PostBookingDetailsDialog } from "@/components/patient/PostBookingDetailsDialog";
 import { formatTime12, formatDateTime12, parseIST } from "@/lib/utils";
 import { estimateBodyFat, calculatePatientTDEE } from "../lib/diet-utils";
 import { getPatientSidebarSections } from "@/lib/patient-sidebar";
@@ -222,6 +223,7 @@ const PatientDashboard = () => {
 
   // Appointment booking state
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [showPostBookingDetails, setShowPostBookingDetails] = useState(false);
   const [reschedulingAppointmentId, setReschedulingAppointmentId] = useState<number | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [appointmentNotes, setAppointmentNotes] = useState("");
@@ -331,6 +333,11 @@ const PatientDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
       queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] });
       toast.success("Appointment booked successfully!");
+      // Only ask for details we do not already hold; once both are on
+      // file this never fires again.
+      if (!patient?.email || !patient?.cultural_preferences) {
+        setShowPostBookingDetails(true);
+      }
       setIsBookingModalOpen(false);
       setSelectedSlot(null);
       setAppointmentNotes("");
@@ -2473,6 +2480,15 @@ const PatientDashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <PostBookingDetailsDialog
+        open={showPostBookingDetails}
+        onOpenChange={setShowPostBookingDetails}
+        defaultEmail={patient?.email}
+        askEmail={!patient?.email}
+        askCultural={!patient?.cultural_preferences}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: ["patient", user?.profileId] })}
+      />
 
     </div>
   );

@@ -8842,6 +8842,59 @@ app.get("/api/patient/me/consents", async (req, res) => {
   }
 });
 
+// Optional details collected right after a booking (email for booking
+// updates, cultural context for the RD). Both fields are optional and the
+// patient can skip -- so a request carrying neither is still a success, not
+// a validation error.
+app.patch("/api/patient/me/preferences", async (req, res) => {
+  try {
+    const auth = await getAuthContextFromHeaders(req);
+    if (auth.error) return res.status(401).json({ success: false, error: auth.error });
+    if (auth.role !== "patient") return res.status(403).json({ success: false, error: "Forbidden" });
+
+    const patient = await getPatientProfileForAuth(auth);
+    if (!patient) return res.status(404).json({ success: false, error: "Patient not found" });
+
+    // Startup maintenance only runs when RUN_STARTUP_MAINTENANCE is set (it
+    // isn't in production), so self-heal here rather than 500 on a missing
+    // column. Guarded by a module flag, so it's one no-op ALTER per process.
+    await ensurePatientCulturalPreferencesColumn();
+
+    const { email, cultural_preferences } = req.body || {};
+
+    const trimmedEmail = typeof email === "string" ? email.trim() : null;
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      return res.status(400).json({ success: false, error: "Please enter a valid email address" });
+    }
+    const trimmedCultural = typeof cultural_preferences === "string" ? cultural_preferences.trim() : null;
+
+    // Only overwrite what was actually supplied, so answering one field
+    // later can't wipe the other.
+    const sets = [];
+    const params = [];
+    if (trimmedEmail) { params.push(trimmedEmail); sets.push(`email = $${params.length}`); }
+    if (trimmedCultural) { params.push(trimmedCultural); sets.push(`cultural_preferences = $${params.length}`); }
+
+    if (sets.length === 0) {
+      return res.json({ success: true, skipped: true });
+    }
+
+    params.push(patient.id);
+    await query(`UPDATE dietbyrd_patients SET ${sets.join(", ")} WHERE id = $${params.length}`, params);
+
+    // Keep the login account's email in step so booking mail actually
+    // reaches them -- the patient record alone isn't what auth reads.
+    if (trimmedEmail && patient.user_id) {
+      await query("UPDATE dietbyrd_users SET email = $1 WHERE id = $2", [trimmedEmail, patient.user_id]);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[patient/me/preferences] Error:", err);
+    res.status(500).json({ success: false, error: "Failed to save your details" });
+  }
+});
+
 // Add a (public) comment to one of the patient's own tickets
 app.post("/api/patient/me/tickets/:id/comments", async (req, res) => {
   try {
@@ -9238,6 +9291,21 @@ const ensureJoinRequestAboutYourselfColumn = async () => {
     console.log('[migration] doctor registration columns ready');
   } catch (err) {
     console.error('[migration] doctor registration columns error:', err.message);
+  }
+};
+
+// â”€â”€â”€ Patient cultural preferences column migration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Free text rather than a fixed list: this is context for the RD ("I come
+// from a Bengali family and live in Kolkata"), not something we categorise.
+let culturalPreferencesColumnReady = false;
+const ensurePatientCulturalPreferencesColumn = async () => {
+  if (culturalPreferencesColumnReady) return;
+  try {
+    await query(`ALTER TABLE dietbyrd_patients ADD COLUMN IF NOT EXISTS cultural_preferences TEXT`);
+    culturalPreferencesColumnReady = true;
+    console.log('[migration] cultural_preferences column ready');
+  } catch (err) {
+    console.error('[migration] cultural_preferences column error:', err.message);
   }
 };
 
@@ -9828,6 +9896,7 @@ const runStartupMaintenance = () => {
     startupMaintenancePromise = (async () => {
       await ensureStaffPlainPasswordColumn();
       await ensureJoinRequestAboutYourselfColumn();
+      await ensurePatientCulturalPreferencesColumn();
       await ensureDoctorCommissionRateColumn();
       await ensureDieticianClinicColumns();
       await ensureConsultationMeetingLinkColumn();

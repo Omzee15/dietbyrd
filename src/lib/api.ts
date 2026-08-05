@@ -100,6 +100,7 @@ export interface Patient {
   address?: string | null;
   region_preference?: string | null;
   language_preference?: string | null;
+  cultural_preferences?: string | null;
   current_weight?: number | string | null;
   target_weight?: number | string | null;
   consultations_left?: number;
@@ -880,6 +881,15 @@ export const verifyDeletionRequestOtp = (otp: string, reason?: string) =>
 
 export const getConsentHistory = () =>
   request<ConsentRecord[]>("/patient/me/consents", { headers: getStoredAuthHeaders() });
+
+// Optional post-booking details. Omitted fields are left untouched server-side,
+// so answering one later can't wipe the other.
+export const updatePatientPreferences = (data: { email?: string; cultural_preferences?: string }) =>
+  request<{ skipped?: boolean }>("/patient/me/preferences", {
+    method: "PATCH",
+    headers: getStoredAuthHeaders(),
+    body: JSON.stringify(data),
+  });
 
 export interface DieticianAppointment extends Appointment {
   patient_name?: string;
