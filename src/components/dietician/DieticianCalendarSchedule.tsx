@@ -300,9 +300,12 @@ const DieticianCalendarSchedule = ({
 
   return (
     <div className="p-6 space-y-4">
-      {/* Header with view toggle and navigation */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      {/* Header with view toggle and navigation. Wraps because the toggle
+          row plus the month navigator overflow a phone width side by side --
+          the navigator was ending up ~220px past the screen edge, where it
+          was clipped and unreachable. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant={calendarView === "week" ? "default" : "outline"}
             size="sm"

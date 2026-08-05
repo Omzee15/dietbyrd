@@ -1583,7 +1583,7 @@ const CreateDiet = () => {
 
         {/* Diet Creation Workbench */}
         {!patientLoading && !existingPlanLoading && patient && (!isEditMode || !!existingPlan) && (
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
             {/* Body Composition + Meals sidebar */}
             <div className="w-56 border-r flex flex-col">
               <div className="p-4 border-b bg-muted/20 space-y-3">
@@ -1927,7 +1927,7 @@ const CreateDiet = () => {
             </div>
 
             {/* Nutrition summary sidebar */}
-            <div className="w-72 border-l p-6 space-y-6 overflow-auto">
+            <div className="w-full lg:w-72 border-t lg:border-t-0 lg:border-l p-6 space-y-6 overflow-auto">
               <div className="text-center">
                 <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Total Calories

@@ -38,7 +38,7 @@ const ReviewCard = ({
       review.is_featured ? "border-amber-300 ring-1 ring-amber-200 shadow-sm" : ""
     }`}
   >
-    <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="space-y-1">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="font-semibold text-sm">{review.patient_name || "Verified Patient"}</p>

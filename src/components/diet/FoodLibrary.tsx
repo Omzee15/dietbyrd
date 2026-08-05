@@ -192,8 +192,8 @@ export const FoodLibrary: React.FC<FoodLibraryProps> = ({ onBack }) => {
   return (
     <div className="h-full bg-slate-50 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center flex-none z-20 shadow-sm">
-        <div className="flex items-center gap-3">
+      <div className="bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap justify-between items-center gap-3 flex-none z-20 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
           <Button variant="ghost" onClick={onBack} className="-ml-2 px-2">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
@@ -201,7 +201,7 @@ export const FoodLibrary: React.FC<FoodLibraryProps> = ({ onBack }) => {
           <h1 className="font-bold text-xl text-slate-900">Food Library</h1>
           <Badge variant="secondary" className="ml-2">{foods.length} items</Badge>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <Button variant="outline" onClick={() => setIsCsvModalOpen(true)}>
             <Upload className="w-4 h-4 mr-2" />
             Import CSV

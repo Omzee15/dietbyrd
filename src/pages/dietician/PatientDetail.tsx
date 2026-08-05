@@ -1192,7 +1192,7 @@ const PatientDetail = () => {
                     )}
                   </div>
 
-                  <div className="flex">
+                  <div className="flex flex-col lg:flex-row">
                     {/* Meals sidebar */}
                     <div className="w-48 border-r p-4 space-y-1">
                       <div className="flex items-center justify-between mb-3">
@@ -1406,7 +1406,7 @@ const PatientDetail = () => {
                     </div>
 
                     {/* Nutrition summary sidebar */}
-                    <div className="w-72 border-l p-6 space-y-6">
+                    <div className="w-full lg:w-72 border-t lg:border-t-0 lg:border-l p-6 space-y-6">
                       <div className="text-center">
                         <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Total Calories
