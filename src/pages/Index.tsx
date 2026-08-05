@@ -933,10 +933,16 @@ const Index = () => {
           <div
             className={`absolute top-[58%] xl:top-0 bottom-0 left-0 xl:left-[517px] right-0 pointer-events-none z-30 transition-opacity duration-500 ease-in-out ${showJoinForm ? 'opacity-100' : 'opacity-0'}`}
           >
+            {/* Scaled up from the container's natural fit: object-contain was
+                width-constraining this to ~0.4x of the asset's native 1083px,
+                leaving a band of empty space above it. Growing from the
+                bottom-right anchor fills that band instead of pushing the
+                doctors off the panel edge, and still lands well under native
+                resolution so nothing softens. */}
             <img
               src="/new-docs-full.webp"
               alt="Professional Doctors and Dietitians"
-              className="absolute inset-0 w-full h-full object-contain object-right-bottom"
+              className="absolute inset-0 w-full h-full object-contain object-right-bottom scale-[1.12] origin-bottom-right"
             />
           </div>
 
