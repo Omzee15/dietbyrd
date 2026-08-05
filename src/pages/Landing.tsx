@@ -1380,7 +1380,12 @@ const Landing = () => {
     transform: scale(1.1) translate(0, 20px) !important;
   }
   .story-action-wrap {
-    margin-top: 0;
+    /* The founder photo is deliberately allowed to overflow its frame
+       (.story-monogram is overflow: visible), and the translate above
+       pushes it ~22px past the bottom edge. With no clearance here it
+       landed directly on top of the "Turn your One Day to Day One"
+       tagline, hiding it completely. */
+    margin-top: 40px;
   }
 }
 @media (max-width: 700px) {
